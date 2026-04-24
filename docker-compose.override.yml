@@ -1,0 +1,23 @@
+# Dev-only overrides (gitignored — never commit this file).
+# Copy & customize as needed for your local machine.
+
+services:
+
+  postgres:
+    # Bind-mount init scripts from your local tree (e.g. V0__seed.sql)
+    volumes:
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+
+  kafka:
+    environment:
+      # Shorter retention in local dev (1 h instead of 7 days)
+      KAFKA_CFG_LOG_RETENTION_MS: 3600000
+      KAFKA_CFG_LOG_RETENTION_BYTES: 104857600   # 100 MB cap per partition
+
+  mailhog:
+    # Persist captured mail across restarts (handy for debugging)
+    volumes:
+      - ./dev/mailhog:/maildir
+    environment:
+      MH_STORAGE: maildir
+      MH_MAILDIR_PATH: /maildir

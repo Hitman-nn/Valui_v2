@@ -1,0 +1,135 @@
+networks:
+  valui-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  kafka_data:
+
+services:
+
+  # ── PostgreSQL 16 ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: valui-postgres
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB}
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - valui-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # ── Redis 7 (AOF persistence) ─────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: valui-redis
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --appendfsync everysec
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - valui-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── Kafka 3.7 (KRaft, no Zookeeper) ──────────────────────────
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: valui-kafka
+    environment:
+      # KRaft identity
+      KAFKA_CFG_NODE_ID: 1
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+
+      # Listeners
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:29092
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # Behaviour
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_CFG_LOG_RETENTION_HOURS: 168
+      KAFKA_CFG_LOG_SEGMENT_BYTES: 1073741824
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    ports:
+      - "9092:9092"
+      - "${KAFKA_EXTERNAL_PORT:-29092}:29092"
+    volumes:
+      - kafka_data:/bitnami/kafka
+    networks:
+      - valui-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── Kafka UI ──────────────────────────────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: valui-kafka-ui
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    ports:
+      - "${KAFKA_UI_PORT:-8090}:8080"
+    networks:
+      - valui-network
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Redis Commander ───────────────────────────────────────────
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: valui-redis-commander
+    environment:
+      REDIS_HOSTS: "local:redis:6379:0:${REDIS_PASSWORD}"
+    ports:
+      - "${REDIS_COMMANDER_PORT:-8091}:8081"
+    networks:
+      - valui-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Mailhog ───────────────────────────────────────────────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: valui-mailhog
+    ports:
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_UI_PORT:-8025}:8025"
+    networks:
+      - valui-network
+    restart: unless-stopped
