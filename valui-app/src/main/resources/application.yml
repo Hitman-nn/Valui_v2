@@ -1,0 +1,216 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Valui v2.0 — common base configuration
+# Profile-specific overrides follow each "---" separator
+# ═══════════════════════════════════════════════════════════════════════════════
+spring:
+  application:
+    name: valui
+
+  # Jackson
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+  # JPA / Hibernate
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate        # Flyway owns the schema
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          batch_size: 50
+
+  # Flyway
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  # Redis
+  data:
+    redis:
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+
+  # Kafka
+  kafka:
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+    consumer:
+      group-id: valui-notify
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.valui.*"
+
+  # Scheduling
+  task:
+    scheduling:
+      pool:
+        size: 4
+
+# Server
+server:
+  port: 8080
+  shutdown: graceful
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Valui custom config
+valui:
+  bot:
+    token: ${TELEGRAM_BOT_TOKEN:change-me}
+    username: ${TELEGRAM_BOT_USERNAME:ValuiBot}
+  monitor:
+    poll-interval-ms: 30000
+  admin:
+    api-key: ${ADMIN_API_KEY:change-me}
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.valui: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# Profile: local — все сервисы запущены локально (docker-compose up)
+# ═══════════════════════════════════════════════════════════════════════════════
+spring:
+  config:
+    activate:
+      on-profile: local
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/valui
+    username: valui
+    password: valui
+    hikari:
+      maximum-pool-size: 10
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      # password: (not set for local)
+
+  kafka:
+    bootstrap-servers: localhost:9092
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+
+logging:
+  level:
+    com.valui: DEBUG
+    org.springframework.kafka: INFO
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# Profile: docker — все сервисы в контейнерах (Kubernetes / docker-compose prod)
+# ═══════════════════════════════════════════════════════════════════════════════
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+  datasource:
+    url: jdbc:postgresql://postgres:5432/valui
+    username: ${POSTGRES_USER:valui}
+    password: ${POSTGRES_PASSWORD:valui}
+    hikari:
+      maximum-pool-size: 20
+
+  data:
+    redis:
+      host: redis
+      port: 6379
+      password: ${REDIS_PASSWORD:}
+
+  kafka:
+    bootstrap-servers: kafka:9092
+
+logging:
+  level:
+    com.valui: INFO
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# Profile: prod — только env vars, никаких дефолтов с паролями
+# ═══════════════════════════════════════════════════════════════════════════════
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: ${POSTGRES_URL}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    hikari:
+      maximum-pool-size: 30
+      connection-timeout: 10000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    producer:
+      properties:
+        security.protocol: SASL_SSL
+        sasl.mechanism: PLAIN
+        sasl.jaas.config: >
+          org.apache.kafka.common.security.plain.PlainLoginModule required
+          username="${KAFKA_USERNAME}"
+          password="${KAFKA_PASSWORD}";
+    consumer:
+      properties:
+        security.protocol: SASL_SSL
+        sasl.mechanism: PLAIN
+        sasl.jaas.config: >
+          org.apache.kafka.common.security.plain.PlainLoginModule required
+          username="${KAFKA_USERNAME}"
+          password="${KAFKA_PASSWORD}";
+
+server:
+  port: ${SERVER_PORT:8080}
+
+logging:
+  level:
+    root: WARN
+    com.valui: INFO

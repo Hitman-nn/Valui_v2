@@ -1,0 +1,48 @@
+# Build output
+target/
+out/
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.properties
+
+# IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Eclipse / STS
+.classpath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Secrets / env — never commit
+.env
+.env.*
+application-secrets.yml
+secrets.yml
+
+# Testcontainers local cache
+.testcontainers.properties
+
+# Docker
+docker-compose.override.yml

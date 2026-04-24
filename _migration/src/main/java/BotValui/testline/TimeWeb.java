@@ -1,0 +1,12 @@
+package BotValui.testline;
+
+//"eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCIsImtpZCI6IjFrYnhacFJNQGJSI0tSbE1xS1lqIn0.eyJ1c2VyIjoiY3g3MDY1NiIsInR5cGUiOiJhcGlfa2V5IiwiYXBpX2tleV9pZCI6IjM0MDgzMjY2LTM1YTctNGI1Yy1hYTUzLWFjOWRlOWE3YmJmNCIsImlhdCI6MTc0NjEyMDk4Nn0.uqHYHRskK-4PKjsXzOVfI4C91fhIAqoYKkiH606HIJ10MLAAUD8uRtJnU_Pmq5vHZyHX_F2665FKaO8nyVQDEkb5KI6PTLzaMFTtGwqutWDcKXS-EQ27CtWswebRA-eovbqxnB6iZTpfIO4OmQ0jMh6vVYIo6W6qCdBH6p2N1JdbwTBfowiHLWCpB9wQ2dg3FY0AVde6GYB1kiDQE14kpa0LPjFn6gkQyFgt4l8YKiRA6LGWme8JqvZFrgtVDfTlyhIQ_WBAWUJygKO1Bx484e7z1G5vOkK3PAolgEL-fg-8A4eq90E8Pvd1ERwuwyi7VQvWomaLa3fygjKiB2qYz6183hlkKvrSyc4zsQx5d27J0za7c0gbTOu89Q7mGZ6ulUh94Gl-VG3VTZsSdGSlxgynGiIyEjSACoTW7JuCys0euY-dOkrQVNvUKpn2d4C0ULZFBWQuW4WLy62u8QlLbgl5Ipf20Kukcrhi83PD62N9K5l4lG-D35O6qXDw5T13"
+
+public class TimeWeb {
+
+//    public static void main(String[] args) throws IOException {
+//        var s = new TimeWebAPI();
+//        System.out.println(s.getFinancesAccount());
+//    }
+
+}
