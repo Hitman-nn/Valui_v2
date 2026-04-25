@@ -17,7 +17,6 @@ services:
   mailhog:
     # Persist captured mail across restarts (handy for debugging)
     volumes:
-      - ./dev/mailhog:/maildir
+      - ./dev/mailhog:/home/mailpit/data
     environment:
-      MH_STORAGE: maildir
-      MH_MAILDIR_PATH: /maildir
+      MP_DATA_FILE: /home/mailpit/data/mailpit.db

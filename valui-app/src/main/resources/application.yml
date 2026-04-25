@@ -142,8 +142,8 @@ spring:
 
   datasource:
     url: jdbc:postgresql://localhost:5432/valui
-    username: valui
-    password: valui
+    username: ${POSTGRES_USER:valui}
+    password: ${POSTGRES_PASSWORD:valui_secret}
     hikari:
       maximum-pool-size: 10
 
@@ -151,7 +151,7 @@ spring:
     redis:
       host: localhost
       port: 6379
-      # password: (not set for local)
+      password: ${REDIS_PASSWORD:redis_secret}
 
   kafka:
     bootstrap-servers: localhost:9092

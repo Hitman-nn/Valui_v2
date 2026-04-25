@@ -93,7 +93,7 @@ services:
 
   # ── Kafka UI ──────────────────────────────────────────────────
   kafka-ui:
-    image: provectuslabs/kafka-ui:latest
+    image: provectuslabs/kafka-ui:v0.7.2
     container_name: valui-kafka-ui
     environment:
       KAFKA_CLUSTERS_0_NAME: local
@@ -110,7 +110,7 @@ services:
 
   # ── Redis Commander ───────────────────────────────────────────
   redis-commander:
-    image: rediscommander/redis-commander:latest
+    image: rediscommander/redis-commander:0.8.0
     container_name: valui-redis-commander
     environment:
       REDIS_HOSTS: "local:redis:6379:0:${REDIS_PASSWORD}"
@@ -123,13 +123,13 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # ── Mailhog ───────────────────────────────────────────────────
+  # ── Mailpit (replaces archived mailhog) ──────────────────────
   mailhog:
-    image: mailhog/mailhog:latest
+    image: axllent/mailpit:v1.21
     container_name: valui-mailhog
     ports:
       - "${MAILHOG_SMTP_PORT:-1025}:1025"
-      - "${MAILHOG_UI_PORT:-8025}:8025"
+      - "${MAILHOG_UI_PORT:-8025}:8080"
     networks:
       - valui-network
     restart: unless-stopped
