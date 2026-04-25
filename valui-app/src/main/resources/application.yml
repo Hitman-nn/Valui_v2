@@ -118,6 +118,13 @@ valui:
     # Shared secret between the Telegram bot and this API (set BOT_AUTH_SECRET in production)
     bot-secret: ${BOT_AUTH_SECRET:change-me}
 
+payment:
+  gateway: ${PAYMENT_GATEWAY:stub}   # "stub" (default/local) or "yookassa"
+  yookassa:
+    shop-id: ${YOOKASSA_SHOP_ID:not-configured}
+    secret-key: ${YOOKASSA_SECRET_KEY:not-configured}
+    api-url: https://api.yookassa.ru/v3
+
 # Logging levels — logback-spring.xml handles appenders and patterns
 logging:
   level:

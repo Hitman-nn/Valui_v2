@@ -38,8 +38,9 @@ public class WebSecurityConfig implements WebMvcConfigurer {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                // Public: auth endpoints, docs, actuator health
+                // Public: auth, payment webhook, docs, actuator
                 .requestMatchers("/api/v1/auth/**").permitAll()
+                .requestMatchers("/api/v1/payment/webhook").permitAll()
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 // Admin-only
