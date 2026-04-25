@@ -1,6 +1,6 @@
 package com.valui.bot.listener;
 
-import org.telegram.telegrambots.meta.bots.AbsSender;
+import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.user.event.SubscriptionExpiredEvent;
@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 @Slf4j
@@ -19,6 +20,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 public class SubscriptionExpiredBotListener {
 
     private final AbsSender bot;
+    private final BotMessageSource messageSource;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -26,16 +28,15 @@ public class SubscriptionExpiredBotListener {
         log.info("Sending expiry notification: telegramId={} plan={}",
             event.telegramId(), event.oldPlanCode());
 
-        String text = String.format(
-            "⚠️ Ваша подписка *%s* истекла.\n\n" +
-            "Вы переведены на план FREE. " +
-            "Ваши контроллеры сверх лимита приостановлены.",
-            event.oldPlanCode());
+        String text = messageSource.getMessage(
+            "subscription.expired", event.telegramId(), event.oldPlanCode());
 
         var keyboard = InlineKeyboardBuilder.create()
-            .button("📋 Посмотреть планы", CallbackData.PLANS_VIEW)
+            .button("📋 " + messageSource.getMessage("subscription.plans_title", event.telegramId()),
+                CallbackData.PLANS_VIEW)
             .row()
-            .button("🏠 Главное меню", CallbackData.MENU_MAIN)
+            .button("🏠 " + messageSource.getMessage("menu.main", event.telegramId()),
+                CallbackData.MENU_MAIN)
             .build();
 
         try {

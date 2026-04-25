@@ -19,6 +19,9 @@ public interface UserService {
 
     UserEntity updateUsername(Long telegramId, String username);
 
+    /** Updates the user's preferred language code (e.g. "ru", "en"). Evicts the users cache. */
+    void updateLanguage(Long telegramId, String languageCode);
+
     /** Only ADMIN role. */
     void banUser(UUID userId);
 

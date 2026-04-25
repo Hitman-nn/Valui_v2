@@ -2,6 +2,7 @@ package com.valui.bot.handler.command;
 
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CommandHandler;
+import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.service.BotSessionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Component;
 public class StopCommandHandler implements CommandHandler {
 
     private final BotSessionService sessionService;
+    private final BotMessageSource messageSource;
 
     @Override
     public String command() { return "/stop"; }
@@ -22,7 +24,6 @@ public class StopCommandHandler implements CommandHandler {
     public void handle(BotUpdateContext ctx) {
         sessionService.clearSession(ctx.chatId());
         MessageSend.text(ctx.sender(), ctx.chatId(),
-            "Мониторинг остановлен. Все активные операции отменены.\n\n" +
-            "Используйте /list чтобы управлять контроллерами.");
+            messageSource.getMessage("bot.monitoring_stopped", ctx.chatId()));
     }
 }

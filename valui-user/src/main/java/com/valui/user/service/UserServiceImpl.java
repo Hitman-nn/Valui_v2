@@ -76,6 +76,17 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    @CacheEvict(value = USERS_CACHE, key = "#telegramId")
+    public void updateLanguage(Long telegramId, String languageCode) {
+        UserEntity user = userRepository.findByTelegramId(telegramId)
+            .orElseThrow(() -> new UserNotFoundException(telegramId));
+        user.setLanguageCode(languageCode);
+        log.debug("Language updated: telegramId={} lang={}", telegramId, languageCode);
+        userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
     @PreAuthorize("hasRole('ADMIN')")
     @CacheEvict(value = USERS_CACHE, allEntries = true)
     public void banUser(UUID userId) {

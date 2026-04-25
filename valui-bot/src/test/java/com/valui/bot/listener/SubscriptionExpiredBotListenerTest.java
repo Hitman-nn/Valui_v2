@@ -1,6 +1,6 @@
 package com.valui.bot.listener;
 
-import com.valui.bot.ValuiTelegramBot;
+import com.valui.bot.i18n.BotMessageSource;
 import com.valui.user.event.SubscriptionExpiredEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -9,7 +9,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.UUID;
@@ -17,14 +20,18 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("SubscriptionExpiredBotListener — unit tests")
 class SubscriptionExpiredBotListenerTest {
 
-    @Mock private ValuiTelegramBot bot;
+    @Mock private AbsSender bot;
+    @Mock private BotMessageSource messageSource;
 
     private SubscriptionExpiredBotListener listener;
 
@@ -33,7 +40,11 @@ class SubscriptionExpiredBotListenerTest {
 
     @BeforeEach
     void setUp() {
-        listener = new SubscriptionExpiredBotListener(bot);
+        given(messageSource.getMessage(any(), anyLong(), any(Object[].class)))
+            .willAnswer(inv -> "msg:" + inv.getArgument(0));
+        given(messageSource.getMessage(any(), anyLong()))
+            .willAnswer(inv -> "msg:" + inv.getArgument(0));
+        listener = new SubscriptionExpiredBotListener(bot, messageSource);
     }
 
     @Test
@@ -49,15 +60,14 @@ class SubscriptionExpiredBotListenerTest {
     }
 
     @Test
-    @DisplayName("onSubscriptionExpired: message text contains old plan code")
-    void onExpired_textContainsPlanCode() throws TelegramApiException {
+    @DisplayName("onSubscriptionExpired: uses subscription.expired message key with plan code arg")
+    void onExpired_usesCorrectMessageKey() throws TelegramApiException {
         SubscriptionExpiredEvent event = new SubscriptionExpiredEvent(USER_ID, TELEGRAM_ID, "PRO");
 
         listener.onSubscriptionExpired(event);
 
-        ArgumentCaptor<SendMessage> captor = ArgumentCaptor.forClass(SendMessage.class);
-        then(bot).should().execute(captor.capture());
-        assertThat(captor.getValue().getText()).contains("PRO", "FREE");
+        then(messageSource).should().getMessage(
+            eq("subscription.expired"), eq(TELEGRAM_ID), eq("PRO"));
     }
 
     @Test

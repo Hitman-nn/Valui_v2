@@ -34,6 +34,11 @@ public final class CallbackData {
     // ─── Bookmaker — format: "BK:SELECT:CODE" ────────────────────────────────
     public static String bookmakerSelect(String code) { return "BK:SELECT:" + code; }
 
+    // ─── Language — "LANG:SET:{code}" ────────────────────────────────────────
+    public static final String LANG_SET_PREFIX = "LANG:SET:";
+
+    public static String langSet(String langCode) { return LANG_SET_PREFIX + langCode; }
+
     // ─── Plans — "PLANS:VIEW", "PLANS:SELECT:{code}" ────────────────────────
     public static final String PLANS_VIEW = "PLANS:VIEW";
 

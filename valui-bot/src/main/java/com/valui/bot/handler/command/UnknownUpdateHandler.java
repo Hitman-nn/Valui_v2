@@ -2,6 +2,8 @@ package com.valui.bot.handler.command;
 
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.BotUpdateHandler;
+import com.valui.bot.i18n.BotMessageSource;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -12,17 +14,16 @@ import org.telegram.telegrambots.meta.api.objects.Update;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class UnknownUpdateHandler implements BotUpdateHandler {
 
-    @Override
-    public boolean canHandle(Update update) {
-        return true;
-    }
+    private final BotMessageSource messageSource;
 
     @Override
-    public int order() {
-        return 999;
-    }
+    public boolean canHandle(Update update) { return true; }
+
+    @Override
+    public int order() { return 999; }
 
     @Override
     public void handle(BotUpdateContext ctx) {
@@ -32,6 +33,6 @@ public class UnknownUpdateHandler implements BotUpdateHandler {
         }
         log.debug("Unknown command from chatId={}", ctx.chatId());
         MessageSend.text(ctx.sender(), ctx.chatId(),
-            "Команда не распознана. Введите /help для списка команд.");
+            messageSource.getMessage("bot.unknown_command", ctx.chatId()));
     }
 }

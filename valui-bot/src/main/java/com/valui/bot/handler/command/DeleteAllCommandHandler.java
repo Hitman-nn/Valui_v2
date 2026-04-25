@@ -2,6 +2,7 @@ package com.valui.bot.handler.command;
 
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CommandHandler;
+import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.state.BotState;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 public class DeleteAllCommandHandler implements CommandHandler {
 
     private final BotSessionService sessionService;
+    private final BotMessageSource messageSource;
 
     @Override
     public String command() { return "/deleteall"; }
@@ -23,13 +25,12 @@ public class DeleteAllCommandHandler implements CommandHandler {
     public void handle(BotUpdateContext ctx) {
         if (ctx.userInfo() == null) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
-                "Сначала зарегистрируйтесь: /start");
+                messageSource.getMessage("bot.user_not_registered", ctx.chatId()));
             return;
         }
 
         sessionService.setState(ctx.chatId(), BotState.WAITING_CONFIRM_DELETE);
         MessageSend.text(ctx.sender(), ctx.chatId(),
-            "Вы уверены, что хотите удалить ВСЕ контроллеры?\n\n" +
-            "Напишите ДА для подтверждения или любое другое сообщение для отмены.");
+            messageSource.getMessage("bot.confirm_delete_all", ctx.chatId()));
     }
 }

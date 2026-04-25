@@ -2,6 +2,7 @@ package com.valui.bot.handler.command;
 
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CommandHandler;
+import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.service.BotSessionService;
 import com.valui.user.dto.TelegramUserDto;
 import com.valui.user.service.UserService;
@@ -17,6 +18,7 @@ public class StartCommandHandler implements CommandHandler {
 
     private final UserService userService;
     private final BotSessionService sessionService;
+    private final BotMessageSource messageSource;
 
     @Override
     public String command() { return "/start"; }
@@ -40,15 +42,7 @@ public class StartCommandHandler implements CommandHandler {
         sessionService.clearSession(ctx.chatId());
 
         String name = ctx.username() != null ? "@" + ctx.username() : "друг";
-        MessageSend.text(ctx.sender(), ctx.chatId(), """
-            Привет, %s! Добро пожаловать в Valui.
-
-            Доступные команды:
-            /list — список активных контроллеров
-            /listfilter — список фильтров
-            /stop — остановить все контроллеры
-            /deleteall — удалить все контроллеры
-            /help — справка
-            """.formatted(name));
+        MessageSend.text(ctx.sender(), ctx.chatId(),
+            messageSource.getMessage("bot.welcome", ctx.chatId(), name));
     }
 }

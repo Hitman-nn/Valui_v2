@@ -3,6 +3,7 @@ package com.valui.bot.handler.command;
 import com.valui.bot.guard.BotAccessGuard;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CommandHandler;
+import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.state.BotState;
 import com.valui.common.exception.SubscriptionLimitExceededException;
@@ -15,6 +16,7 @@ public class AddControllerHandler implements CommandHandler {
 
     private final BotAccessGuard guard;
     private final BotSessionService sessionService;
+    private final BotMessageSource messageSource;
 
     @Override
     public String command() { return "/add"; }
@@ -27,11 +29,11 @@ public class AddControllerHandler implements CommandHandler {
         try {
             guard.guardAddController(ctx.chatId(), ctx.sender());
         } catch (SubscriptionLimitExceededException e) {
-            return; // guard already sent the upgrade prompt
+            return;
         }
 
         sessionService.setState(ctx.chatId(), BotState.WAITING_CONTROLLER_URL);
         MessageSend.text(ctx.sender(), ctx.chatId(),
-            "Отправьте ссылку на страницу букмекера для отслеживания:");
+            messageSource.getMessage("bot.enter_controller_url", ctx.chatId()));
     }
 }
