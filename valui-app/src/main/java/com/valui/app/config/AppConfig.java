@@ -2,7 +2,6 @@ package com.valui.app.config;
 
 import io.netty.channel.ChannelOption;
 import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -48,13 +47,4 @@ public class AppConfig {
             .build();
     }
 
-    /**
-     * ApplicationEventPublisher is auto-registered by Spring context.
-     * Expose as @Bean so services can inject it without knowing the ApplicationContext.
-     * Use for domain events: publisher.publishEvent(new MatchDiscoveredEvent(...))
-     */
-    @Bean
-    public ApplicationEventPublisher applicationEventPublisher(ApplicationEventPublisher publisher) {
-        return publisher;
-    }
 }

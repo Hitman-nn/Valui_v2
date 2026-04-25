@@ -179,8 +179,11 @@
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>${maven-compiler-plugin.version}</version>
                     <configuration>
-                        <source>${java.version}</source>
-                        <target>${java.version}</target>
+                        <!-- 'release' sets source + target + system-modules location in one flag -->
+                        <release>${java.version}</release>
+                        <!-- Preserve method parameter names in bytecode.
+                             Needed by Spring SpEL key='#paramName' in @Cacheable / @CacheEvict. -->
+                        <parameters>true</parameters>
                         <annotationProcessorPaths>
                             <path>
                                 <groupId>org.projectlombok</groupId>

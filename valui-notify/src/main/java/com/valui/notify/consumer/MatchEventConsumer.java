@@ -16,8 +16,7 @@ public class MatchEventConsumer {
 
     @KafkaListener(
             topics = "valui.match.discovered",
-            groupId = "${spring.kafka.consumer.group-id:valui-notify}",
-            containerFactory = "matchEventListenerContainerFactory"
+            groupId = "${spring.kafka.consumer.group-id:valui-notify}"
     )
     public void onMatchDiscovered(MatchDiscoveredEvent event) {
         log.debug("Received event {} for match {}", event.eventId(), event.match().id());
