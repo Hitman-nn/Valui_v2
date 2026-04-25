@@ -6,11 +6,18 @@ spring:
   application:
     name: valui
 
+  # Virtual Threads (Tomcat + Spring MVC dispatching)
+  threads:
+    virtual:
+      enabled: true
+
   # Jackson
   jackson:
     default-property-inclusion: non_null
     serialization:
       write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
 
   # JPA / Hibernate
   jpa:
@@ -103,13 +110,11 @@ valui:
   admin:
     api-key: ${ADMIN_API_KEY:change-me}
 
-# Logging
+# Logging levels — logback-spring.xml handles appenders and patterns
 logging:
   level:
     root: INFO
     com.valui: DEBUG
-  pattern:
-    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
 
 ---
 # ═══════════════════════════════════════════════════════════════════════════════

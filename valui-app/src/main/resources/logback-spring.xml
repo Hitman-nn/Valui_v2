@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <springProperty scope="context" name="appName"
+                    source="spring.application.name" defaultValue="valui"/>
+
+    <!-- ─── Console appender — colorized, for local development ─────────── -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) [%blue(%thread)] %cyan(%logger{36}) - %msg %magenta([uid=%X{userId} cid=%X{chatId} rid=%X{requestId}])%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- ─── JSON appender — structured logs for ELK / Loki (prod/docker) ── -->
+    <appender name="JSON_STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <!-- Static fields added to every log event -->
+            <customFields>{"app":"${appName}"}</customFields>
+            <!-- All MDC keys (userId, chatId, requestId) are included automatically -->
+            <fieldNames>
+                <timestamp>@timestamp</timestamp>
+                <version>[ignore]</version>
+                <levelValue>[ignore]</levelValue>
+            </fieldNames>
+            <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                <maxDepthPerCause>20</maxDepthPerCause>
+                <shortenedClassNameLength>40</shortenedClassNameLength>
+                <rootCauseFirst>true</rootCauseFirst>
+            </throwableConverter>
+        </encoder>
+    </appender>
+
+    <!-- ─────────────────────────────────────────────────────────────────── -->
+    <!--  Profile: local — verbose console with colour                       -->
+    <!-- ─────────────────────────────────────────────────────────────────── -->
+    <springProfile name="local">
+        <logger name="com.valui"                       level="DEBUG"/>
+        <logger name="org.springframework.web"         level="DEBUG"/>
+        <logger name="org.springframework.security"    level="INFO"/>
+        <logger name="org.hibernate.SQL"               level="DEBUG"/>
+        <logger name="org.hibernate.orm.jdbc.bind"     level="TRACE"/>
+        <logger name="org.flywaydb"                    level="INFO"/>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!-- ─────────────────────────────────────────────────────────────────── -->
+    <!--  Profile: docker — JSON for container log collector                 -->
+    <!-- ─────────────────────────────────────────────────────────────────── -->
+    <springProfile name="docker">
+        <logger name="com.valui"            level="INFO"/>
+        <logger name="org.flywaydb"         level="WARN"/>
+        <logger name="org.springframework"  level="WARN"/>
+        <root level="INFO">
+            <appender-ref ref="JSON_STDOUT"/>
+        </root>
+    </springProfile>
+
+    <!-- ─────────────────────────────────────────────────────────────────── -->
+    <!--  Profile: prod — minimal noise, structured JSON                     -->
+    <!-- ─────────────────────────────────────────────────────────────────── -->
+    <springProfile name="prod">
+        <logger name="com.valui"            level="INFO"/>
+        <logger name="org.flywaydb"         level="WARN"/>
+        <logger name="org.springframework"  level="WARN"/>
+        <root level="WARN">
+            <appender-ref ref="JSON_STDOUT"/>
+        </root>
+    </springProfile>
+
+    <!-- ─────────────────────────────────────────────────────────────────── -->
+    <!--  Fallback — no active profile (e.g. plain unit tests)               -->
+    <!-- ─────────────────────────────────────────────────────────────────── -->
+    <springProfile name="!(local | docker | prod)">
+        <logger name="com.valui" level="DEBUG"/>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+</configuration>
