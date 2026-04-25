@@ -105,6 +105,7 @@ valui:
   bot:
     token: ${TELEGRAM_BOT_TOKEN:change-me}
     username: ${TELEGRAM_BOT_USERNAME:ValuiBot}
+    payment-base-url: ${PAYMENT_BASE_URL:https://pay.valui.com}
   monitor:
     poll-interval-ms: 30000
   admin:

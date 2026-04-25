@@ -3,6 +3,7 @@ package com.valui.user.service;
 import com.valui.common.entity.SubscriptionEntity;
 import com.valui.user.dto.SubscriptionPlanDto;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface SubscriptionService {
@@ -18,6 +19,9 @@ public interface SubscriptionService {
 
     /** Returns the plan's polling interval in seconds (default 120 for FREE). */
     int getPollInterval(Long telegramId);
+
+    /** Returns all active subscription plans sorted by price ascending. Cached. */
+    List<SubscriptionPlanDto> getAllActivePlans();
 
     /**
      * Activates a new plan for the user.

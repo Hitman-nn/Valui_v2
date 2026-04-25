@@ -34,6 +34,11 @@ public final class CallbackData {
     // ─── Bookmaker — format: "BK:SELECT:CODE" ────────────────────────────────
     public static String bookmakerSelect(String code) { return "BK:SELECT:" + code; }
 
+    // ─── Plans — "PLANS:VIEW", "PLANS:SELECT:{code}" ────────────────────────
+    public static final String PLANS_VIEW = "PLANS:VIEW";
+
+    public static String plansSelect(String planCode) { return "PLANS:SELECT:" + planCode; }
+
     // ─── Pagination — format: "PAGE:{listKey}:{pageNum}" ─────────────────────
     public static String page(String listKey, int pageNum) {
         return "PAGE:" + listKey + ":" + pageNum;

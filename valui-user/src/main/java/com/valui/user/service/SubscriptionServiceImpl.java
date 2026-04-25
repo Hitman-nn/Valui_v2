@@ -21,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -78,6 +80,16 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         } catch (Exception e) {
             return DEFAULT_POLL_S;
         }
+    }
+
+    @Override
+    @Cacheable(value = PLANS_CACHE, key = "'all_active'")
+    public List<SubscriptionPlanDto> getAllActivePlans() {
+        return subscriptionPlanRepository.findAllByIsActiveTrue()
+            .stream()
+            .map(SubscriptionPlanDto::from)
+            .sorted(Comparator.comparing(p -> p.priceRub() == null ? java.math.BigDecimal.ZERO : p.priceRub()))
+            .toList();
     }
 
     @Override
