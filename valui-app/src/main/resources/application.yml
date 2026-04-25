@@ -106,6 +106,14 @@ valui:
     token: ${TELEGRAM_BOT_TOKEN:change-me}
     username: ${TELEGRAM_BOT_USERNAME:ValuiBot}
     payment-base-url: ${PAYMENT_BASE_URL:https://pay.valui.com}
+    # mode: long_polling (default) | webhook
+    mode: ${BOT_MODE:long_polling}
+    # Webhook mode only:
+    webhook-url: ${BOT_WEBHOOK_URL:}
+    secret-token: ${BOT_SECRET_TOKEN:}
+    allowed-ips:
+      - "149.154.0.0/16"   # Telegram data centers (DC1-DC5)
+      - "91.108.0.0/16"    # Telegram MTProto
   monitor:
     poll-interval-ms: 30000
   admin:

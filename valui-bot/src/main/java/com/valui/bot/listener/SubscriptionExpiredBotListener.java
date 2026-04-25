@@ -1,6 +1,6 @@
 package com.valui.bot.listener;
 
-import com.valui.bot.ValuiTelegramBot;
+import org.telegram.telegrambots.meta.bots.AbsSender;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.user.event.SubscriptionExpiredEvent;
@@ -18,7 +18,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 @RequiredArgsConstructor
 public class SubscriptionExpiredBotListener {
 
-    private final ValuiTelegramBot bot;
+    private final AbsSender bot;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
