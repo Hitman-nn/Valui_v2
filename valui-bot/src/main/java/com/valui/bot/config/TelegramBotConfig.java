@@ -1,6 +1,7 @@
 package com.valui.bot.config;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
@@ -12,6 +13,7 @@ import java.util.List;
 
 @Slf4j
 @Configuration
+@EnableConfigurationProperties(BotProperties.class)
 public class TelegramBotConfig {
 
     /**
