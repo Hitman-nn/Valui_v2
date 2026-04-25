@@ -1,0 +1,11 @@
+package com.valui.bot.state;
+
+public enum BotState {
+    IDLE,
+    WAITING_FILTER_RULE,
+    WAITING_CONTROLLER_URL,
+    WAITING_CONFIRM_DELETE,
+    SELECTING_BOOKMAKER,
+    SELECTING_SPORT,
+    SELECTING_TOURNAMENT
+}
