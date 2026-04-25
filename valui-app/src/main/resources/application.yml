@@ -109,6 +109,14 @@ valui:
     poll-interval-ms: 30000
   admin:
     api-key: ${ADMIN_API_KEY:change-me}
+  jwt:
+    # HS256 requires >= 32 bytes. Default is DEV-ONLY — set JWT_SECRET in production.
+    secret: ${JWT_SECRET:dmFsdWktdjItZGVmYXVsdC1qd3Qtc2VjcmV0LWtleS1mb3ItZGV2LW9ubHk=}
+    access-token-ttl-seconds: 3600       # 1 hour
+    refresh-token-ttl-seconds: 2592000   # 30 days
+  auth:
+    # Shared secret between the Telegram bot and this API (set BOT_AUTH_SECRET in production)
+    bot-secret: ${BOT_AUTH_SECRET:change-me}
 
 # Logging levels — logback-spring.xml handles appenders and patterns
 logging:
