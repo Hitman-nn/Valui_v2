@@ -1,0 +1,40 @@
+INSERT INTO subscription_plans
+    (id, code, name, max_controllers, max_filters, poll_interval_sec,
+     allowed_bookmakers, notify_channels, price_rub, is_active)
+VALUES
+    (
+        '00000000-0000-0000-0000-000000000001',
+        'FREE',
+        'Бесплатный',
+        3,
+        5,
+        120,
+        '{XBET,FONBET}',
+        '{TELEGRAM}',
+        0.00,
+        true
+    ),
+    (
+        '00000000-0000-0000-0000-000000000002',
+        'PRO',
+        'Профессиональный',
+        15,
+        30,
+        60,
+        '{XBET,FONBET,OLIMP,BETCITY,BETBOOM}',
+        '{TELEGRAM}',
+        299.00,
+        true
+    ),
+    (
+        '00000000-0000-0000-0000-000000000003',
+        'PREMIUM',
+        'Премиум',
+        100,
+        200,
+        30,
+        '{XBET,FONBET,OLIMP,BETCITY,BETBOOM}',
+        '{TELEGRAM,EMAIL,WEBHOOK}',
+        999.00,
+        true
+    );

@@ -27,6 +27,20 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    baseline-on-migrate: false
+    validate-on-migrate: true
+    out-of-order: false
+
+  # DataSource / HikariCP defaults (URL + credentials set per profile)
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: ValuiHikariPool
+      connection-timeout: 20000      # ms — fail fast if pool exhausted
+      idle-timeout: 300000           # ms — 5 min idle eviction
+      max-lifetime: 1200000          # ms — 20 min max connection age
+      minimum-idle: 2
+      auto-commit: false
 
   # Redis
   data:
