@@ -5,6 +5,7 @@ import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -21,9 +22,14 @@ public class AppConfig {
      */
     @Bean
     public RestTemplate restTemplate(RestTemplateBuilder builder) {
+        // connectTimeout/readTimeout were removed from RestTemplateBuilder in Spring Boot 3.3
         return builder
-            .connectTimeout(Duration.ofSeconds(5))
-            .readTimeout(Duration.ofSeconds(10))
+            .requestFactory(() -> {
+                SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+                factory.setConnectTimeout(Duration.ofSeconds(5));
+                factory.setReadTimeout(Duration.ofSeconds(10));
+                return factory;
+            })
             .build();
     }
 

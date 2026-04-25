@@ -35,7 +35,7 @@
 
         <!-- ── Telegram ──────────────────────────────────────────────────── -->
         <!-- 6.9.7 is the last stable release; upgrade to 7.x for full Jakarta EE -->
-        <telegrambots.version>6.9.7</telegrambots.version>
+        <telegrambots.version>6.9.7.1</telegrambots.version>
 
         <!-- ── Tooling ───────────────────────────────────────────────────── -->
         <lombok.version>1.18.34</lombok.version>
@@ -111,10 +111,13 @@
                 <version>${project.version}</version>
             </dependency>
 
-            <!-- ── Telegram ──────────────────────────────────────────────── -->
+            <!-- ── Telegram ─────────────────────────────────────────────────
+                 telegrambots-spring-boot-starter was NOT published for 6.9.7
+                 and uses javax.* (incompatible with Spring Boot 3 / Jakarta EE).
+                 Use the core artifact + manual TelegramBotConfig instead.      -->
             <dependency>
                 <groupId>org.telegram</groupId>
-                <artifactId>telegrambots-spring-boot-starter</artifactId>
+                <artifactId>telegrambots</artifactId>
                 <version>${telegrambots.version}</version>
             </dependency>
 

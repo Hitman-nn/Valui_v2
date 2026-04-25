@@ -30,9 +30,10 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+        <!-- telegrambots core — TelegramBotsApi registered manually via TelegramBotConfig -->
         <dependency>
             <groupId>org.telegram</groupId>
-            <artifactId>telegrambots-spring-boot-starter</artifactId>
+            <artifactId>telegrambots</artifactId>
         </dependency>
 
         <dependency>
