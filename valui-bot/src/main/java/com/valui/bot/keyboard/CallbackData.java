@@ -1,0 +1,41 @@
+package com.valui.bot.keyboard;
+
+import java.util.UUID;
+
+/**
+ * Central registry of callback_data strings.
+ * Format convention: "ACTION:PARAM1:PARAM2"
+ */
+public final class CallbackData {
+
+    private CallbackData() {}
+
+    // ─── Global navigation ────────────────────────────────────────────────────
+    public static final String MENU_MAIN         = "MENU:MAIN";
+    public static final String MENU_SUBSCRIPTION = "MENU:SUBS";
+    public static final String MENU_HELP         = "MENU:HELP";
+    public static final String CANCEL            = "CANCEL";
+
+    /** Placed on display-only buttons (e.g. page counter) that must not trigger logic. */
+    public static final String NOOP = ".";
+
+    // ─── Controller — format: "CTRL:ACTION:uuid" ──────────────────────────────
+    public static final String CTRL_LIST = "CTRL:LIST";
+
+    public static String ctrlDetail(UUID id) { return "CTRL:DETAIL:" + id; }
+    public static String ctrlDelete(UUID id) { return "CTRL:DELETE:" + id; }
+    public static String ctrlToggle(UUID id) { return "CTRL:TOGGLE:" + id; }
+
+    // ─── Filter — format: "FILTER:ACTION:index" ───────────────────────────────
+    public static final String FILTER_LIST = "FILTER:LIST";
+
+    public static String filterDelete(int index) { return "FILTER:DELETE:" + index; }
+
+    // ─── Bookmaker — format: "BK:SELECT:CODE" ────────────────────────────────
+    public static String bookmakerSelect(String code) { return "BK:SELECT:" + code; }
+
+    // ─── Pagination — format: "PAGE:{listKey}:{pageNum}" ─────────────────────
+    public static String page(String listKey, int pageNum) {
+        return "PAGE:" + listKey + ":" + pageNum;
+    }
+}
