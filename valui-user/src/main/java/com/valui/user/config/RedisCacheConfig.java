@@ -33,9 +33,13 @@ public class RedisCacheConfig {
         RedisCacheConfiguration usersCacheConfig = defaults
             .entryTtl(Duration.ofMinutes(5));
 
+        RedisCacheConfiguration plansCacheConfig = defaults
+            .entryTtl(Duration.ofMinutes(10));
+
         return RedisCacheManager.builder(factory)
             .cacheDefaults(defaults.entryTtl(Duration.ofMinutes(10)))
             .withCacheConfiguration("users", usersCacheConfig)
+            .withCacheConfiguration("plans", plansCacheConfig)
             .build();
     }
 }

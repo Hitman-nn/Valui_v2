@@ -32,4 +32,7 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
     @Modifying
     @Query("UPDATE ControllerEntity c SET c.isActive = :active WHERE c.id = :id")
     int updateIsActive(@Param("id") UUID id, @Param("active") Boolean active);
+
+    @Query("SELECT COUNT(c) FROM ControllerEntity c WHERE c.user.id = :userId AND c.isActive = true AND c.filterRule IS NOT NULL")
+    long countActiveFiltersUsedByUserId(@Param("userId") UUID userId);
 }
