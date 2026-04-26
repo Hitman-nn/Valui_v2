@@ -41,6 +41,10 @@ resilience4j:
 
 # Proxy for XBet (KZ domain requires KZ proxy)
 parser:
+  cache:
+    sports-ttl: 1h
+    tournaments-ttl: 30m
+    matches-ttl: 5m
   proxy:
     xbet:
       enabled: false

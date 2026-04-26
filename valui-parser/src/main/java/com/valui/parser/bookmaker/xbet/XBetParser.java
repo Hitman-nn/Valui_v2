@@ -7,18 +7,19 @@ import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
+import com.valui.parser.cache.ParserCacheService;
 import com.valui.parser.http.BookmakerHttpClient;
-import com.valui.parser.http.HttpClientConfig;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static com.valui.parser.http.BookmakerHttpClient.BLOCK_TIMEOUT;
 
@@ -26,31 +27,34 @@ import static com.valui.parser.http.BookmakerHttpClient.BLOCK_TIMEOUT;
 @Component
 public class XBetParser implements BookmakerParser {
 
-    private static final String DEFAULT_BASE = "https://1xbet.kz/service-api/LineFeed";
-    private static final long CACHE_TTL_MS = 60_000;
+    private static final String DEFAULT_BASE  = "https://1xbet.kz/service-api/LineFeed";
+    private static final String CHAMPS_KEY    = "xbet:champs";
+    private static final Duration CHAMPS_TTL  = Duration.ofMinutes(1);
 
     private final String sportsApi;
     private final String champsApi;
     private final String matchesApi;
     private final BookmakerHttpClient http;
-    private final AtomicReference<CacheEntry> champsCache = new AtomicReference<>(new CacheEntry(null, 0));
+    @Nullable private final ParserCacheService cache;
 
-    private record CacheEntry(JsonNode data, long expiresAt) {}
-
-    public XBetParser(@Qualifier("xbetHttpClient") BookmakerHttpClient http) {
-        this(DEFAULT_BASE, http);
+    public XBetParser(@Qualifier("xbetHttpClient") BookmakerHttpClient http, ParserCacheService cache) {
+        this(DEFAULT_BASE, http, cache);
     }
 
     XBetParser(String apiBase, BookmakerHttpClient http) {
+        this(apiBase, http, null);
+    }
+
+    XBetParser(String apiBase, org.springframework.web.reactive.function.client.WebClient wc) {
+        this(apiBase, new BookmakerHttpClient(wc), null);
+    }
+
+    private XBetParser(String apiBase, BookmakerHttpClient http, @Nullable ParserCacheService cache) {
         this.sportsApi  = apiBase + "/GetSportsShortZip";
         this.champsApi  = apiBase + "/GetChampsZip";
         this.matchesApi = apiBase + "/Get1x2_VZip?";
-        this.http = http;
-    }
-
-    // For tests that still pass a plain WebClient
-    XBetParser(String apiBase, org.springframework.web.reactive.function.client.WebClient wc) {
-        this(apiBase, new BookmakerHttpClient(wc));
+        this.http  = http;
+        this.cache = cache;
     }
 
     @Override
@@ -76,7 +80,7 @@ public class XBetParser implements BookmakerParser {
     public ParseResult<List<TournamentDto>> fetchTournaments(String sportId) {
         long start = ms();
         List<TournamentDto> tournaments = new ArrayList<>();
-        for (JsonNode v : valueArray(getChampsJsonCached())) {
+        for (JsonNode v : valueArray(getChampsJson())) {
             if (!sportId.equalsIgnoreCase(s(v, "SI"))) continue;
             String id = s(v, "LI"), title = s(v, "L"), se = s(v, "SE"), le = s(v, "LE");
             if (id == null || title == null) continue;
@@ -135,17 +139,19 @@ public class XBetParser implements BookmakerParser {
 
     // ── internals ─────────────────────────────────────────────────────────────
 
-    private JsonNode getChampsJsonCached() {
-        long now = System.currentTimeMillis();
-        CacheEntry c = champsCache.get();
-        if (c.data() != null && c.expiresAt() > now) return c.data();
-        JsonNode fresh = block(http.getJson(champsApi, JsonNode.class));
-        champsCache.set(new CacheEntry(fresh, now + CACHE_TTL_MS));
-        return fresh;
+    private JsonNode getChampsJson() {
+        if (cache != null) {
+            return cache.getJson(CHAMPS_KEY).orElseGet(() -> {
+                JsonNode fresh = block(http.getJson(champsApi, JsonNode.class));
+                cache.setJson(CHAMPS_KEY, fresh, CHAMPS_TTL);
+                return fresh;
+            });
+        }
+        return block(http.getJson(champsApi, JsonNode.class));
     }
 
     private String resolveSportId(String tournamentId) {
-        for (JsonNode v : valueArray(getChampsJsonCached())) {
+        for (JsonNode v : valueArray(getChampsJson())) {
             if (tournamentId.equalsIgnoreCase(s(v, "LI"))) {
                 String si = s(v, "SI");
                 if (si != null) return si;

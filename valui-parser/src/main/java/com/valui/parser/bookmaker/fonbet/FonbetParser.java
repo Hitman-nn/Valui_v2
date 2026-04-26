@@ -26,21 +26,21 @@ public class FonbetParser implements BookmakerParser {
 
     private static final String DEFAULT_API =
             "https://line32w.bk6bba-resources.com/events/list?lang=ru&scopeMarket=1600";
-    private static final long CACHE_TTL_MS = 60_000;
 
-    private final String apiUrl;
     private final BookmakerHttpClient http;
+    private final FonbetEndpointPool pool;
+    private final String fallbackUrl;
 
-    private volatile JsonNode cachedSnapshot;
-    private volatile long cacheExpiresAt = 0;
-
-    public FonbetParser(@Qualifier("fonbetHttpClient") BookmakerHttpClient http) {
-        this(DEFAULT_API, http);
+    public FonbetParser(@Qualifier("fonbetHttpClient") BookmakerHttpClient http, FonbetEndpointPool pool) {
+        this.http = http;
+        this.pool = pool;
+        this.fallbackUrl = DEFAULT_API;
     }
 
     FonbetParser(String apiUrl, BookmakerHttpClient http) {
-        this.apiUrl = apiUrl;
         this.http = http;
+        this.pool = null;
+        this.fallbackUrl = apiUrl;
     }
 
     FonbetParser(String apiUrl, org.springframework.web.reactive.function.client.WebClient wc) {
@@ -55,7 +55,7 @@ public class FonbetParser implements BookmakerParser {
     @Override
     public ParseResult<List<SportDto>> fetchSports() {
         long start = ms();
-        JsonNode snap = getSnapshot();
+        JsonNode snap = fetchSnapshot();
         List<SportDto> sports = new ArrayList<>();
         for (JsonNode item : sportsArray(snap)) {
             if (!item.path("parentId").isNull() && !item.path("parentId").isMissingNode()) continue;
@@ -70,7 +70,7 @@ public class FonbetParser implements BookmakerParser {
     @Override
     public ParseResult<List<TournamentDto>> fetchTournaments(String sportId) {
         long start = ms();
-        JsonNode snap = getSnapshot();
+        JsonNode snap = fetchSnapshot();
         List<TournamentDto> tournaments = new ArrayList<>();
         for (JsonNode item : sportsArray(snap)) {
             JsonNode parentId = item.path("parentId");
@@ -89,7 +89,7 @@ public class FonbetParser implements BookmakerParser {
     @Override
     public ParseResult<List<MatchDto>> fetchMatches(String tournamentId) {
         long start = ms();
-        JsonNode snap = getSnapshot();
+        JsonNode snap = fetchSnapshot();
         List<MatchDto> matches = new ArrayList<>();
         JsonNode events = snap.path("events");
         if (!events.isArray()) return ParseResult.ok(matches, ms() - start);
@@ -109,7 +109,7 @@ public class FonbetParser implements BookmakerParser {
 
     @Override
     public boolean isAvailable() {
-        try { refreshSnapshot(); return true; }
+        try { fetchSnapshot(); return true; }
         catch (Exception e) { return false; }
     }
 
@@ -130,20 +130,19 @@ public class FonbetParser implements BookmakerParser {
         return ParseResult.error("fonbet-cb: " + t.getMessage());
     }
 
-    // ── cache ─────────────────────────────────────────────────────────────────
+    // ── snapshot ──────────────────────────────────────────────────────────────
 
-    private JsonNode getSnapshot() {
-        long now = System.currentTimeMillis();
-        if (cachedSnapshot != null && cacheExpiresAt > now) return cachedSnapshot;
-        return refreshSnapshot();
-    }
-
-    private JsonNode refreshSnapshot() {
-        JsonNode fresh = http.getJson(apiUrl, JsonNode.class).block(BLOCK_TIMEOUT);
-        if (fresh == null) throw new IllegalStateException("Fonbet API returned null");
-        cachedSnapshot = fresh;
-        cacheExpiresAt = System.currentTimeMillis() + CACHE_TTL_MS;
-        return fresh;
+    private JsonNode fetchSnapshot() {
+        String url = (pool != null) ? pool.getBestEndpoint() : fallbackUrl;
+        try {
+            JsonNode snap = http.getJson(url, JsonNode.class).block(BLOCK_TIMEOUT);
+            if (snap == null) throw new IllegalStateException("Fonbet API returned null");
+            if (pool != null) pool.markSuccess(url);
+            return snap;
+        } catch (Exception e) {
+            if (pool != null) pool.markFailure(url);
+            throw e;
+        }
     }
 
     // ── utils ─────────────────────────────────────────────────────────────────

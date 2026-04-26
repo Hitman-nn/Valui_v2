@@ -1,5 +1,6 @@
 package com.valui.parser.bookmaker.betboom.ws;
 
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 
@@ -57,7 +58,7 @@ public class WsClientBorrowingPool implements SmartLifecycle {
         log.info("WS pool started: {} slots", props.getMaxSize());
     }
 
-    @Override public void stop() {
+    @Override @PreDestroy public void stop() {
         if (!running.compareAndSet(true, false)) return;
         slots.forEach(Slot::closeNow);
         free.clear();
