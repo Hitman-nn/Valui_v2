@@ -24,6 +24,8 @@ public interface DetectedEventRepository extends JpaRepository<DetectedEventEnti
     @Query("SELECT e FROM DetectedEventEntity e WHERE e.expiresAt IS NOT NULL AND e.expiresAt < :threshold")
     List<DetectedEventEntity> findExpiredBefore(@Param("threshold") OffsetDateTime threshold);
 
+    long countByControllerId(UUID controllerId);
+
     @Modifying
     @Query("DELETE FROM DetectedEventEntity e WHERE e.expiresAt IS NOT NULL AND e.expiresAt < :threshold")
     int deleteExpiredBefore(@Param("threshold") OffsetDateTime threshold);
