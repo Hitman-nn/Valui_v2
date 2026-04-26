@@ -87,7 +87,7 @@ class ControllersJsonMigratorTest {
 
         UserEntity user = user(TG_ID);
         given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerRepository.existsByUserIdAndBookmakerAndUrl(
+        given(controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(
                 any(), eq(BookmakerType.XBET), eq(XBET_URL))).willReturn(false);
         given(controllerRepository.save(any())).willAnswer(inv -> {
             ControllerEntity e = inv.getArgument(0);
@@ -119,7 +119,7 @@ class ControllersJsonMigratorTest {
 
         UserEntity user = user(TG_ID);
         given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerRepository.existsByUserIdAndBookmakerAndUrl(any(), any(), any())).willReturn(true);
+        given(controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(any(), any(), any())).willReturn(true);
 
         migrator.migrate();
 
@@ -152,7 +152,7 @@ class ControllersJsonMigratorTest {
 
         UserEntity user = user(TG_ID);
         given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerRepository.existsByUserIdAndBookmakerAndUrl(any(), any(), any())).willReturn(false);
+        given(controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(any(), any(), any())).willReturn(false);
         given(controllerRepository.save(any())).willAnswer(inv -> {
             ControllerEntity e = inv.getArgument(0); e.setId(UUID.randomUUID()); return e;
         });

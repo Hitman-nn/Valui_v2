@@ -12,6 +12,7 @@ import com.valui.parser.http.BookmakerHttpClient;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
@@ -37,6 +38,7 @@ public class XBetParser implements BookmakerParser {
     private final BookmakerHttpClient http;
     @Nullable private final ParserCacheService cache;
 
+    @Autowired
     public XBetParser(@Qualifier("xbetHttpClient") BookmakerHttpClient http, ParserCacheService cache) {
         this(DEFAULT_BASE, http, cache);
     }

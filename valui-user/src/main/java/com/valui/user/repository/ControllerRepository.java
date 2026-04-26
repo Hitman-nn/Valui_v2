@@ -26,7 +26,7 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
 
     int countByUserIdAndIsActiveTrue(UUID userId);
 
-    boolean existsByUserIdAndBookmakerAndUrl(UUID userId, BookmakerType bookmaker, String url);
+    boolean existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(UUID userId, BookmakerType bookmaker, String url);
 
     @Modifying
     @Query("UPDATE ControllerEntity c SET c.lastCheckedAt = :checkedAt WHERE c.id = :id")

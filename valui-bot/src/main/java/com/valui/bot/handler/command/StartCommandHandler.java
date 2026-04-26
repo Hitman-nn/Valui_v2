@@ -3,6 +3,7 @@ package com.valui.bot.handler.command;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CommandHandler;
 import com.valui.bot.i18n.BotMessageSource;
+import com.valui.bot.keyboard.menu.MainMenuKeyboard;
 import com.valui.bot.service.BotSessionService;
 import com.valui.user.dto.TelegramUserDto;
 import com.valui.user.service.UserService;
@@ -36,13 +37,14 @@ public class StartCommandHandler implements CommandHandler {
                 from != null ? from.getFirstName() : null,
                 from != null ? from.getLanguageCode() : null
             ));
-            log.info("Registered new user chatId={} username={}", ctx.chatId(), ctx.username());
+            log.info("✅ Новый пользователь зарегистрирован: chatId={} username={}", ctx.chatId(), ctx.username());
         }
 
         sessionService.clearSession(ctx.chatId());
 
         String name = ctx.username() != null ? "@" + ctx.username() : "друг";
-        MessageSend.text(ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("bot.welcome", ctx.chatId(), name));
+        com.valui.bot.handler.MessageSend.textMarkdownWithKeyboard(ctx.sender(), ctx.chatId(),
+            messageSource.getMessage("bot.welcome", ctx.chatId(), name),
+            MainMenuKeyboard.build(ctx.chatId(), messageSource));
     }
 }

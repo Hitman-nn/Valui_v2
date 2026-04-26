@@ -1,5 +1,7 @@
 package com.valui.user.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,12 +24,30 @@ public class RedisCacheConfig {
      * deserializing Optional<UserEntity> and other wrapper types from Redis.
      */
     @Bean
-    public RedisCacheManager cacheManager(RedisConnectionFactory factory) {
-        GenericJackson2JsonRedisSerializer jsonSerializer = new GenericJackson2JsonRedisSerializer();
+    public RedisCacheManager cacheManager(RedisConnectionFactory factory, ObjectMapper objectMapper) {
+        // Copy Spring Boot's ObjectMapper (JavaTimeModule, etc.) and add @class type info.
+        //
+        // Must use EVERYTHING (not NON_FINAL) because:
+        //   - Java Records are implicitly final → NON_FINAL skips them → cached without @class
+        //   - GenericJackson2JsonRedisSerializer always deserializes as Object and requires @class
+        //   - The default no-arg GenericJackson2JsonRedisSerializer() also uses EVERYTHING internally
+        //
+        // LaissezFaireSubTypeValidator allows all types (same as the no-arg constructor default).
+        // Spring Boot's objectMapper.getPolymorphicTypeValidator() may be too restrictive.
+        ObjectMapper cacheMapper = objectMapper.copy()
+            .activateDefaultTypingAsProperty(
+                LaissezFaireSubTypeValidator.instance,
+                ObjectMapper.DefaultTyping.EVERYTHING,
+                "@class");
+        GenericJackson2JsonRedisSerializer jsonSerializer =
+            new GenericJackson2JsonRedisSerializer(cacheMapper);
 
+        // Version prefix: old cache entries (written without @class) are silently skipped on restart.
+        // Bump "v3:" → "v4:" etc. whenever the DTO shape or serializer config changes incompatibly.
         RedisCacheConfiguration defaults = RedisCacheConfiguration.defaultCacheConfig()
             .serializeKeysWith(SerializationPair.fromSerializer(new StringRedisSerializer()))
             .serializeValuesWith(SerializationPair.fromSerializer(jsonSerializer))
+            .prefixCacheNameWith("v4:")
             .disableCachingNullValues();
 
         RedisCacheConfiguration usersCacheConfig = defaults

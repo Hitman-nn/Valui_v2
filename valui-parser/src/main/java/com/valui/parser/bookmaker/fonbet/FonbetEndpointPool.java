@@ -34,6 +34,11 @@ public class FonbetEndpointPool {
                 redis.opsForZSet().add(ZSET_KEY, "https://line" + idx + "w.bk6bba-resources.com"    + PATH, 0.0);
                 redis.opsForZSet().add(ZSET_KEY, "https://line" + idx + "w.bk6bba-cf-resources.com" + PATH, 0.0);
             }
+            // Boost known-good mirror so reverseRange(0,0) picks it first on cold start.
+            // All 200 mirrors get score=0.0 above; Redis then returns the lexicographically
+            // last entry (line99w) which doesn't exist. Overwrite FALLBACK with current
+            // timestamp so it wins until a real mirror is marked successful.
+            redis.opsForZSet().add(ZSET_KEY, FALLBACK, (double) System.currentTimeMillis());
             log.info("Fonbet pool seeded.");
         }
     }

@@ -1,3 +1,20 @@
+ws:
+  pool:
+    url: ${BETBOOM_WS_URL:wss://ru-ws.sporthub.bet:444/api/tree_ws/v1}
+    headers:
+      Origin: https://betboom.ru
+    min-size: 2
+    max-size: 6
+    connect-timeout: 5s
+    initial-buffer: 65536
+    ready-timeout: 10s
+    backoff-base: 300ms
+    backoff-max: 10s
+    warmup:
+      enabled: true
+      min-ready: 2
+      timeout: 15s
+
 resilience4j:
   circuitbreaker:
     configs:
@@ -47,7 +64,7 @@ parser:
     matches-ttl: 5m
   proxy:
     xbet:
-      enabled: false
+      enabled: true
       host: 91.147.122.69
       port: 4232
       username: user283146

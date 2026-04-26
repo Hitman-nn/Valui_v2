@@ -1,6 +1,7 @@
 package com.valui.parser.http;
 
 import io.netty.channel.ChannelOption;
+import io.netty.resolver.DefaultAddressResolverGroup;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -8,6 +9,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.HttpProtocol;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.transport.ProxyProvider;
 
@@ -53,6 +55,15 @@ public class HttpClientConfig {
 
     static WebClient buildWebClient(ProxyProperties proxy) {
         HttpClient httpClient = HttpClient.create()
+                // Use JVM InetAddress (system mDNSResponder) instead of Netty's async resolver.
+                // Netty's async DNS bypasses macOS system resolver and fails to resolve CDN
+                // mirrors (e.g. bk6bba-resources.com) that resolve fine via curl/system DNS.
+                .resolver(DefaultAddressResolverGroup.INSTANCE)
+                // Force HTTP/1.1 — removes ALPN extension from TLS ClientHello.
+                // Netty's default HTTP/2 ALPN negotiation changes the JA3 fingerprint vs
+                // plain HttpURLConnection, causing servers like BetCity/XBet to reject the
+                // TLS handshake with a TCP RST. HTTP/1.1 matches the fingerprint they expect.
+                .protocol(HttpProtocol.HTTP11)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MS)
                 .responseTimeout(RESPONSE_TIMEOUT)
                 .compress(true)  // auto Accept-Encoding: gzip + transparent decompression
@@ -69,6 +80,8 @@ public class HttpClientConfig {
 
         return WebClient.builder()
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
+                // Fonbet /events/list response is ~2 MB uncompressed; default 256 KB is too small.
+                .codecs(c -> c.defaultCodecs().maxInMemorySize(10 * 1024 * 1024))
                 .build();
     }
 }

@@ -25,6 +25,16 @@
             <groupId>com.valui</groupId>
             <artifactId>valui-user</artifactId>
         </dependency>
+        <!-- Parser: wizard needs to fetch sports/tournaments per bookmaker -->
+        <dependency>
+            <groupId>com.valui</groupId>
+            <artifactId>valui-parser</artifactId>
+        </dependency>
+        <!-- Monitor: wizard creates controllers via ControllerService -->
+        <dependency>
+            <groupId>com.valui</groupId>
+            <artifactId>valui-monitor</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -40,9 +50,24 @@
         </dependency>
 
         <!-- telegrambots core — TelegramBotsApi registered manually via TelegramBotConfig -->
+        <!--
+          jackson-module-jaxb-annotations uses javax.xml.bind (removed in Java 11+).
+          telegrambots 6.x uses Jersey 3 (Jakarta namespace), so the old javax module
+          is not needed and crashes Hibernate 6.5 on startup (JacksonIntegration clinit).
+        -->
         <dependency>
             <groupId>org.telegram</groupId>
             <artifactId>telegrambots</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.module</groupId>
+                    <artifactId>jackson-module-jaxb-annotations</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.jaxrs</groupId>
+                    <artifactId>jackson-jaxrs-json-provider</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>

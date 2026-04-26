@@ -38,7 +38,7 @@ public class CommandRouter {
             .toList();
         this.sessionService = sessionService;
         this.userService = userService;
-        log.info("CommandRouter initialized with {} handlers: {}",
+        log.info("Маршрутизатор запущен: {} обработчиков зарегистрировано  →  {}",
             handlers.size(),
             this.handlers.stream().map(h -> h.getClass().getSimpleName()).toList());
     }
@@ -52,7 +52,7 @@ public class CommandRouter {
     public void route(Update update, AbsSender sender) {
         Long chatId = extractChatId(update);
         if (chatId == null) {
-            log.warn("Cannot extract chatId from update — skipping");
+            log.warn("Не удалось извлечь chatId из апдейта — пропускаем");
             return;
         }
 
@@ -67,7 +67,7 @@ public class CommandRouter {
             .orElse(null);
 
         if (handler == null) {
-            log.warn("No handler for chatId={} updateType={}", chatId, updateType);
+            log.warn("Нет обработчика: chatId={} тип={}", chatId, updateType);
             return;
         }
 
@@ -75,14 +75,14 @@ public class CommandRouter {
 
         long started = System.currentTimeMillis();
         String handlerName = handler.getClass().getSimpleName();
-        log.debug("Routing chatId={} updateType={} → {}", chatId, updateType, handlerName);
+        log.debug("📩 chatId={} тип={} → {}", chatId, updateType, handlerName);
 
         try {
             handler.handle(context);
-            log.debug("Handled chatId={} by {} in {}ms",
+            log.debug("✅ chatId={} обработан {} за {}мс",
                 chatId, handlerName, System.currentTimeMillis() - started);
         } catch (Exception e) {
-            log.error("Handler {} threw for chatId={}", handlerName, chatId, e);
+            log.error("❌ Ошибка в обработчике {} для chatId={}", handlerName, chatId, e);
         }
     }
 

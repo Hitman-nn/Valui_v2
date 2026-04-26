@@ -60,6 +60,8 @@ public class UserServiceImpl implements UserService {
     @Override
     @Cacheable(value = USERS_CACHE, key = "#telegramId", unless = "#result == null")
     public Optional<UserEntity> findByTelegramId(Long telegramId) {
+        // Spring Cache unwraps Optional<T> before evaluating SpEL, so #result is UserEntity (or null
+        // for empty). unless="#result == null" skips caching of Optional.empty() correctly.
         return userRepository.findByTelegramId(telegramId);
     }
 
@@ -95,7 +97,7 @@ public class UserServiceImpl implements UserService {
         user.setStatus(UserStatus.BANNED);
         userRepository.save(user);
         eventPublisher.publishEvent(new UserBanEvent(userId, "BAN", resolveCurrentAdminId()));
-        log.info("User banned: userId={}", userId);
+        log.info("🚫 Пользователь заблокирован: userId={}", userId);
     }
 
     @Override
@@ -108,7 +110,7 @@ public class UserServiceImpl implements UserService {
         user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
         eventPublisher.publishEvent(new UserBanEvent(userId, "UNBAN", resolveCurrentAdminId()));
-        log.info("User unbanned: userId={}", userId);
+        log.info("✅ Пользователь разблокирован: userId={}", userId);
     }
 
     @Override
@@ -149,7 +151,7 @@ public class UserServiceImpl implements UserService {
             .build();
         subscriptionRepository.save(subscription);
 
-        log.info("Registered new user: telegramId={} userId={}", dto.telegramId(), user.getId());
+        log.info("✅ Зарегистрирован пользователь: telegramId={} userId={}", dto.telegramId(), user.getId());
         return user;
     }
 

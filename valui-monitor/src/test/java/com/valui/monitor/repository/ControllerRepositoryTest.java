@@ -129,7 +129,7 @@ class ControllerRepositoryTest {
         em.persistAndFlush(controller(user1, url));
 
         assertThat(controllerRepository
-                .existsByUserIdAndBookmakerAndUrl(user1.getId(), BookmakerType.XBET, url))
+                .existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(user1.getId(), BookmakerType.XBET, url))
                 .isTrue();
     }
 
@@ -140,7 +140,7 @@ class ControllerRepositoryTest {
         em.persistAndFlush(controller(user1, url));
 
         assertThat(controllerRepository
-                .existsByUserIdAndBookmakerAndUrl(user2.getId(), BookmakerType.XBET, url))
+                .existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(user2.getId(), BookmakerType.XBET, url))
                 .isFalse();
     }
 

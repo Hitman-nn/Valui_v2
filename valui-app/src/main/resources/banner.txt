@@ -1,0 +1,12 @@
+${AnsiColor.CYAN}${AnsiStyle.BOLD}
+ ██╗   ██╗ █████╗ ██╗     ██╗   ██╗██╗
+ ██║   ██║██╔══██╗██║     ██║   ██║██║
+ ██║   ██║███████║██║     ██║   ██║██║
+ ╚██╗ ██╔╝██╔══██║██║     ██║   ██║██║
+  ╚████╔╝ ██║  ██║███████╗╚██████╔╝██║
+   ╚═══╝  ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝${AnsiStyle.NORMAL}
+${AnsiColor.WHITE}  Telegram Monitor Bot  •  v2.0${AnsiColor.DEFAULT}
+${AnsiColor.CYAN}  ─────────────────────────────────────────────────${AnsiColor.DEFAULT}
+${AnsiColor.GREEN}  Spring Boot ${spring-boot.version}${AnsiColor.DEFAULT}   ${AnsiColor.YELLOW}Профиль: ${spring.profiles.active:default}${AnsiColor.DEFAULT}
+${AnsiColor.CYAN}  ─────────────────────────────────────────────────${AnsiColor.DEFAULT}
+

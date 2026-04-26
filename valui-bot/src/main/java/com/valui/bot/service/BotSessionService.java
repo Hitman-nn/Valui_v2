@@ -82,6 +82,33 @@ public class BotSessionService {
         return ctx != null ? Optional.ofNullable(ctx.get(key)) : Optional.empty();
     }
 
+    /** Adds or updates a single context entry without clearing other context keys. */
+    public void putContext(Long chatId, String key, String value) {
+        UserBotSession session = getSession(chatId);
+        session.getContext().put(key, value);
+        session.setUpdatedAt(Instant.now());
+        save(chatId, session);
+    }
+
+    /** Adds or updates multiple context entries without clearing other context keys. */
+    public void putContext(Long chatId, Map<String, String> entries) {
+        UserBotSession session = getSession(chatId);
+        session.getContext().putAll(entries);
+        session.setUpdatedAt(Instant.now());
+        save(chatId, session);
+        log.debug("Context updated: chatId={} keys={}", chatId, entries.keySet());
+    }
+
+    /** Transitions state and merges (not replaces) the given context entries. */
+    public void setStateAndMergeContext(Long chatId, BotState state, Map<String, String> entries) {
+        UserBotSession session = getSession(chatId);
+        session.setState(state);
+        if (entries != null) session.getContext().putAll(entries);
+        session.setUpdatedAt(Instant.now());
+        save(chatId, session);
+        log.debug("State+merge: chatId={} state={} keys={}", chatId, state, entries == null ? "[]" : entries.keySet());
+    }
+
     /**
      * Resets the session to IDLE with empty context.
      * Does NOT delete the Redis key — retains the key with fresh TTL.

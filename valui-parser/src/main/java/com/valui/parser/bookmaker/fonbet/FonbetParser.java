@@ -11,6 +11,7 @@ import com.valui.parser.http.BookmakerHttpClient;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
@@ -31,6 +32,7 @@ public class FonbetParser implements BookmakerParser {
     private final FonbetEndpointPool pool;
     private final String fallbackUrl;
 
+    @Autowired
     public FonbetParser(@Qualifier("fonbetHttpClient") BookmakerHttpClient http, FonbetEndpointPool pool) {
         this.http = http;
         this.pool = pool;
@@ -99,7 +101,7 @@ public class FonbetParser implements BookmakerParser {
             if (!parentId.isNull() && !parentId.isMissingNode()) continue;
             String id = s(ev, "id"), t1 = s(ev, "team1"), t2 = s(ev, "team2");
             if (id == null || t1 == null || t2 == null) continue;
-            Instant startsAt = parseInstant(s(ev, "startTime"), true);
+            Instant startsAt = parseInstant(s(ev, "startTime"), false);
             matches.add(new MatchDto(id, t1 + " - " + t2, tournamentId,
                     "https://www.fon.bet/sports/" + tournamentId + "/" + id,
                     startsAt, ev.path("live").asBoolean(false)));
@@ -110,7 +112,10 @@ public class FonbetParser implements BookmakerParser {
     @Override
     public boolean isAvailable() {
         try { fetchSnapshot(); return true; }
-        catch (Exception e) { return false; }
+        catch (Exception e) {
+            log.debug("Fonbet isAvailable failed: {}", e.getMessage());
+            return false;
+        }
     }
 
     // ── fallbacks ─────────────────────────────────────────────────────────────

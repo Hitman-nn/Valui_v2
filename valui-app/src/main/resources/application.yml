@@ -75,6 +75,12 @@ spring:
       properties:
         spring.json.trusted.packages: "com.valui.*"
 
+  # i18n messages
+  messages:
+    basename: messages
+    encoding: UTF-8
+    use-code-as-default-message: false
+
   # Scheduling
   task:
     scheduling:
@@ -103,8 +109,8 @@ management:
 # Valui custom config
 valui:
   bot:
-    token: ${TELEGRAM_BOT_TOKEN:change-me}
-    username: ${TELEGRAM_BOT_USERNAME:ValuiBot}
+    token: ${TELEGRAM_BOT_TOKEN:5993930941:AAFyV88j6Cj30CRdfvBRgsdg-msLgez6T9M}
+    username: ${TELEGRAM_BOT_USERNAME:ValuiForRelease_bot}
     payment-base-url: ${PAYMENT_BASE_URL:https://pay.valui.com}
     # mode: long_polling (default) | webhook
     mode: ${BOT_MODE:long_polling}
@@ -130,6 +136,23 @@ valui:
     # Shared secret between the Telegram bot and this API (set BOT_AUTH_SECRET in production)
     bot-secret: ${BOT_AUTH_SECRET:change-me}
 
+ws:
+  pool:
+    url: ${BETBOOM_WS_URL:wss://ru-ws.sporthub.bet:444/api/tree_ws/v1}
+    headers:
+      Origin: https://betboom.ru
+    min-size: 2
+    max-size: 6
+    connect-timeout: 5s
+    initial-buffer: 65536
+    ready-timeout: 10s
+    backoff-base: 300ms
+    backoff-max: 10s
+    warmup:
+      enabled: true
+      min-ready: 2
+      timeout: 15s
+
 payment:
   gateway: ${PAYMENT_GATEWAY:stub}   # "stub" (default/local) or "yookassa"
   yookassa:
@@ -153,7 +176,7 @@ spring:
       on-profile: local
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/valui
+    url: jdbc:postgresql://localhost:5432/valui_db
     username: ${POSTGRES_USER:valui}
     password: ${POSTGRES_PASSWORD:valui_secret}
     hikari:
@@ -166,7 +189,7 @@ spring:
       password: ${REDIS_PASSWORD:redis_secret}
 
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: localhost:29092
 
   jpa:
     hibernate:

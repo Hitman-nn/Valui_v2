@@ -11,6 +11,7 @@ import com.valui.parser.http.BookmakerHttpClient;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
@@ -31,6 +32,7 @@ public class OlimpParser implements BookmakerParser {
     private final String eventsApi;
     private final BookmakerHttpClient http;
 
+    @Autowired
     public OlimpParser(@Qualifier("olimpHttpClient") BookmakerHttpClient http) {
         this(DEFAULT_BASE, http);
     }

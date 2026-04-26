@@ -52,7 +52,7 @@ public class ControllerServiceImpl implements ControllerService {
         BookmakerType bookmaker = resolveBookmaker(req);
         planLimitChecker.checkBookmakerAccess(telegramId, bookmaker.name());
 
-        if (controllerRepository.existsByUserIdAndBookmakerAndUrl(user.getId(), bookmaker, req.url())) {
+        if (controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(user.getId(), bookmaker, req.url())) {
             throw new ValuiException("Controller already exists for this URL", 409);
         }
 
@@ -71,7 +71,7 @@ public class ControllerServiceImpl implements ControllerService {
                         .pollIntervalSec(pollIntervalSec)
                         .build()
         );
-        log.info("Controller added: id={} bookmaker={} telegramId={}", saved.getId(), bookmaker, telegramId);
+        log.info("✅ Контроллер добавлен: id={} букмекер={} telegramId={}", saved.getId(), bookmaker, telegramId);
         // Publish after commit so MonitorScheduler sees the persisted row
         eventPublisher.publishEvent(new ControllerAddedEvent(
                 saved.getId(), user.getId(), telegramId, bookmaker, pollIntervalSec));
@@ -85,7 +85,7 @@ public class ControllerServiceImpl implements ControllerService {
         ControllerEntity entity = requireOwned(controllerId, user.getId());
         entity.setIsActive(false);
         controllerRepository.save(entity);
-        log.info("Controller removed: id={} telegramId={}", controllerId, telegramId);
+        log.info("🗑  Контроллер удалён: id={} telegramId={}", controllerId, telegramId);
         eventPublisher.publishEvent(new ControllerRemovedEvent(controllerId, user.getId()));
     }
 
@@ -149,7 +149,7 @@ public class ControllerServiceImpl implements ControllerService {
         controllerRepository.findById(controllerId)
                 .orElseThrow(() -> new ControllerNotFoundException(controllerId));
         controllerRepository.updateIsActive(controllerId, false);
-        log.info("Controller deactivated (admin): id={}", controllerId);
+        log.info("🔒 Контроллер деактивирован (admin): id={}", controllerId);
         eventPublisher.publishEvent(new ControllerRemovedEvent(controllerId, null));
     }
 

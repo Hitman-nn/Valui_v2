@@ -69,7 +69,7 @@ class ControllerServiceTest {
     void addController_happyPath_returnsDto() {
         given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
         given(planLimitChecker.getLimitInfo(TG_ID)).willReturn(limitInfo(5, 120));
-        given(controllerRepository.existsByUserIdAndBookmakerAndUrl(any(), any(), any())).willReturn(false);
+        given(controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(any(), any(), any())).willReturn(false);
         given(detectedEventRepository.countByControllerId(any())).willReturn(0L);
         given(controllerRepository.save(any())).willAnswer(inv -> {
             ControllerEntity e = inv.getArgument(0);
@@ -96,7 +96,7 @@ class ControllerServiceTest {
         String olimpUrl = "https://olimp.bet/line/football/999";
         given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
         given(planLimitChecker.getLimitInfo(TG_ID)).willReturn(limitInfo(5, 60));
-        given(controllerRepository.existsByUserIdAndBookmakerAndUrl(any(), any(), any())).willReturn(false);
+        given(controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(any(), any(), any())).willReturn(false);
         given(detectedEventRepository.countByControllerId(any())).willReturn(0L);
         given(controllerRepository.save(any())).willAnswer(inv -> {
             ControllerEntity e = inv.getArgument(0);
@@ -126,7 +126,7 @@ class ControllerServiceTest {
     @DisplayName("addController: duplicate URL — throws 409 and never saves")
     void addController_duplicateUrl_throws409() {
         given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerRepository.existsByUserIdAndBookmakerAndUrl(
+        given(controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(
                 eq(USER_ID), eq(BookmakerType.XBET), eq(XBET_URL))).willReturn(true);
 
         assertThatThrownBy(() ->

@@ -4,7 +4,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
@@ -69,6 +71,18 @@ public class BookmakerHttpClient {
                 .uri(url)
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .bodyValue(formData)
+                .retrieve()
+                .bodyToMono(responseType);
+    }
+
+    /** POST multipart/form-data → deserialize response to Class<T>. */
+    public <T> Mono<T> postMultipart(String url, MultiValueMap<String, String> formData,
+                                     Class<T> responseType) {
+        MultipartBodyBuilder builder = new MultipartBodyBuilder();
+        formData.forEach((key, values) -> values.forEach(v -> builder.part(key, v)));
+        return webClient.post()
+                .uri(url)
+                .body(BodyInserters.fromMultipartData(builder.build()))
                 .retrieve()
                 .bodyToMono(responseType);
     }

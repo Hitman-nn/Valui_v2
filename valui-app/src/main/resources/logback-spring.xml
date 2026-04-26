@@ -1,23 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
+    <!-- ─── Custom converter: [BOT] / [MON] / [PAR] / [USR] colored tags ─── -->
+    <conversionRule conversionWord="subsystem"
+                    converterClass="com.valui.app.logging.SubsystemConverter"/>
+
     <springProperty scope="context" name="appName"
                     source="spring.application.name" defaultValue="valui"/>
+    <springProperty scope="context" name="activeProfile"
+                    source="spring.profiles.active"  defaultValue="default"/>
 
-    <!-- ─── Console appender — colorized, for local development ─────────── -->
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         CONSOLE — rich colorized output for local development
+         Format:
+           HH:mm:ss.SSS  LEVEL  [TAG]  ClassName                ▸  message
+           12:34:56.789  INFO   [BOT]  CommandRouter            ▸  Инициализирован с 15 обработчиками
+         ═══════════════════════════════════════════════════════════════════════ -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) [%blue(%thread)] %cyan(%logger{36}) - %msg %magenta([uid=%X{userId} cid=%X{chatId} rid=%X{requestId}])%n</pattern>
-            <charset>UTF-8</charset>
+            <pattern>%gray(%d{HH:mm:ss.SSS})  %highlight(%-5level)  %subsystem  %-30(%cyan(%logger{0}))  %gray(▸)  %msg%n%rootException{full}</pattern>
         </encoder>
     </appender>
 
-    <!-- ─── JSON appender — structured logs for ELK / Loki (prod/docker) ── -->
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         JSON — structured logs for ELK / Loki (prod / docker)
+         ═══════════════════════════════════════════════════════════════════════ -->
     <appender name="JSON_STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <!-- Static fields added to every log event -->
-            <customFields>{"app":"${appName}"}</customFields>
-            <!-- All MDC keys (userId, chatId, requestId) are included automatically -->
+            <customFields>{"app":"${appName}","profile":"${activeProfile}"}</customFields>
             <fieldNames>
                 <timestamp>@timestamp</timestamp>
                 <version>[ignore]</version>
@@ -31,48 +41,73 @@
         </encoder>
     </appender>
 
-    <!-- ─────────────────────────────────────────────────────────────────── -->
-    <!--  Profile: local — verbose console with colour                       -->
-    <!-- ─────────────────────────────────────────────────────────────────── -->
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         local — подробный вывод с цветами
+         ═══════════════════════════════════════════════════════════════════════ -->
     <springProfile name="local">
-        <logger name="com.valui"                       level="DEBUG"/>
-        <logger name="org.springframework.web"         level="DEBUG"/>
-        <logger name="org.springframework.security"    level="INFO"/>
-        <logger name="org.hibernate.SQL"               level="DEBUG"/>
-        <logger name="org.hibernate.orm.jdbc.bind"     level="TRACE"/>
-        <logger name="org.flywaydb"                    level="INFO"/>
+        <!-- Valui modules -->
+        <logger name="com.valui"                        level="DEBUG"/>
+        <!-- Spring internals — INFO уровень для старта, не выше -->
+        <logger name="org.springframework.web"          level="INFO"/>
+        <logger name="org.springframework.security"     level="INFO"/>
+        <logger name="org.springframework.kafka"        level="INFO"/>
+        <logger name="org.hibernate.SQL"                level="DEBUG"/>
+        <logger name="org.hibernate.orm.jdbc.bind"      level="TRACE"/>
+        <logger name="org.flywaydb"                     level="INFO"/>
+        <!-- Kafka consumer config — очень шумный (выводит все 60+ параметров) -->
+        <logger name="org.apache.kafka.clients.consumer.ConsumerConfig"   level="WARN"/>
+        <logger name="org.apache.kafka.clients.producer.ProducerConfig"   level="WARN"/>
+        <logger name="org.apache.kafka.clients.admin.AdminClientConfig"   level="WARN"/>
+        <logger name="org.apache.kafka.common.utils.AppInfoParser"        level="WARN"/>
+        <!-- Kafka координатор — много INFO при старте, оставим только WARNING -->
+        <logger name="org.apache.kafka.clients.consumer.internals.ConsumerCoordinator" level="WARN"/>
+        <logger name="org.apache.kafka.clients.Metadata"                  level="WARN"/>
+        <!-- Kafka NetworkClient — спамит UNKNOWN_TOPIC_OR_PARTITION при первом старте
+             пока топик не создан, это ожидаемо и не является ошибкой -->
+        <logger name="org.apache.kafka.clients.NetworkClient"             level="ERROR"/>
+        <!-- Netty TLS — ожидаемый RST от geo-blocked серверов (BetCity/XBet) -->
+        <logger name="reactor.netty.http.client.HttpClientConnect"        level="ERROR"/>
+        <logger name="io.netty.handler.ssl"                               level="ERROR"/>
+        <!-- Telegram library — очень шумный на DEBUG -->
+        <logger name="org.telegram"                     level="INFO"/>
+        <logger name="org.apache.http"                  level="WARN"/>
+        <logger name="io.lettuce"                       level="INFO"/>
+        <!-- Netty DNS — некритичное предупреждение на macOS -->
+        <logger name="io.netty.resolver.dns"            level="ERROR"/>
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
         </root>
     </springProfile>
 
-    <!-- ─────────────────────────────────────────────────────────────────── -->
-    <!--  Profile: docker — JSON for container log collector                 -->
-    <!-- ─────────────────────────────────────────────────────────────────── -->
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         docker — JSON для контейнерного сборщика логов
+         ═══════════════════════════════════════════════════════════════════════ -->
     <springProfile name="docker">
         <logger name="com.valui"            level="INFO"/>
         <logger name="org.flywaydb"         level="WARN"/>
         <logger name="org.springframework"  level="WARN"/>
+        <logger name="org.telegram"         level="WARN"/>
         <root level="INFO">
             <appender-ref ref="JSON_STDOUT"/>
         </root>
     </springProfile>
 
-    <!-- ─────────────────────────────────────────────────────────────────── -->
-    <!--  Profile: prod — minimal noise, structured JSON                     -->
-    <!-- ─────────────────────────────────────────────────────────────────── -->
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         prod — минимум шума, структурированный JSON
+         ═══════════════════════════════════════════════════════════════════════ -->
     <springProfile name="prod">
         <logger name="com.valui"            level="INFO"/>
         <logger name="org.flywaydb"         level="WARN"/>
         <logger name="org.springframework"  level="WARN"/>
+        <logger name="org.telegram"         level="WARN"/>
         <root level="WARN">
             <appender-ref ref="JSON_STDOUT"/>
         </root>
     </springProfile>
 
-    <!-- ─────────────────────────────────────────────────────────────────── -->
-    <!--  Fallback — no active profile (e.g. plain unit tests)               -->
-    <!-- ─────────────────────────────────────────────────────────────────── -->
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         Fallback — нет активного профиля (unit tests и т.п.)
+         ═══════════════════════════════════════════════════════════════════════ -->
     <springProfile name="!(local | docker | prod)">
         <logger name="com.valui" level="DEBUG"/>
         <root level="INFO">

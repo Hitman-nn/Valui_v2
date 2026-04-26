@@ -32,7 +32,33 @@ public final class CallbackData {
     public static String filterDelete(int index) { return "FILTER:DELETE:" + index; }
 
     // ─── Bookmaker — format: "BK:SELECT:CODE" ────────────────────────────────
-    public static String bookmakerSelect(String code) { return "BK:SELECT:" + code; }
+    public static final String BK_SELECT_PREFIX = "BK:SELECT:";
+
+    public static String bookmakerSelect(String code) { return BK_SELECT_PREFIX + code; }
+
+    // ─── Wizard: Sport — "SPORT:SEL:{id}" | "SPORT:PAGE:{n}" ────────────────
+    public static final String SPORT_SEL_PREFIX  = "SPORT:SEL:";
+    public static final String SPORT_PAGE_PREFIX = "SPORT";   // used as navigationCallbackPrefix in PagedKeyboardBuilder
+    public static final String SPORT_BACK        = "SPORT:BACK";
+
+    public static String sportSel(String sportId) { return SPORT_SEL_PREFIX + sportId; }
+
+    // ─── Wizard: Tournament — "TOURN:SEL:{id}" | "TOURN:PAGE:{n}" | "TOURN:ALL" ──
+    public static final String TOURN_SEL_PREFIX  = "TOURN:SEL:";
+    public static final String TOURN_PAGE_PREFIX = "TOURN";   // used as navigationCallbackPrefix
+    public static final String TOURN_ALL         = "TOURN:ALL";
+    public static final String TOURN_EXIST       = "TOURN:EXIST";
+    public static final String TOURN_BACK        = "TOURN:BACK";
+
+    public static String tournSel(String tournamentId) { return TOURN_SEL_PREFIX + tournamentId; }
+
+    // ─── Wizard: Filter skip ─────────────────────────────────────────────────
+    public static final String FILTER_SKIP = "FSKIP";
+
+    // ─── Wizard: Controller confirmation ────────────────────────────────────
+    public static final String CTRL_CONFIRM_PREFIX = "CCONF:";
+    public static final String CTRL_CONFIRM_YES    = "CCONF:YES";
+    public static final String CTRL_CONFIRM_NO     = "CCONF:NO";
 
     // ─── Language — "LANG:SET:{code}" ────────────────────────────────────────
     public static final String LANG_SET_PREFIX = "LANG:SET:";

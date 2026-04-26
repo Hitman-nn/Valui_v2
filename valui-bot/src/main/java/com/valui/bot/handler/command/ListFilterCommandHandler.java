@@ -16,7 +16,7 @@ public class ListFilterCommandHandler implements CommandHandler {
     public String command() { return "/listfilter"; }
 
     @Override
-    public int order() { return 10; }
+    public int order() { return 5; }  // must be lower than ListCommandHandler (10) since /list startsWith-matches /listfilter
 
     @Override
     public void handle(BotUpdateContext ctx) {

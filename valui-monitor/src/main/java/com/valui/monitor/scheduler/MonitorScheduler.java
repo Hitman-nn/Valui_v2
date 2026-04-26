@@ -10,6 +10,7 @@ import com.valui.user.event.SubscriptionExpiredEvent;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
@@ -52,6 +53,7 @@ public class MonitorScheduler {
     private final ConcurrentHashMap<UUID, ScheduledFuture<?>> scheduled = new ConcurrentHashMap<>();
 
     /** Production constructor — creates real virtual-thread pools. */
+    @Autowired
     public MonitorScheduler(ControllerTaskExecutor taskExecutor,
                             MonitorProperties props,
                             MonitorMetrics metrics,
@@ -86,7 +88,7 @@ public class MonitorScheduler {
         List<ControllerScheduleInfo> controllers = taskExecutor.loadAllActiveForScheduling();
         controllers.forEach(info ->
                 doSchedule(info.controllerId(), info.userId(), info.pollIntervalSec()));
-        log.info("MonitorScheduler started: {} controllers scheduled", controllers.size());
+        log.info("🚀 Монитор запущен: {} контроллеров поставлено в очередь", controllers.size());
     }
 
     @PreDestroy
@@ -95,14 +97,14 @@ public class MonitorScheduler {
         scheduled.clear();
         triggerPool.shutdownNow();
         taskPool.shutdownNow();
-        log.info("MonitorScheduler stopped.");
+        log.info("🛑 Монитор остановлен. Все задачи отменены.");
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
 
     public void scheduleController(UUID controllerId, UUID userId, int pollIntervalSec) {
         if (scheduled.containsKey(controllerId)) {
-            log.debug("Controller {} already scheduled — skipping duplicate", controllerId);
+            log.debug("Контроллер {} уже запланирован — дубликат проигнорирован", controllerId);
             return;
         }
         doSchedule(controllerId, userId, pollIntervalSec);
@@ -113,7 +115,7 @@ public class MonitorScheduler {
         if (future != null) {
             future.cancel(false);
             metrics.onControllerUnscheduled();
-            log.debug("Controller {} unscheduled", controllerId);
+            log.debug("⏹  Контроллер {} снят с расписания", controllerId);
         }
     }
 
@@ -122,13 +124,13 @@ public class MonitorScheduler {
      * Meant for admin actions or bulk plan changes.
      */
     public synchronized void rescheduleAll() {
-        log.info("rescheduleAll: cancelling {} scheduled tasks", scheduled.size());
+        log.info("🔄 Перезапуск расписания: отменяем {} задач", scheduled.size());
         scheduled.values().forEach(f -> f.cancel(false));
         scheduled.clear();
 
         List<ControllerScheduleInfo> all = taskExecutor.loadAllActiveForScheduling();
         all.forEach(info -> doSchedule(info.controllerId(), info.userId(), info.pollIntervalSec()));
-        log.info("rescheduleAll: {} tasks rescheduled", all.size());
+        log.info("🔄 Перезапуск расписания завершён: {} задач запланировано", all.size());
     }
 
     public Set<UUID> getScheduledControllerIds() {
@@ -139,25 +141,25 @@ public class MonitorScheduler {
 
     @EventListener
     public void on(ControllerAddedEvent e) {
-        log.debug("ControllerAddedEvent: scheduling controller {}", e.controllerId());
+        log.debug("▶  Добавлен контроллер {}: ставим в расписание", e.controllerId());
         scheduleController(e.controllerId(), e.userId(), e.pollIntervalSec());
     }
 
     @EventListener
     public void on(ControllerRemovedEvent e) {
-        log.debug("ControllerRemovedEvent: unscheduling controller {}", e.controllerId());
+        log.debug("◼  Удалён контроллер {}: снимаем с расписания", e.controllerId());
         unscheduleController(e.controllerId());
     }
 
     @EventListener
     public void on(SubscriptionChangedEvent e) {
-        log.info("SubscriptionChangedEvent: rescheduling controllers for userId={}", e.userId());
+        log.info("🔄 Подписка изменена: перепланируем контроллеры userId={}", e.userId());
         rescheduleUser(e.userId());
     }
 
     @EventListener
     public void on(SubscriptionExpiredEvent e) {
-        log.info("SubscriptionExpiredEvent: rescheduling controllers for userId={}", e.userId());
+        log.info("⏰ Подписка истекла: перепланируем контроллеры userId={}", e.userId());
         rescheduleUser(e.userId());
     }
 
@@ -168,7 +170,7 @@ public class MonitorScheduler {
         try {
             dedup.seedIfAbsent(controllerId);
         } catch (Exception e) {
-            log.warn("Dedup seed failed for controller {} — will proceed without pre-seeding: {}", controllerId, e.getMessage());
+            log.warn("⚠️  Инициализация дедупликации для контроллера {} не удалась (продолжаем): {}", controllerId, e.getMessage());
         }
 
         ControllerTask task = new ControllerTask(
@@ -184,7 +186,7 @@ public class MonitorScheduler {
 
         scheduled.put(controllerId, future);
         metrics.onControllerScheduled();
-        log.debug("Scheduled controller {} every {}s", controllerId, pollIntervalSec);
+        log.debug("▶  Контроллер {} запланирован каждые {}с", controllerId, pollIntervalSec);
     }
 
     private void rescheduleUser(UUID userId) {

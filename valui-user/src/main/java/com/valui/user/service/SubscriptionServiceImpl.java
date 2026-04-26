@@ -122,7 +122,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             .build();
         SubscriptionEntity saved = subscriptionRepository.save(newSub);
 
-        log.info("Plan activated: userId={} plan={} expiresAt={}", userId, planCode, expiresAt);
+        log.info("✅ Подписка активирована: userId={} план={} до={}", userId, planCode, expiresAt);
         return saved;
     }
 
@@ -152,7 +152,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         eventPublisher.publishEvent(
             new SubscriptionExpiredEvent(user.getId(), user.getTelegramId(), oldPlanCode));
 
-        log.info("Subscription expired: subscriptionId={} userId={} oldPlan={}",
+        log.info("⏰ Подписка истекла: subscriptionId={} userId={} план={} → FREE",
             subscriptionId, user.getId(), oldPlanCode);
     }
 

@@ -27,8 +27,19 @@ public class UserBotSession {
     private Instant updatedAt;
 
     /** Context key constants */
-    public static final String CTX_BOOKMAKER  = "bookmaker";
-    public static final String CTX_SPORT      = "sport";
-    public static final String CTX_URL        = "url";
-    public static final String CTX_CONTROLLER_ID = "controllerId";
+    public static final String CTX_BOOKMAKER         = "bookmaker";
+    public static final String CTX_SPORT             = "sport";
+    public static final String CTX_URL               = "url";
+    public static final String CTX_CONTROLLER_ID     = "controllerId";
+
+    // Wizard-specific context keys
+    public static final String CTX_SPORT_ID          = "sportId";
+    public static final String CTX_SPORT_NAME        = "sportName";
+    public static final String CTX_SPORT_ALIAS       = "sportAlias";
+    public static final String CTX_CONTROLLER_TYPE   = "controllerType";
+    public static final String CTX_TOURNAMENT_ID     = "tournamentId";
+    public static final String CTX_TOURNAMENT_TITLE  = "tournamentTitle";
+    public static final String CTX_TOURNAMENT_URL    = "tournamentUrl";
+    public static final String CTX_FILTER            = "filter";
+    public static final String CTX_WIZARD_MSG_ID     = "wizardMsgId";
 }

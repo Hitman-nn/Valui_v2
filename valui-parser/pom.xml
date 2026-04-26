@@ -92,6 +92,16 @@
             <version>${protobuf.version}</version>
         </dependency>
 
+        <!-- Netty native DNS resolver for Apple Silicon (arm64/aarch64).
+             Spring Boot includes osx-x86_64 by default; without osx-aarch_64 Netty
+             falls back to JVM InetAddress which silently fails to resolve CDN mirrors
+             (e.g. Fonbet/Olimp), causing all HTTP parsers to time-out. -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-resolver-dns-native-macos</artifactId>
+            <classifier>osx-aarch_64</classifier>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.testcontainers</groupId>

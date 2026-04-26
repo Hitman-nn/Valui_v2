@@ -11,8 +11,8 @@ import com.valui.parser.http.BookmakerHttpClient;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -34,6 +34,7 @@ public class BetCityParser implements BookmakerParser {
     private final String eventsApi;
     private final BookmakerHttpClient http;
 
+    @Autowired
     public BetCityParser(@Qualifier("betcityHttpClient") BookmakerHttpClient http) {
         this(DEFAULT_BASE, http);
     }
@@ -96,7 +97,7 @@ public class BetCityParser implements BookmakerParser {
         long start = ms();
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("ids", tournamentId);
-        JsonNode root = block(http.postForm(eventsApi, form, JsonNode.class));
+        JsonNode root = block(http.postMultipart(eventsApi, form, JsonNode.class));
         List<MatchDto> matches = new ArrayList<>();
         if (root == null) return ParseResult.ok(matches, ms() - start);
         root.path("reply").path("sports").fields().forEachRemaining(sportEntry -> {

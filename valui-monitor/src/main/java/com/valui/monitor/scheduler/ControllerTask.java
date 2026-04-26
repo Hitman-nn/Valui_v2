@@ -55,7 +55,7 @@ public class ControllerTask implements Runnable {
         // ── Global concurrency guard ──────────────────────────────────────────
         if (!globalSemaphore.tryAcquire()) {
             metrics.onTaskSkipped();
-            log.debug("Global limit reached, skipping controller {}", controllerId);
+            log.debug("⏸  Глобальный лимит задач достигнут — контроллер {} пропущен", controllerId);
             return;
         }
         Timer.Sample sample = Timer.start();
@@ -66,7 +66,7 @@ public class ControllerTask implements Runnable {
             if (current > maxTasksPerUser) {
                 userSlots.decrementAndGet();
                 metrics.onTaskSkipped();
-                log.debug("Per-user limit reached for userId={}, skipping controller {}", userId, controllerId);
+                log.debug("⏸  Лимит пользователя userId={} достигнут — контроллер {} пропущен", userId, controllerId);
                 return;
             }
             try {
@@ -84,7 +84,7 @@ public class ControllerTask implements Runnable {
         // TX 1: load fresh controller context
         Optional<TaskContext> ctxOpt = executor.loadContext(controllerId);
         if (ctxOpt.isEmpty()) {
-            log.debug("Controller {} not active or URL unparseable — skipping", controllerId);
+            log.debug("⏭  Контроллер {} неактивен или URL не распознан — пропуск", controllerId);
             return;
         }
         TaskContext ctx = ctxOpt.get();
@@ -94,7 +94,7 @@ public class ControllerTask implements Runnable {
         try {
             fetched = executor.fetch(ctx);
         } catch (Exception e) {
-            log.warn("Parser error for controller {} ({}): {}", controllerId, ctx.bookmaker(), e.getMessage());
+            log.warn("⚠️  Ошибка парсера для контроллера {} ({}): {}", controllerId, ctx.bookmaker(), e.getMessage());
             return;
         }
 
@@ -103,10 +103,10 @@ public class ControllerTask implements Runnable {
             int newCount = executor.persistNewEvents(ctx, fetched);
             if (newCount > 0) {
                 metrics.onEventsDetected(newCount);
-                log.debug("Controller {} detected {} new event(s)", controllerId, newCount);
+                log.debug("🔔 Контроллер {}: {} новых событий обнаружено", controllerId, newCount);
             }
         } catch (Exception e) {
-            log.error("Failed to persist events for controller {}: {}", controllerId, e.getMessage(), e);
+            log.error("❌ Ошибка сохранения событий для контроллера {}: {}", controllerId, e.getMessage(), e);
         }
     }
 }

@@ -3,6 +3,7 @@ package com.valui.user.dto;
 import com.valui.common.entity.SubscriptionPlanEntity;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -33,6 +34,8 @@ public record SubscriptionPlanDto(
     }
 
     private static List<String> toList(String[] arr) {
-        return arr != null ? List.copyOf(Arrays.asList(arr)) : List.of();
+        // ArrayList: Jackson can reconstruct this via @class; List.copyOf / List.of return
+        // package-private JDK internal types (ImmutableCollections$*) that Jackson cannot instantiate.
+        return arr != null ? new ArrayList<>(Arrays.asList(arr)) : new ArrayList<>();
     }
 }

@@ -122,7 +122,7 @@ public class ControllersJsonMigrator {
             return MigrateResult.SKIPPED;
         }
 
-        if (controllerRepository.existsByUserIdAndBookmakerAndUrl(user.getId(), bookmaker, lc.link)) {
+        if (controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(user.getId(), bookmaker, lc.link)) {
             log.debug("Controller already exists: userId={} bookmaker={} link={}", user.getId(), bookmaker, lc.link);
             return MigrateResult.SKIPPED;
         }

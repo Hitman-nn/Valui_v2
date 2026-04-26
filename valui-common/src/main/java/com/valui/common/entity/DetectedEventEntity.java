@@ -39,7 +39,7 @@ public class DetectedEventEntity {
     @Column(name = "url", columnDefinition = "text")
     private String url;
 
-    @Column(name = "extra_data", columnDefinition = "jsonb")
+    @Column(name = "extra_data", columnDefinition = "text")
     private String extraData;
 
     @Column(name = "detected_at", nullable = false, updatable = false)
