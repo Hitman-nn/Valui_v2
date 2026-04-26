@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package betboom;
+
+option java_multiple_files = true;
+option java_package = "proto.betboom";
+option java_outer_classname = "RequestBetboom";
+
+/** Текущий узел: {1: node_hex, 2: type, 3: id} */
+message Current {
+  string node_hex = 1;
+
+  enum TypeLine {
+    TYPE_UNSPECIFIED = 0;
+    LIVE = 1;
+    LINE = 2;
+  }
+  TypeLine type = 2;
+
+  uint32 id = 3; // sportId/tournamentId
+}
+
+/** Parent → inner. inner — либо Current, либо «сырые varint [id,type]» (для sport_all). */
+message ParentWrap {
+  string parent_hex = 1;
+  bytes  inner      = 2; // Current.toByteArray() или raw [id, type]
+}

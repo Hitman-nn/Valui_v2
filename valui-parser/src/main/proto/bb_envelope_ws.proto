@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package bb.sport_ws.v1;
+
+option java_multiple_files = true;
+option java_package = "proto.betboom";
+option java_outer_classname = "BetboomEnvelope";
+
+message Envelope {
+  oneof kind {
+    bytes request_sport_all = 4;
+    bytes response_sport_all = 5;
+    bytes request_sport_tournaments = 6;
+    bytes response_sport_tournaments = 7;
+    bytes request_tournament_matches = 8;
+    bytes response_tournament_matches = 9;
+    bytes response_connect_open = 24;
+    bytes response_change_allSport = 25;
+    bytes response_change_sportTournaments = 27;
+    bytes response_change_tournamentMatches = 29;
+  }
+}

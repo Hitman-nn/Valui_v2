@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package bb.sport_ws.v1;
+
+option java_multiple_files = true;
+option java_package = "proto.betboom";
+option java_outer_classname = "BetboomCommon";
+
+/**
+ * Common server frame observed in all responses (matches the wire exactly).
+ * We keep field numbers as seen on the wire:
+ *   1: type (usually 200)
+ *   2: sub_type (usually 1)
+ *   4: parent_node (hex)
+ *   5: body (the typed payload bytes)
+ */
+message ServerFrame {
+  uint32 status = 1;
+  uint32 sub_status = 2;
+  reserved 3;
+  string parent_node = 4;
+  repeated bytes  body = 5;
+}

@@ -1,0 +1,93 @@
+package com.valui.parser.util;
+
+import com.valui.common.domain.BookmakerType;
+import com.valui.parser.bookmaker.betboom.BetBoomSportsMap;
+import com.valui.parser.bookmaker.betcity.BetcitySportsMap;
+
+import java.net.URI;
+import java.util.Arrays;
+import java.util.List;
+
+public final class UrlParser {
+
+    private UrlParser() {}
+
+    public static BookmakerType parseBookmaker(String url) {
+        String lower = url.toLowerCase();
+        if (lower.contains("1xbet.kz") || lower.contains("1xstavka.ru")) return BookmakerType.XBET;
+        if (lower.contains("fon.bet") || lower.contains("fonbet.ru"))    return BookmakerType.FONBET;
+        if (lower.contains("olimp.bet"))                                  return BookmakerType.OLIMP;
+        if (lower.contains("betcity.ru"))                                 return BookmakerType.BETCITY;
+        if (lower.contains("betboom.ru"))                                 return BookmakerType.BETBOOM;
+        throw new IllegalArgumentException("Unknown bookmaker URL: " + url);
+    }
+
+    public static ParsedUrlIds extractIds(String url, BookmakerType bookmaker) {
+        String[] parts = pathParts(url);
+        return switch (bookmaker) {
+            case XBET -> extractXbet(parts);
+            case FONBET -> extractFonbet(parts);
+            case OLIMP -> extractOlimp(parts);
+            case BETCITY -> extractBetcity(parts);
+            case BETBOOM -> extractBetboom(parts);
+        };
+    }
+
+    // /line/{sportSlug}/{champId}-{champName}[/{matchId}-{team1}-{team2}]
+    private static ParsedUrlIds extractXbet(String[] p) {
+        String sportId     = p.length > 1 ? p[1] : null;       // slug like "football"
+        String tournamentId = p.length > 2 ? p[2].split("-")[0] : null;
+        String matchId     = p.length > 3 ? p[3].split("-")[0] : null;
+        return new ParsedUrlIds(sportId, tournamentId, matchId);
+    }
+
+    // /sports/{sportId}[/{champId}]
+    private static ParsedUrlIds extractFonbet(String[] p) {
+        // p[0]="sports", p[1]=sportId, p[2]=champId
+        String sportId     = p.length > 1 ? p[1] : null;
+        String tournamentId = p.length > 2 ? p[2] : null;
+        return new ParsedUrlIds(sportId, tournamentId, null);
+    }
+
+    // /line/{sportId}[/{champId}]
+    private static ParsedUrlIds extractOlimp(String[] p) {
+        // p[0]="line", p[1]=sportId, p[2]=champId
+        String sportId     = p.length > 1 ? p[1] : null;
+        String tournamentId = p.length > 2 ? p[2] : null;
+        return new ParsedUrlIds(sportId, tournamentId, null);
+    }
+
+    // /ru/line/{sportName}[/{champId}]
+    private static ParsedUrlIds extractBetcity(String[] p) {
+        // p[0]="ru", p[1]="line", p[2]=sportName, p[3]=champId
+        String sportAlias  = p.length > 2 ? p[2] : null;
+        String sportId     = sportAlias != null
+                ? BetcitySportsMap.getSportId(sportAlias).map(String::valueOf).orElse(sportAlias)
+                : null;
+        String tournamentId = p.length > 3 ? p[3] : null;
+        return new ParsedUrlIds(sportId, tournamentId, null);
+    }
+
+    // /sport/{sportAlias}/{countryId}/{champId}[/{matchId}]?period=all
+    private static ParsedUrlIds extractBetboom(String[] p) {
+        // p[0]="sport", p[1]=sportAlias, p[2]=countryId, p[3]=champId, p[4]=matchId
+        String sportAlias  = p.length > 1 ? p[1] : null;
+        String sportId     = sportAlias != null
+                ? BetBoomSportsMap.getSportId(sportAlias).map(String::valueOf).orElse(sportAlias)
+                : null;
+        String tournamentId = p.length > 3 ? p[3] : null;
+        String matchId     = p.length > 4 ? p[4] : null;
+        return new ParsedUrlIds(sportId, tournamentId, matchId);
+    }
+
+    private static String[] pathParts(String rawUrl) {
+        try {
+            String path = URI.create(rawUrl).getPath();
+            return Arrays.stream(path.split("/"))
+                    .filter(s -> !s.isBlank())
+                    .toArray(String[]::new);
+        } catch (Exception e) {
+            return new String[0];
+        }
+    }
+}

@@ -1,0 +1,318 @@
+syntax = "proto3";
+
+package bb.sport_ws.v1;
+
+option java_multiple_files = true;
+option java_package = "proto.betboom";
+option java_outer_classname = "BetboomResponses";
+
+/**
+ * BetBoom WS / protobuf reference
+ *
+ * Проверено через отдельный proto-аудит raw wire dump.
+ *
+ * 1) Общая логика
+ * - Для матчей нельзя доверять только типу envelope.
+ * - Нужно дополнительно сверять:
+ *   section.tournament.id == ожидаемый champId
+ *
+ * 2) Каноническая ссылка матча
+ * - sport alias: MatchesFrame.sport.sport.alias
+ * - regionId:    MatchesFrame.country.country.region_id
+ * - tournamentId: MatchesFrame.section.tournament.id
+ * - eventId:     MatchesBody.Match.header.id
+ *
+ * Формат:
+ * https://betboom.ru/sport/{sportAlias}/{regionId}/{tournamentId}/{eventId}?period=all
+ *
+ * 3) Турниры спорта
+ * - В TournamentListBody.Entry поле category является wrapper:
+ *   Entry.category -> CategoryHeader.category
+ * - Для URL турнира нужен не tournament.country_id,
+ *   а category.region_id
+ *
+ * 4) Проверенная структура MatchHeader
+ * - 1  = eventId
+ * - 2  = lineGroup
+ * - 5  = sr_match_id
+ * - 6  = status_id
+ * - 8  = sport_id
+ * - 9  = country/category id
+ * - 10 = tournament_id
+ * - 12 = status.text
+ * - 13 = starts_at
+ * - 16 = teams
+ * - 19 = live
+ *
+ * 5) Проверенная структура Team
+ * - 1  = id
+ * - 2  = sr_id
+ * - 3  = name
+ * - 4  = name_short
+ * - 5  = rank/meta text ("WTA: 17", "ATP: 50"), это НЕ form
+ * - 6  = unknown flag (обычно 1)
+ * - 7  = logo_webp
+ * - 8  = color_hex
+ * - 9  = fixed32
+ * - 10 = fixed32
+ *
+ * 6) Важное правило
+ * - Принадлежность матча турниру сверять по:
+ *   match.header.tournament_id
+ *   и дополнительно по section.tournament.id
+ *
+ */
+
+/** ===== Shared small messages ===== */
+
+message Group {
+  string name = 1;
+  repeated string codes = 2;
+}
+
+message Assets {
+  string icon_svg   = 1;
+  string icon_pdf   = 2;
+  string fill_image = 3;
+  string image      = 4;
+}
+
+message SportHeader {
+  Sport sport = 1;
+}
+
+message CountryHeader {
+  Country country = 1;
+}
+
+message CategoryHeader {
+  Category category = 1;
+}
+
+/** ===== Base entities ===== */
+
+message Sport {
+  uint32 id         = 1;
+  string name       = 2;
+  uint32 order      = 3;
+  Assets assets     = 4;
+  uint32 count      = 5;
+  string updated_at = 6;
+  uint32 category   = 7;
+  string alias      = 8;
+  repeated Group groups = 9;
+}
+
+message Country {
+  uint32 id         = 1;
+  uint32 sport_id   = 2;
+  string name       = 3;
+  uint32 order      = 4;
+  Assets assets     = 5;
+  uint32 events     = 6;
+  string updated_at = 7;
+  uint32 region_id  = 8;
+  string alias      = 9;
+  repeated Group groups = 10;
+}
+
+message Category {
+  // field 1 is wrapper outside, so real Category starts from 2
+  uint32 sport_id   = 2;
+  string name_short = 3;
+  uint32 tier       = 4;
+  Assets assets     = 5;
+  uint32 id         = 6;
+  string updated_at = 7;
+  uint32 region_id  = 8;
+  string alias      = 9;
+  repeated Group groups = 10;
+}
+
+/** ===== 1) ALL SPORTS ===== */
+
+message SportAllBody {
+  uint32 list_type = 1;
+  repeated Row rows = 2;
+
+  message Row {
+    Sport sport = 1;
+  }
+}
+
+/** ===== 2) TOURNAMENTS FOR A SPORT ===== */
+
+message TournamentListBody {
+  message Tournament {
+    uint32 id         = 1;
+    uint32 sport_id   = 2;
+    uint32 country_id = 3;
+    string title      = 4;
+    uint32 events     = 6;
+    uint32 level      = 9;
+    uint32 active     = 11;
+    string short_name = 12;
+  }
+
+  message Entry {
+    Tournament     tournament = 1;
+    CategoryHeader category   = 2;
+  }
+
+  SportHeader    sport   = 1;
+  repeated Entry entries = 2;
+}
+
+message TournamentListFrame {
+  uint32 type        = 1;
+  uint32 sub_type    = 2;
+  reserved 3;
+  string parent_node = 4;
+  uint32 list_type   = 5;
+  TournamentListBody list = 6;
+}
+
+/** ===== 3) MATCHES FOR A TOURNAMENT ===== */
+
+message MatchesBody {
+  message Team {
+    uint32 id         = 1;
+    string sr_id      = 2;
+    string name       = 3;
+    string name_short = 4;
+
+    // observed values: "WTA: 17", "ATP: 50"
+    string rank_text  = 5;
+
+    // observed = 1
+    uint32 unknown_6  = 6;
+
+    string logo_webp  = 7;
+    string color_hex  = 8;
+    fixed32 c1        = 9;
+    fixed32 c2        = 10;
+  }
+
+  message StatusText {
+    string text = 1;
+  }
+
+  message Teams {
+    Team home = 1;
+    Team away = 3;
+  }
+
+  message TournamentHeader {
+    uint32 id           = 1;
+    uint32 sport_id     = 2;
+    uint32 country_id   = 3;
+    string title        = 4;
+    uint32 rounds       = 6;
+    string logo         = 7;
+    string logo_alt     = 8;
+    uint32 level        = 9;
+    string image        = 10;
+    uint32 active       = 11;
+    string short_name   = 12;
+  }
+
+  message Extra20 {
+    uint32 f1 = 1;
+    string f2 = 2;
+    string f3 = 3;
+    uint32 f4 = 4;
+    uint32 f5 = 5;
+    uint32 f6 = 6;
+    uint32 f7 = 7;
+    message Nested {
+      uint32 a = 1;
+      uint32 b = 2;
+    }
+    Nested f8 = 8;
+  }
+
+  message MatchHeader {
+    uint32 id            = 1;
+    uint32 line_group    = 2;
+
+    // observed raw values: field3=2, field4=3
+    uint32 unknown_3     = 3;
+    uint32 unknown_4     = 4;
+
+    string sr_match_id   = 5;
+    uint32 status_id     = 6;
+
+    uint32 sport_id      = 8;
+    uint32 country_id    = 9;
+    uint32 tournament_id = 10;
+
+    StatusText status    = 12;
+    string starts_at     = 13;
+
+    uint32 flag_14       = 14;
+    uint32 flag_15       = 15;
+
+    Teams teams          = 16;
+
+    string h2h_text      = 17;
+
+    uint32 live          = 19;
+    Extra20 extra_20     = 20;
+
+    uint32 unknown_23    = 23;
+    uint32 sort_order    = 24;
+    uint32 unknown_26    = 26;
+    uint32 unknown_28    = 28;
+  }
+
+  message Market {
+    string key          = 1;
+    uint32 match_id     = 2;
+    uint32 scope        = 3;
+
+    string title_full   = 5;
+    string title_short  = 6;
+
+    uint32 outcome_id   = 7;
+    uint32 outcome_no   = 8;
+
+    fixed64 odds_raw1   = 9;
+    fixed64 odds_raw2   = 10;
+
+    uint32 flag_11      = 11;
+    uint32 flag_12      = 12;
+
+    uint32 view_id      = 13;
+    string market_name  = 14;
+    uint32 group_id     = 15;
+    string view_key     = 16;
+    uint32 period       = 17;
+    string group_name   = 18;
+    uint32 sort         = 19;
+    string time_scope   = 20;
+    uint32 flag_21      = 21;
+
+    string cache_key    = 24;
+    string label        = 25;
+  }
+
+  message Match {
+    MatchHeader header      = 1;
+    repeated Market markets = 2;
+  }
+
+  TournamentHeader tournament = 1;
+  CountryHeader    country    = 2;
+  repeated Match   matches    = 3;
+}
+
+message MatchesFrame {
+  uint32 type        = 1;
+  uint32 sub_type    = 2;
+  reserved 3;
+  string parent_node = 4;
+
+  SportHeader   sport   = 6;
+  CountryHeader country = 7;
+  MatchesBody   section = 8;
+}
