@@ -1,0 +1,58 @@
+package com.valui.parser.health;
+
+import com.valui.common.domain.BookmakerType;
+import com.valui.parser.api.BookmakerParser;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class ParserHealthChecker {
+
+    private static final int FAILURE_THRESHOLD = 3;
+
+    private final List<BookmakerParser> parsers;
+    private final ApplicationEventPublisher eventPublisher;
+
+    private final Map<BookmakerType, Integer> consecutiveFailures = new ConcurrentHashMap<>();
+
+    @Scheduled(fixedDelay = 300_000) // every 5 minutes
+    public void checkAll() {
+        log.debug("Running parser health check for {} parsers", parsers.size());
+        parsers.forEach(this::checkOne);
+    }
+
+    private void checkOne(BookmakerParser parser) {
+        BookmakerType type = parser.getBookmaker();
+        try {
+            boolean available = parser.isAvailable();
+            if (available) {
+                int prev = consecutiveFailures.put(type, 0) != null
+                        ? consecutiveFailures.getOrDefault(type, 0) : 0;
+                if (prev > 0) log.info("Parser {} recovered", type);
+            } else {
+                recordFailure(type, "isAvailable() returned false");
+            }
+        } catch (Exception e) {
+            recordFailure(type, e.getMessage());
+        }
+    }
+
+    private void recordFailure(BookmakerType type, String reason) {
+        int failures = consecutiveFailures.merge(type, 1, Integer::sum);
+        log.warn("Parser {} unavailable: {} (consecutive={})", type, reason, failures);
+        if (failures >= FAILURE_THRESHOLD) {
+            log.error("Parser {} exceeded failure threshold — publishing ParserUnavailableEvent", type);
+            eventPublisher.publishEvent(new ParserUnavailableEvent(this, type, failures));
+            consecutiveFailures.put(type, 0); // reset to avoid repeated flood
+        }
+    }
+}

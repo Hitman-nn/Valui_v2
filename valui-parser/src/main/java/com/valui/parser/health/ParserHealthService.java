@@ -1,0 +1,88 @@
+package com.valui.parser.health;
+
+import com.valui.common.domain.BookmakerType;
+import com.valui.parser.api.BookmakerParser;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.micrometer.tagged.TaggedCircuitBreakerMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class ParserHealthService {
+
+    private final CircuitBreakerRegistry cbRegistry;
+    private final MeterRegistry meterRegistry;
+    private final List<BookmakerParser> parsers;
+
+    public record CircuitBreakerInfo(
+            CircuitBreaker.State state,
+            float successRate,
+            long numberOfSuccessfulCalls,
+            long numberOfFailedCalls,
+            long numberOfNotPermittedCalls
+    ) {}
+
+    @PostConstruct
+    void bindMetrics() {
+        TaggedCircuitBreakerMetrics.ofCircuitBreakerRegistry(cbRegistry).bindTo(meterRegistry);
+        log.info("Resilience4j CB metrics bound to Micrometer for {} instances",
+                cbRegistry.getAllCircuitBreakers().size());
+    }
+
+    /** Returns CB state for every registered parser. */
+    public Map<BookmakerType, CircuitBreakerInfo> getCurrentState() {
+        Map<BookmakerType, CircuitBreakerInfo> result = new LinkedHashMap<>();
+        parsers.forEach(p -> findCb(p.getBookmaker())
+                .ifPresent(cb -> result.put(p.getBookmaker(), toInfo(cb))));
+        return result;
+    }
+
+    /**
+     * True if the CB is not OPEN / FORCED_OPEN.
+     * Use this (not parser.isAvailable()) in the monitor scheduler for CB-aware routing.
+     */
+    public boolean isAvailable(BookmakerType type) {
+        return findCb(type)
+                .map(cb -> cb.getState() != CircuitBreaker.State.OPEN &&
+                           cb.getState() != CircuitBreaker.State.FORCED_OPEN)
+                .orElse(true); // no CB registered → assume available
+    }
+
+    /** Latest failure rate for a bookmaker (0-100). -1 if unknown. */
+    public float getFailureRate(BookmakerType type) {
+        return findCb(type)
+                .map(cb -> cb.getMetrics().getFailureRate())
+                .orElse(-1f);
+    }
+
+    // ── internals ─────────────────────────────────────────────────────────────
+
+    private Optional<CircuitBreaker> findCb(BookmakerType type) {
+        String name = type.name().toLowerCase() + "-cb";
+        return cbRegistry.find(name);
+    }
+
+    private static CircuitBreakerInfo toInfo(CircuitBreaker cb) {
+        CircuitBreaker.Metrics m = cb.getMetrics();
+        float rate = m.getFailureRate();
+        float successRate = rate >= 0 ? (100f - rate) : 100f;
+        return new CircuitBreakerInfo(
+                cb.getState(),
+                successRate,
+                m.getNumberOfSuccessfulCalls(),
+                m.getNumberOfFailedCalls(),
+                m.getNumberOfNotPermittedCalls()
+        );
+    }
+}

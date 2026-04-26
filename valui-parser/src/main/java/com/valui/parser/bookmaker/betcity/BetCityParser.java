@@ -7,19 +7,21 @@ import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
-import io.netty.channel.ChannelOption;
+import com.valui.parser.http.BookmakerHttpClient;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.netty.http.client.HttpClient;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+
+import static com.valui.parser.http.BookmakerHttpClient.BLOCK_TIMEOUT;
 
 @Slf4j
 @Component
@@ -30,142 +32,119 @@ public class BetCityParser implements BookmakerParser {
     private final String sportsApi;
     private final String champsApi;
     private final String eventsApi;
-    private final WebClient webClient;
+    private final BookmakerHttpClient http;
 
-    public BetCityParser() {
-        this(DEFAULT_BASE, buildWebClient());
+    public BetCityParser(@Qualifier("betcityHttpClient") BookmakerHttpClient http) {
+        this(DEFAULT_BASE, http);
     }
 
-    BetCityParser(String apiBase, WebClient webClient) {
-        this.sportsApi  = apiBase + "/sports";
-        this.champsApi  = apiBase + "/champs?rev=4";
-        this.eventsApi  = apiBase + "/events?rev=6";
-        this.webClient  = webClient;
+    BetCityParser(String apiBase, BookmakerHttpClient http) {
+        this.sportsApi = apiBase + "/sports";
+        this.champsApi = apiBase + "/champs?rev=4";
+        this.eventsApi = apiBase + "/events?rev=6";
+        this.http = http;
     }
 
-    private static WebClient buildWebClient() {
-        HttpClient httpClient = HttpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10_000)
-                .responseTimeout(Duration.ofSeconds(10));
-        return WebClient.builder()
-                .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .build();
+    BetCityParser(String apiBase, org.springframework.web.reactive.function.client.WebClient wc) {
+        this(apiBase, new BookmakerHttpClient(wc));
     }
 
     @Override
-    public BookmakerType getBookmaker() {
-        return BookmakerType.BETCITY;
-    }
+    public BookmakerType getBookmaker() { return BookmakerType.BETCITY; }
 
+    @CircuitBreaker(name = "betcity-cb", fallbackMethod = "fetchSportsFallback")
+    @Retry(name = "parser-retry")
     @Override
     public ParseResult<List<SportDto>> fetchSports() {
-        long start = System.currentTimeMillis();
-        try {
-            JsonNode root  = getJson(sportsApi);
-            JsonNode reply = root.path("reply");
-            JsonNode arr   = reply.path("sports");
-            List<SportDto> sports = new ArrayList<>();
-            if (arr.isArray()) {
-                for (JsonNode item : arr) {
-                    String id   = s(item, "id_sp");
-                    String name = s(item, "name_sp");
-                    if (id == null || name == null) continue;
-                    String alias = BetcitySportsMap.getSport(safeInt(id)).orElse(name.toLowerCase());
-                    sports.add(new SportDto(id, name, alias));
-                }
+        long start = ms();
+        JsonNode root = block(http.getJson(sportsApi, JsonNode.class));
+        JsonNode arr = root.path("reply").path("sports");
+        List<SportDto> sports = new ArrayList<>();
+        if (arr.isArray()) {
+            for (JsonNode item : arr) {
+                String id = s(item, "id_sp"), name = s(item, "name_sp");
+                if (id == null || name == null) continue;
+                String alias = BetcitySportsMap.getSport(safeInt(id)).orElse(name.toLowerCase());
+                sports.add(new SportDto(id, name, alias));
             }
-            return ParseResult.ok(sports, ms(start));
-        } catch (Exception e) {
-            log.warn("BetCity fetchSports failed", e);
-            return ParseResult.error(e.getMessage());
         }
+        return ParseResult.ok(sports, ms() - start);
     }
 
+    @CircuitBreaker(name = "betcity-cb", fallbackMethod = "fetchTournamentsFallback")
+    @Retry(name = "parser-retry")
     @Override
     public ParseResult<List<TournamentDto>> fetchTournaments(String sportId) {
-        long start = System.currentTimeMillis();
-        try {
-            JsonNode root   = getJson(champsApi + "&ids_sp=" + sportId);
-            JsonNode sports = root.path("reply").path("sports");
-            JsonNode chmps  = sports.path(sportId).path("chmps");
-            List<TournamentDto> tournaments = new ArrayList<>();
-            chmps.fields().forEachRemaining(e -> {
-                String id    = e.getKey();
-                String title = s(e.getValue(), "name_ch");
-                if (title == null) return;
-                String alias = BetcitySportsMap.getSport(safeInt(sportId)).orElse("sport");
-                String url   = "https://betcity.ru/ru/line/" + alias + "/" + id;
-                tournaments.add(new TournamentDto(id, title, sportId, null, url));
-            });
-            return ParseResult.ok(tournaments, ms(start));
-        } catch (Exception e) {
-            log.warn("BetCity fetchTournaments failed for sportId={}", sportId, e);
-            return ParseResult.error(e.getMessage());
-        }
+        long start = ms();
+        JsonNode root = block(http.getJson(champsApi + "&ids_sp=" + sportId, JsonNode.class));
+        JsonNode chmps = root.path("reply").path("sports").path(sportId).path("chmps");
+        List<TournamentDto> tournaments = new ArrayList<>();
+        chmps.fields().forEachRemaining(e -> {
+            String id = e.getKey(), title = s(e.getValue(), "name_ch");
+            if (title == null) return;
+            String alias = BetcitySportsMap.getSport(safeInt(sportId)).orElse("sport");
+            tournaments.add(new TournamentDto(id, title, sportId, null,
+                    "https://betcity.ru/ru/line/" + alias + "/" + id));
+        });
+        return ParseResult.ok(tournaments, ms() - start);
     }
 
+    @CircuitBreaker(name = "betcity-cb", fallbackMethod = "fetchMatchesFallback")
+    @Retry(name = "parser-retry")
     @Override
     public ParseResult<List<MatchDto>> fetchMatches(String tournamentId) {
-        long start = System.currentTimeMillis();
-        try {
-            // BetCity events endpoint requires POST with form data
-            JsonNode root = webClient.post()
-                    .uri(eventsApi)
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .bodyValue("ids=" + tournamentId)
-                    .retrieve()
-                    .bodyToMono(JsonNode.class)
-                    .block(Duration.ofSeconds(12));
-
-            List<MatchDto> matches = new ArrayList<>();
-            if (root == null) return ParseResult.ok(matches, ms(start));
-
-            JsonNode allSports = root.path("reply").path("sports");
-            allSports.fields().forEachRemaining(sportEntry -> {
-                String sportId = sportEntry.getKey();
-                JsonNode chmps = sportEntry.getValue().path("chmps");
-                JsonNode evts  = chmps.path(tournamentId).path("evts");
-                if (evts.isMissingNode()) return;
-                String alias = BetcitySportsMap.getSport(safeInt(sportId)).orElse("sport");
-                evts.fields().forEachRemaining(evtEntry -> {
-                    String id    = evtEntry.getKey();
-                    String team1 = s(evtEntry.getValue(), "name_ht");
-                    String team2 = s(evtEntry.getValue(), "name_at");
-                    if (team1 == null || team2 == null) return;
-                    String url = "https://betcity.ru/ru/line/" + alias + "/" + tournamentId + "/" + id;
-                    Instant startsAt = parseInstant(s(evtEntry.getValue(), "date_dt"));
-                    matches.add(new MatchDto(id, team1 + " - " + team2, tournamentId, url, startsAt, false));
-                });
+        long start = ms();
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("ids", tournamentId);
+        JsonNode root = block(http.postForm(eventsApi, form, JsonNode.class));
+        List<MatchDto> matches = new ArrayList<>();
+        if (root == null) return ParseResult.ok(matches, ms() - start);
+        root.path("reply").path("sports").fields().forEachRemaining(sportEntry -> {
+            String sportId = sportEntry.getKey();
+            JsonNode evts = sportEntry.getValue().path("chmps").path(tournamentId).path("evts");
+            if (evts.isMissingNode()) return;
+            String alias = BetcitySportsMap.getSport(safeInt(sportId)).orElse("sport");
+            evts.fields().forEachRemaining(evtEntry -> {
+                String id = evtEntry.getKey();
+                String t1 = s(evtEntry.getValue(), "name_ht"), t2 = s(evtEntry.getValue(), "name_at");
+                if (t1 == null || t2 == null) return;
+                String url = "https://betcity.ru/ru/line/" + alias + "/" + tournamentId + "/" + id;
+                matches.add(new MatchDto(id, t1 + " - " + t2, tournamentId, url,
+                        parseInstant(s(evtEntry.getValue(), "date_dt")), false));
             });
-            return ParseResult.ok(matches, ms(start));
-        } catch (Exception e) {
-            log.warn("BetCity fetchMatches failed for tournamentId={}", tournamentId, e);
-            return ParseResult.error(e.getMessage());
-        }
+        });
+        return ParseResult.ok(matches, ms() - start);
     }
 
     @Override
     public boolean isAvailable() {
-        try {
-            getJson(sportsApi);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+        try { block(http.getJson(sportsApi, JsonNode.class)); return true; }
+        catch (Exception e) { return false; }
     }
 
-    // ── internals ─────────────────────────────────────────────────────────────
+    // ── fallbacks ─────────────────────────────────────────────────────────────
 
-    private JsonNode getJson(String url) {
-        return webClient.get().uri(url)
-                .retrieve()
-                .bodyToMono(JsonNode.class)
-                .block(Duration.ofSeconds(12));
+    private ParseResult<List<SportDto>> fetchSportsFallback(Throwable t) {
+        log.warn("betcity fetchSports fallback: {}", t.getMessage());
+        return ParseResult.error("betcity-cb: " + t.getMessage());
     }
 
-    private static String s(JsonNode n, String field) {
-        JsonNode v = n.path(field);
-        return v.isMissingNode() || v.isNull() ? null : v.asText();
+    private ParseResult<List<TournamentDto>> fetchTournamentsFallback(String sportId, Throwable t) {
+        log.warn("betcity fetchTournaments fallback: {}", t.getMessage());
+        return ParseResult.error("betcity-cb: " + t.getMessage());
+    }
+
+    private ParseResult<List<MatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
+        log.warn("betcity fetchMatches fallback: {}", t.getMessage());
+        return ParseResult.error("betcity-cb: " + t.getMessage());
+    }
+
+    // ── utils ─────────────────────────────────────────────────────────────────
+
+    private <T> T block(reactor.core.publisher.Mono<T> mono) { return mono.block(BLOCK_TIMEOUT); }
+
+    private static String s(JsonNode n, String f) {
+        JsonNode v = n.path(f); return v.isMissingNode() || v.isNull() ? null : v.asText();
     }
 
     private static int safeInt(String s) {
@@ -180,7 +159,5 @@ public class BetCityParser implements BookmakerParser {
         }
     }
 
-    private static long ms(long start) {
-        return System.currentTimeMillis() - start;
-    }
+    private static long ms() { return System.currentTimeMillis(); }
 }

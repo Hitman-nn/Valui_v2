@@ -9,6 +9,8 @@ import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.bookmaker.betboom.ws.WsRequestService;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -39,150 +41,120 @@ public class BetBoomParser implements BookmakerParser {
     private final WsRequestService ws;
 
     @Override
-    public BookmakerType getBookmaker() {
-        return BookmakerType.BETBOOM;
-    }
+    public BookmakerType getBookmaker() { return BookmakerType.BETBOOM; }
 
+    @CircuitBreaker(name = "betboom-cb", fallbackMethod = "fetchSportsFallback")
     @Override
     public ParseResult<List<SportDto>> fetchSports() {
-        long start = System.currentTimeMillis();
-        try {
-            byte[] req = BetBoomSubscribeBuilder.sportAllBytes(LINE, 1);
-            byte[] resp = filtered("fetchSports", req, Envelope::hasResponseSportAll);
-            if (resp == null) return ParseResult.error("WS timeout");
+        long start = ms();
+        byte[] req  = BetBoomSubscribeBuilder.sportAllBytes(LINE, 1);
+        byte[] resp = filtered("fetchSports", req, Envelope::hasResponseSportAll);
+        if (resp == null) throw new IllegalStateException("WS timeout");
 
-            SportAllBody body = parseSportAll(resp).orElse(null);
-            if (body == null) return ParseResult.error("Cannot parse SportAllBody");
-
-            List<SportDto> sports = new ArrayList<>();
-            body.getRowsList().forEach(row -> {
-                var sport = row.getSport();
-                if (sport.getId() != 0 && !sport.getName().isBlank()) {
-                    sports.add(new SportDto(
-                            String.valueOf(sport.getId()),
-                            sport.getName(),
-                            sport.getAlias()
-                    ));
-                }
-            });
-            return ParseResult.ok(sports, ms(start));
-        } catch (Exception e) {
-            log.warn("BetBoom fetchSports failed", e);
-            return ParseResult.error(e.getMessage());
-        }
+        SportAllBody body = parseSportAll(resp).orElseThrow(() ->
+                new IllegalStateException("Cannot parse SportAllBody"));
+        List<SportDto> sports = new ArrayList<>();
+        body.getRowsList().forEach(row -> {
+            var s = row.getSport();
+            if (s.getId() != 0 && !s.getName().isBlank())
+                sports.add(new SportDto(String.valueOf(s.getId()), s.getName(), s.getAlias()));
+        });
+        return ParseResult.ok(sports, ms() - start);
     }
 
+    @CircuitBreaker(name = "betboom-cb", fallbackMethod = "fetchTournamentsFallback")
     @Override
     public ParseResult<List<TournamentDto>> fetchTournaments(String sportId) {
-        long start = System.currentTimeMillis();
-        int sid;
-        try { sid = Integer.parseInt(sportId); }
-        catch (NumberFormatException e) { return ParseResult.error("Invalid sportId: " + sportId); }
+        long start = ms();
+        int sid = parseInt(sportId, "sportId");
+        byte[] req  = BetBoomSubscribeBuilder.sportTournamentsBytes(LINE, sid);
+        byte[] resp = filtered("fetchTournaments[" + sid + "]", req,
+                Envelope::hasResponseSportTournaments);
+        if (resp == null) throw new IllegalStateException("WS timeout");
 
-        try {
-            byte[] req  = BetBoomSubscribeBuilder.sportTournamentsBytes(LINE, sid);
-            byte[] resp = filtered("fetchTournaments[" + sid + "]", req,
-                    Envelope::hasResponseSportTournaments);
-            if (resp == null) return ParseResult.error("WS timeout");
-
-            TournamentListFrame tlf = parseTournamentList(resp).orElse(null);
-            if (tlf == null) return ParseResult.error("Cannot parse TournamentListFrame");
-
-            String sportAlias = BetBoomSportsMap.getSport(sid).orElse("");
-            if (sportAlias.isBlank() && tlf.getList().hasSport()) {
-                sportAlias = tlf.getList().getSport().getSport().getAlias();
-            }
-            final String alias = sportAlias;
-
-            List<TournamentDto> tournaments = new ArrayList<>();
-            tlf.getList().getEntriesList().forEach(entry -> {
-                var t = entry.getTournament();
-                if (t.getTitle().isBlank()) return;
-                // prefer region_id from category over tournament.country_id per proto docs
-                int regionId = entry.hasCategory() && entry.getCategory().hasCategory()
-                        ? entry.getCategory().getCategory().getRegionId()
-                        : t.getCountryId();
-                String url = "https://betboom.ru/sport/" + alias + "/" + regionId
-                        + "/" + t.getId() + "?period=all";
-                tournaments.add(new TournamentDto(
-                        String.valueOf(t.getId()),
-                        t.getTitle(),
-                        sportId,
-                        String.valueOf(regionId),
-                        url
-                ));
-            });
-            return ParseResult.ok(tournaments, ms(start));
-        } catch (Exception e) {
-            log.warn("BetBoom fetchTournaments failed for sportId={}", sportId, e);
-            return ParseResult.error(e.getMessage());
-        }
+        TournamentListFrame tlf = parseTournamentList(resp).orElseThrow(() ->
+                new IllegalStateException("Cannot parse TournamentListFrame"));
+        String sportAlias = BetBoomSportsMap.getSport(sid).orElse(
+                tlf.getList().hasSport() ? tlf.getList().getSport().getSport().getAlias() : "");
+        List<TournamentDto> tournaments = new ArrayList<>();
+        tlf.getList().getEntriesList().forEach(entry -> {
+            var t = entry.getTournament();
+            if (t.getTitle().isBlank()) return;
+            int regionId = entry.hasCategory() && entry.getCategory().hasCategory()
+                    ? entry.getCategory().getCategory().getRegionId() : t.getCountryId();
+            String url = "https://betboom.ru/sport/" + sportAlias + "/" + regionId
+                    + "/" + t.getId() + "?period=all";
+            tournaments.add(new TournamentDto(String.valueOf(t.getId()), t.getTitle(),
+                    sportId, String.valueOf(regionId), url));
+        });
+        return ParseResult.ok(tournaments, ms() - start);
     }
 
+    @CircuitBreaker(name = "betboom-cb", fallbackMethod = "fetchMatchesFallback")
     @Override
     public ParseResult<List<MatchDto>> fetchMatches(String tournamentId) {
-        long start = System.currentTimeMillis();
-        int tid;
-        try { tid = Integer.parseInt(tournamentId); }
-        catch (NumberFormatException e) { return ParseResult.error("Invalid tournamentId: " + tournamentId); }
+        long start = ms();
+        int tid = parseInt(tournamentId, "tournamentId");
+        byte[] req  = BetBoomSubscribeBuilder.tournamentMatchesBytes(LINE, tid);
+        byte[] resp = filtered("fetchMatches[" + tid + "]", req,
+                env -> hasExpectedTournamentMatches(env, tid));
+        if (resp == null) throw new IllegalStateException("WS timeout");
 
-        try {
-            byte[] req  = BetBoomSubscribeBuilder.tournamentMatchesBytes(LINE, tid);
-            byte[] resp = filtered("fetchMatches[" + tid + "]", req,
-                    env -> hasExpectedTournamentMatches(env, tid));
-            if (resp == null) return ParseResult.error("WS timeout");
+        MatchesFrame mf = parseMatches(resp).orElseThrow(() ->
+                new IllegalStateException("Cannot parse MatchesFrame"));
+        if (!mf.hasSection()) return ParseResult.ok(List.of(), ms() - start);
 
-            MatchesFrame mf = parseMatches(resp).orElse(null);
-            if (mf == null || !mf.hasSection()) return ParseResult.error("Cannot parse MatchesFrame");
+        String sportAlias = mf.hasSport() && mf.getSport().hasSport()
+                ? mf.getSport().getSport().getAlias() : "";
+        int countryId = mf.hasCountry() && mf.getCountry().hasCountry()
+                ? mf.getCountry().getCountry().getId() : 0;
+        int sectionTid = mf.getSection().hasTournament()
+                ? mf.getSection().getTournament().getId() : 0;
 
-            String sportAlias = mf.hasSport() && mf.getSport().hasSport()
-                    ? mf.getSport().getSport().getAlias() : "";
-            int countryId = mf.hasCountry() && mf.getCountry().hasCountry()
-                    ? mf.getCountry().getCountry().getId() : 0;
-            int sectionTid = mf.getSection().hasTournament()
-                    ? mf.getSection().getTournament().getId() : 0;
-
-            List<MatchDto> matches = new ArrayList<>();
-            for (MatchesBody.Match match : mf.getSection().getMatchesList()) {
-                if (!match.hasHeader()) continue;
-                int eventId = match.getHeader().getId();
-                int headerTid = match.getHeader().getTournamentId();
-                if (headerTid != 0 && headerTid != tid) continue;
-
-                String home = match.getHeader().hasTeams() && match.getHeader().getTeams().hasHome()
-                        ? match.getHeader().getTeams().getHome().getName() : "";
-                String away = match.getHeader().hasTeams() && match.getHeader().getTeams().hasAway()
-                        ? match.getHeader().getTeams().getAway().getName() : "";
-                String title = (!home.isBlank() || !away.isBlank()) ? home + " - " + away : "match#" + eventId;
-
-                String url = "https://betboom.ru/sport/" + sportAlias + "/" + countryId
-                        + "/" + sectionTid + "/" + eventId + "?period=all";
-
-                Instant startsAt = parseInstant(match.getHeader().getStartsAt());
-                boolean isLive   = match.getHeader().getLive() == 1;
-                matches.add(new MatchDto(String.valueOf(eventId), title, tournamentId, url, startsAt, isLive));
-            }
-            return ParseResult.ok(matches, ms(start));
-        } catch (Exception e) {
-            log.warn("BetBoom fetchMatches failed for tournamentId={}", tournamentId, e);
-            return ParseResult.error(e.getMessage());
+        List<MatchDto> matches = new ArrayList<>();
+        for (MatchesBody.Match match : mf.getSection().getMatchesList()) {
+            if (!match.hasHeader()) continue;
+            int eid = match.getHeader().getId();
+            int hTid = match.getHeader().getTournamentId();
+            if (hTid != 0 && hTid != tid) continue;
+            String home = match.getHeader().hasTeams() && match.getHeader().getTeams().hasHome()
+                    ? match.getHeader().getTeams().getHome().getName() : "";
+            String away = match.getHeader().hasTeams() && match.getHeader().getTeams().hasAway()
+                    ? match.getHeader().getTeams().getAway().getName() : "";
+            String title = (!home.isBlank() || !away.isBlank()) ? home + " - " + away : "match#" + eid;
+            String url = "https://betboom.ru/sport/" + sportAlias + "/" + countryId
+                    + "/" + sectionTid + "/" + eid + "?period=all";
+            matches.add(new MatchDto(String.valueOf(eid), title, tournamentId, url,
+                    parseInstant(match.getHeader().getStartsAt()), match.getHeader().getLive() == 1));
         }
+        return ParseResult.ok(matches, ms() - start);
     }
 
     @Override
-    public boolean isAvailable() {
-        return ws.getPool().available() > 0;
+    public boolean isAvailable() { return ws.getPool().available() > 0; }
+
+    // ── fallbacks ─────────────────────────────────────────────────────────────
+
+    private ParseResult<List<SportDto>> fetchSportsFallback(Throwable t) {
+        log.warn("betboom fetchSports fallback: {}", t.getMessage());
+        return ParseResult.error("betboom-cb: " + t.getMessage());
+    }
+
+    private ParseResult<List<TournamentDto>> fetchTournamentsFallback(String sportId, Throwable t) {
+        log.warn("betboom fetchTournaments fallback sportId={}: {}", sportId, t.getMessage());
+        return ParseResult.error("betboom-cb: " + t.getMessage());
+    }
+
+    private ParseResult<List<MatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
+        log.warn("betboom fetchMatches fallback tournamentId={}: {}", tournamentId, t.getMessage());
+        return ParseResult.error("betboom-cb: " + t.getMessage());
     }
 
     // ── WS helpers ────────────────────────────────────────────────────────────
 
     private byte[] filtered(String op, byte[] req, Predicate<Envelope> ok) {
-        try {
-            return ws.sendAndAwaitFiltered(req, WS_TIMEOUT_MS, ok);
-        } catch (Exception e) {
-            log.error("{}: WS error", op, e);
-            return null;
-        }
+        try { return ws.sendAndAwaitFiltered(req, WS_TIMEOUT_MS, ok); }
+        catch (Exception e) { log.error("{}: WS error", op, e); throw new RuntimeException(op + " WS error", e); }
     }
 
     private static boolean hasExpectedTournamentMatches(Envelope env, int expectedTid) {
@@ -194,23 +166,19 @@ public class BetBoomParser implements BookmakerParser {
             MatchesFrame mf = MatchesFrame.parseFrom(body);
             return mf.hasSection() && mf.getSection().hasTournament()
                     && mf.getSection().getTournament().getId() == expectedTid;
-        } catch (Exception e) {
-            return false;
-        }
+        } catch (Exception e) { return false; }
     }
 
-    // ── Proto parsing ─────────────────────────────────────────────────────────
+    // ── proto parsing ─────────────────────────────────────────────────────────
 
     private static Optional<SportAllBody> parseSportAll(byte[] raw) {
         try {
             Envelope env = Envelope.parseFrom(raw);
             ServerFrame sf = ServerFrame.parseFrom(env.getResponseSportAll().toByteArray());
-            byte[] body = firstBody(sf);
-            if (body == null) return Optional.empty();
+            byte[] body = firstBody(sf); if (body == null) return Optional.empty();
             return Optional.of(SportAllBody.parseFrom(body));
         } catch (InvalidProtocolBufferException e) {
-            log.error("parseSportAll failed, b64={}", base64Safe(raw), e);
-            return Optional.empty();
+            log.error("parseSportAll failed b64={}", b64(raw), e); return Optional.empty();
         }
     }
 
@@ -218,12 +186,10 @@ public class BetBoomParser implements BookmakerParser {
         try {
             Envelope env = Envelope.parseFrom(raw);
             ServerFrame sf = ServerFrame.parseFrom(env.getResponseSportTournaments().toByteArray());
-            byte[] body = firstBody(sf);
-            if (body == null) return Optional.empty();
+            byte[] body = firstBody(sf); if (body == null) return Optional.empty();
             return Optional.of(TournamentListFrame.parseFrom(body));
         } catch (InvalidProtocolBufferException e) {
-            log.error("parseTournamentList failed, b64={}", base64Safe(raw), e);
-            return Optional.empty();
+            log.error("parseTournamentList failed b64={}", b64(raw), e); return Optional.empty();
         }
     }
 
@@ -231,24 +197,25 @@ public class BetBoomParser implements BookmakerParser {
         try {
             Envelope env = Envelope.parseFrom(raw);
             ServerFrame sf = ServerFrame.parseFrom(env.getResponseTournamentMatches().toByteArray());
-            byte[] body = firstBody(sf);
-            if (body == null) return Optional.empty();
+            byte[] body = firstBody(sf); if (body == null) return Optional.empty();
             return Optional.of(MatchesFrame.parseFrom(body));
         } catch (InvalidProtocolBufferException e) {
-            log.error("parseMatches failed, b64={}", base64Safe(raw), e);
-            return Optional.empty();
+            log.error("parseMatches failed b64={}", b64(raw), e); return Optional.empty();
         }
     }
 
     private static byte[] firstBody(ServerFrame sf) {
         return sf.getBodyList().stream()
                 .filter(bs -> bs != null && !bs.isEmpty())
-                .findFirst()
-                .map(ByteString::toByteArray)
-                .orElse(null);
+                .findFirst().map(ByteString::toByteArray).orElse(null);
     }
 
     // ── utils ─────────────────────────────────────────────────────────────────
+
+    private static int parseInt(String value, String fieldName) {
+        try { return Integer.parseInt(value); }
+        catch (NumberFormatException e) { throw new IllegalArgumentException("Invalid " + fieldName + ": " + value); }
+    }
 
     private static Instant parseInstant(String s) {
         if (s == null || s.isBlank()) return Instant.EPOCH;
@@ -258,14 +225,11 @@ public class BetBoomParser implements BookmakerParser {
         }
     }
 
-    private static String base64Safe(byte[] data) {
-        if (data == null) return "<null>";
-        int max = Math.min(data.length, 512);
-        byte[] slice = data.length == max ? data : Arrays.copyOf(data, max);
-        return Base64.getEncoder().encodeToString(slice) + (data.length > max ? "...(+" + (data.length - max) + ")" : "");
+    private static String b64(byte[] d) {
+        if (d == null) return "<null>";
+        int max = Math.min(d.length, 512);
+        return Base64.getEncoder().encodeToString(d.length == max ? d : Arrays.copyOf(d, max));
     }
 
-    private static long ms(long start) {
-        return System.currentTimeMillis() - start;
-    }
+    private static long ms() { return System.currentTimeMillis(); }
 }

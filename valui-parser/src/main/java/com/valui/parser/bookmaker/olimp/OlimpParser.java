@@ -7,17 +7,18 @@ import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
-import io.netty.channel.ChannelOption;
+import com.valui.parser.http.BookmakerHttpClient;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.netty.http.client.HttpClient;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.valui.parser.http.BookmakerHttpClient.BLOCK_TIMEOUT;
 
 @Slf4j
 @Component
@@ -28,127 +29,114 @@ public class OlimpParser implements BookmakerParser {
     private final String sportsApi;
     private final String champsApi;
     private final String eventsApi;
-    private final WebClient webClient;
+    private final BookmakerHttpClient http;
 
-    public OlimpParser() {
-        this(DEFAULT_BASE, buildWebClient());
+    public OlimpParser(@Qualifier("olimpHttpClient") BookmakerHttpClient http) {
+        this(DEFAULT_BASE, http);
     }
 
-    OlimpParser(String apiBase, WebClient webClient) {
-        this.sportsApi  = apiBase + "/sports";
-        this.champsApi  = apiBase + "/sports-with-competitions";
-        this.eventsApi  = apiBase + "/planned-events";
-        this.webClient  = webClient;
+    OlimpParser(String apiBase, BookmakerHttpClient http) {
+        this.sportsApi = apiBase + "/sports";
+        this.champsApi = apiBase + "/sports-with-competitions";
+        this.eventsApi = apiBase + "/planned-events";
+        this.http = http;
     }
 
-    private static WebClient buildWebClient() {
-        HttpClient httpClient = HttpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10_000)
-                .responseTimeout(Duration.ofSeconds(10));
-        return WebClient.builder()
-                .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .build();
+    OlimpParser(String apiBase, org.springframework.web.reactive.function.client.WebClient wc) {
+        this(apiBase, new BookmakerHttpClient(wc));
     }
 
     @Override
-    public BookmakerType getBookmaker() {
-        return BookmakerType.OLIMP;
-    }
+    public BookmakerType getBookmaker() { return BookmakerType.OLIMP; }
 
+    @CircuitBreaker(name = "olimp-cb", fallbackMethod = "fetchSportsFallback")
+    @Retry(name = "parser-retry")
     @Override
     public ParseResult<List<SportDto>> fetchSports() {
-        long start = System.currentTimeMillis();
-        try {
-            JsonNode arr = getArray(sportsApi);
-            List<SportDto> sports = new ArrayList<>();
-            for (JsonNode item : arr) {
-                JsonNode payload = item.path("payload");
-                String id   = s(payload, "id");
-                String name = s(payload, "name");
-                if (id == null || name == null) continue;
-                sports.add(new SportDto(id, name, s(payload, "alias")));
-            }
-            return ParseResult.ok(sports, ms(start));
-        } catch (Exception e) {
-            log.warn("Olimp fetchSports failed", e);
-            return ParseResult.error(e.getMessage());
+        long start = ms();
+        JsonNode arr = block(http.getJson(sportsApi, JsonNode.class));
+        List<SportDto> sports = new ArrayList<>();
+        for (JsonNode item : iter(arr)) {
+            JsonNode p = item.path("payload");
+            String id = s(p, "id"), name = s(p, "name");
+            if (id != null && name != null) sports.add(new SportDto(id, name, s(p, "alias")));
         }
+        return ParseResult.ok(sports, ms() - start);
     }
 
+    @CircuitBreaker(name = "olimp-cb", fallbackMethod = "fetchTournamentsFallback")
+    @Retry(name = "parser-retry")
     @Override
     public ParseResult<List<TournamentDto>> fetchTournaments(String sportId) {
-        long start = System.currentTimeMillis();
-        try {
-            JsonNode arr = getArray(champsApi);
-            List<TournamentDto> tournaments = new ArrayList<>();
-            for (JsonNode item : arr) {
-                JsonNode payload = item.path("payload");
-                if (!sportId.equals(s(payload, "id"))) continue;
-                JsonNode competitions = payload.path("competitions");
-                if (!competitions.isArray()) continue;
-                for (JsonNode comp : competitions) {
-                    String id    = s(comp, "id");
-                    String name  = s(comp, "name");
-                    String sId   = s(comp, "sportId");
-                    if (id == null || name == null) continue;
-                    String url = "https://www.olimp.bet/line/" + (sId != null ? sId : sportId) + "/" + id;
-                    tournaments.add(new TournamentDto(id, name, sId != null ? sId : sportId, null, url));
-                }
+        long start = ms();
+        JsonNode arr = block(http.getJson(champsApi, JsonNode.class));
+        List<TournamentDto> tournaments = new ArrayList<>();
+        for (JsonNode item : iter(arr)) {
+            JsonNode p = item.path("payload");
+            if (!sportId.equals(s(p, "id"))) continue;
+            JsonNode competitions = p.path("competitions");
+            if (!competitions.isArray()) continue;
+            for (JsonNode comp : competitions) {
+                String id = s(comp, "id"), name = s(comp, "name"), sId = s(comp, "sportId");
+                if (id == null || name == null) continue;
+                String eff = sId != null ? sId : sportId;
+                tournaments.add(new TournamentDto(id, name, eff, null,
+                        "https://www.olimp.bet/line/" + eff + "/" + id));
             }
-            return ParseResult.ok(tournaments, ms(start));
-        } catch (Exception e) {
-            log.warn("Olimp fetchTournaments failed for sportId={}", sportId, e);
-            return ParseResult.error(e.getMessage());
         }
+        return ParseResult.ok(tournaments, ms() - start);
     }
 
+    @CircuitBreaker(name = "olimp-cb", fallbackMethod = "fetchMatchesFallback")
+    @Retry(name = "parser-retry")
     @Override
     public ParseResult<List<MatchDto>> fetchMatches(String tournamentId) {
-        long start = System.currentTimeMillis();
-        try {
-            JsonNode arr = getArray(eventsApi);
-            List<MatchDto> matches = new ArrayList<>();
-            for (JsonNode item : arr) {
-                JsonNode payload = item.path("payload");
-                if (!tournamentId.equals(s(payload, "competitionId"))) continue;
-                String id   = s(payload, "id");
-                String name = s(payload, "name");
-                if (id == null || name == null) continue;
-                String sportId = s(payload, "sportId");
-                String url = "https://www.olimp.bet/line/" + sportId + "/" + tournamentId + "/" + id;
-                Instant startsAt = parseInstant(s(payload, "startsAt"));
-                boolean live = payload.path("isLive").asBoolean(false);
-                matches.add(new MatchDto(id, name, tournamentId, url, startsAt, live));
-            }
-            return ParseResult.ok(matches, ms(start));
-        } catch (Exception e) {
-            log.warn("Olimp fetchMatches failed for tournamentId={}", tournamentId, e);
-            return ParseResult.error(e.getMessage());
+        long start = ms();
+        JsonNode arr = block(http.getJson(eventsApi, JsonNode.class));
+        List<MatchDto> matches = new ArrayList<>();
+        for (JsonNode item : iter(arr)) {
+            JsonNode p = item.path("payload");
+            if (!tournamentId.equals(s(p, "competitionId"))) continue;
+            String id = s(p, "id"), name = s(p, "name"), sId = s(p, "sportId");
+            if (id == null || name == null) continue;
+            String url = "https://www.olimp.bet/line/" + sId + "/" + tournamentId + "/" + id;
+            matches.add(new MatchDto(id, name, tournamentId, url,
+                    parseInstant(s(p, "startsAt")), p.path("isLive").asBoolean(false)));
         }
+        return ParseResult.ok(matches, ms() - start);
     }
 
     @Override
     public boolean isAvailable() {
-        try {
-            getArray(sportsApi);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+        try { block(http.getJson(sportsApi, JsonNode.class)); return true; }
+        catch (Exception e) { return false; }
     }
 
-    // ── internals ─────────────────────────────────────────────────────────────
+    // ── fallbacks ─────────────────────────────────────────────────────────────
 
-    private JsonNode getArray(String url) {
-        return webClient.get().uri(url)
-                .retrieve()
-                .bodyToMono(JsonNode.class)
-                .block(Duration.ofSeconds(12));
+    private ParseResult<List<SportDto>> fetchSportsFallback(Throwable t) {
+        log.warn("olimp fetchSports fallback: {}", t.getMessage());
+        return ParseResult.error("olimp-cb: " + t.getMessage());
     }
 
-    private static String s(JsonNode n, String field) {
-        JsonNode v = n.path(field);
-        return v.isMissingNode() || v.isNull() ? null : v.asText();
+    private ParseResult<List<TournamentDto>> fetchTournamentsFallback(String sportId, Throwable t) {
+        log.warn("olimp fetchTournaments fallback: {}", t.getMessage());
+        return ParseResult.error("olimp-cb: " + t.getMessage());
+    }
+
+    private ParseResult<List<MatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
+        log.warn("olimp fetchMatches fallback: {}", t.getMessage());
+        return ParseResult.error("olimp-cb: " + t.getMessage());
+    }
+
+    // ── utils ─────────────────────────────────────────────────────────────────
+
+    private <T> T block(reactor.core.publisher.Mono<T> mono) { return mono.block(BLOCK_TIMEOUT); }
+
+    private static Iterable<JsonNode> iter(JsonNode n) { return n != null && n.isArray() ? n : List.of(); }
+
+    private static String s(JsonNode n, String f) {
+        JsonNode v = n.path(f); return v.isMissingNode() || v.isNull() ? null : v.asText();
     }
 
     private static Instant parseInstant(String s) {
@@ -159,7 +147,5 @@ public class OlimpParser implements BookmakerParser {
         }
     }
 
-    private static long ms(long start) {
-        return System.currentTimeMillis() - start;
-    }
+    private static long ms() { return System.currentTimeMillis(); }
 }

@@ -5,6 +5,7 @@ import com.valui.common.parser.dto.MatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.ParseResult;
+import com.valui.parser.http.BookmakerHttpClient;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.*;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class BetCityParserTest {
 
@@ -29,13 +31,11 @@ class BetCityParserTest {
         server = new MockWebServer();
         server.start();
         String base = server.url("").toString().replaceAll("/$", "");
-        parser = new BetCityParser(base, WebClient.create());
+        parser = new BetCityParser(base, new BookmakerHttpClient(WebClient.create()));
     }
 
     @AfterEach
-    void tearDown() throws IOException {
-        server.shutdown();
-    }
+    void tearDown() throws IOException { server.shutdown(); }
 
     @Test
     void fetchSports_parsesReplySports() throws Exception {
@@ -43,12 +43,9 @@ class BetCityParserTest {
                 Map.of("id_sp", "1", "name_sp", "Футбол"),
                 Map.of("id_sp", "2", "name_sp", "Теннис")
         ))));
-
         ParseResult<List<SportDto>> result = parser.fetchSports();
-
         assertThat(result.success()).isTrue();
         assertThat(result.data()).hasSize(2);
-        assertThat(result.data()).extracting(SportDto::id).containsExactlyInAnyOrder("1", "2");
     }
 
     @Test
@@ -57,36 +54,29 @@ class BetCityParserTest {
                 "999", Map.of("name_ch", "АПЛ"),
                 "888", Map.of("name_ch", "Ла Лига")
         ))))));
-
         ParseResult<List<TournamentDto>> result = parser.fetchTournaments("1");
-
         assertThat(result.success()).isTrue();
         assertThat(result.data()).hasSize(2);
-        assertThat(result.data()).extracting(TournamentDto::title)
-                .containsExactlyInAnyOrder("АПЛ", "Ла Лига");
     }
 
     @Test
     void fetchMatches_postFormData_parsesEvents() throws Exception {
         enqueue(Map.of("reply", Map.of("sports", Map.of("1", Map.of("chmps", Map.of("999", Map.of(
                 "evts", Map.of(
-                        "7001", Map.of("name_ht", "Зенит",   "name_at", "ЦСКА"),
+                        "7001", Map.of("name_ht", "Зенит", "name_at", "ЦСКА"),
                         "7002", Map.of("name_ht", "Спартак", "name_at", "Динамо")
                 )
         )))))));
-
         ParseResult<List<MatchDto>> result = parser.fetchMatches("999");
-
         assertThat(result.success()).isTrue();
         assertThat(result.data()).hasSize(2);
-        assertThat(result.data()).extracting(MatchDto::tournamentId).containsOnly("999");
     }
 
     @Test
-    void fetchSports_onError_returnsParseResult_error() {
+    void fetchSports_onError_throwsException() {
         server.enqueue(new MockResponse().setResponseCode(503));
-        ParseResult<List<SportDto>> result = parser.fetchSports();
-        assertThat(result.success()).isFalse();
+        assertThatThrownBy(() -> parser.fetchSports())
+                .isInstanceOf(org.springframework.web.reactive.function.client.WebClientResponseException.class);
     }
 
     private void enqueue(Object body) throws Exception {

@@ -1,0 +1,59 @@
+resilience4j:
+  circuitbreaker:
+    configs:
+      parser-default:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        register-health-indicator: true
+    instances:
+      xbet-cb:
+        base-config: parser-default
+      fonbet-cb:
+        base-config: parser-default
+      olimp-cb:
+        base-config: parser-default
+      betcity-cb:
+        base-config: parser-default
+      betboom-cb:
+        base-config: parser-default
+        # WS is slower — give more time before opening
+        wait-duration-in-open-state: 60s
+        sliding-window-size: 6
+
+  retry:
+    instances:
+      parser-retry:
+        max-attempts: 2
+        wait-duration: 1s
+        retry-exceptions:
+          - org.springframework.web.reactive.function.client.WebClientRequestException
+        ignore-exceptions:
+          - org.springframework.web.reactive.function.client.WebClientResponseException
+
+  timelimiter:
+    instances:
+      parser-tl:
+        timeout-duration: 20s
+
+# Proxy for XBet (KZ domain requires KZ proxy)
+parser:
+  proxy:
+    xbet:
+      enabled: false
+      host: 91.147.122.69
+      port: 4232
+      username: user283146
+      password: 0w3qzb
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,circuitbreakers
+  health:
+    circuitbreakers:
+      enabled: true
