@@ -10,6 +10,8 @@ import com.valui.common.exception.UserNotFoundException;
 import com.valui.common.exception.ValuiException;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.dto.CreateControllerRequest;
+import com.valui.monitor.event.ControllerAddedEvent;
+import com.valui.monitor.event.ControllerRemovedEvent;
 import com.valui.parser.util.ParsedUrlIds;
 import com.valui.parser.util.UrlParser;
 import com.valui.user.repository.ControllerRepository;
@@ -18,10 +20,12 @@ import com.valui.user.repository.UserRepository;
 import com.valui.user.service.PlanLimitChecker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 
 import java.util.List;
 import java.util.UUID;
@@ -36,6 +40,7 @@ public class ControllerServiceImpl implements ControllerService {
     private final DetectedEventRepository detectedEventRepository;
     private final UserRepository userRepository;
     private final PlanLimitChecker planLimitChecker;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -67,6 +72,9 @@ public class ControllerServiceImpl implements ControllerService {
                         .build()
         );
         log.info("Controller added: id={} bookmaker={} telegramId={}", saved.getId(), bookmaker, telegramId);
+        // Publish after commit so MonitorScheduler sees the persisted row
+        eventPublisher.publishEvent(new ControllerAddedEvent(
+                saved.getId(), user.getId(), telegramId, bookmaker, pollIntervalSec));
         return toDto(saved);
     }
 
@@ -78,6 +86,7 @@ public class ControllerServiceImpl implements ControllerService {
         entity.setIsActive(false);
         controllerRepository.save(entity);
         log.info("Controller removed: id={} telegramId={}", controllerId, telegramId);
+        eventPublisher.publishEvent(new ControllerRemovedEvent(controllerId, user.getId()));
     }
 
     @Override
@@ -141,6 +150,7 @@ public class ControllerServiceImpl implements ControllerService {
                 .orElseThrow(() -> new ControllerNotFoundException(controllerId));
         controllerRepository.updateIsActive(controllerId, false);
         log.info("Controller deactivated (admin): id={}", controllerId);
+        eventPublisher.publishEvent(new ControllerRemovedEvent(controllerId, null));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

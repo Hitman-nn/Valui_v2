@@ -115,7 +115,10 @@ valui:
       - "149.154.0.0/16"   # Telegram data centers (DC1-DC5)
       - "91.108.0.0/16"    # Telegram MTProto
   monitor:
-    poll-interval-ms: 30000
+    poll-interval-ms: 30000         # legacy — kept for reference
+    max-concurrent-tasks: 50        # global VT task cap
+    max-tasks-per-user: 5           # anti-abuse per-user cap
+    default-poll-interval-sec: 60   # fallback when controller.pollIntervalSec is null
   admin:
     api-key: ${ADMIN_API_KEY:change-me}
   jwt:
