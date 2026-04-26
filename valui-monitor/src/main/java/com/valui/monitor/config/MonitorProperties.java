@@ -14,4 +14,8 @@ public class MonitorProperties {
     private int maxTasksPerUser = 5;
     /** Fallback poll interval when controller.pollIntervalSec is null. */
     private int defaultPollIntervalSec = 60;
+    /** How long to keep event IDs in the Redis dedup SET (days). */
+    private int dedupTtlDays = 7;
+    /** Cron expression for the nightly dedup sync job. */
+    private String dedupSyncCron = "0 0 3 * * *";
 }

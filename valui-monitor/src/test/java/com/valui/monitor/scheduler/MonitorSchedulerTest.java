@@ -35,6 +35,7 @@ class MonitorSchedulerTest {
 
     @Mock ControllerTaskExecutor taskExecutor;
     @Mock MonitorMetrics metrics;
+    @Mock com.valui.monitor.dedup.EventDeduplicationService dedup;
 
     MonitorProperties props;
     MonitorScheduler scheduler;
@@ -62,7 +63,7 @@ class MonitorSchedulerTest {
                 .willAnswer(inv -> mock(ScheduledFuture.class));
 
         given(taskExecutor.loadAllActiveForScheduling()).willReturn(List.of());
-        scheduler = new MonitorScheduler(taskExecutor, props, metrics, stubTriggerPool, stubTaskPool);
+        scheduler = new MonitorScheduler(taskExecutor, props, metrics, dedup, stubTriggerPool, stubTaskPool);
         scheduler.init();
     }
 

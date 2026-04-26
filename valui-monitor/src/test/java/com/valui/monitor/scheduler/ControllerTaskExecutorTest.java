@@ -9,6 +9,7 @@ import com.valui.common.entity.DetectedEventEntity;
 import com.valui.common.entity.UserEntity;
 import com.valui.common.parser.dto.MatchDto;
 import com.valui.monitor.config.MonitorProperties;
+import com.valui.monitor.dedup.EventDeduplicationService;
 import com.valui.monitor.event.SportEventDetectedEvent;
 import com.valui.monitor.scheduler.ControllerTaskExecutor.ParsedItem;
 import com.valui.monitor.scheduler.ControllerTaskExecutor.TaskContext;
@@ -50,6 +51,7 @@ class ControllerTaskExecutorTest {
     @Mock ParserFactory parserFactory;
     @Mock ApplicationEventPublisher events;
     @Mock MonitorProperties props;
+    @Mock EventDeduplicationService dedup;
 
     @InjectMocks ControllerTaskExecutor executor;
 
@@ -91,7 +93,7 @@ class ControllerTaskExecutorTest {
     void persistNewEvents_newMatch_savesAndPublishes() {
         ParsedItem item = new ParsedItem("evt1", "Zenit - CSKA", "https://1xstavka.ru/evt1");
         given(controllerRepo.findById(CTRL_ID)).willReturn(Optional.of(controller));
-        given(detectedRepo.existsByControllerIdAndEventExternalId(CTRL_ID, "evt1")).willReturn(false);
+        given(dedup.claimIfNew(CTRL_ID, "evt1")).willReturn(true);
         given(detectedRepo.save(any())).willAnswer(inv -> {
             DetectedEventEntity e = inv.getArgument(0);
             e.setDetectedAt(OffsetDateTime.now());
@@ -119,7 +121,7 @@ class ControllerTaskExecutorTest {
     void persistNewEvents_duplicateMatch_noEvent() {
         ParsedItem item = new ParsedItem("evt1", "Zenit - CSKA", null);
         given(controllerRepo.findById(CTRL_ID)).willReturn(Optional.of(controller));
-        given(detectedRepo.existsByControllerIdAndEventExternalId(CTRL_ID, "evt1")).willReturn(true);
+        given(dedup.claimIfNew(CTRL_ID, "evt1")).willReturn(false);
         given(controllerRepo.save(any())).willReturn(controller);
 
         int count = executor.persistNewEvents(ctx, List.of(item));
@@ -135,8 +137,8 @@ class ControllerTaskExecutorTest {
         ParsedItem old = new ParsedItem("evtOld", "A - B", null);
         ParsedItem fresh = new ParsedItem("evtNew", "C - D", null);
         given(controllerRepo.findById(CTRL_ID)).willReturn(Optional.of(controller));
-        given(detectedRepo.existsByControllerIdAndEventExternalId(CTRL_ID, "evtOld")).willReturn(true);
-        given(detectedRepo.existsByControllerIdAndEventExternalId(CTRL_ID, "evtNew")).willReturn(false);
+        given(dedup.claimIfNew(CTRL_ID, "evtOld")).willReturn(false);
+        given(dedup.claimIfNew(CTRL_ID, "evtNew")).willReturn(true);
         given(detectedRepo.save(any())).willAnswer(inv -> {
             DetectedEventEntity e = inv.getArgument(0); e.setDetectedAt(OffsetDateTime.now()); return e;
         });

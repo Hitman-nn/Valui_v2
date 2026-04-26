@@ -1,6 +1,7 @@
 package com.valui.monitor.scheduler;
 
 import com.valui.monitor.config.MonitorProperties;
+import com.valui.monitor.dedup.EventDeduplicationService;
 import com.valui.monitor.event.ControllerAddedEvent;
 import com.valui.monitor.event.ControllerRemovedEvent;
 import com.valui.monitor.event.SubscriptionChangedEvent;
@@ -40,6 +41,7 @@ public class MonitorScheduler {
     private final ControllerTaskExecutor taskExecutor;
     private final MonitorProperties props;
     private final MonitorMetrics metrics;
+    private final EventDeduplicationService dedup;
 
     private final ScheduledExecutorService triggerPool;
     private final ExecutorService taskPool;
@@ -52,8 +54,9 @@ public class MonitorScheduler {
     /** Production constructor — creates real virtual-thread pools. */
     public MonitorScheduler(ControllerTaskExecutor taskExecutor,
                             MonitorProperties props,
-                            MonitorMetrics metrics) {
-        this(taskExecutor, props, metrics,
+                            MonitorMetrics metrics,
+                            EventDeduplicationService dedup) {
+        this(taskExecutor, props, metrics, dedup,
                 Executors.newScheduledThreadPool(
                         Math.max(2, Runtime.getRuntime().availableProcessors() / 2),
                         Thread.ofPlatform().name("monitor-trigger-", 0).factory()),
@@ -64,11 +67,13 @@ public class MonitorScheduler {
     MonitorScheduler(ControllerTaskExecutor taskExecutor,
                      MonitorProperties props,
                      MonitorMetrics metrics,
+                     EventDeduplicationService dedup,
                      ScheduledExecutorService triggerPool,
                      ExecutorService taskPool) {
         this.taskExecutor    = taskExecutor;
         this.props           = props;
         this.metrics         = metrics;
+        this.dedup           = dedup;
         this.triggerPool     = triggerPool;
         this.taskPool        = taskPool;
         this.globalSemaphore = new Semaphore(props.getMaxConcurrentTasks());
@@ -159,6 +164,13 @@ public class MonitorScheduler {
     // ── internals ─────────────────────────────────────────────────────────────
 
     private void doSchedule(UUID controllerId, UUID userId, int pollIntervalSec) {
+        // Seed Redis dedup SET from DB (only if the key doesn't exist yet)
+        try {
+            dedup.seedIfAbsent(controllerId);
+        } catch (Exception e) {
+            log.warn("Dedup seed failed for controller {} — will proceed without pre-seeding: {}", controllerId, e.getMessage());
+        }
+
         ControllerTask task = new ControllerTask(
                 controllerId, userId, taskExecutor,
                 globalSemaphore, perUserCounter,

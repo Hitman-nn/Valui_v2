@@ -7,6 +7,7 @@ import com.valui.common.entity.DetectedEventEntity;
 import com.valui.common.parser.dto.MatchDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.monitor.config.MonitorProperties;
+import com.valui.monitor.dedup.EventDeduplicationService;
 import com.valui.monitor.event.SportEventDetectedEvent;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
@@ -41,6 +42,7 @@ public class ControllerTaskExecutor {
     private final ParserFactory parserFactory;
     private final ApplicationEventPublisher events;
     private final MonitorProperties props;
+    private final EventDeduplicationService dedup;
 
     /** Minimal projection for scheduling decisions (no lazy associations). */
     public record ControllerScheduleInfo(
@@ -166,15 +168,23 @@ public class ControllerTaskExecutor {
 
         List<DetectedEventEntity> saved = new ArrayList<>();
         for (ParsedItem item : fetched) {
-            if (detectedRepo.existsByControllerIdAndEventExternalId(ctrl.getId(), item.id())) continue;
+            // Redis atomic claim replaces the per-event DB existsBy query (O(1) vs O(log n))
+            if (!dedup.claimIfNew(ctx.controllerId(), item.id())) continue;
 
-            DetectedEventEntity entity = DetectedEventEntity.builder()
-                    .controller(ctrl)
-                    .eventExternalId(item.id())
-                    .title(item.title() != null ? item.title() : item.id())
-                    .url(item.url())
-                    .build();
-            saved.add(detectedRepo.save(entity));
+            try {
+                DetectedEventEntity entity = DetectedEventEntity.builder()
+                        .controller(ctrl)
+                        .eventExternalId(item.id())
+                        .title(item.title() != null ? item.title() : item.id())
+                        .url(item.url())
+                        .build();
+                saved.add(detectedRepo.save(entity));
+            } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+                // Redis claimed it as new but DB already has it (TTL expired + race condition).
+                // Treat as duplicate — the nightly sync will reconcile.
+                log.debug("Duplicate event in DB (Redis TTL expired?): controller={} eventId={}",
+                        ctx.controllerId(), item.id());
+            }
         }
 
         OffsetDateTime now = OffsetDateTime.now();
