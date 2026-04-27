@@ -2,6 +2,7 @@ package com.valui.bot.keyboard;
 
 import java.util.UUID;
 
+
 /**
  * Central registry of callback_data strings.
  * Format convention: "ACTION:PARAM1:PARAM2"
@@ -20,16 +21,23 @@ public final class CallbackData {
     public static final String NOOP = ".";
 
     // ─── Controller — format: "CTRL:ACTION:uuid" ──────────────────────────────
-    public static final String CTRL_LIST = "CTRL:LIST";
+    public static final String CTRL_LIST    = "CTRL:LIST";
+    public static final String CTRL_BK_LIST = "CTRL:BK:LIST";
 
-    public static String ctrlDetail(UUID id) { return "CTRL:DETAIL:" + id; }
-    public static String ctrlDelete(UUID id) { return "CTRL:DELETE:" + id; }
-    public static String ctrlToggle(UUID id) { return "CTRL:TOGGLE:" + id; }
+    public static String ctrlDetail(UUID id)      { return "CTRL:DETAIL:" + id; }
+    public static String ctrlStop(UUID id)         { return "CTRL:STOP:" + id; }
+    public static String ctrlMute(UUID id)         { return "CTRL:MUTE:" + id; }
+    public static String ctrlUnmute(UUID id)       { return "CTRL:UNMUTE:" + id; }
+    public static String ctrlFilterEdit(UUID id)   { return "CTRL:FILTER:" + id; }
+    /** Shows controllers for a specific bookmaker: "CTRL:BK:{BM}" */
+    public static String ctrlByBookmaker(String bm) { return "CTRL:BK:" + bm.toUpperCase(); }
 
-    // ─── Filter — format: "FILTER:ACTION:index" ───────────────────────────────
-    public static final String FILTER_LIST = "FILTER:LIST";
+    // ─── Filter — format: "FILTER:ACTION:uuid" ───────────────────────────────
+    public static final String FILTER_LIST   = "FILTER:LIST";
+    public static final String FILTER_ADD    = "FILTER:ADD";
 
-    public static String filterDelete(int index) { return "FILTER:DELETE:" + index; }
+    public static String filterDelete(UUID id) { return "FILTER:DELETE:" + id; }
+    public static String filterEdit(UUID id)   { return "FILTER:EDIT:" + id; }
 
     // ─── Bookmaker — format: "BK:SELECT:CODE" ────────────────────────────────
     public static final String BK_SELECT_PREFIX = "BK:SELECT:";
@@ -52,7 +60,7 @@ public final class CallbackData {
 
     public static String tournSel(String tournamentId) { return TOURN_SEL_PREFIX + tournamentId; }
 
-    // ─── Wizard: Filter skip ─────────────────────────────────────────────────
+    // ─── Wizard: Filter skip (individual controller filter) ─────────────────
     public static final String FILTER_SKIP = "FSKIP";
 
     // ─── Wizard: Controller confirmation ────────────────────────────────────

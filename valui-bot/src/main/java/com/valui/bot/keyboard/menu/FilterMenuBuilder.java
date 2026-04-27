@@ -3,6 +3,7 @@ package com.valui.bot.keyboard.menu;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.bot.keyboard.MenuMessage;
+import com.valui.common.entity.GlobalFilterEntity;
 
 import java.util.List;
 
@@ -10,24 +11,23 @@ public final class FilterMenuBuilder {
 
     private FilterMenuBuilder() {}
 
-    public static MenuMessage build(List<String> filters) {
-        if (filters.isEmpty()) {
-            return new MenuMessage(
-                "🔍 Активных фильтров нет.",
-                InlineKeyboardBuilder.create()
-                    .backButton(CallbackData.MENU_MAIN)
-                    .build()
-            );
-        }
-
+    public static MenuMessage build(List<GlobalFilterEntity> filters) {
         var builder = InlineKeyboardBuilder.create();
-        for (int i = 0; i < filters.size(); i++) {
-            builder.button("🗑 " + filters.get(i), CallbackData.filterDelete(i));
+
+        for (GlobalFilterEntity f : filters) {
+            // Delete and Edit buttons on the same row
+            builder.button("🗑 " + f.getFilterRule(), CallbackData.filterDelete(f.getId()));
+            builder.button("✏️",                       CallbackData.filterEdit(f.getId()));
             builder.row();
         }
-        builder.backButton(CallbackData.MENU_MAIN);
 
-        String text = String.format("🔍 Фильтры (%d шт.) — нажмите для удаления:", filters.size());
+        builder.button("➕ Добавить", CallbackData.FILTER_ADD);
+        builder.row();
+
+        String text = filters.isEmpty()
+                ? "🔍 Глобальных фильтров нет.\n\nНажмите «Добавить» чтобы задать фильтр, который будет применяться ко всем контроллерам."
+                : String.format("🔍 Глобальные фильтры (%d) — 🗑 удалить / ✏️ редактировать:", filters.size());
+
         return new MenuMessage(text, builder.build());
     }
 }

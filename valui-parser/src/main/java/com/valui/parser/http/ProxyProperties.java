@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 
 @Data
 @Component
-@ConfigurationProperties(prefix = "parser.proxy.xbet")
+@ConfigurationProperties(prefix = "parser.proxy")
 public class ProxyProperties {
     private boolean enabled = false;
     private String host;

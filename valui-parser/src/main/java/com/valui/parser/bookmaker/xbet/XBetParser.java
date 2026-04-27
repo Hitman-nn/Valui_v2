@@ -125,18 +125,24 @@ public class XBetParser implements BookmakerParser {
     // ── fallbacks ─────────────────────────────────────────────────────────────
 
     private ParseResult<List<SportDto>> fetchSportsFallback(Throwable t) {
-        log.warn("xbet fetchSports fallback: {}", t.getMessage());
+        log.warn("xbet fetchSports fallback [{}]: {}", t.getClass().getSimpleName(), describe(t));
         return ParseResult.error("xbet-cb: " + t.getMessage());
     }
 
     private ParseResult<List<TournamentDto>> fetchTournamentsFallback(String sportId, Throwable t) {
-        log.warn("xbet fetchTournaments fallback sportId={}: {}", sportId, t.getMessage());
+        log.warn("xbet fetchTournaments fallback sportId={} [{}]: {}", sportId, t.getClass().getSimpleName(), describe(t));
         return ParseResult.error("xbet-cb: " + t.getMessage());
     }
 
     private ParseResult<List<MatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
-        log.warn("xbet fetchMatches fallback tournamentId={}: {}", tournamentId, t.getMessage());
+        log.warn("xbet fetchMatches fallback tournamentId={} [{}]: {}", tournamentId, t.getClass().getSimpleName(), describe(t));
         return ParseResult.error("xbet-cb: " + t.getMessage());
+    }
+
+    private static String describe(Throwable t) {
+        if (t.getMessage() != null) return t.getMessage();
+        Throwable cause = t.getCause();
+        return cause != null ? cause.getClass().getSimpleName() + ": " + cause.getMessage() : "(no message)";
     }
 
     // ── internals ─────────────────────────────────────────────────────────────

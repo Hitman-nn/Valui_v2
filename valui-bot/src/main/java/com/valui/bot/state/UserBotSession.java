@@ -41,5 +41,8 @@ public class UserBotSession {
     public static final String CTX_TOURNAMENT_TITLE  = "tournamentTitle";
     public static final String CTX_TOURNAMENT_URL    = "tournamentUrl";
     public static final String CTX_FILTER            = "filter";
-    public static final String CTX_WIZARD_MSG_ID     = "wizardMsgId";
+    public static final String CTX_FILTER_MODE         = "filterMode";
+    public static final String CTX_EDIT_FILTER_ID      = "editFilterId";
+    public static final String CTX_EDIT_CONTROLLER_ID  = "editControllerId";
+    public static final String CTX_WIZARD_MSG_ID       = "wizardMsgId";
 }

@@ -5,12 +5,24 @@ import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.CallbackData;
+import com.valui.bot.keyboard.menu.FilterMenuBuilder;
 import com.valui.bot.keyboard.menu.MainMenuKeyboard;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.state.BotState;
+import com.valui.bot.state.UserBotSession;
+import com.valui.common.entity.GlobalFilterEntity;
+import com.valui.monitor.dto.ControllerDto;
+import com.valui.monitor.service.ControllerService;
+import com.valui.user.service.GlobalFilterService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class CancelCallback implements CallbackHandler {
@@ -18,6 +30,8 @@ public class CancelCallback implements CallbackHandler {
     private final BotSessionService sessionService;
     private final BotMessageSource messageSource;
     private final WizardBackNavigator backNavigator;
+    private final GlobalFilterService globalFilterService;
+    private final ControllerService controllerService;
 
     @Override
     public String callbackPrefix() { return CallbackData.CANCEL; }
@@ -28,16 +42,50 @@ public class CancelCallback implements CallbackHandler {
     @Override
     public void handle(BotUpdateContext ctx) {
         MessageSend.answerCallback(ctx.sender(), ctx.update().getCallbackQuery().getId());
+        int messageId = ctx.update().getCallbackQuery().getMessage().getMessageId();
 
         BotState state = ctx.session() != null ? ctx.session().getState() : BotState.IDLE;
 
-        if (state == BotState.WAITING_FILTER_RULE || state == BotState.WAITING_CONFIRM_CREATE) {
-            int messageId = ctx.update().getCallbackQuery().getMessage().getMessageId();
-            backNavigator.returnToTournamentList(ctx.sender(), ctx.chatId(), messageId);
+        // Tournament selection Cancel → bookmaker selection
+        // Confirmation screen Cancel → bookmaker selection
+        if (state == BotState.SELECTING_TOURNAMENT || state == BotState.WAITING_CONFIRM_CREATE) {
+            backNavigator.returnToBookmakerSelection(ctx.sender(), ctx.chatId(), messageId);
             return;
         }
 
-        // For all other states (bookmaker/sport selection, IDLE, etc.) — go to main menu
+        // Filter input Cancel: route by filter mode
+        if (state == BotState.WAITING_FILTER_RULE) {
+            String mode = sessionService.getContext(ctx.chatId(), UserBotSession.CTX_FILTER_MODE)
+                    .orElse("GLOBAL");
+            if ("INDIVIDUAL".equals(mode)) {
+                backNavigator.returnToTournamentList(ctx.sender(), ctx.chatId(), messageId);
+            } else if ("CONTROLLER_FILTER".equals(mode)) {
+                // editing controller filter — back to controller detail
+                Optional<String> ctrlIdOpt = sessionService.getContext(
+                        ctx.chatId(), UserBotSession.CTX_EDIT_CONTROLLER_ID);
+                sessionService.setState(ctx.chatId(), BotState.IDLE);
+                ctrlIdOpt.ifPresent(idStr -> {
+                    try {
+                        ControllerDto c = controllerService.getController(UUID.fromString(idStr));
+                        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+                                ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
+                                ControllerDetailCallback.buildDetailKeyboard(c, ctx.chatId()));
+                    } catch (Exception e) {
+                        log.warn("cancel: controller not found {}", idStr);
+                    }
+                });
+            } else {
+                // global filter add/edit cancelled → show filter list
+                sessionService.setState(ctx.chatId(), BotState.IDLE);
+                List<GlobalFilterEntity> filters = globalFilterService.getFilters(ctx.chatId());
+                var menu = FilterMenuBuilder.build(filters);
+                MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+                        menu.text(), menu.keyboard());
+            }
+            return;
+        }
+
+        // All other states (IDLE, SELECTING_BOOKMAKER, SELECTING_SPORT) → main menu
         sessionService.clearSession(ctx.chatId());
         MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(),
             messageSource.getMessage("menu.main", ctx.chatId()),

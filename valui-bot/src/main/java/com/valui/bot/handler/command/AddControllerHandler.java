@@ -55,7 +55,6 @@ public class AddControllerHandler implements CommandHandler {
         for (String bm : allowed) {
             kb.button(bm, CallbackData.bookmakerSelect(bm));
         }
-        kb.cancelButton();
 
         sessionService.setStateWithContext(ctx.chatId(), BotState.SELECTING_BOOKMAKER, new HashMap<>());
 

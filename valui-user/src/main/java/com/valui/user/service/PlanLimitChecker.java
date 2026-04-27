@@ -7,6 +7,7 @@ import com.valui.common.exception.UserNotFoundException;
 import com.valui.user.dto.LimitInfoDto;
 import com.valui.user.dto.SubscriptionPlanDto;
 import com.valui.user.repository.ControllerRepository;
+import com.valui.user.repository.GlobalFilterRepository;
 import com.valui.user.repository.SubscriptionRepository;
 import com.valui.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class PlanLimitChecker {
     private final UserRepository userRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final ControllerRepository controllerRepository;
+    private final GlobalFilterRepository globalFilterRepository;
 
     /**
      * Throws {@link SubscriptionLimitExceededException} if the user's active controller
@@ -65,7 +67,7 @@ public class PlanLimitChecker {
         SubscriptionPlanDto plan = subscriptionService.getUserPlan(telegramId);
 
         int controllersUsed = controllerRepository.countByUserIdAndIsActiveTrue(user.getId());
-        int filtersUsed     = (int) controllerRepository.countActiveFiltersUsedByUserId(user.getId());
+        int filtersUsed     = (int) globalFilterRepository.countByUserId(user.getId());
 
         var expiresAt = subscriptionRepository
             .findTopByUserIdAndStatusOrderByStartedAtDesc(user.getId(), SubscriptionStatus.ACTIVE)

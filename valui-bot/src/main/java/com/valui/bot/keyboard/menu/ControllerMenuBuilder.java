@@ -5,7 +5,8 @@ import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.bot.keyboard.KeyboardButton;
 import com.valui.bot.keyboard.MenuMessage;
 import com.valui.bot.keyboard.PagedKeyboardBuilder;
-import com.valui.bot.keyboard.dto.ControllerDto;
+import com.valui.monitor.dto.ControllerDto;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 
 import java.util.List;
 
@@ -18,28 +19,23 @@ public final class ControllerMenuBuilder {
 
     public static MenuMessage build(List<ControllerDto> controllers, int page) {
         if (controllers.isEmpty()) {
-            return new MenuMessage(
-                "📋 Список контроллеров пуст.",
-                InlineKeyboardBuilder.create()
-                    .backButton(CallbackData.MENU_MAIN)
-                    .build()
-            );
+            return new MenuMessage("📋 Список контроллеров пуст.",
+                InlineKeyboardMarkup.builder().keyboard(List.of()).build());
         }
 
         int totalPages = (int) Math.ceil((double) controllers.size() / PAGE_SIZE);
-        String text = String.format("📋 Контроллеры — страница %d / %d:",
-            page + 1, Math.max(1, totalPages));
+        String text = String.format("📋 Контроллеры — страница %d / %d:", page + 1, Math.max(1, totalPages));
 
         var keyboard = PagedKeyboardBuilder.<ControllerDto>create()
             .items(controllers)
-            .itemRenderer(c -> KeyboardButton.callback(
-                (c.active() ? "🟢 " : "🔴 ") + c.title() + " [" + c.bookmaker().name() + "]",
-                CallbackData.ctrlDetail(c.id())
-            ))
+            .itemRenderer(c -> {
+                String icon = !c.isActive() ? "🔴" : (c.isMuted() ? "🔕" : "🟢");
+                String label = icon + " " + (c.title() != null ? c.title() : c.url()) + " [" + c.bookmaker() + "]";
+                return KeyboardButton.callback(label, CallbackData.ctrlDetail(c.id()));
+            })
             .pageSize(PAGE_SIZE)
             .currentPage(page)
             .navigationCallbackPrefix(NAV_PREFIX)
-            .appendRow(KeyboardButton.callback("← Назад", CallbackData.MENU_MAIN))
             .build();
 
         return new MenuMessage(text, keyboard);

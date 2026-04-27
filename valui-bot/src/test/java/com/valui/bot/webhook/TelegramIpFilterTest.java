@@ -38,7 +38,7 @@ class TelegramIpFilterTest {
         BotProperties props = new BotProperties(
             "token", "bot", "https://pay.valui.com",
             BotMode.WEBHOOK, "https://example.com/webhook/token",
-            "secret", List.of("149.154.0.0/16", "91.108.0.0/16"));
+            "secret", List.of("149.154.0.0/16", "91.108.0.0/16"), null);
         filter = new TelegramIpFilter(props);
     }
 

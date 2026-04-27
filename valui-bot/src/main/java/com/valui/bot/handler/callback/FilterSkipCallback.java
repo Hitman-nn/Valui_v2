@@ -26,10 +26,10 @@ public class FilterSkipCallback implements CallbackHandler {
     @Override
     public void handle(BotUpdateContext ctx) {
         MessageSend.answerCallback(ctx.sender(), ctx.update().getCallbackQuery().getId());
-        sessionService.setState(ctx.chatId(), BotState.WAITING_CONFIRM_CREATE);
         int messageId = ctx.update().getCallbackQuery().getMessage().getMessageId();
+        sessionService.setState(ctx.chatId(), BotState.WAITING_CONFIRM_CREATE);
         String text = ControllerConfirmCallback.buildConfirmText(ctx.chatId(), sessionService, messageSource);
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, text,
-            ControllerConfirmCallback.buildConfirmKeyboard(ctx.chatId(), messageSource));
+                ControllerConfirmCallback.buildConfirmKeyboard(ctx.chatId(), messageSource));
     }
 }

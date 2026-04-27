@@ -17,8 +17,6 @@ public final class BookmakerSelectBuilder {
             builder.button(bm, CallbackData.bookmakerSelect(bm));
         }
 
-        builder.cancelButton();
-
         return new MenuMessage("📚 Выберите букмекера:", builder.build());
     }
 }

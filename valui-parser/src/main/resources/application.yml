@@ -56,19 +56,18 @@ resilience4j:
       parser-tl:
         timeout-duration: 20s
 
-# Proxy for XBet (KZ domain requires KZ proxy)
+# Shared HTTP proxy for parsers that need external network access
 parser:
   cache:
     sports-ttl: 1h
     tournaments-ttl: 30m
     matches-ttl: 5m
   proxy:
-    xbet:
-      enabled: true
-      host: 91.147.122.69
-      port: 4232
-      username: user283146
-      password: 0w3qzb
+    enabled: true
+    host: 91.147.122.69
+    port: 14232
+    username: user283146
+    password: 0w3qzb
 
 management:
   endpoints:

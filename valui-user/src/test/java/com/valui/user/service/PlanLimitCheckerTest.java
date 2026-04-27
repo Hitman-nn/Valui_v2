@@ -10,6 +10,7 @@ import com.valui.common.exception.UserNotFoundException;
 import com.valui.user.dto.LimitInfoDto;
 import com.valui.user.dto.SubscriptionPlanDto;
 import com.valui.user.repository.ControllerRepository;
+import com.valui.user.repository.GlobalFilterRepository;
 import com.valui.user.repository.SubscriptionRepository;
 import com.valui.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +42,7 @@ class PlanLimitCheckerTest {
     @Mock private UserRepository userRepository;
     @Mock private SubscriptionRepository subscriptionRepository;
     @Mock private ControllerRepository controllerRepository;
+    @Mock private GlobalFilterRepository globalFilterRepository;
 
     @InjectMocks private PlanLimitChecker checker;
 
@@ -130,7 +132,7 @@ class PlanLimitCheckerTest {
         given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
         given(subscriptionService.getUserPlan(TG_ID)).willReturn(planDto(planCode, 3, maxF));
         given(controllerRepository.countByUserIdAndIsActiveTrue(USER_ID)).willReturn(1);
-        given(controllerRepository.countActiveFiltersUsedByUserId(USER_ID)).willReturn(filtersUsed);
+        given(globalFilterRepository.countByUserId(USER_ID)).willReturn(filtersUsed);
         given(subscriptionRepository.findTopByUserIdAndStatusOrderByStartedAtDesc(USER_ID, SubscriptionStatus.ACTIVE))
             .willReturn(Optional.empty());
 
@@ -162,7 +164,7 @@ class PlanLimitCheckerTest {
         given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
         given(subscriptionService.getUserPlan(TG_ID)).willReturn(planDto("PRO", 15, 30));
         given(controllerRepository.countByUserIdAndIsActiveTrue(USER_ID)).willReturn(5);
-        given(controllerRepository.countActiveFiltersUsedByUserId(USER_ID)).willReturn(2L);
+        given(globalFilterRepository.countByUserId(USER_ID)).willReturn(2L);
         given(subscriptionRepository.findTopByUserIdAndStatusOrderByStartedAtDesc(USER_ID, SubscriptionStatus.ACTIVE))
             .willReturn(Optional.empty());
 

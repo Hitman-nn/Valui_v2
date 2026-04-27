@@ -66,7 +66,7 @@ public class SportSelectCallback implements CallbackHandler {
         }
     }
 
-    // "← Назад" from sport list → re-show bookmaker selection
+    // "← Назад" from sport list → re-show bookmaker selection (no cancel button on BK screen)
     private void handleBackToBookmakers(BotUpdateContext ctx, int messageId) {
         sessionService.setStateWithContext(ctx.chatId(), BotState.SELECTING_BOOKMAKER, new HashMap<>());
         List<String> allowed = planLimitChecker.getLimitInfo(ctx.chatId()).allowedBookmakers();
@@ -74,7 +74,6 @@ public class SportSelectCallback implements CallbackHandler {
         for (String bm : allowed) {
             kb.button(bm, CallbackData.bookmakerSelect(bm));
         }
-        kb.cancelButton();
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_bookmaker", ctx.chatId()),
             kb.build());
@@ -93,8 +92,7 @@ public class SportSelectCallback implements CallbackHandler {
 
         InlineKeyboardMarkup keyboard = BookmakerSelectCallback.buildSportsKeyboard(
             result.data(), page,
-            messageSource.getMessage("menu.back", ctx.chatId()),
-            messageSource.getMessage("menu.cancel", ctx.chatId()));
+            messageSource.getMessage("menu.back", ctx.chatId()));
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_sport", ctx.chatId(), bm.get()), keyboard);
     }
@@ -141,7 +139,7 @@ public class SportSelectCallback implements CallbackHandler {
         String sportUrl = buildSportUrl(bookmakerType, sportId, sportAlias);
 
         String monitorAllText = messageSource.getMessage("wizard.monitor_all_sport", ctx.chatId(), sportName);
-        String backText = messageSource.getMessage("menu.back", ctx.chatId());
+        String backText   = messageSource.getMessage("menu.back",   ctx.chatId());
         String cancelText = messageSource.getMessage("menu.cancel", ctx.chatId());
         InlineKeyboardMarkup keyboard = buildTournamentKeyboard(
             tournsResult.data(), 0, monitorAllText, backText, cancelText, existingUrls, sportUrl);

@@ -4,6 +4,7 @@ import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CommandHandler;
 import com.valui.bot.handler.MessageSend;
 import com.valui.bot.i18n.BotMessageSource;
+import com.valui.bot.keyboard.menu.BookmakerMenuBuilder;
 import com.valui.bot.keyboard.menu.MainMenuKeyboard;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
@@ -42,21 +43,7 @@ public class ListCommandHandler implements CommandHandler {
             return;
         }
 
-        StringBuilder sb = new StringBuilder();
-        sb.append(messageSource.getMessage("menu.controllers", ctx.chatId())).append("\n\n");
-        for (int i = 0; i < controllers.size(); i++) {
-            ControllerDto c = controllers.get(i);
-            sb.append(i + 1).append(". *").append(c.bookmaker()).append("*");
-            if (c.title() != null && !c.title().isBlank()) {
-                sb.append(" — ").append(c.title());
-            }
-            if (c.filterRule() != null && !c.filterRule().isBlank()) {
-                sb.append("\n   🔍 `").append(c.filterRule()).append("`");
-            }
-            sb.append("\n");
-        }
-
-        MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(), sb.toString(),
-            MainMenuKeyboard.build(ctx.chatId(), messageSource));
+        var menu = BookmakerMenuBuilder.buildSelection(controllers);
+        MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(), menu.text(), menu.keyboard());
     }
 }

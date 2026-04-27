@@ -27,12 +27,18 @@ public class HttpClientConfig {
 
     @Bean @Qualifier("xbetHttpClient")
     public BookmakerHttpClient xbetHttpClient(ProxyProperties proxy) {
-        return new BookmakerHttpClient(buildWebClient(proxy.isEnabled() ? proxy : null));
+        if (proxy.isEnabled()) {
+            // JDK HttpClient + SOCKS5 — avoids Reactor Netty's JA3 fingerprint
+            // that 1xbet.kz rejects. JDK's JSSE TLS matches HttpURLConnection's
+            // fingerprint which 1xbet accepts.
+            return new SocksBookmakerHttpClient(proxy);
+        }
+        return new BookmakerHttpClient(buildWebClient(null));
     }
 
     @Bean @Qualifier("fonbetHttpClient")
-    public BookmakerHttpClient fonbetHttpClient() {
-        return new BookmakerHttpClient(buildWebClient(null));
+    public BookmakerHttpClient fonbetHttpClient(ProxyProperties proxy) {
+        return new BookmakerHttpClient(buildWebClient(proxy.isEnabled() ? proxy : null));
     }
 
     @Bean @Qualifier("olimpHttpClient")
@@ -54,11 +60,9 @@ public class HttpClientConfig {
     // ── builder ───────────────────────────────────────────────────────────────
 
     static WebClient buildWebClient(ProxyProperties proxy) {
+        boolean usingProxy = proxy != null && proxy.isEnabled();
+
         HttpClient httpClient = HttpClient.create()
-                // Use JVM InetAddress (system mDNSResponder) instead of Netty's async resolver.
-                // Netty's async DNS bypasses macOS system resolver and fails to resolve CDN
-                // mirrors (e.g. bk6bba-resources.com) that resolve fine via curl/system DNS.
-                .resolver(DefaultAddressResolverGroup.INSTANCE)
                 // Force HTTP/1.1 — removes ALPN extension from TLS ClientHello.
                 // Netty's default HTTP/2 ALPN negotiation changes the JA3 fingerprint vs
                 // plain HttpURLConnection, causing servers like BetCity/XBet to reject the
@@ -66,10 +70,18 @@ public class HttpClientConfig {
                 .protocol(HttpProtocol.HTTP11)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MS)
                 .responseTimeout(RESPONSE_TIMEOUT)
-                .compress(true)  // auto Accept-Encoding: gzip + transparent decompression
+                .compress(true)
                 .headers(h -> h.set(HttpHeaders.USER_AGENT, USER_AGENT));
 
-        if (proxy != null && proxy.isEnabled()) {
+        if (!usingProxy) {
+            // Without proxy: use JVM InetAddress so macOS system resolver handles CDN mirrors
+            // (e.g. bk6bba-resources.com) that Netty's async DNS fails to resolve.
+            httpClient = httpClient.resolver(DefaultAddressResolverGroup.INSTANCE);
+        }
+        // With HTTP proxy: keep Netty's default async DNS so it passes the hostname to the
+        // proxy rather than resolving it locally first — avoids DNS failure for CDN mirrors.
+
+        if (usingProxy) {
             httpClient = httpClient.proxy(spec -> spec
                     .type(ProxyProvider.Proxy.HTTP)
                     .host(proxy.getHost())
@@ -80,7 +92,6 @@ public class HttpClientConfig {
 
         return WebClient.builder()
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
-                // Fonbet /events/list response is ~2 MB uncompressed; default 256 KB is too small.
                 .codecs(c -> c.defaultCodecs().maxInMemorySize(10 * 1024 * 1024))
                 .build();
     }

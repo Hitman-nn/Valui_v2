@@ -56,7 +56,7 @@ public class ControllerServiceImpl implements ControllerService {
             throw new ValuiException("Controller already exists for this URL", 409);
         }
 
-        ControllerType type = resolveType(req.url(), bookmaker);
+        ControllerType type = (req.typeHint() != null) ? req.typeHint() : resolveType(req.url(), bookmaker);
         int pollIntervalSec = planLimitChecker.getLimitInfo(telegramId).pollIntervalSec();
 
         ControllerEntity saved = controllerRepository.save(
@@ -177,7 +177,8 @@ public class ControllerServiceImpl implements ControllerService {
                 Boolean.TRUE.equals(e.getIsActive()),
                 e.getLastCheckedAt() != null ? e.getLastCheckedAt().toInstant() : null,
                 e.getLastEventAt()   != null ? e.getLastEventAt().toInstant()   : null,
-                (int) eventCount
+                (int) eventCount,
+                e.getType()
         );
     }
 

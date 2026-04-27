@@ -60,13 +60,13 @@ public class BookmakerSelectCallback implements CallbackHandler {
         // Show "loading" state while the HTTP call is in progress
         MessageSend.editTextWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.loading", ctx.chatId(), bookmakerCode),
-            buildLoadingKeyboard(messageSource.getMessage("menu.cancel", ctx.chatId())));
+            buildLoadingKeyboard());
 
         ParseResult<List<SportDto>> result = parser.fetchSports();
         if (!result.success() || result.data() == null || result.data().isEmpty()) {
             MessageSend.editTextWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                 messageSource.getMessage("wizard.parser_error", ctx.chatId(), bookmakerCode),
-                buildLoadingKeyboard(messageSource.getMessage("menu.cancel", ctx.chatId())));
+                buildLoadingKeyboard());
             return;
         }
 
@@ -74,23 +74,21 @@ public class BookmakerSelectCallback implements CallbackHandler {
             Map.of(UserBotSession.CTX_BOOKMAKER, bookmakerCode));
 
         InlineKeyboardMarkup keyboard = buildSportsKeyboard(result.data(), 0,
-            messageSource.getMessage("menu.back", ctx.chatId()),
-            messageSource.getMessage("menu.cancel", ctx.chatId()));
+            messageSource.getMessage("menu.back", ctx.chatId()));
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_sport", ctx.chatId(), bookmakerCode),
             keyboard);
     }
 
-    private static InlineKeyboardMarkup buildLoadingKeyboard(String cancelText) {
+    private static InlineKeyboardMarkup buildLoadingKeyboard() {
         return PagedKeyboardBuilder.<String>create()
             .items(List.of())
-            .itemRenderer(s -> KeyboardButton.callback(s, CallbackData.CANCEL))
-            .appendRow(KeyboardButton.callback(cancelText, CallbackData.CANCEL))
+            .itemRenderer(s -> KeyboardButton.callback(s, CallbackData.NOOP))
             .build();
     }
 
     static InlineKeyboardMarkup buildSportsKeyboard(
-            List<SportDto> sports, int page, String backText, String cancelText) {
+            List<SportDto> sports, int page, String backText) {
         return PagedKeyboardBuilder.<SportDto>create()
             .items(sports)
             .itemRenderer(s -> KeyboardButton.callback(s.name(), CallbackData.sportSel(s.id())))
@@ -98,7 +96,6 @@ public class BookmakerSelectCallback implements CallbackHandler {
             .currentPage(page)
             .navigationCallbackPrefix(CallbackData.SPORT_PAGE_PREFIX)
             .appendRow(KeyboardButton.callback(backText, CallbackData.SPORT_BACK))
-            .appendRow(KeyboardButton.callback(cancelText, CallbackData.CANCEL))
             .build();
     }
 }

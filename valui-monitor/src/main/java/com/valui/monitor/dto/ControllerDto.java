@@ -3,6 +3,8 @@ package com.valui.monitor.dto;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.valui.common.domain.ControllerType;
+
 public record ControllerDto(
         UUID id,
         String bookmaker,
@@ -13,5 +15,6 @@ public record ControllerDto(
         boolean isActive,
         Instant lastCheckedAt,
         Instant lastEventAt,
-        int detectedEventsCount
+        int detectedEventsCount,
+        ControllerType type
 ) {}

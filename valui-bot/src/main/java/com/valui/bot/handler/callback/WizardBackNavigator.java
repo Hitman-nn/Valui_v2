@@ -2,17 +2,21 @@ package com.valui.bot.handler.callback;
 
 import com.valui.bot.handler.MessageSend;
 import com.valui.bot.i18n.BotMessageSource;
+import com.valui.bot.keyboard.CallbackData;
+import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.bot.keyboard.menu.MainMenuKeyboard;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
 import com.valui.common.domain.BookmakerType;
+import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
+import com.valui.user.service.PlanLimitChecker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -26,10 +30,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * Shared helper: navigate back to the tournament list for the current sport/bookmaker.
- * Used by CancelCallback (during filter step) and ControllerConfirmCallback (after YES/NO).
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -39,11 +39,54 @@ public class WizardBackNavigator {
     private final BotMessageSource messageSource;
     private final ControllerService controllerService;
     private final ParserFactory parserFactory;
+    private final PlanLimitChecker planLimitChecker;
 
-    /**
-     * Edits the current wizard message to show the tournament list.
-     * Falls back to a new main-menu message if context is missing or parser fails.
-     */
+    public void returnToBookmakerSelection(AbsSender sender, long chatId, int messageId) {
+        sessionService.setStateWithContext(chatId, BotState.SELECTING_BOOKMAKER, new HashMap<>());
+        List<String> allowed = planLimitChecker.getLimitInfo(chatId).allowedBookmakers();
+        var kb = InlineKeyboardBuilder.create().columns(2);
+        for (String bm : allowed) {
+            kb.button(bm, CallbackData.bookmakerSelect(bm));
+        }
+        MessageSend.replaceWithKeyboard(sender, chatId, messageId,
+                messageSource.getMessage("wizard.select_bookmaker", chatId),
+                kb.build());
+    }
+
+    public void returnToSportList(AbsSender sender, long chatId, int messageId) {
+        Optional<String> bmOpt = sessionService.getContext(chatId, UserBotSession.CTX_BOOKMAKER);
+        if (bmOpt.isEmpty()) {
+            returnToBookmakerSelection(sender, chatId, messageId);
+            return;
+        }
+        String bm = bmOpt.get();
+
+        BookmakerParser parser;
+        try {
+            parser = parserFactory.getParser(BookmakerType.valueOf(bm.toUpperCase()));
+        } catch (Exception e) {
+            log.warn("No parser for bookmaker: {}", bm);
+            returnToBookmakerSelection(sender, chatId, messageId);
+            return;
+        }
+
+        ParseResult<List<SportDto>> result = parser.fetchSports();
+        if (!result.success() || result.data() == null) {
+            returnToBookmakerSelection(sender, chatId, messageId);
+            return;
+        }
+
+        sessionService.setStateAndMergeContext(chatId, BotState.SELECTING_SPORT,
+                Map.of(UserBotSession.CTX_BOOKMAKER, bm));
+
+        InlineKeyboardMarkup keyboard = BookmakerSelectCallback.buildSportsKeyboard(
+                result.data(), 0,
+                messageSource.getMessage("menu.back", chatId));
+        MessageSend.replaceWithKeyboard(sender, chatId, messageId,
+                messageSource.getMessage("wizard.select_sport", chatId, bm),
+                keyboard);
+    }
+
     public void returnToTournamentList(AbsSender sender, long chatId, int messageId) {
         Optional<String> bmOpt         = sessionService.getContext(chatId, UserBotSession.CTX_BOOKMAKER);
         Optional<String> sportIdOpt    = sessionService.getContext(chatId, UserBotSession.CTX_SPORT_ID);
@@ -53,8 +96,8 @@ public class WizardBackNavigator {
         if (bmOpt.isEmpty() || sportIdOpt.isEmpty()) {
             sessionService.clearSession(chatId);
             MessageSend.textWithKeyboard(sender, chatId,
-                messageSource.getMessage("menu.main", chatId),
-                MainMenuKeyboard.build(chatId, messageSource));
+                    messageSource.getMessage("menu.main", chatId),
+                    MainMenuKeyboard.build(chatId, messageSource));
             return;
         }
 
