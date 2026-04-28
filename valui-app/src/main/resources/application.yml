@@ -219,7 +219,7 @@ parser:
   proxy:
     enabled: true
     host: 91.147.122.69
-    port: 14232
+    port: 4232      # HTTP CONNECT proxy (was 14232 SOCKS5 — xbet uses HTTP CONNECT now)
     username: user283146
     password: 0w3qzb
 
