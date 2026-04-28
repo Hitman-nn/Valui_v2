@@ -30,16 +30,19 @@ public class ListCommandHandler implements CommandHandler {
     public void handle(BotUpdateContext ctx) {
         if (ctx.userInfo() == null) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("bot.user_not_registered", ctx.chatId()));
+                messageSource.getMessage("bot.user_not_registered", ctx.fromId()));
             return;
         }
 
-        List<ControllerDto> controllers = controllerService.getUserControllers(ctx.chatId());
+        // In a group: show that group's controllers. In private: show all user's controllers.
+        List<ControllerDto> controllers = ctx.isGroupChat()
+            ? controllerService.getGroupControllers(ctx.chatId())
+            : controllerService.getUserControllers(ctx.fromId());
 
         if (controllers.isEmpty()) {
             MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("controller.list_empty", ctx.chatId()),
-                MainMenuKeyboard.build(ctx.chatId(), messageSource));
+                messageSource.getMessage("controller.list_empty", ctx.fromId()),
+                MainMenuKeyboard.build(ctx.fromId(), messageSource, ctx.isGroupChat()));
             return;
         }
 

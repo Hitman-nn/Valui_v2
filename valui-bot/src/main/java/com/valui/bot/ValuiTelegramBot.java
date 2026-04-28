@@ -30,15 +30,33 @@ public class ValuiTelegramBot extends TelegramLongPollingBot {
         commandRouter.route(update, this);
     }
 
-    // Telegram API may be unreachable at startup (VPN, network issues).
-    // Swallow the error so the Spring context starts — DefaultBotSession will
-    // reconnect on its own once the network is available.
+    // Proxy may not be ready at the exact moment the bot registers.
+    // Retry a few times with backoff before giving up so that a transient
+    // startup delay doesn't permanently break long-polling delivery.
     @Override
     public void clearWebhook() {
-        try {
-            super.clearWebhook();
-        } catch (TelegramApiRequestException e) {
-            log.warn("Could not clear Telegram webhook at startup (API unreachable): {}", e.getMessage());
+        int[] delaysMs = {0, 3_000, 7_000, 15_000};
+        for (int i = 0; i < delaysMs.length; i++) {
+            if (delaysMs[i] > 0) {
+                try { Thread.sleep(delaysMs[i]); } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+            try {
+                super.clearWebhook();
+                if (i > 0) log.info("Telegram webhook cleared on attempt {}", i + 1);
+                return;
+            } catch (TelegramApiRequestException e) {
+                if (i < delaysMs.length - 1) {
+                    log.warn("Webhook clear attempt {} failed ({}), retrying in {} ms…",
+                            i + 1, e.getMessage(), delaysMs[i + 1]);
+                } else {
+                    log.error("Could not clear Telegram webhook after {} attempts — " +
+                            "long-polling may not receive updates if a webhook was set. " +
+                            "Run /deleteWebhook via Bot API to fix manually.", delaysMs.length);
+                }
+            }
         }
     }
 }

@@ -35,7 +35,7 @@ public class ControllerByBookmakerCallback implements CallbackHandler {
 
         String remainder = data.substring(PREFIX.length()); // "LIST" | "XBET" | "XBET:PAGE:1"
 
-        List<ControllerDto> all = controllerService.getUserControllers(ctx.chatId());
+        List<ControllerDto> all = controllerService.getUserControllers(ctx.fromId());
 
         if (CallbackData.CTRL_BK_LIST.equals(data)) {
             var menu = BookmakerMenuBuilder.buildSelection(all);

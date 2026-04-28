@@ -53,7 +53,7 @@ class BotAccessGuardTest {
     void guardAddController_withinLimit_silent() throws TelegramApiException {
         // checkControllerLimit does not throw — within limit
 
-        assertThatCode(() -> guard.guardAddController(CHAT_ID, sender))
+        assertThatCode(() -> guard.guardAddController(CHAT_ID, CHAT_ID, sender))
             .doesNotThrowAnyException();
 
         then(sender).should(never()).execute(any(SendMessage.class));
@@ -66,7 +66,7 @@ class BotAccessGuardTest {
             .given(planLimitChecker).checkControllerLimit(CHAT_ID);
         given(planLimitChecker.getLimitInfo(CHAT_ID)).willReturn(freeLimits(3, 3));
 
-        assertThatThrownBy(() -> guard.guardAddController(CHAT_ID, sender))
+        assertThatThrownBy(() -> guard.guardAddController(CHAT_ID, CHAT_ID, sender))
             .isInstanceOf(SubscriptionLimitExceededException.class);
 
         ArgumentCaptor<SendMessage> captor = ArgumentCaptor.forClass(SendMessage.class);
@@ -82,7 +82,7 @@ class BotAccessGuardTest {
     @Test
     @DisplayName("guardBookmakerAccess: bookmaker allowed → no exception")
     void guardBookmakerAccess_allowed_silent() throws TelegramApiException {
-        assertThatCode(() -> guard.guardBookmakerAccess(CHAT_ID, "XBET", sender))
+        assertThatCode(() -> guard.guardBookmakerAccess(CHAT_ID, CHAT_ID, "XBET", sender))
             .doesNotThrowAnyException();
 
         then(sender).should(never()).execute(any(SendMessage.class));
@@ -96,7 +96,7 @@ class BotAccessGuardTest {
         given(planLimitChecker.getLimitInfo(CHAT_ID))
             .willReturn(freeLimits(1, 3));
 
-        assertThatThrownBy(() -> guard.guardBookmakerAccess(CHAT_ID, "OLIMP", sender))
+        assertThatThrownBy(() -> guard.guardBookmakerAccess(CHAT_ID, CHAT_ID, "OLIMP", sender))
             .isInstanceOf(SubscriptionLimitExceededException.class);
 
         then(sender).should().execute(any(SendMessage.class));
@@ -107,7 +107,7 @@ class BotAccessGuardTest {
     @Test
     @DisplayName("guardAddFilter: within filter limit → no exception")
     void guardAddFilter_withinLimit_silent() throws TelegramApiException {
-        assertThatCode(() -> guard.guardAddFilter(CHAT_ID, sender))
+        assertThatCode(() -> guard.guardAddFilter(CHAT_ID, CHAT_ID, sender))
             .doesNotThrowAnyException();
 
         then(sender).should(never()).execute(any(SendMessage.class));
@@ -121,7 +121,7 @@ class BotAccessGuardTest {
         given(planLimitChecker.getLimitInfo(CHAT_ID))
             .willReturn(freeLimitsWithFilter(0, 3, 1, 1));
 
-        assertThatThrownBy(() -> guard.guardAddFilter(CHAT_ID, sender))
+        assertThatThrownBy(() -> guard.guardAddFilter(CHAT_ID, CHAT_ID, sender))
             .isInstanceOf(SubscriptionLimitExceededException.class);
 
         then(sender).should().execute(any(SendMessage.class));
@@ -138,19 +138,19 @@ class BotAccessGuardTest {
         given(sender.execute(any(SendMessage.class)))
             .willThrow(new TelegramApiException("network error"));
 
-        assertThatThrownBy(() -> guard.guardAddController(CHAT_ID, sender))
+        assertThatThrownBy(() -> guard.guardAddController(CHAT_ID, CHAT_ID, sender))
             .isInstanceOf(SubscriptionLimitExceededException.class);
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────────
 
     private static LimitInfoDto freeLimits(int used, int max) {
-        return new LimitInfoDto(used, max, 0, 1, List.of("XBET"), 120, "FREE", null);
+        return new LimitInfoDto(used, max, 0, 1, List.of("XBET"), 120, "FREE", null, 0);
     }
 
     private static LimitInfoDto freeLimitsWithFilter(int ctrlUsed, int ctrlMax,
                                                       int filterUsed, int filterMax) {
         return new LimitInfoDto(ctrlUsed, ctrlMax, filterUsed, filterMax,
-            List.of("XBET"), 120, "FREE", null);
+            List.of("XBET"), 120, "FREE", null, 0);
     }
 }

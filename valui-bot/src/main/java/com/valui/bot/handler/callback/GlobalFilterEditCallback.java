@@ -37,18 +37,18 @@ public class GlobalFilterEditCallback implements CallbackHandler {
 
         String filterId = ctx.update().getCallbackQuery().getData().substring(PREFIX.length());
 
-        sessionService.setStateAndMergeContext(ctx.chatId(), BotState.WAITING_FILTER_RULE, Map.of(
+        sessionService.setStateAndMergeContext(ctx.fromId(), BotState.WAITING_FILTER_RULE, Map.of(
                 UserBotSession.CTX_FILTER_MODE,   "GLOBAL_EDIT",
                 UserBotSession.CTX_EDIT_FILTER_ID, filterId,
                 UserBotSession.CTX_WIZARD_MSG_ID,  String.valueOf(messageId)
         ));
 
         var keyboard = InlineKeyboardBuilder.create()
-                .button(messageSource.getMessage("menu.cancel", ctx.chatId()), CallbackData.CANCEL)
+                .button(messageSource.getMessage("menu.cancel", ctx.fromId()), CallbackData.CANCEL)
                 .build();
 
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-                messageSource.getMessage("filter.enter_rule", ctx.chatId()),
+                messageSource.getMessage("filter.enter_rule", ctx.fromId()),
                 keyboard);
     }
 }

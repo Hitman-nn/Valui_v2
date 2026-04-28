@@ -276,6 +276,6 @@ class ControllerServiceTest {
     private static LimitInfoDto limitInfo(int maxControllers, int pollIntervalSec) {
         return new LimitInfoDto(0, maxControllers, 0, 5,
                 List.of("XBET", "FONBET", "OLIMP", "BETCITY", "BETBOOM"),
-                pollIntervalSec, "PRO", null);
+                pollIntervalSec, "PRO", null, 0);
     }
 }

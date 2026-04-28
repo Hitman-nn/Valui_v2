@@ -8,7 +8,7 @@ import java.util.Map;
 
 /**
  * FSM session for one Telegram user, serialized as JSON in Redis.
- * Key: {@code bot:session:{chatId}}, TTL: 30 minutes (reset on every access).
+ * Key: {@code bot:session:{fromId}} (user's personal Telegram ID), TTL: 30 minutes.
  */
 @Getter
 @Setter
@@ -45,4 +45,5 @@ public class UserBotSession {
     public static final String CTX_EDIT_FILTER_ID      = "editFilterId";
     public static final String CTX_EDIT_CONTROLLER_ID  = "editControllerId";
     public static final String CTX_WIZARD_MSG_ID       = "wizardMsgId";
+    public static final String CTX_BOOST_CHAT_ID       = "boostChatId";
 }

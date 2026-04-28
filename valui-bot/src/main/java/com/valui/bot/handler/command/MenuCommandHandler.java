@@ -23,10 +23,10 @@ public class MenuCommandHandler implements CommandHandler {
 
     @Override
     public void handle(BotUpdateContext ctx) {
-        sessionService.clearSession(ctx.chatId());
+        sessionService.clearSession(ctx.fromId());
         com.valui.bot.handler.MessageSend.textMarkdownWithKeyboard(
             ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("menu.main", ctx.chatId()),
-            MainMenuKeyboard.build(ctx.chatId(), messageSource));
+            messageSource.getMessage("menu.main", ctx.fromId()),
+            MainMenuKeyboard.build(ctx.fromId(), messageSource, ctx.isGroupChat()));
     }
 }

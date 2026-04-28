@@ -37,12 +37,12 @@ public class GlobalFilterDeleteCallback implements CallbackHandler {
 
         try {
             UUID filterId = UUID.fromString(data.substring(PREFIX.length()));
-            globalFilterService.deleteFilter(ctx.chatId(), filterId);
+            globalFilterService.deleteFilter(ctx.fromId(), filterId);
         } catch (Exception e) {
-            log.warn("Failed to delete global filter for chatId={}: {}", ctx.chatId(), e.getMessage());
+            log.warn("Failed to delete global filter for fromId={}: {}", ctx.fromId(), e.getMessage());
         }
 
-        List<GlobalFilterEntity> filters = globalFilterService.getFilters(ctx.chatId());
+        List<GlobalFilterEntity> filters = globalFilterService.getFilters(ctx.fromId());
         var menu = FilterMenuBuilder.build(filters);
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
     }

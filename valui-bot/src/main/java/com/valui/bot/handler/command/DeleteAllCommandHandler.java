@@ -25,12 +25,12 @@ public class DeleteAllCommandHandler implements CommandHandler {
     public void handle(BotUpdateContext ctx) {
         if (ctx.userInfo() == null) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("bot.user_not_registered", ctx.chatId()));
+                messageSource.getMessage("bot.user_not_registered", ctx.fromId()));
             return;
         }
 
-        sessionService.setState(ctx.chatId(), BotState.WAITING_CONFIRM_DELETE);
+        sessionService.setState(ctx.fromId(), BotState.WAITING_CONFIRM_DELETE);
         MessageSend.text(ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("bot.confirm_delete_all", ctx.chatId()));
+            messageSource.getMessage("bot.confirm_delete_all", ctx.fromId()));
     }
 }

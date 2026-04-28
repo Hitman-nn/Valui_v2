@@ -42,6 +42,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final SubscriptionPlanRepository subscriptionPlanRepository;
     private final ControllerRepository controllerRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final GroupQuotaService groupQuotaService;
 
     @Override
     @Cacheable(value = PLANS_CACHE, key = "#telegramId", unless = "#result == null")
@@ -115,6 +116,15 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         boolean isPaid = plan.getPriceRub() != null && plan.getPriceRub().compareTo(BigDecimal.ZERO) > 0;
         OffsetDateTime expiresAt = isPaid ? OffsetDateTime.now().plusDays(PAID_DAYS) : null;
 
+        // Grant tokens for this plan (one-time, additive to existing balance)
+        int reward = plan.getTokenReward() != null ? plan.getTokenReward() : 0;
+        if (reward > 0) {
+            user.setTokenBalance((user.getTokenBalance() != null ? user.getTokenBalance() : 0) + reward);
+            userRepository.save(user);
+            log.info("🪙 Токены начислены: userId={} план={} reward={} newBalance={}",
+                    userId, planCode, reward, user.getTokenBalance());
+        }
+
         SubscriptionEntity newSub = SubscriptionEntity.builder()
             .user(user)
             .plan(plan)
@@ -150,6 +160,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             .status(SubscriptionStatus.ACTIVE)
             .build();
         subscriptionRepository.save(freeSub);
+
+        // Revoke any group token contributions — shrinks group quotas and deactivates overflow
+        groupQuotaService.revokeAllContributions(user.getId());
 
         eventPublisher.publishEvent(
             new SubscriptionExpiredEvent(user.getId(), user.getTelegramId(), oldPlanCode));

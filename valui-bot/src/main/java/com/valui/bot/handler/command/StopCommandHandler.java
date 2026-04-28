@@ -22,8 +22,8 @@ public class StopCommandHandler implements CommandHandler {
 
     @Override
     public void handle(BotUpdateContext ctx) {
-        sessionService.clearSession(ctx.chatId());
+        sessionService.clearSession(ctx.fromId());
         MessageSend.text(ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("bot.monitoring_stopped", ctx.chatId()));
+            messageSource.getMessage("bot.monitoring_stopped", ctx.fromId()));
     }
 }

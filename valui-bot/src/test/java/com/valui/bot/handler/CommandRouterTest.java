@@ -206,8 +206,15 @@ class CommandRouterTest {
         User from = new User();
         from.setId(CHAT_ID);
 
+        Chat chat = new Chat();
+        chat.setId(CHAT_ID);
+
+        Message msg = new Message();
+        msg.setChat(chat);
+
         CallbackQuery cb = new CallbackQuery();
         cb.setFrom(from);
+        cb.setMessage(msg);
         cb.setData(data);
 
         Update update = new Update();

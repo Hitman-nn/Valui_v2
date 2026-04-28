@@ -53,7 +53,9 @@ class DlqConsumerTest {
                 123456L,
                 "TELEGRAM",
                 "test message",
-                UUID.randomUUID().toString());
+                UUID.randomUUID().toString(),
+                null,
+                null);
 
         // Stub retryPolicy to avoid NPE in error path
         given(retryPolicy.classify(any()))

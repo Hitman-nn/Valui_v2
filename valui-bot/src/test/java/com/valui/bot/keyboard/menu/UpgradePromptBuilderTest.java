@@ -41,7 +41,7 @@ class UpgradePromptBuilderTest {
     @DisplayName("bookmaker limit: text contains allowed bookmakers list")
     void bookmaker_textContainsAllowedBookmakers() {
         LimitInfoDto limits = new LimitInfoDto(0, 3, 0, 1,
-            List.of("XBET", "FONBET"), 120, "FREE", null);
+            List.of("XBET", "FONBET"), 120, "FREE", null, 0);
 
         MenuMessage msg = UpgradePromptBuilder.build(limits, "bookmaker");
 
@@ -107,6 +107,6 @@ class UpgradePromptBuilderTest {
 
     private static LimitInfoDto limits(int ctrlUsed, int ctrlMax, int filterUsed, int filterMax) {
         return new LimitInfoDto(ctrlUsed, ctrlMax, filterUsed, filterMax,
-            List.of("XBET"), 120, "FREE", null);
+            List.of("XBET"), 120, "FREE", null, 0);
     }
 }

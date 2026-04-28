@@ -31,9 +31,9 @@ public class PlansSelectHandler implements CallbackHandler {
             .substring(PREFIX.length());
 
         String paymentUrl = botProperties.paymentBaseUrl()
-            + "/upgrade?plan=" + planCode + "&chat_id=" + ctx.chatId();
+            + "/upgrade?plan=" + planCode + "&chat_id=" + ctx.fromId();
 
-        log.info("Payment upgrade requested: chatId={} plan={}", ctx.chatId(), planCode);
+        log.info("Payment upgrade requested: fromId={} plan={}", ctx.fromId(), planCode);
 
         var keyboard = InlineKeyboardBuilder.create()
             .urlButton("💳 Перейти к оплате →", paymentUrl)

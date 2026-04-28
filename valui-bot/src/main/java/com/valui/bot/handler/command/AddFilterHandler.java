@@ -27,13 +27,13 @@ public class AddFilterHandler implements CommandHandler {
     @Override
     public void handle(BotUpdateContext ctx) {
         try {
-            guard.guardAddFilter(ctx.chatId(), ctx.sender());
+            guard.guardAddFilter(ctx.fromId(), ctx.chatId(), ctx.sender());
         } catch (SubscriptionLimitExceededException e) {
             return;
         }
 
-        sessionService.setState(ctx.chatId(), BotState.WAITING_FILTER_RULE);
+        sessionService.setState(ctx.fromId(), BotState.WAITING_FILTER_RULE);
         MessageSend.text(ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("bot.enter_filter_rule", ctx.chatId()));
+            messageSource.getMessage("bot.enter_filter_rule", ctx.fromId()));
     }
 }

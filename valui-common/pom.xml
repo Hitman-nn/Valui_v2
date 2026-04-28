@@ -33,6 +33,15 @@
             <groupId>jakarta.persistence</groupId>
             <artifactId>jakarta.persistence-api</artifactId>
         </dependency>
+        <!--
+          Hibernate-specific annotations (@JdbcTypeCode etc.) used on shared entities.
+          provided = compile-only: Hibernate is already on the runtime classpath via valui-user.
+        -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <!-- MapStruct interfaces live here; implementations generated per-module -->
         <dependency>
             <groupId>org.mapstruct</groupId>

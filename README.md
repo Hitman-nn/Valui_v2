@@ -71,8 +71,47 @@ ControllerTaskExecutor [TX]
         │
         ▼
    DlqConsumer: 3 retry (1s→5s→30s backoff)
-   └── after 3 fails: FAILED + ALERT
+   └── после 3 попыток: FAILED + ALERT
 ```
+
+---
+
+## Групповые чаты
+
+Бот работает в Telegram-группах. В группе контроллеры привязаны к чату, а не к личному ID пользователя.
+
+### Разделение контекста
+
+`BotUpdateContext` разделяет два ID:
+
+| Поле | Значение | Используется для |
+|---|---|---|
+| `chatId` | ID группы (< 0) или личного чата | Назначение уведомлений, группа |
+| `fromId` | Всегда личный ID пользователя Telegram | Сессия, тариф, токены |
+
+### Квота группы
+
+```
+Базовая квота:  3 слота (бесплатно для каждой группы)
+Расширение:     +1 слот за каждый вложенный токен
+Личная квота:   по тарифному плану пользователя
+Итог:           оба ограничения проверяются независимо
+```
+
+При истечении подписки токены пользователя отзываются: квота группы уменьшается, лишние контроллеры деактивируются (сначала контроллеры самого пользователя).
+
+---
+
+## Токены
+
+| Тарифный план | Токены при активации (одноразово) |
+|---|---|
+| FREE | 0 |
+| PRO | 50 |
+| PREMIUM | 300 |
+
+Токены хранятся в поле `token_balance` пользователя. Тратятся через кнопку **BOOST** в группе.
+При истечении подписки баланс токенов обнуляется, а все вложенные в группы токены отзываются.
 
 ---
 
@@ -96,7 +135,7 @@ ControllerTaskExecutor [TX]
 - **Java 21** (Virtual Threads — планировщик + DLQ backoff)
 - **Spring Boot 3.3.5**
 - **Apache Kafka** — 5 топиков, transactional outbox, DLQ
-- **PostgreSQL 15+** + **Flyway** (V1–V8 миграции)
+- **PostgreSQL 15+** + **Flyway** (V1–V12 миграции)
 - **Redis** — dedup SET, Kafka outbox retry, Telegram rate-limit, парсер-кэш
 - **Resilience4j** — Circuit Breaker + Retry на всех парсерах
 - **Micrometer → Prometheus** — метрики мониторинга и Kafka producer
@@ -285,12 +324,13 @@ Valui_v2/
 ├── pom.xml                           # valui-parent (root BOM)
 ├── docker-compose.yml
 ├── docs/
-│   └── ARCHITECTURE.md               # этот гайд
+│   └── ARCHITECTURE.md
 │
 ├── valui-common/
 │   └── src/main/java/com/valui/common/
 │       ├── domain/    (BookmakerType, UserStatus, ControllerType)
-│       ├── entity/    (UserEntity, ControllerEntity, DetectedEventEntity)
+│       ├── entity/    (UserEntity, ControllerEntity, DetectedEventEntity,
+│       │               GroupChatQuotaEntity, GroupTokenContributionEntity)
 │       └── kafka/     (SportEventDetectedMessage, UserNotificationRequestMessage, ...)
 │
 ├── valui-monitor/
@@ -320,25 +360,43 @@ Valui_v2/
 │           ├── betcity/    (BetCityParser)
 │           └── betboom/    (BetBoomParser, WsClientBorrowingPool)
 │
+├── valui-user/
+│   └── src/main/java/com/valui/user/
+│       ├── repository/ (UserRepository, ControllerRepository,
+│       │               GroupChatQuotaRepository, GroupTokenContributionRepository)
+│       ├── service/    (GroupQuotaService, PlanLimitChecker, SubscriptionServiceImpl)
+│       └── dto/        (GroupStatusDto, LimitInfoDto, SubscriptionPlanDto)
+│
 ├── valui-app/
 │   └── src/main/resources/
 │       ├── application.yml
 │       └── db/migration/
-│           ├── V1__init_schema.sql      (users, controllers, detected_events, notification_log)
+│           ├── V1__init_schema.sql
 │           ├── V2__seed_plans.sql
 │           ├── V3__indexes.sql
 │           ├── V4__add_payment_transactions.sql
 │           ├── V5__free_plan_all_bookmakers.sql
 │           ├── V6__fix_extra_data_type.sql
 │           ├── V7__add_global_filters.sql
-│           └── V8__add_outbox_events.sql   (outbox_events + partial index)
+│           ├── V8__add_outbox_events.sql
+│           ├── V9__audit_log.sql
+│           ├── V10__add_notification_chat_id.sql  (controllers.notification_chat_id)
+│           ├── V11__add_group_quota_tables.sql     (users.token_balance, group_chat_quota,
+│           │                                        group_token_contribution)
+│           └── V12__add_token_reward_to_plans.sql  (subscription_plans.token_reward)
 │
 └── valui-bot/
     └── src/main/java/com/valui/bot/
-        ├── handler/   (CommandRouter, CallbackHandler, CommandHandler)
-        ├── keyboard/  (InlineKeyboardBuilder, PagedKeyboardBuilder)
-        ├── state/     (UserBotSession, BotState FSM)
-        └── webhook/   (ValuiWebhookBot, WebhookController)
+        ├── handler/
+        │   ├── command/   (StartCommandHandler, AddCommandHandler, ListCommandHandler,
+        │   │               InfoCommandHandler, ...)
+        │   ├── callback/  (QuickAddControllerCallback, ControllerConfirmCallback,
+        │   │               GroupBoostCallback, ...)
+        │   └── message/   (MenuButtonHandler, WizardTextHandler)
+        ├── keyboard/
+        │   └── menu/      (MainMenuKeyboard — group-aware BOOST row)
+        ├── state/         (UserBotSession, BotState FSM)
+        └── webhook/       (ValuiWebhookBot, WebhookController)
 ```
 
 ---
@@ -362,12 +420,19 @@ Spring автоматически подхватит через `List<BookmakerP
 |---|---|
 | `/start` | Регистрация / приветствие, сброс FSM-сессии |
 | `/add` | Запуск мастера добавления контроллера |
-| `/list` | Список активных контроллеров |
+| `/list` | Список активных контроллеров (в группе — контроллеры группы) |
 | `/listfilter` | Список настроенных фильтров |
+| `/info` | Личный кабинет (тариф + токены) или статус группы (квота + вкладчики) |
 | `/stop` | Остановить все активные контроллеры |
 | `/deleteall` | Удалить всё (подтверждение «ДА») |
 | `/language` | Сменить язык (RU / EN) |
 | `/help` | Справка |
+
+### Кнопки reply-клавиатуры
+
+В **личном чате** отображаются: добавить, список, фильтры, тариф, помощь, язык.
+
+В **групповом чате** добавляется строка с кнопками **"🚀 Расширить квоту группы"** и **"📊 Статус группы"**.
 
 ### FSM-состояния
 
@@ -375,9 +440,18 @@ Spring автоматически подхватит через `List<BookmakerP
 IDLE → SELECTING_BOOKMAKER → SELECTING_SPORT
      → SELECTING_TOURNAMENT → WAITING_FILTER_RULE
      → WAITING_CONFIRM_CREATE → IDLE
+
+IDLE → WAITING_BOOST_AMOUNT → IDLE   (только в группе, кнопка BOOST)
 ```
 
 Сессия хранится в Redis (TTL 30 мин).
+
+### Поведение /info
+
+| Контекст | Что показывает |
+|---|---|
+| Личный чат | Текущий тариф, лимиты, баланс токенов, дата истечения подписки |
+| Групповой чат | Квота группы, активных контроллеров, список вкладчиков с токенами |
 
 ### Формат уведомления
 

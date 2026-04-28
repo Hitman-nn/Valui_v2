@@ -11,5 +11,6 @@ public record LimitInfoDto(
     List<String> allowedBookmakers,
     int pollIntervalSec,
     String planName,
-    OffsetDateTime expiresAt  // null = no expiry (FREE plan)
+    OffsetDateTime expiresAt,   // null = no expiry (FREE plan)
+    int tokenBalance
 ) {}

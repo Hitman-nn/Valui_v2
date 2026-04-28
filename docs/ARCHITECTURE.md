@@ -10,39 +10,27 @@
 2. [Модульная структура](#2-модульная-структура)
 3. [Жизненный цикл события](#3-жизненный-цикл-события)
 4. [Планировщик мониторинга (valui-monitor)](#4-планировщик-мониторинга-valui-monitor)
-   - 4.1 [MonitorScheduler](#41-monitorscheduler)
-   - 4.2 [ControllerTask](#42-controllertask)
-   - 4.3 [ControllerTaskExecutor](#43-controllertaskexecutor)
-   - 4.4 [Метрики](#44-метрики)
 5. [Дедупликация событий](#5-дедупликация-событий)
 6. [Kafka-инфраструктура](#6-kafka-инфраструктура)
-   - 6.1 [Топики](#61-топики)
-   - 6.2 [Продюсер (valui-monitor)](#62-продюсер-valui-monitor)
-   - 6.3 [Transactional Outbox Pattern](#63-transactional-outbox-pattern)
 7. [Пайплайн уведомлений (valui-notify)](#7-пайплайн-уведомлений-valui-notify)
-   - 7.1 [SportEventConsumer](#71-sporteventconsumer)
-   - 7.2 [NotificationDispatcher](#72-notificationdispatcher)
-   - 7.3 [TelegramNotificationSender + Rate Limiting](#73-telegramnotificationsender--rate-limiting)
-   - 7.4 [DLQ Consumer](#74-dlq-consumer)
-8. [Схемы классов](#8-схемы-классов)
-9. [Парсеры букмекеров (valui-parser)](#9-парсеры-букмекеров-valui-parser)
-10. [HTTP-клиенты и прокси](#10-http-клиенты-и-прокси)
-11. [Конфигурация (application.yml)](#11-конфигурация-applicationyml)
-12. [Технологический стек](#12-технологический-стек)
+8. [Telegram-бот (valui-bot)](#8-telegram-бот-valui-bot)
+9. [Групповые чаты и квоты](#9-групповые-чаты-и-квоты)
+10. [Аудит и надёжность](#10-аудит-и-надёжность)
+11. [Схемы классов](#11-схемы-классов)
+12. [Парсеры букмекеров (valui-parser)](#12-парсеры-букмекеров-valui-parser)
+13. [Конфигурация](#13-конфигурация)
+14. [Технологический стек](#14-технологический-стек)
 
 ---
 
 ## 1. Обзор системы
 
-Valui — Telegram-бот, который мониторит линии букмекерских контор и уведомляет
-пользователей о появлении новых матчей или турниров по заданным URL.
+Valui — Telegram-бот мониторинга букмекерских событий. Пользователь добавляет URL
+турнира или вида спорта; планировщик регулярно опрашивает его через парсер,
+сравнивает с ранее виденным (дедупликация) и отправляет уведомление через Kafka.
 
-**Принцип работы в одном предложении:**  
-Каждый *controller* — это сохранённый пользователем URL букмекера; планировщик
-регулярно опрашивает этот URL через парсер, сравнивает результат с тем, что уже
-было видено (дедупликация), сохраняет outbox-строку в той же транзакции и публикует
-события в Kafka → `SportEventConsumer` фильтрует, форматирует и отправляет
-уведомление через Telegram.
+Поддерживаются как личные чаты, так и групповые чаты Telegram — у каждого режима
+своя квота на контроллеры (см. раздел 9).
 
 ---
 
@@ -50,206 +38,145 @@ Valui — Telegram-бот, который мониторит линии букм
 
 ```
 valui-app       ← Fat JAR, точка входа Spring Boot (@SpringBootApplication)
-valui-common    ← Shared DTOs, Kafka-записи, enum BookmakerType (без Spring)
+valui-common    ← Shared DTOs, Kafka-записи, JPA entities, enum-ы (без Spring runtime)
 valui-bot       ← Telegram-бот, FSM состояний, inline-клавиатуры
-valui-user      ← Пользователи, подписки, JPA-репозитории, Flyway
+valui-user      ← Пользователи, подписки, группы, JPA-репозитории, Flyway
 valui-parser    ← Парсеры HTTP/WebSocket для всех букмекеров
 valui-monitor   ← Планировщик + дедупликация + outbox + публикация Kafka
 valui-notify    ← Kafka-consumer, фильтрация, отправка уведомлений
 valui-admin     ← REST API для административных операций
 ```
 
-**Граф зависимостей (упрощённо):**
+**Граф зависимостей:**
 
 ```
-app ─────────────────────────────────────────────────────┐
- │                                                        │
- ├── monitor ──── parser ──── common                     │
- │        │                                               │
- ├── notify ──── bot ──── user ──── common                │
- │                                                        │
- └── admin ─────────────────────────────────────────────-┘
+app ──▶ monitor ──▶ parser ──▶ common
+app ──▶ notify  ──▶ bot    ──▶ user ──▶ common
+app ──▶ admin   ──▶ user
 ```
 
-Зависимости текут в одну сторону. `valui-parser` не зависит от `valui-user`.
-`valui-common` не имеет Spring-зависимостей — только Jakarta/Java SE.
+`valui-common` — без Spring-зависимостей (только Jakarta/Java SE). Это принципиально:
+тесты компилируются без Spring-контекста, а `common` можно переиспользовать в
+других сервисах без transitive зависимостей.
 
 ---
 
 ## 3. Жизненный цикл события
 
 ```
-Пользователь в Telegram добавляет URL
+Пользователь добавляет URL (личка или группа)
           │
           ▼
-  valui-bot → Controller сохранён в PostgreSQL
-  (bookmaker, url, pollIntervalSec, userId, isActive=true)
+  valui-bot → ControllerServiceImpl.addController(req, fromId, notificationChatId)
+  Сохраняется: bookmaker, url, userId, notificationChatId, pollIntervalSec
           │
           ▼ ApplicationEvent: ControllerAddedEvent
   MonitorScheduler.scheduleController()
-  ├── dedup.seedIfAbsent()   ← заполняет Redis из DB (идемпотентно)
   └── triggerPool.scheduleWithFixedDelay(task, 0, pollInterval, SECONDS)
           │
-          ▼ каждые pollIntervalSec секунд
-  ControllerTask.run() на Virtual Thread
-  ├── TX-1 (readOnly): loadContext() — свежий контекст из DB
-  ├── fetch() — внешний HTTP/WS (вне транзакции!)
+          ▼ каждые pollIntervalSec секунд (Virtual Thread)
+  ControllerTask.run()
+  ├── TX-1 (readOnly): loadContext()
+  ├── fetch()          — HTTP/WS вне TX (не держим соединение!)
   └── TX-2: persistNewEvents()
-       ├── dedup.claimIfNew()         ← Redis SADD (атомарно)
+       ├── dedup.claimIfNew()          ← Redis SADD
        ├── DetectedEventRepository.save()
-       ├── OutboxEventRepository.save()  ← NEW: outbox в той же TX
-       └── ApplicationEventPublisher.publishEvent(SportEventDetectedEvent)
-          │
-          ▼ после коммита TX-2
-  SportEventKafkaProducer (@TransactionalEventListener AFTER_COMMIT)
-  └── OutboxSenderService.publishImmediate(externalEventId)
-       └── KafkaTemplate.send("sport.events.detected")  ← at-least-once
-          │
-          ▼ OutboxSenderService @Scheduled(5s) — retry несвязанных строк
-  Kafka: topic "sport.events.detected" (12 partitions)
+       ├── OutboxEventRepository.save()
+       └── ApplicationEventPublisher.publishEvent()
+          │ после коммита TX-2
+          ▼
+  SportEventKafkaProducer [@TransactionalEventListener AFTER_COMMIT]
+  └── OutboxSenderService → KafkaTemplate → "sport.events.detected"
           │
           ▼
-  valui-notify: SportEventConsumer
-  ├── loadController() + loadUser() из DB
-  ├── Проверить: isActive, !isMuted, user.status==ACTIVE
-  ├── Применить filterRule (regex)
-  ├── NotificationLogService.createPending() ← запись в notification_log
-  ├── NotificationFormatter.buildTelegramMessage()
-  └── KafkaTemplate.send("user.notifications.pending")
+  SportEventConsumer (valui-notify)
+  ├── фильтры: isActive / !isMuted / ACTIVE / filterRule
+  ├── QuickAddCacheService.store(notificationLogId, {url, bookmaker, title})  ← если SPORT
+  ├── notification_log PENDING
+  └── KafkaTemplate → "user.notifications.pending"
           │
           ▼
-  valui-notify: NotificationDispatcher
-  └── TelegramNotificationSender
-       ├── TelegramRateLimiter (Redis 1msg/s per chatId)
-       └── AbsSender.execute(SendMessage) → Telegram API
-          │
-          ▼ при ошибке
-  Kafka: topic "notifications.dlq"
-          │
+  NotificationDispatcher → TelegramNotificationSender
+  ├── buildKeyboard(): кнопка "➕ Следить" (SPORT) или "🔗 Открыть" (MATCH/TOURNAMENT)
+  ├── TelegramRateLimiter (Redis, 1 msg/s per chatId)
+  └── AbsSender.execute(SendMessage) → Telegram API
+          │ при ошибке
           ▼
-  DlqConsumer: 3 retry (1s → 5s → 30s backoff)
-  └── после 3 неудач: notification_log.status = FAILED + ALERT
+  retry.1s → retry.5s → retry.30s → dlq → dlq.final → ALERT
 ```
 
-**Почему HTTP-вызов вне транзакции?**  
-Держать транзакцию открытой на время сетевого запроса (сотни мс) означает
-удерживать соединение из пула HikariCP. При 50 параллельных задачах — исчерпание
-пула. Поэтому: TX-1 (загрузка контекста) → закрыть → HTTP → TX-2 (запись).
+**Почему HTTP вне транзакции?** Держать TX открытой во время сетевого запроса (сотни мс)
+исчерпывает пул HikariCP при 50+ параллельных задачах.
 
-**Почему outbox, а не прямой KafkaTemplate внутри TX?**  
-Прямой вызов `kafkaTemplate.send()` внутри транзакции не гарантирует at-least-once:
-если TX закоммитилась, а Kafka-send упал — сообщение потеряно. Outbox сохраняется
-атомарно с бизнес-данными; `@Scheduled`-sender гарантирует повторную доставку.
+**Почему Outbox?** Прямой `kafkaTemplate.send()` после коммита не гарантирует at-least-once:
+crash между коммитом DB и Kafka-send = потеря. Outbox сохраняется атомарно с данными;
+`@Scheduled` повторяет неотправленные строки.
 
 ---
 
 ## 4. Планировщик мониторинга (valui-monitor)
 
-### 4.1 MonitorScheduler
+### MonitorScheduler
 
-**Файл:** `valui-monitor/.../scheduler/MonitorScheduler.java`
+Два пула потоков:
 
-Центральный компонент. Управляет жизненным циклом всех контроллеров.
+| Пул | Тип | Назначение |
+|-----|-----|-----------|
+| `triggerPool` | Platform threads (CPU/2) | Только fires scheduleWithFixedDelay |
+| `taskPool` | **Virtual threads** | Тело задачи (HTTP + DB) |
 
-**Два пула потоков:**
-
-| Пул | Тип | Размер | Назначение |
-|-----|-----|--------|-----------|
-| `triggerPool` | Platform threads | `CPU/2`, мин. 2 | Только fires `scheduleWithFixedDelay` |
-| `taskPool` | **Virtual threads** | Без ограничений | Тело задачи (HTTP + DB) |
-
-**Почему разделение triggerPool / taskPool?**  
-`ScheduledExecutorService` не поддерживает Virtual Threads напрямую. Само тело
-задачи — Virtual Thread, что позволяет сотням задач блокировать I/O без overhead.
+`ScheduledExecutorService` не поддерживает Virtual Threads напрямую — тело задачи
+делегируется в `taskPool`, где блокирующий I/O не стоит ничего.
 
 **Защита от перегрузки:**
 - `globalSemaphore(50)` — жёсткий cap на всю систему
 - `perUserCounter(5)` — cap на одного пользователя
-- Если семафор не захвачен → итерация тихо пропускается
 
-**Реакция на события Spring:**
+**Spring-события → расписание:**
 ```
 ControllerAddedEvent      → scheduleController()
 ControllerRemovedEvent    → unscheduleController()
 SubscriptionChangedEvent  → rescheduleUser()
 ```
 
----
-
-### 4.2 ControllerTask
-
-Реализует `Runnable`. Не Spring-бин — создаётся `MonitorScheduler` на каждый контроллер.
-
-```
-run()
- ├── tryAcquire(globalSemaphore)
- ├── userSlots.incrementAndGet()
- ├── executeTask()
- │    ├── loadContext(controllerId)  — TX-1 readOnly
- │    ├── fetch(ctx)                 — HTTP/WS без TX
- │    └── persistNewEvents(ctx)      — TX-2 write
- └── release(globalSemaphore)
-```
-
----
-
-### 4.3 ControllerTaskExecutor
-
-Spring-сервис с транзакционными методами.
+### ControllerTaskExecutor
 
 | Метод | TX | Что делает |
-|-------|-----|-----------|
-| `loadAllActiveForScheduling()` | readOnly | Все активные контроллеры при старте |
+|-------|----|-----------|
 | `loadContext(id)` | readOnly | Контекст + парсинг URL |
 | `fetch(ctx)` | нет | HTTP/WS запрос к парсеру |
-| `persistNewEvents(ctx, items)` | write | Dedup → save DetectedEvent → **save OutboxEvent** → publish SpringEvent |
+| `persistNewEvents(ctx, items)` | write | Dedup → DetectedEvent → OutboxEvent → SpringEvent |
 
-**`persistNewEvents` — детали:**
-1. `dedup.claimIfNew()` → Redis SADD (O(1), атомарно)
-2. `DetectedEventRepository.save(entity)` — бизнес-данные
-3. `OutboxEventRepository.save(outbox)` — outbox в **той же TX**
-4. `ApplicationEventPublisher.publishEvent(SportEventDetectedEvent)` — Spring-событие
-5. `@TransactionalEventListener(AFTER_COMMIT)` срабатывает после коммита →  
-   `OutboxSenderService.publishImmediate()` → Kafka
+### Метрики (Micrometer)
 
----
-
-### 4.4 Метрики
-
-| Метрика | Тип | Описание |
-|---------|-----|---------|
-| `monitor.controllers.scheduled` | Gauge | Активных контроллеров |
-| `monitor.events.detected` | Counter | Всего новых событий |
-| `monitor.tasks.skipped` | Counter | Пропущено из-за лимитов |
-| `monitor.task.duration` | Timer | Время задачи p50/p95/p99 |
-| `cache.dedup.hit/miss` | Counter | Redis dedup статистика |
-| `kafka.producer.sport_events.sent` | Counter | Kafka отправлено успешно |
-| `kafka.producer.sport_events.failed` | Counter | Kafka ошибки |
-| `kafka.producer.sport_events.latency` | Timer | Время от send до ack |
+| Метрика | Тип |
+|---------|-----|
+| `monitor.controllers.scheduled` | Gauge |
+| `monitor.events.detected` | Counter |
+| `monitor.tasks.skipped` | Counter |
+| `monitor.task.duration` | Timer (p50/p95/p99) |
+| `cache.dedup.hit/miss` | Counter |
+| `kafka.producer.sport_events.sent/failed/latency` | Counter/Timer |
 
 ---
 
 ## 5. Дедупликация событий
 
-**Redis SET** (`SADD` / `SISMEMBER`) — быстрый first-check O(1) без DB.
+**Redis SET** (`dedup:ctrl:{controllerId}`, TTL 7 дней):
 
 ```
-Ключ: "dedup:ctrl:{controllerId}"
-Тип:  Redis SET
-TTL:  7 дней
+claimIfNew(controllerId, eventId) → Redis SADD
+  true  → новое событие, продолжаем
+  false → дубль, пропускаем
 ```
 
-`claimIfNew(controllerId, eventId)` — атомарный SADD: возвращает `true` только
-для новых eventId. Исключает TOCTOU-гонку.
+**Двухуровневая надёжность:**
+- Redis — быстрый claim O(1)
+- PostgreSQL `detected_events` — источник истины
+- `DedupSyncScheduler` (03:00 ежедневно) — синхронизирует Redis ↔ DB
 
-**Двухуровневая схема надёжности:**
-- Redis — быстрый claim
-- PostgreSQL — источник истины
-- `DedupSyncScheduler` (03:00 ежедневно) — синхронизация Redis ↔ DB
-
-**Граничный случай — TTL истёк без рестарта:**  
-Все события кажутся "новыми" → пытаются INSERT → `DataIntegrityViolationException`
-→ перехватывается, логируется. `publishEvent` не вызывается, дубля нет.
+**Если TTL истёк:** Redis пустой → SADD вернёт true → INSERT → `DataIntegrityViolationException`
+→ перехватывается, дубля нет.
 
 ---
 
@@ -257,166 +184,198 @@ TTL:  7 дней
 
 ### 6.1 Топики
 
-Все топики создаются `KafkaTopicsConfig` через `KafkaAdmin` (idempotent, на старте).
+| Топик | Partitions | Retention | Ключ |
+|-------|-----------|-----------|------|
+| `sport.events.detected` | 12 | 7 дней | controllerId |
+| `user.notifications.pending` | 6 | 3 дня | userId |
+| `subscription.events` | 4 | compacted | userId |
+| `audit.log` | 6 | 30 дней | userId |
+| `notifications.dlq` | 3 | 14 дней | — |
+| `notifications.retry.1s/5s/30s` | 3 | 1 день | — |
+| `notifications.dlq.final` | 3 | 30 дней | — |
 
-| Топик | Partitions | Replication | Retention | Политика |
-|-------|-----------|-------------|-----------|---------|
-| `sport.events.detected` | 12 | 1 (local) / 3 (prod) | 7 дней | DELETE |
-| `user.notifications.pending` | 6 | 1 / 3 | 3 дня | DELETE |
-| `subscription.events` | 4 | 1 / 3 | compacted | COMPACT |
-| `audit.log` | 6 | 1 / 3 | 30 дней | DELETE |
-| `notifications.dlq` | 3 | 1 / 3 | 14 дней | DELETE |
-
-**Ключи партиционирования:**
-- `sport.events.detected` → key = `controllerId` — все события одного контроллера в одну партицию
-- `user.notifications.pending` → key = `userId` — упорядоченность для одного пользователя
-
-### 6.2 Продюсер (valui-monitor)
-
-**Гарантии надёжности** (`KafkaProducerConfig`):
-
-```yaml
-acks: all              # ждать подтверждения от всех in-sync replicas
-retries: 3             # автоматические повторы
-enable-idempotence: true  # exactly-once на уровне брокера
-max-in-flight: 5       # макс. в полёте (лимит при idempotence)
-linger-ms: 5           # небольшой батчинг для снижения нагрузки
-```
-
-**Type headers:** `ADD_TYPE_INFO_HEADERS=true` — продюсер добавляет `__TypeId__`
-в заголовок; консьюмер с `USE_TYPE_INFO_HEADERS=true` автоматически десериализует
-в нужный Java-тип без явного конфига.
-
-### 6.3 Transactional Outbox Pattern
-
-**Проблема:** прямой `kafkaTemplate.send()` после коммита TX — не atomic.
-Crash между коммитом DB и отправкой в Kafka = потеря сообщения.
-
-**Решение (Outbox):**
+### 6.2 Retry / DLQ pipeline
 
 ```
-persistNewEvents() [в TX]
- ├── DetectedEventEntity → detected_events
- └── OutboxEvent → outbox_events (topic, messageKey, eventData, sentAt=null)
-     ↓ TX коммит
-SportEventKafkaProducer [@TransactionalEventListener(AFTER_COMMIT)]
- └── OutboxSenderService.publishImmediate(externalEventId)
-      ├── найти outbox по externalEventId, где sentAt IS NULL
-      ├── KafkaTemplate.send(ProducerRecord с headers: source, version)
-      └── на успех: OutboxMarkingService.markSent(outbox.id)  [REQUIRES_NEW TX]
-          ↓ при падении Kafka или краше приложения
-OutboxSenderService [@Scheduled(5000)]
- └── найти unsent outbox WHERE createdAt < now()-15s
-      └── повторить publish + markSent
+NotificationDispatcher
+  └── при ошибке → DeadLetterPublisher
+        ├── attempt 1 → notifications.retry.1s
+        ├── attempt 2 → notifications.retry.5s
+        ├── attempt 3 → notifications.retry.30s
+        ├── attempt 4 → notifications.dlq (ручной просмотр)
+        └── attempt 5 → notifications.dlq.final (финальный провал)
+
+DlqMonitor (@Scheduled 15min)
+  └── если dlq.final.count > 10 → ALERT в Telegram (admin chat)
+
+Admin REST API:
+  POST /api/v1/admin/dlq/replay   ← replay из dlq.final
+  GET  /api/v1/admin/dlq/stats
 ```
 
-**Таблица `outbox_events`** (Flyway V8):
+### 6.3 Schema Registry
 
-| Колонка | Тип | Описание |
-|---------|-----|---------|
-| `id` | BIGSERIAL | PK |
-| `topic` | VARCHAR(64) | Kafka топик |
-| `message_key` | VARCHAR(36) | controllerId (ключ партиции) |
-| `external_event_id` | VARCHAR(255) | UNIQUE — внешний ID от букмекера |
-| `controller_id` / `user_id` | VARCHAR(36) | Денормализованные данные для повтора |
-| `telegram_id` | BIGINT | nullable |
-| `bookmaker` / `title` / `url` | VARCHAR/TEXT | Данные события |
-| `created_at` | TIMESTAMPTZ | Время создания |
-| `sent_at` | TIMESTAMPTZ | null = не отправлено |
-| `retry_count` | INT | Число попыток |
+При старте `SchemaRegistrationService` (@EventListener ApplicationReadyEvent) регистрирует
+4 Avro-схемы (`SportEventDetected`, `UserNotificationRequest`, `AuditEntry`,
+`SubscriptionChangedEvent`) через Confluent Schema Registry REST API.
 
-**Partial index:** `WHERE sent_at IS NULL` — сканирует только необработанные строки.
+Совместимость: `BACKWARD` — новые консьюмеры читают старые сообщения.
 
 ---
 
 ## 7. Пайплайн уведомлений (valui-notify)
 
-### 7.1 SportEventConsumer
+### SportEventConsumer
 
-**Группа:** `valui-notify-group` | **Топик:** `sport.events.detected` | **Concurrency:** 3
-
-Фильтры (порядок важен, первый false = drop):
-
+**Фильтры (порядок важен):**
 1. `controller.isActive == true`
 2. `controller.isMuted == false`
 3. `user.status == ACTIVE`
-4. `filterRule` regex совпадает с `event.title` (если правило задано)
+4. `filterRule` regex совпадает с `event.title` (если задан)
 
-При прохождении всех фильтров:
-- `NotificationLogEntity` (status=PENDING) → `notification_log`
-- `NotificationFormatter.buildTelegramMessage()` → Markdown ≤4096 символов
-- Publish → `user.notifications.pending` с `notificationLogId` в теле
+При прохождении:
+- Если тип SPORT: `QuickAddCacheService.store(notificationLogId, {url, bookmaker, title})`
+  с TTL 30 дней → кнопка "➕ Следить за турниром" в уведомлении
+- `notification_log PENDING`
+- publish → `user.notifications.pending` с `quickAddKey` или `eventUrl`
 
-**Важно:** controller и user загружаются через отдельные `findById()` запросы
-(не через lazy-загрузку `controller.getUser()`), чтобы избежать `LazyInitializationException`
-вне транзакции.
+### TelegramNotificationSender
 
-**filterRule:** применяется как `Pattern.compile(rule, CASE_INSENSITIVE).matcher(title).find()`.
-При невалидном regex — логируем warning, пропускаем фильтр (событие проходит).
+Два entry point:
+- `send(chatId, text)` — plain text (DLQ retry, legacy)
+- `sendNotification(request)` — полное сообщение с клавиатурой:
+  - SPORT → кнопка `QADD:{uuid}` (callback, открывает QuickAdd)
+  - TOURNAMENT/MATCH → кнопка URL "🔗 Открыть матч"
 
-### 7.2 NotificationDispatcher
-
-**Группа:** `valui-notify-dispatch-group` | **Топик:** `user.notifications.pending` | **Concurrency:** 2
-
-Маршрутизирует по `channel`:
-
-```java
-switch (NotificationChannel.valueOf(request.channel())) {
-    case TELEGRAM → TelegramNotificationSender
-    case EMAIL    → EmailNotificationSender (stub)
-    case WEBHOOK  → WebhookNotificationSender (stub)
-}
-```
-
-На успех: `notification_log.status = SENT`, `sent_at = now()`  
-На ошибку: `status = FAILED` + forward в `notifications.dlq`
-
-### 7.3 TelegramNotificationSender + Rate Limiting
-
-**Rate limiter** (`TelegramRateLimiter`) — Redis INCR+TTL, 1 msg/s per chatId:
-
-```
-key = "rate:tg:{chatId}"
-INCR key  → count
-if count == 1: EXPIRE key 1s
-allow = (count <= 1)
-```
-
-При превышении — sleep 1.2s + повторная попытка. При двукратном отказе — `RuntimeException`
-→ сообщение в DLQ.
-
-**429 от Telegram:** `TelegramApiRequestException.getErrorCode() == 429` →
-sleep `MAX_RATE_WAIT_MS` (2s) → одна повторная попытка.
-
-**Вызов:** `absSender.execute(SendMessage)` напрямую (не через `MessageSend.textMarkdown`),
-чтобы исключения 429 не были проглочены.
-
-### 7.4 DLQ Consumer
-
-**Группа:** `valui-dlq-group` | **Топик:** `notifications.dlq` | **Concurrency:** 1
-
-Стратегия: 3 попытки с backoff **перед** каждой:
-
-| Попытка | Задержка перед |
-|---------|---------------|
-| 1 | 1 с |
-| 2 | 5 с |
-| 3 | 30 с |
-
-После 3 неудач: `notification_log.status = FAILED` + `log.error("ALERT: ...")`.
-
-**Concurrency=1:** DLQ низкочастотный, единственный поток предотвращает
-параллельное переотправление одному пользователю.
-
-**Типизация:** DLQ может принять и `SportEventDetectedMessage` (из consumer sports),
-и `UserNotificationRequestMessage` (из dispatcher). Обрабатывается через `instanceof`
-pattern matching; неизвестные типы логируются и пропускаются.
+**Rate limiter:** Redis INCR+TTL, 1 msg/s per chatId. При превышении: sleep 1.2s + retry.
 
 ---
 
-## 8. Схемы классов
+## 8. Telegram-бот (valui-bot)
 
-### 8.1 Зависимости модулей
+### Контекст обновления
+
+`BotUpdateContext` содержит два разных ID:
+
+| Поле | Значение | Использование |
+|------|---------|--------------|
+| `chatId` | ID чата (отрицательный = группа) | Куда слать ответ, `notificationChatId` |
+| `fromId` | Личный ID пользователя (всегда положительный) | Сессия FSM, user lookup, проверка прав |
+
+`CommandRouter` извлекает оба ID независимо. Это исправляет критический баг:
+до разделения в группах сессии разных пользователей перемешивались (chatId = groupId
+использовался как ключ Redis-сессии).
+
+### FSM-сессия
+
+Хранится в Redis (`bot:session:{fromId}`, TTL 30 мин). Ключ — `fromId` (личный ID),
+поэтому у каждого пользователя своя независимая сессия даже в одной группе.
+
+**Состояния:**
+```
+IDLE → SELECTING_BOOKMAKER → SELECTING_SPORT → SELECTING_TOURNAMENT
+     → WAITING_FILTER_RULE → WAITING_CONFIRM_CREATE → IDLE
+IDLE → WAITING_BOOST_AMOUNT → IDLE
+```
+
+### Постоянная клавиатура
+
+`MainMenuKeyboard` формируется при `/start` и `/menu`. В группах добавляется
+дополнительная кнопка "🚀 Расширить квоту группы" (BTN_BOOST).
+
+### Callback-обработчики
+
+| Prefix | Handler | Описание |
+|--------|---------|---------|
+| `QADD:` | QuickAddControllerCallback | Быстрое добавление из уведомления |
+| `BOOST:` | GroupBoostCallback | Трата токенов на расширение квоты группы |
+| `CTRL:` | Controller*Callback | Просмотр/управление контроллерами |
+| `CCONF:` | ControllerConfirmCallback | Финальный шаг мастера добавления |
+
+### Команда /info
+
+Контекстно-зависимая:
+- **Личка:** план + контроллеры + фильтры + баланс токенов + дата истечения
+- **Группа:** квота группы + активных + кто сколько токенов внёс
+
+---
+
+## 9. Групповые чаты и квоты
+
+### Модель данных
+
+```
+controllers.notification_chat_id  ← куда идут уведомления (null = личка пользователя)
+
+users.token_balance               ← токены для расширения групповых квот
+
+group_chat_quota
+  chat_id        PK BIGINT        ← ID группы (отрицательный)
+  max_controllers INT DEFAULT 3   ← потолок группы
+
+group_token_contribution
+  chat_id        BIGINT
+  user_id        UUID FK → users
+  tokens_committed INT             ← сколько токенов этот пользователь вложил
+  UNIQUE(chat_id, user_id)
+```
+
+### Бизнес-логика квот
+
+**Личная квота** (plan.maxControllers) и **групповая квота** (group_chat_quota.max_controllers)
+независимы. При добавлении контроллера в группу оба условия должны выполняться.
+
+**Групповая квота:** 3 бесплатных слота + Σ(tokens_committed) от всех участников.
+
+**Токены:** выдаются при активации платного плана (FREE=0, PRO=50, PREMIUM=300, one-time).
+Тратятся через кнопку "🚀 Расширить квоту" → FSM WAITING_BOOST_AMOUNT → `GroupQuotaService.contributeTokens()`.
+
+**При истечении подписки** (`SubscriptionServiceImpl.expireSubscription`):
+1. `GroupQuotaService.revokeAllContributions(userId)` — перебирает все группы пользователя
+2. Для каждой группы: `max_controllers -= revoked_tokens`, нижний порог = 3
+3. Если `active > new_max`: деактивируются сначала контроллеры экс-подписчика,
+   затем остальные
+
+### GroupQuotaService
+
+| Метод | Описание |
+|-------|---------|
+| `hasCapacity(chatId)` | activeCount < maxControllers? |
+| `checkGroupCapacity(chatId)` | throws SubscriptionLimitExceededException |
+| `contributeTokens(telegramId, chatId, tokens)` | Тратит токены, расширяет квоту |
+| `revokeAllContributions(userId)` | Отзывает токены при истечении подписки |
+| `getGroupStatus(chatId)` | Возвращает GroupStatusDto (для /info в группе) |
+
+---
+
+## 10. Аудит и надёжность
+
+### Сквозное аудит-логирование
+
+`@Audit(action=..., entityType=...)` — аспект перехватывает методы сервисов.
+Идентификация: из SecurityContext (REST) или первого `Long` аргумента (Bot).
+
+```
+AuditAspect → AuditService
+  ├── KafkaTemplate → "audit.log" (fire-and-forget)
+  └── при ошибке Kafka: AuditFallbackRepository → audit_fallback (PostgreSQL)
+
+AuditLogConsumer (batch-50, AckMode.MANUAL_IMMEDIATE)
+  └── AuditLogRepository.saveAll()
+```
+
+### DLQ и retry
+
+Описано в разделе 6.2. Ключевые участники:
+- `DeadLetterPublisher` — маршрутизирует по attempt count (1s → 5s → 30s → dlq → dlq.final)
+- `RetryTopicConsumer` — sleep loop для каждого retry-топика
+- `DlqMonitor` — @Scheduled(15min), алертит если dlq.final > threshold(10)
+
+---
+
+## 11. Схемы классов
+
+### Зависимости модулей
 
 ```mermaid
 graph TD
@@ -440,187 +399,41 @@ graph TD
     bot --> common
 
     user --> common
-
     parser --> common
-
     admin --> user
     admin --> common
 ```
 
-### 8.2 Kafka — поток событий
+### Kafka — поток событий
 
 ```mermaid
 sequenceDiagram
     participant CTE as ControllerTaskExecutor
-    participant OB as outbox_events (DB)
-    participant SEKP as SportEventKafkaProducer
-    participant OSS as OutboxSenderService
+    participant OB as outbox_events
     participant K1 as sport.events.detected
     participant SEC as SportEventConsumer
-    participant NL as notification_log (DB)
+    participant Cache as QuickAddCache (Redis)
     participant K2 as user.notifications.pending
     participant ND as NotificationDispatcher
     participant TG as Telegram API
-    participant DLQ as notifications.dlq
-    participant DLQC as DlqConsumer
+    participant DLQ as retry/dlq pipeline
 
-    CTE->>OB: save OutboxEvent [в TX]
-    CTE->>SEKP: publishEvent(SportEventDetectedEvent) [в TX]
-    Note over CTE: TX коммит
-    SEKP->>OSS: publishImmediate(externalEventId)
-    OSS->>OB: findByExternalEventId (sentAt IS NULL)
-    OSS->>K1: send(ProducerRecord)
-    OSS->>OB: markSent [REQUIRES_NEW TX]
+    CTE->>OB: save OutboxEvent [TX]
+    Note over CTE: TX commit
+    CTE->>K1: send (AFTER_COMMIT)
 
-    K1->>SEC: consume SportEventDetectedMessage
-    SEC->>NL: createPending()
-    SEC->>K2: send UserNotificationRequestMessage
+    K1->>SEC: consume
+    SEC->>Cache: store quickAddKey (if SPORT)
+    SEC->>K2: send with quickAddKey/eventUrl
 
     K2->>ND: consume
-    ND->>TG: AbsSender.execute(SendMessage)
-    alt success
-        ND->>NL: markSent()
-    else failure
-        ND->>NL: markFailed()
-        ND->>DLQ: forward + retry headers
-        DLQ->>DLQC: consume
-        DLQC->>TG: retry (1s → 5s → 30s)
-        alt all retries failed
-            DLQC->>NL: markFailed() + ALERT
-        end
+    ND->>TG: sendNotification (with inline keyboard)
+    alt failure
+        ND->>DLQ: route via DeadLetterPublisher
     end
 ```
 
-### 8.3 Классы valui-monitor (Outbox)
-
-```mermaid
-classDiagram
-    class ControllerTaskExecutor {
-        +persistNewEvents(ctx, items) int
-        -controllerRepo: ControllerRepository
-        -detectedRepo: DetectedEventRepository
-        -outboxRepo: OutboxEventRepository
-        -outboxSenderService: OutboxSenderService
-        -events: ApplicationEventPublisher
-    }
-
-    class OutboxEvent {
-        +id: Long
-        +topic: String
-        +messageKey: String
-        +externalEventId: String
-        +controllerId: String
-        +userId: String
-        +telegramId: Long
-        +bookmaker: String
-        +title: String
-        +url: String
-        +createdAt: OffsetDateTime
-        +sentAt: OffsetDateTime
-        +retryCount: int
-    }
-
-    class OutboxSenderService {
-        +publishImmediate(externalEventId)
-        +scanAndSend() [Scheduled 5s]
-        +buildOutboxEvent(...) OutboxEvent
-        -doPublish(outbox)
-    }
-
-    class OutboxMarkingService {
-        +markSent(outboxId) [Transactional]
-    }
-
-    class SportEventKafkaProducer {
-        +onSportEventDetected(event) [TransactionalEventListener AFTER_COMMIT]
-    }
-
-    class KafkaProducerMetrics {
-        +onSendSuccess(nanos)
-        +onSendFailed()
-    }
-
-    ControllerTaskExecutor --> OutboxEvent : creates
-    ControllerTaskExecutor --> OutboxSenderService : buildOutboxEvent
-    OutboxSenderService --> OutboxMarkingService : markSent
-    OutboxSenderService --> KafkaProducerMetrics
-    SportEventKafkaProducer --> OutboxSenderService : publishImmediate
-```
-
-### 8.4 Классы valui-notify (Notification Pipeline)
-
-```mermaid
-classDiagram
-    class SportEventConsumer {
-        +onSportEventDetected(event) [KafkaListener]
-        -controllerRepo: ControllerRepository
-        -userRepo: UserRepository
-        -detectedEventRepo: DetectedEventRepository
-        -notificationLogService: NotificationLogService
-        -formatter: NotificationFormatter
-        -kafkaTemplate: KafkaTemplate
-    }
-
-    class NotificationDispatcher {
-        +onNotificationPending(request) [KafkaListener]
-        -dispatchService: NotificationDispatchService
-        -logService: NotificationLogService
-        -kafkaTemplate: KafkaTemplate
-    }
-
-    class NotificationDispatchService {
-        +dispatch(request)
-        -telegramSender: TelegramNotificationSender
-        -emailSender: EmailNotificationSender
-        -webhookSender: WebhookNotificationSender
-    }
-
-    class NotificationSender {
-        <<interface>>
-        +send(recipientId, messageText)
-    }
-
-    class TelegramNotificationSender {
-        +send(chatId, text)
-        -absSender: AbsSender
-        -rateLimiter: TelegramRateLimiter
-    }
-
-    class TelegramRateLimiter {
-        +tryAcquire(chatId) boolean
-        -redisTemplate: StringRedisTemplate
-    }
-
-    class NotificationLogService {
-        +createPending(userId, eventId, channel) NotificationLogEntity
-        +markSent(logId)
-        +markFailed(logId, error)
-    }
-
-    class NotificationFormatter {
-        +buildTelegramMessage(event, ctrl) String
-    }
-
-    class DlqConsumer {
-        +handleDlq(record) [KafkaListener]
-        -dispatchService: NotificationDispatchService
-        -logService: NotificationLogService
-    }
-
-    NotificationDispatchService --> NotificationSender
-    NotificationSender <|.. TelegramNotificationSender
-    NotificationSender <|.. EmailNotificationSender
-    NotificationSender <|.. WebhookNotificationSender
-    TelegramNotificationSender --> TelegramRateLimiter
-    SportEventConsumer --> NotificationLogService
-    SportEventConsumer --> NotificationFormatter
-    NotificationDispatcher --> NotificationDispatchService
-    NotificationDispatcher --> NotificationLogService
-    DlqConsumer --> NotificationDispatchService
-    DlqConsumer --> NotificationLogService
-```
-
-### 8.5 Схема базы данных (ключевые таблицы)
+### База данных (ключевые таблицы)
 
 ```mermaid
 erDiagram
@@ -629,6 +442,15 @@ erDiagram
         BIGINT telegram_id
         VARCHAR status
         VARCHAR role
+        INT token_balance
+    }
+
+    subscription_plans {
+        UUID id PK
+        VARCHAR code
+        INT max_controllers
+        INT token_reward
+        NUMERIC price_rub
     }
 
     controllers {
@@ -636,61 +458,41 @@ erDiagram
         UUID user_id FK
         VARCHAR bookmaker
         TEXT url
-        TEXT filter_rule
+        BIGINT notification_chat_id
         BOOLEAN is_active
-        BOOLEAN is_muted
         INT poll_interval_sec
     }
 
-    detected_events {
-        UUID id PK
-        UUID controller_id FK
-        VARCHAR event_external_id
-        TEXT title
-        TEXT url
-        TIMESTAMPTZ detected_at
+    group_chat_quota {
+        BIGINT chat_id PK
+        INT max_controllers
     }
 
-    outbox_events {
-        BIGINT id PK
-        VARCHAR topic
-        VARCHAR message_key
-        VARCHAR external_event_id
-        VARCHAR controller_id
-        VARCHAR user_id
-        BIGINT telegram_id
-        VARCHAR bookmaker
-        VARCHAR title
-        TEXT url
-        TIMESTAMPTZ created_at
-        TIMESTAMPTZ sent_at
-        INT retry_count
+    group_token_contribution {
+        UUID id PK
+        BIGINT chat_id
+        UUID user_id FK
+        INT tokens_committed
     }
 
     notification_log {
         UUID id PK
         UUID user_id FK
-        UUID event_id FK
         VARCHAR channel
         VARCHAR status
-        TEXT error_message
         INT attempts
-        TIMESTAMPTZ sent_at
-        TIMESTAMPTZ created_at
     }
 
     users ||--o{ controllers : "owns"
-    controllers ||--o{ detected_events : "triggers"
-    detected_events ||--o{ notification_log : "generates"
-    users ||--o{ notification_log : "receives"
+    users ||--o{ group_token_contribution : "contributes"
+    controllers ||--o{ notification_log : "generates"
 ```
 
 ---
 
-## 9. Парсеры букмекеров (valui-parser)
+## 12. Парсеры букмекеров (valui-parser)
 
 Все парсеры реализуют `BookmakerParser`:
-
 ```java
 ParseResult<List<SportDto>>      fetchSports()
 ParseResult<List<TournamentDto>> fetchTournaments(String sportId)
@@ -699,55 +501,22 @@ ParseResult<List<MatchDto>>      fetchMatches(String tournamentId)
 
 Оборачиваются в `@CircuitBreaker` + `@Retry` через Resilience4j.
 
-### Сводная таблица
-
 | | Fonbet | 1xBet | Olimp | BetCity | BetBoom |
 |---|---|---|---|---|---|
-| **Протокол** | HTTPS | HTTPS + HTTP CONNECT | HTTPS | HTTPS | WSS |
+| **Протокол** | HTTPS | HTTPS+CONNECT | HTTPS | HTTPS | WSS |
 | **Формат** | JSON | JSON gzip | JSON | JSON | Protobuf |
-| **Прокси** | нет | HTTP 4232 | нет | нет | нет |
-| **HTTP-клиент** | Reactor Netty | JDK HttpClient | Reactor Netty | Reactor Netty | — |
-| **Кэш** | 30с in-memory | Redis 1м | нет | нет | нет |
-| **CB окно** | 10 | 10 | 10 | 10 | 6 |
-| **CB открыт** | 30с | 30с | 30с | 30с | **60с** |
-| **Retry** | 2 | 2 | 2 | 2 | **нет** |
+| **Прокси** | нет | HTTP :4232 | нет | нет | нет |
+| **CB открыт** | 30с | 30с | 30с | 30с | 60с |
 
-**Fonbet:** пул из 200 CDN-зеркал в Redis ZSet (score = timestamp последнего успеха).
-Bootstrap при старте — 8 параллельных HEAD-запросов.
-
-**1xBet:** JDK HttpClient (не WebFlux) — формирует правильный JA3-fingerprint.
-`jdk.http.auth.tunneling.disabledSchemes=""` для Basic-auth через HTTP CONNECT.
-
-**BetBoom:** WSS + бинарный Protobuf. Пул WS-соединений (min=2, max=6).
-`WsRequestService` с jitter 0–200ms для anti-flood.
+**Fonbet:** пул из 200 CDN-зеркал в Redis ZSet.  
+**1xBet:** JDK HttpClient (JA3-safe fingerprint), HTTP CONNECT proxy.  
+**BetBoom:** WSS + Protobuf, пул соединений (min=2, max=6).
 
 ---
 
-## 10. HTTP-клиенты и прокси
-
-| Бин | Класс | Прокси | Для кого |
-|-----|-------|--------|---------|
-| `xbetHttpClient` | `SocksBookmakerHttpClient` | HTTP CONNECT :4232 | XBet |
-| `fonbetHttpClient` | `BookmakerHttpClient` | нет | Fonbet |
-| `olimpHttpClient` | `BookmakerHttpClient` | нет | Olimp |
-| `betcityHttpClient` | `BookmakerHttpClient` | нет | BetCity |
-
-**`BookmakerHttpClient` (Reactor Netty):**
-- HTTP/1.1, gzip, Connect: 8с, Response: 15с, Max buffer: 10 MB
-
-**`SocksBookmakerHttpClient` (JDK 21):**
-- JA3-safe TLS, HTTP CONNECT proxy, ручная gzip-декомпрессия
-
-**Telegram proxy** — отдельная конфигурация `valui.bot.proxy` (SOCKS5 :14232),
-**не связана** с `parser.proxy` (HTTP :4232).
-
----
-
-## 11. Конфигурация (application.yml)
+## 13. Конфигурация
 
 Профили: `local` | `docker` | `prod`
-
-### Мониторинг
 
 ```yaml
 valui:
@@ -755,82 +524,56 @@ valui:
     max-concurrent-tasks: 50
     max-tasks-per-user: 5
     default-poll-interval-sec: 60
-    dedup-ttl-days: 7
-    dedup-sync-cron: "0 0 3 * * *"
-    outbox:
-      scan-interval-ms: 5000   # частота @Scheduled retry outbox
-```
 
-### Kafka
-
-```yaml
 spring:
   kafka:
     bootstrap-servers: localhost:9092
-    consumer:
-      auto-offset-reset: earliest
-      group-id: valui-notify-group
     producer:
       acks: all
 
 kafka:
   topics:
-    replication-factor: 1   # local/docker; 3 для prod
+    replication-factor: 1   # 3 для prod
   schema-registry:
-    url: ""                  # оставить пустым если нет Schema Registry
+    url: ""                  # пустой = Schema Registry отключён
 ```
 
-### Парсеры
+**Flyway миграции** (`valui-app/src/main/resources/db/migration`):
 
-```yaml
-parser:
-  proxy:
-    enabled: true
-    host: 91.147.122.69
-    port: 4232
-    username: user283146
-    password: 0w3qzb
-  cache:
-    sports-ttl: 1h
-    tournaments-ttl: 30m
-    matches-ttl: 5m
-```
-
-### Resilience4j
-
-```yaml
-resilience4j:
-  circuitbreaker:
-    configs:
-      parser-default:
-        failure-rate-threshold: 50
-        wait-duration-in-open-state: 30s
-        sliding-window-size: 10
-    instances:
-      betboom-cb:
-        wait-duration-in-open-state: 60s
-        sliding-window-size: 6
-```
+| Версия | Описание |
+|--------|---------|
+| V1 | init schema (users, controllers, detected_events, notification_log) |
+| V2 | seed plans (FREE, PRO, PREMIUM) |
+| V3 | indexes |
+| V4 | payment_transactions |
+| V5 | free plan all bookmakers |
+| V6 | fix extra_data type |
+| V7 | global_filters |
+| V8 | outbox_events + partial index |
+| V9 | audit_fallback |
+| V10 | notification_chat_id на controllers |
+| V11 | token_balance на users, group_chat_quota, group_token_contribution |
+| V12 | token_reward на subscription_plans |
 
 ---
 
-## 12. Технологический стек
+## 14. Технологический стек
 
 | Категория | Технология | Версия |
 |-----------|-----------|--------|
 | Язык | Java | 21 (Virtual Threads) |
 | Фреймворк | Spring Boot | 3.3.5 |
-| Сборка | Maven | 3.9+ |
 | БД | PostgreSQL | 15+ |
 | Миграции | Flyway | — |
-| Кэш / Dedup | Redis (Lettuce) | — |
+| Кэш / Dedup / Сессии | Redis (Lettuce) | — |
 | Брокер | Apache Kafka | 3.x |
+| Schema Registry | Confluent | 7.6.x |
 | HTTP (реактивный) | Reactor Netty / WebFlux | — |
-| HTTP (JA3-safe) | JDK 21 `java.net.http.HttpClient` | — |
-| WebSocket | Reactor Netty WS | — |
+| HTTP (JA3-safe) | JDK 21 `java.net.http` | — |
 | Protobuf | Google Protobuf | — |
 | Resilience | Resilience4j | — |
 | Метрики | Micrometer → Prometheus | — |
+| AOP / Аудит | Spring AOP + @Aspect | — |
 | Кодогенерация | Lombok, MapStruct | — |
 | Telegram | telegrambots | 6.9.7.1 |
 | Тесты | JUnit 5, Mockito, Testcontainers | — |

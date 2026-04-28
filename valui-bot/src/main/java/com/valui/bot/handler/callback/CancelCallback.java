@@ -55,7 +55,7 @@ public class CancelCallback implements CallbackHandler {
 
         // Filter input Cancel: route by filter mode
         if (state == BotState.WAITING_FILTER_RULE) {
-            String mode = sessionService.getContext(ctx.chatId(), UserBotSession.CTX_FILTER_MODE)
+            String mode = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_FILTER_MODE)
                     .orElse("GLOBAL");
             if ("INDIVIDUAL".equals(mode)) {
                 backNavigator.returnToTournamentList(ctx.sender(), ctx.chatId(), messageId);
@@ -63,7 +63,7 @@ public class CancelCallback implements CallbackHandler {
                 // editing controller filter — back to controller detail
                 Optional<String> ctrlIdOpt = sessionService.getContext(
                         ctx.chatId(), UserBotSession.CTX_EDIT_CONTROLLER_ID);
-                sessionService.setState(ctx.chatId(), BotState.IDLE);
+                sessionService.setState(ctx.fromId(), BotState.IDLE);
                 ctrlIdOpt.ifPresent(idStr -> {
                     try {
                         ControllerDto c = controllerService.getController(UUID.fromString(idStr));
@@ -76,8 +76,8 @@ public class CancelCallback implements CallbackHandler {
                 });
             } else {
                 // global filter add/edit cancelled → show filter list
-                sessionService.setState(ctx.chatId(), BotState.IDLE);
-                List<GlobalFilterEntity> filters = globalFilterService.getFilters(ctx.chatId());
+                sessionService.setState(ctx.fromId(), BotState.IDLE);
+                List<GlobalFilterEntity> filters = globalFilterService.getFilters(ctx.fromId());
                 var menu = FilterMenuBuilder.build(filters);
                 MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                         menu.text(), menu.keyboard());
@@ -86,9 +86,9 @@ public class CancelCallback implements CallbackHandler {
         }
 
         // All other states (IDLE, SELECTING_BOOKMAKER, SELECTING_SPORT) → main menu
-        sessionService.clearSession(ctx.chatId());
+        sessionService.clearSession(ctx.fromId());
         MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("menu.main", ctx.chatId()),
-            MainMenuKeyboard.build(ctx.chatId(), messageSource));
+            messageSource.getMessage("menu.main", ctx.fromId()),
+            MainMenuKeyboard.build(ctx.fromId(), messageSource, ctx.isGroupChat()));
     }
 }

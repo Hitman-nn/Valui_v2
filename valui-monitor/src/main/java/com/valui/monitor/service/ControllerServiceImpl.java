@@ -46,10 +46,15 @@ public class ControllerServiceImpl implements ControllerService {
     @Override
     @Transactional
     @Audit(action = "ADD_CONTROLLER", entityType = "Controller")
-    public ControllerDto addController(CreateControllerRequest req, Long telegramId) {
+    public ControllerDto addController(CreateControllerRequest req, Long telegramId, Long notificationChatId) {
         UserEntity user = requireUser(telegramId);
 
         planLimitChecker.checkControllerLimit(telegramId);
+
+        // Group chat: also check that the group hasn't hit its own ceiling
+        if (notificationChatId != null && notificationChatId < 0) {
+            planLimitChecker.checkGroupCapacity(notificationChatId);
+        }
 
         BookmakerType bookmaker = resolveBookmaker(req);
         planLimitChecker.checkBookmakerAccess(telegramId, bookmaker.name());
@@ -71,10 +76,11 @@ public class ControllerServiceImpl implements ControllerService {
                         .isMuted(req.isMuted())
                         .isActive(true)
                         .pollIntervalSec(pollIntervalSec)
+                        .notificationChatId(notificationChatId)
                         .build()
         );
-        log.info("✅ Контроллер добавлен: id={} букмекер={} telegramId={}", saved.getId(), bookmaker, telegramId);
-        // Publish after commit so MonitorScheduler sees the persisted row
+        log.info("✅ Контроллер добавлен: id={} букмекер={} telegramId={} notifChat={}",
+                saved.getId(), bookmaker, telegramId, notificationChatId);
         eventPublisher.publishEvent(new ControllerAddedEvent(
                 saved.getId(), user.getId(), telegramId, bookmaker, pollIntervalSec));
         return toDto(saved);
@@ -102,6 +108,12 @@ public class ControllerServiceImpl implements ControllerService {
     public List<ControllerDto> getUserControllers(Long telegramId) {
         UserEntity user = requireUser(telegramId);
         return controllerRepository.findAllByUserIdAndIsActiveTrue(user.getId())
+                .stream().map(this::toDto).toList();
+    }
+
+    @Override
+    public List<ControllerDto> getGroupControllers(Long notificationChatId) {
+        return controllerRepository.findAllByNotificationChatIdAndIsActiveTrue(notificationChatId)
                 .stream().map(this::toDto).toList();
     }
 
@@ -182,7 +194,8 @@ public class ControllerServiceImpl implements ControllerService {
                 e.getLastCheckedAt() != null ? e.getLastCheckedAt().toInstant() : null,
                 e.getLastEventAt()   != null ? e.getLastEventAt().toInstant()   : null,
                 (int) eventCount,
-                e.getType()
+                e.getType(),
+                e.getNotificationChatId()
         );
     }
 

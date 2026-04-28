@@ -29,7 +29,7 @@ public class LanguageCommandHandler implements CommandHandler {
             .build();
 
         MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("bot.select_language", ctx.chatId()),
+            messageSource.getMessage("bot.select_language", ctx.fromId()),
             keyboard);
     }
 }

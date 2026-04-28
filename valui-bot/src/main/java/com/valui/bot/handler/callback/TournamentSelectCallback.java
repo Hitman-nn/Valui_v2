@@ -79,10 +79,10 @@ public class TournamentSelectCallback implements CallbackHandler {
 
     private void handleTournamentPage(BotUpdateContext ctx, String data, int messageId) {
         int page = parsePageNum(data.substring("TOURN:PAGE:".length()));
-        Optional<String> bm       = sessionService.getContext(ctx.chatId(), UserBotSession.CTX_BOOKMAKER);
-        Optional<String> sportId  = sessionService.getContext(ctx.chatId(), UserBotSession.CTX_SPORT_ID);
-        Optional<String> sportName  = sessionService.getContext(ctx.chatId(), UserBotSession.CTX_SPORT_NAME);
-        Optional<String> sportAlias = sessionService.getContext(ctx.chatId(), UserBotSession.CTX_SPORT_ALIAS);
+        Optional<String> bm       = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
+        Optional<String> sportId  = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_ID);
+        Optional<String> sportName  = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_NAME);
+        Optional<String> sportAlias = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_ALIAS);
 
         if (bm.isEmpty() || sportId.isEmpty()) return;
 
@@ -94,24 +94,24 @@ public class TournamentSelectCallback implements CallbackHandler {
 
         String sName  = sportName.orElse(sportId.get());
         String sAlias = sportAlias.orElse(sportId.get());
-        Set<String> existingUrls = buildExistingUrls(ctx.chatId(), bm.get());
+        Set<String> existingUrls = buildExistingUrls(ctx, bm.get());
         BookmakerType bookmakerType = BookmakerType.valueOf(bm.get().toUpperCase());
         String sportUrl = buildSportUrl(bookmakerType, sportId.get(), sAlias);
 
-        String monitorAllText = messageSource.getMessage("wizard.monitor_all_sport", ctx.chatId(), sName);
-        String backText   = messageSource.getMessage("menu.back",   ctx.chatId());
-        String cancelText = messageSource.getMessage("menu.cancel", ctx.chatId());
+        String monitorAllText = messageSource.getMessage("wizard.monitor_all_sport", ctx.fromId(), sName);
+        String backText   = messageSource.getMessage("menu.back",   ctx.fromId());
+        String cancelText = messageSource.getMessage("menu.cancel", ctx.fromId());
         InlineKeyboardMarkup keyboard = SportSelectCallback.buildTournamentKeyboard(
             result.data(), page, monitorAllText, backText, cancelText, existingUrls, sportUrl);
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-            messageSource.getMessage("wizard.select_tournament", ctx.chatId(), sName), keyboard);
+            messageSource.getMessage("wizard.select_tournament", ctx.fromId(), sName), keyboard);
     }
 
     private void handleMonitorAll(BotUpdateContext ctx, int messageId) {
-        Optional<String> bm         = sessionService.getContext(ctx.chatId(), UserBotSession.CTX_BOOKMAKER);
-        Optional<String> sportId    = sessionService.getContext(ctx.chatId(), UserBotSession.CTX_SPORT_ID);
-        Optional<String> sportName  = sessionService.getContext(ctx.chatId(), UserBotSession.CTX_SPORT_NAME);
-        Optional<String> sportAlias = sessionService.getContext(ctx.chatId(), UserBotSession.CTX_SPORT_ALIAS);
+        Optional<String> bm         = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
+        Optional<String> sportId    = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_ID);
+        Optional<String> sportName  = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_NAME);
+        Optional<String> sportAlias = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_ALIAS);
 
         if (bm.isEmpty() || sportId.isEmpty()) return;
 
@@ -119,7 +119,7 @@ public class TournamentSelectCallback implements CallbackHandler {
         String sportUrl = buildSportUrl(bookmakerType, sportId.get(), sportAlias.orElse(sportId.get()));
         String sName = sportName.orElse(sportId.get());
 
-        sessionService.setStateAndMergeContext(ctx.chatId(), BotState.WAITING_FILTER_RULE, Map.of(
+        sessionService.setStateAndMergeContext(ctx.fromId(), BotState.WAITING_FILTER_RULE, Map.of(
             UserBotSession.CTX_CONTROLLER_TYPE, "SPORT",
             UserBotSession.CTX_TOURNAMENT_URL,   sportUrl,
             UserBotSession.CTX_TOURNAMENT_TITLE, sName,
@@ -137,22 +137,22 @@ public class TournamentSelectCallback implements CallbackHandler {
      */
     private void handleTournamentSelect(BotUpdateContext ctx, String data, int messageId) {
         String tournamentId = data.substring(CallbackData.TOURN_SEL_PREFIX.length());
-        Optional<String> bm      = sessionService.getContext(ctx.chatId(), UserBotSession.CTX_BOOKMAKER);
-        Optional<String> sportId = sessionService.getContext(ctx.chatId(), UserBotSession.CTX_SPORT_ID);
+        Optional<String> bm      = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
+        Optional<String> sportId = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_ID);
 
         if (bm.isEmpty() || sportId.isEmpty()) return;
 
         BookmakerParser parser = getParser(bm.get());
         if (parser == null) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("wizard.parser_error", ctx.chatId(), bm.get()));
+                messageSource.getMessage("wizard.parser_error", ctx.fromId(), bm.get()));
             return;
         }
 
         ParseResult<List<TournamentDto>> result = parser.fetchTournaments(sportId.get());
         if (!result.success() || result.data() == null) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("wizard.parser_error", ctx.chatId(), bm.get()));
+                messageSource.getMessage("wizard.parser_error", ctx.fromId(), bm.get()));
             return;
         }
 
@@ -163,20 +163,20 @@ public class TournamentSelectCallback implements CallbackHandler {
 
         if (tournament == null) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("wizard.parser_error", ctx.chatId(), bm.get()));
+                messageSource.getMessage("wizard.parser_error", ctx.fromId(), bm.get()));
             return;
         }
 
         try {
             controllerService.addController(
                 new CreateControllerRequest(tournament.url(), bm.get(), tournament.title(), false, null),
-                ctx.chatId());
-            log.info("✅ Контроллер создан: chatId={} bm={} url={}", ctx.chatId(), bm.get(), tournament.url());
+                ctx.fromId(), ctx.chatId());
+            log.info("✅ Контроллер создан: fromId={} chatId={} bm={} url={}", ctx.fromId(), ctx.chatId(), bm.get(), tournament.url());
         } catch (Exception e) {
             log.error("❌ Ошибка создания контроллера chatId={}: {}", ctx.chatId(), e.getMessage());
-            sessionService.clearSession(ctx.chatId());
+            sessionService.clearSession(ctx.fromId());
             MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("error.general", ctx.chatId()));
+                messageSource.getMessage("error.general", ctx.fromId()));
             return;
         }
 
@@ -185,15 +185,15 @@ public class TournamentSelectCallback implements CallbackHandler {
     }
 
     private void showFilterPrompt(BotUpdateContext ctx, int messageId) {
-        String skipText = messageSource.getMessage("wizard.filter_skip", ctx.chatId());
-        String backText = messageSource.getMessage("menu.back",          ctx.chatId());
+        String skipText = messageSource.getMessage("wizard.filter_skip", ctx.fromId());
+        String backText = messageSource.getMessage("menu.back",          ctx.fromId());
         InlineKeyboardMarkup keyboard = InlineKeyboardBuilder.create()
             .button(skipText, CallbackData.FILTER_SKIP)
             .row()
             .button(backText, CallbackData.CANCEL)  // CancelCallback: INDIVIDUAL → список турниров
             .build();
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-            messageSource.getMessage("wizard.enter_filter", ctx.chatId()),
+            messageSource.getMessage("wizard.enter_filter", ctx.fromId()),
             keyboard);
     }
 
@@ -207,8 +207,11 @@ public class TournamentSelectCallback implements CallbackHandler {
         };
     }
 
-    Set<String> buildExistingUrls(Long chatId, String bookmakerCode) {
-        return controllerService.getUserControllers(chatId).stream()
+    Set<String> buildExistingUrls(BotUpdateContext ctx, String bookmakerCode) {
+        List<ControllerDto> controllers = ctx.isGroupChat()
+            ? controllerService.getGroupControllers(ctx.chatId())
+            : controllerService.getUserControllers(ctx.fromId());
+        return controllers.stream()
             .filter(c -> bookmakerCode.equalsIgnoreCase(c.bookmaker()))
             .map(ControllerDto::url)
             .collect(Collectors.toSet());

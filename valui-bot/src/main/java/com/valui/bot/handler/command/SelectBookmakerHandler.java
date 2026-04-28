@@ -27,18 +27,18 @@ public class SelectBookmakerHandler implements CommandHandler {
         String[] parts = text.split("\\s+", 2);
         if (parts.length < 2 || parts[1].isBlank()) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("bot.bookmaker_select_hint", ctx.chatId()));
+                messageSource.getMessage("bot.bookmaker_select_hint", ctx.fromId()));
             return;
         }
         String bookmaker = parts[1].trim().toUpperCase();
 
         try {
-            guard.guardBookmakerAccess(ctx.chatId(), bookmaker, ctx.sender());
+            guard.guardBookmakerAccess(ctx.fromId(), ctx.chatId(), bookmaker, ctx.sender());
         } catch (SubscriptionLimitExceededException e) {
             return;
         }
 
         MessageSend.text(ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("bot.bookmaker_available", ctx.chatId(), bookmaker));
+            messageSource.getMessage("bot.bookmaker_available", ctx.fromId(), bookmaker));
     }
 }

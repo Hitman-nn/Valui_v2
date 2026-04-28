@@ -26,37 +26,40 @@ public class BotAccessGuard {
     /**
      * Checks controller limit. Sends upgrade prompt and throws if exceeded.
      * Callers should catch {@link SubscriptionLimitExceededException} and return early.
+     *
+     * @param fromId  personal Telegram ID of the user (for plan lookup)
+     * @param chatId  destination chat ID (where to send the upgrade prompt — may be a group)
      */
-    public void guardAddController(Long chatId, AbsSender sender) {
-        guard(chatId, sender, () -> planLimitChecker.checkControllerLimit(chatId), "controllers");
+    public void guardAddController(Long fromId, Long chatId, AbsSender sender) {
+        guard(fromId, chatId, sender, () -> planLimitChecker.checkControllerLimit(fromId), "controllers");
     }
 
     /** Checks whether the bookmaker is included in the user's plan. */
-    public void guardBookmakerAccess(Long chatId, String bookmaker, AbsSender sender) {
-        guard(chatId, sender,
-            () -> planLimitChecker.checkBookmakerAccess(chatId, bookmaker), "bookmaker");
+    public void guardBookmakerAccess(Long fromId, Long chatId, String bookmaker, AbsSender sender) {
+        guard(fromId, chatId, sender,
+            () -> planLimitChecker.checkBookmakerAccess(fromId, bookmaker), "bookmaker");
     }
 
     /** Checks filter limit. */
-    public void guardAddFilter(Long chatId, AbsSender sender) {
-        guard(chatId, sender, () -> planLimitChecker.checkFilterLimit(chatId), "filters");
+    public void guardAddFilter(Long fromId, Long chatId, AbsSender sender) {
+        guard(fromId, chatId, sender, () -> planLimitChecker.checkFilterLimit(fromId), "filters");
     }
 
     // ─── private ─────────────────────────────────────────────────────────────
 
-    private void guard(Long chatId, AbsSender sender, Runnable check, String limitType) {
+    private void guard(Long fromId, Long chatId, AbsSender sender, Runnable check, String limitType) {
         try {
             check.run();
         } catch (SubscriptionLimitExceededException e) {
-            log.info("Limit exceeded: chatId={} limitType={}", chatId, limitType);
-            sendUpgradePrompt(chatId, sender, limitType);
+            log.info("Limit exceeded: fromId={} chatId={} limitType={}", fromId, chatId, limitType);
+            sendUpgradePrompt(fromId, chatId, sender, limitType);
             throw e;
         }
     }
 
-    private void sendUpgradePrompt(Long chatId, AbsSender sender, String limitType) {
+    private void sendUpgradePrompt(Long fromId, Long chatId, AbsSender sender, String limitType) {
         try {
-            LimitInfoDto limits = planLimitChecker.getLimitInfo(chatId);
+            LimitInfoDto limits = planLimitChecker.getLimitInfo(fromId);
             MenuMessage prompt = UpgradePromptBuilder.build(limits, limitType);
             sender.execute(SendMessage.builder()
                 .chatId(chatId)

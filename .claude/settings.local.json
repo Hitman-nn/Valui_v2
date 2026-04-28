@@ -9,7 +9,13 @@
       "Bash(mkdir -p \"C:\\\\Users\\\\User\\\\IdeaProjects\\\\Valui_v2\\\\valui-notify\\\\src\\\\test\\\\java\\\\com\\\\valui\\\\notify\\\\kafka\")",
       "Bash(grep -E \"\\\\.sql$\")",
       "Bash(mvn compile *)",
-      "Bash(mvn test *)"
+      "Bash(mvn test *)",
+      "Bash(awk -F: '{print $1}')",
+      "Bash(xargs perl *)",
+      "Bash(perl -i -pe 's/ControllerConfirmCallback\\\\.buildConfirmText\\\\\\(ctx\\\\.chatId\\\\\\(\\\\\\)/ControllerConfirmCallback.buildConfirmText\\(ctx.fromId\\(\\)/g; *)",
+      "Bash(perl -i -pe 's/\\(new LimitInfoDto\\\\\\([^;]*?OffsetDateTime[^;]*?\\\\\\)\\\\s*\\);/$1;/gs; *)",
+      "Bash(sed -i '' 's/List.of\\(\"XBET\", \"FONBET\"\\), 60, \"PRO\",\\\\n            OffsetDateTime.now\\(\\).plusDays\\(30\\)\\)/List.of\\(\"XBET\", \"FONBET\"\\), 60, \"PRO\",\\\\n            OffsetDateTime.now\\(\\).plusDays\\(30\\), 0\\)/g' /Users/danilabogatyrev/Documents/java/Valui_v2/valui-bot/src/test/java/com/valui/bot/keyboard/MenuSnapshotTest.java)",
+      "Bash(perl -i -pe 's/controllerService\\\\.addController\\\\\\(any\\\\\\(\\\\\\), eq\\\\\\(CHAT_ID\\\\\\)\\\\\\)/controllerService.addController\\(any\\(\\), anyLong\\(\\), anyLong\\(\\)\\)/g; *)"
     ]
   }
 }

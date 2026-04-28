@@ -42,4 +42,11 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
 
     @Query("SELECT COUNT(c) FROM ControllerEntity c WHERE c.user.id = :userId AND c.isActive = true AND c.filterRule IS NOT NULL")
     long countActiveFiltersUsedByUserId(@Param("userId") UUID userId);
+
+    List<ControllerEntity> findAllByNotificationChatIdAndIsActiveTrue(Long notificationChatId);
+
+    int countByNotificationChatIdAndIsActiveTrue(Long notificationChatId);
+
+    @Query("SELECT c FROM ControllerEntity c WHERE c.notificationChatId = :chatId AND c.isActive = true ORDER BY c.createdAt DESC")
+    Page<ControllerEntity> findByNotificationChatIdOrderByCreatedAtDesc(@Param("chatId") Long chatId, Pageable pageable);
 }

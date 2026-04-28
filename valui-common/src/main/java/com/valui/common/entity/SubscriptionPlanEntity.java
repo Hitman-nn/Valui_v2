@@ -52,6 +52,11 @@ public class SubscriptionPlanEntity implements HasCreatedAt {
     @Builder.Default
     private BigDecimal priceRub = BigDecimal.ZERO;
 
+    /** Tokens credited to the user's balance when this plan is activated. One-time grant. */
+    @Column(name = "token_reward", nullable = false)
+    @Builder.Default
+    private Integer tokenReward = 0;
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;

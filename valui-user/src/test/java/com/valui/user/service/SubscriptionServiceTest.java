@@ -41,6 +41,7 @@ class SubscriptionServiceTest {
     @Mock private SubscriptionPlanRepository subscriptionPlanRepository;
     @Mock private ControllerRepository controllerRepository;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private GroupQuotaService groupQuotaService;
 
     @InjectMocks private SubscriptionServiceImpl subscriptionService;
 

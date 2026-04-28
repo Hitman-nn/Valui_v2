@@ -29,11 +29,11 @@ public class LanguageSelectHandler implements CallbackHandler {
         String langCode = ctx.update().getCallbackQuery().getData()
             .substring(CallbackData.LANG_SET_PREFIX.length());
 
-        userService.updateLanguage(ctx.chatId(), langCode);
+        userService.updateLanguage(ctx.fromId(), langCode);
         messageSource.invalidateLocaleCache(ctx.chatId());
 
         log.info("Language changed: chatId={} lang={}", ctx.chatId(), langCode);
         MessageSend.text(ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("bot.language_changed", ctx.chatId()));
+            messageSource.getMessage("bot.language_changed", ctx.fromId()));
     }
 }

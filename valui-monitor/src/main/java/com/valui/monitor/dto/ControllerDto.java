@@ -16,5 +16,6 @@ public record ControllerDto(
         Instant lastCheckedAt,
         Instant lastEventAt,
         int detectedEventsCount,
-        ControllerType type
+        ControllerType type,
+        Long notificationChatId
 ) {}

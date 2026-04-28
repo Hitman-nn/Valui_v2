@@ -23,6 +23,7 @@ public class PlanLimitChecker {
     private final SubscriptionRepository subscriptionRepository;
     private final ControllerRepository controllerRepository;
     private final GlobalFilterRepository globalFilterRepository;
+    private final GroupQuotaService groupQuotaService;
 
     /**
      * Throws {@link SubscriptionLimitExceededException} if the user's active controller
@@ -33,6 +34,14 @@ public class PlanLimitChecker {
             SubscriptionPlanDto plan = subscriptionService.getUserPlan(telegramId);
             throw new SubscriptionLimitExceededException("controllers", plan.maxControllers());
         }
+    }
+
+    /**
+     * Throws {@link SubscriptionLimitExceededException} if the group is at its controller capacity.
+     * Only call when notificationChatId is a group (negative value).
+     */
+    public void checkGroupCapacity(Long notificationChatId) {
+        groupQuotaService.checkGroupCapacity(notificationChatId);
     }
 
     /**
@@ -82,7 +91,8 @@ public class PlanLimitChecker {
             plan.allowedBookmakers(),
             plan.pollIntervalSec(),
             plan.name(),
-            expiresAt
+            expiresAt,
+            user.getTokenBalance() != null ? user.getTokenBalance() : 0
         );
     }
 }

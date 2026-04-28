@@ -7,21 +7,29 @@ import org.telegram.telegrambots.meta.bots.AbsSender;
 
 /**
  * Immutable context passed to every {@link BotUpdateHandler#handle} call.
- * Aggregates everything a handler might need: the raw update, resolved ids,
- * current FSM session, subscription info, and the AbsSender for sending replies.
  *
  * @param update    the raw Telegram update
- * @param chatId    resolved Telegram chat ID
+ * @param chatId    destination chat — where replies and notifications are sent.
+ *                  Equals the group ID (negative) when the command came from a group,
+ *                  or the user's personal Telegram ID in private chat.
+ * @param fromId    the user's personal Telegram ID — always the individual, never a group.
+ *                  Use this for: session lookup, user identity, quota checks, controller ownership.
  * @param username  Telegram username (may be null)
- * @param session   current bot session (FSM state + wizard context)
+ * @param session   current bot session (FSM state + wizard context), keyed by fromId
  * @param userInfo  subscription plan snapshot, null for unregistered users
  * @param sender    AbsSender for executing Telegram API methods
  */
 public record BotUpdateContext(
     Update update,
     Long chatId,
+    Long fromId,
     String username,
     UserBotSession session,
     UserWithSubscriptionDto userInfo,
     AbsSender sender
-) {}
+) {
+    /** True when the originating chat is a Telegram group or supergroup. */
+    public boolean isGroupChat() {
+        return chatId != null && chatId < 0;
+    }
+}

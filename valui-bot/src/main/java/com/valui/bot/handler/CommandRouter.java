@@ -50,15 +50,17 @@ public class CommandRouter {
      * @param sender bot's AbsSender for sending replies
      */
     public void route(Update update, AbsSender sender) {
-        Long chatId = extractChatId(update);
-        if (chatId == null) {
-            log.warn("Не удалось извлечь chatId из апдейта — пропускаем");
+        Long chatId  = extractChatId(update);   // destination chat (may be a group)
+        Long fromId  = extractFromId(update);   // the individual user's Telegram ID
+
+        if (chatId == null || fromId == null) {
+            log.warn("Не удалось извлечь chatId/fromId из апдейта — пропускаем");
             return;
         }
 
         String username = extractUsername(update);
-        UserBotSession session = sessionService.getSession(chatId);
-        UserWithSubscriptionDto userInfo = loadUserInfo(chatId);
+        UserBotSession session = sessionService.getSession(fromId);
+        UserWithSubscriptionDto userInfo = loadUserInfo(fromId);
         String updateType = resolveUpdateType(update);
 
         BotUpdateHandler handler = handlers.stream()
@@ -71,7 +73,7 @@ public class CommandRouter {
             return;
         }
 
-        BotUpdateContext context = new BotUpdateContext(update, chatId, username, session, userInfo, sender);
+        BotUpdateContext context = new BotUpdateContext(update, chatId, fromId, username, session, userInfo, sender);
 
         long started = System.currentTimeMillis();
         String handlerName = handler.getClass().getSimpleName();
@@ -88,12 +90,26 @@ public class CommandRouter {
 
     // ─── helpers ─────────────────────────────────────────────────────────────
 
+    /** Destination chat: where the update originated (group or private). */
     private Long extractChatId(Update update) {
         if (update.hasMessage())           return update.getMessage().getChatId();
-        if (update.hasCallbackQuery())     return update.getCallbackQuery().getFrom().getId();
+        if (update.hasCallbackQuery())     return update.getCallbackQuery().getMessage().getChatId();
         if (update.hasEditedMessage())     return update.getEditedMessage().getChatId();
         if (update.hasChannelPost())       return update.getChannelPost().getChatId();
         if (update.hasMyChatMember())      return update.getMyChatMember().getChat().getId();
+        return null;
+    }
+
+    /** The individual user who triggered the update — always a personal Telegram ID. */
+    private Long extractFromId(Update update) {
+        if (update.hasMessage() && update.getMessage().getFrom() != null)
+            return update.getMessage().getFrom().getId();
+        if (update.hasCallbackQuery() && update.getCallbackQuery().getFrom() != null)
+            return update.getCallbackQuery().getFrom().getId();
+        if (update.hasEditedMessage() && update.getEditedMessage().getFrom() != null)
+            return update.getEditedMessage().getFrom().getId();
+        if (update.hasMyChatMember() && update.getMyChatMember().getFrom() != null)
+            return update.getMyChatMember().getFrom().getId();
         return null;
     }
 

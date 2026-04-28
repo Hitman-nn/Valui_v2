@@ -10,13 +10,25 @@ import java.util.UUID;
 
 public interface ControllerService {
 
-    ControllerDto addController(CreateControllerRequest req, Long telegramId);
+    /**
+     * Adds a controller for {@code telegramId} with notifications sent to {@code notificationChatId}.
+     * {@code notificationChatId} is the originating Telegram chat (personal or group).
+     */
+    ControllerDto addController(CreateControllerRequest req, Long telegramId, Long notificationChatId);
+
+    /** Convenience overload for private chat — notificationChatId defaults to the user's own chat. */
+    default ControllerDto addController(CreateControllerRequest req, Long telegramId) {
+        return addController(req, telegramId, telegramId);
+    }
 
     void removeController(UUID controllerId, Long telegramId);
 
     ControllerDto getController(UUID controllerId);
 
     List<ControllerDto> getUserControllers(Long telegramId);
+
+    /** Returns active controllers whose notifications are routed to the given group chat. */
+    List<ControllerDto> getGroupControllers(Long notificationChatId);
 
     Page<ControllerDto> getUserControllers(Long telegramId, Pageable pageable);
 

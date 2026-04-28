@@ -36,7 +36,7 @@ public class ControllerMuteCallback implements CallbackHandler {
         try {
             UUID id = UUID.fromString(
                     ctx.update().getCallbackQuery().getData().substring(PREFIX.length()));
-            controllerService.muteController(id, ctx.chatId());
+            controllerService.muteController(id, ctx.fromId());
             ControllerDto c = controllerService.getController(id);
             MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
@@ -71,7 +71,7 @@ class ControllerUnmuteCallback implements CallbackHandler {
         try {
             UUID id = UUID.fromString(
                     ctx.update().getCallbackQuery().getData().substring(PREFIX.length()));
-            controllerService.unmuteController(id, ctx.chatId());
+            controllerService.unmuteController(id, ctx.fromId());
             ControllerDto c = controllerService.getController(id);
             MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     ControllerDetailCallback.buildDetailText(c, ctx.chatId()),

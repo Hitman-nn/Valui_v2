@@ -37,12 +37,12 @@ public class GlobalFilterAddCallback implements CallbackHandler {
         MessageSend.answerCallback(ctx.sender(), callbackId);
 
         try {
-            guard.guardAddFilter(ctx.chatId(), ctx.sender());
+            guard.guardAddFilter(ctx.fromId(), ctx.chatId(), ctx.sender());
         } catch (SubscriptionLimitExceededException e) {
             return;
         }
 
-        sessionService.setStateAndMergeContext(ctx.chatId(), BotState.WAITING_FILTER_RULE, Map.of(
+        sessionService.setStateAndMergeContext(ctx.fromId(), BotState.WAITING_FILTER_RULE, Map.of(
                 UserBotSession.CTX_WIZARD_MSG_ID, String.valueOf(messageId),
                 UserBotSession.CTX_FILTER_MODE,   "GLOBAL"
         ));
@@ -52,7 +52,7 @@ public class GlobalFilterAddCallback implements CallbackHandler {
                 .build();
 
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-                messageSource.getMessage("filter.enter_rule", ctx.chatId()),
+                messageSource.getMessage("filter.enter_rule", ctx.fromId()),
                 keyboard);
     }
 }

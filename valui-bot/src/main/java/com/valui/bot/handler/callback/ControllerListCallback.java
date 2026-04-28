@@ -37,7 +37,7 @@ public class ControllerListCallback implements CallbackHandler {
             catch (NumberFormatException ignored) {}
         }
 
-        List<ControllerDto> controllers = controllerService.getUserControllers(ctx.chatId());
+        List<ControllerDto> controllers = controllerService.getUserControllers(ctx.fromId());
         var menu = ControllerMenuBuilder.build(controllers, page);
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
     }

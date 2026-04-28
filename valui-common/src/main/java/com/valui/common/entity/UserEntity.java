@@ -48,6 +48,11 @@ public class UserEntity implements HasUpdatedAt {
     @Builder.Default
     private String languageCode = "ru";
 
+    /** Extra controller slots the user can commit to group chats. Earned via paid plans. */
+    @Column(name = "token_balance", nullable = false)
+    @Builder.Default
+    private Integer tokenBalance = 0;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

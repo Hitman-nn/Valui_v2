@@ -31,6 +31,7 @@ public class BotCommandsRegistrar {
             new BotCommand("/menu",       "🏠 Главное меню"),
             new BotCommand("/add",        "➕ Добавить контроллер"),
             new BotCommand("/list",       "📋 Мои контроллеры"),
+            new BotCommand("/info",       "ℹ️ Мой тариф / статус группы"),
             new BotCommand("/listfilter", "🔍 Фильтры"),
             new BotCommand("/stop",       "🛑 Остановить всё"),
             new BotCommand("/deleteall",  "🗑 Удалить все контроллеры"),

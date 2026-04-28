@@ -41,20 +41,20 @@ public class ControllerStopCallback implements CallbackHandler {
                     ctx.update().getCallbackQuery().getData().substring(PREFIX.length()));
             ControllerDto c = controllerService.getController(controllerId);
             stoppedBookmaker = c.bookmaker();
-            controllerService.removeController(controllerId, ctx.chatId());
+            controllerService.removeController(controllerId, ctx.fromId());
         } catch (Exception e) {
             log.warn("Failed to stop controller for chatId={}: {}", ctx.chatId(), e.getMessage());
         }
 
         final String bookmaker = stoppedBookmaker;
         if (bookmaker != null) {
-            List<ControllerDto> remaining = controllerService.getUserControllers(ctx.chatId()).stream()
+            List<ControllerDto> remaining = controllerService.getUserControllers(ctx.fromId()).stream()
                     .filter(c -> bookmaker.equalsIgnoreCase(c.bookmaker()))
                     .toList();
             var menu = BookmakerMenuBuilder.buildControllerList(bookmaker, remaining, 0);
             MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
         } else {
-            List<ControllerDto> all = controllerService.getUserControllers(ctx.chatId());
+            List<ControllerDto> all = controllerService.getUserControllers(ctx.fromId());
             var menu = BookmakerMenuBuilder.buildSelection(all);
             MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
         }

@@ -33,6 +33,6 @@ public class UnknownUpdateHandler implements BotUpdateHandler {
         }
         log.debug("Unknown command from chatId={}", ctx.chatId());
         MessageSend.text(ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("bot.unknown_command", ctx.chatId()));
+            messageSource.getMessage("bot.unknown_command", ctx.fromId()));
     }
 }

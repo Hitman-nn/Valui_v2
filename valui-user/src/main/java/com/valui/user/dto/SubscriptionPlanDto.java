@@ -17,7 +17,8 @@ public record SubscriptionPlanDto(
     int pollIntervalSec,
     List<String> allowedBookmakers,
     List<String> notifyChannels,
-    BigDecimal priceRub
+    BigDecimal priceRub,
+    int tokenReward
 ) {
     public static SubscriptionPlanDto from(SubscriptionPlanEntity e) {
         return new SubscriptionPlanDto(
@@ -29,7 +30,8 @@ public record SubscriptionPlanDto(
             e.getPollIntervalSec(),
             toList(e.getAllowedBookmakers()),
             toList(e.getNotifyChannels()),
-            e.getPriceRub()
+            e.getPriceRub(),
+            e.getTokenReward() != null ? e.getTokenReward() : 0
         );
     }
 

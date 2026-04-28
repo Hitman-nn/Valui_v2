@@ -59,30 +59,30 @@ public class BookmakerSelectCallback implements CallbackHandler {
             parser = parserFactory.getParser(BookmakerType.valueOf(bookmakerCode.toUpperCase()));
         } catch (Exception e) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("wizard.parser_error", ctx.chatId(), bookmakerCode));
+                messageSource.getMessage("wizard.parser_error", ctx.fromId(), bookmakerCode));
             return;
         }
 
         // Show "loading" state while the HTTP call is in progress
         MessageSend.editTextWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-            messageSource.getMessage("wizard.loading", ctx.chatId(), bookmakerCode),
+            messageSource.getMessage("wizard.loading", ctx.fromId(), bookmakerCode),
             buildLoadingKeyboard());
 
         ParseResult<List<SportDto>> result = parser.fetchSports();
         if (!result.success() || result.data() == null || result.data().isEmpty()) {
             MessageSend.editTextWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-                messageSource.getMessage("wizard.parser_error", ctx.chatId(), bookmakerCode),
+                messageSource.getMessage("wizard.parser_error", ctx.fromId(), bookmakerCode),
                 buildLoadingKeyboard());
             return;
         }
 
-        sessionService.setStateAndMergeContext(ctx.chatId(), BotState.SELECTING_SPORT,
+        sessionService.setStateAndMergeContext(ctx.fromId(), BotState.SELECTING_SPORT,
             Map.of(UserBotSession.CTX_BOOKMAKER, bookmakerCode));
 
         InlineKeyboardMarkup keyboard = buildSportsKeyboard(result.data(), 0,
-            messageSource.getMessage("menu.back", ctx.chatId()));
+            messageSource.getMessage("menu.back", ctx.fromId()));
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-            messageSource.getMessage("wizard.select_sport", ctx.chatId(), bookmakerCode),
+            messageSource.getMessage("wizard.select_sport", ctx.fromId(), bookmakerCode),
             keyboard);
     }
 

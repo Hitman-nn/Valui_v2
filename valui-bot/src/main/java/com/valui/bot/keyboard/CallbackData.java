@@ -78,6 +78,20 @@ public final class CallbackData {
 
     public static String plansSelect(String planCode) { return "PLANS:SELECT:" + planCode; }
 
+    // ─── Quick-add from notification — "QADD:{notificationLogId}" ───────────
+    /** Max 64 bytes: "QADD:" (5) + UUID (36) = 41 bytes. */
+    public static final String QADD_PREFIX = "QADD:";
+
+    public static String qadd(String notificationLogId) { return QADD_PREFIX + notificationLogId; }
+
+    // ─── Group boost — "BOOST:{chatId}:{tokens}" ─────────────────────────────
+    public static final String BOOST_PREFIX = "BOOST:";
+
+    /** "BOOST:{chatId}:{tokens}" — e.g. "BOOST:-100123456:1". Max 64 bytes. */
+    public static String boost(long chatId, int tokens) {
+        return BOOST_PREFIX + chatId + ":" + tokens;
+    }
+
     // ─── Pagination — format: "PAGE:{listKey}:{pageNum}" ─────────────────────
     public static String page(String listKey, int pageNum) {
         return "PAGE:" + listKey + ":" + pageNum;

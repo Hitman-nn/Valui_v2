@@ -166,6 +166,6 @@ class AuthServiceTest {
 
     private static SubscriptionPlanDto planDto(String code) {
         return new SubscriptionPlanDto(UUID.randomUUID(), code, code + " plan",
-            3, 5, 120, List.of("XBET"), List.of("TELEGRAM"), BigDecimal.ZERO);
+            3, 5, 120, List.of("XBET"), List.of("TELEGRAM"), BigDecimal.ZERO, 0);
     }
 }

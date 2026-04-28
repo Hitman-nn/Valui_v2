@@ -69,20 +69,20 @@ public class SportSelectCallback implements CallbackHandler {
 
     // "← Назад" from sport list → re-show bookmaker selection (no cancel button on BK screen)
     private void handleBackToBookmakers(BotUpdateContext ctx, int messageId) {
-        sessionService.setStateWithContext(ctx.chatId(), BotState.SELECTING_BOOKMAKER, new HashMap<>());
-        List<String> allowed = planLimitChecker.getLimitInfo(ctx.chatId()).allowedBookmakers();
+        sessionService.setStateWithContext(ctx.fromId(), BotState.SELECTING_BOOKMAKER, new HashMap<>());
+        List<String> allowed = planLimitChecker.getLimitInfo(ctx.fromId()).allowedBookmakers();
         var kb = InlineKeyboardBuilder.create().columns(2);
         for (String bm : allowed) {
             kb.button(bm, CallbackData.bookmakerSelect(bm));
         }
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-            messageSource.getMessage("wizard.select_bookmaker", ctx.chatId()),
+            messageSource.getMessage("wizard.select_bookmaker", ctx.fromId()),
             kb.build());
     }
 
     private void handleSportPage(BotUpdateContext ctx, String data, int messageId) {
         int page = parsePageNum(data.substring("SPORT:PAGE:".length()));
-        Optional<String> bm = sessionService.getContext(ctx.chatId(), UserBotSession.CTX_BOOKMAKER);
+        Optional<String> bm = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
         if (bm.isEmpty()) return;
 
         BookmakerParser parser = getParser(bm.get());
@@ -93,20 +93,20 @@ public class SportSelectCallback implements CallbackHandler {
 
         InlineKeyboardMarkup keyboard = BookmakerSelectCallback.buildSportsKeyboard(
             result.data(), page,
-            messageSource.getMessage("menu.back", ctx.chatId()));
+            messageSource.getMessage("menu.back", ctx.fromId()));
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-            messageSource.getMessage("wizard.select_sport", ctx.chatId(), bm.get()), keyboard);
+            messageSource.getMessage("wizard.select_sport", ctx.fromId(), bm.get()), keyboard);
     }
 
     private void handleSportSelect(BotUpdateContext ctx, String data, int messageId) {
         String sportId = data.substring(CallbackData.SPORT_SEL_PREFIX.length());
-        Optional<String> bm = sessionService.getContext(ctx.chatId(), UserBotSession.CTX_BOOKMAKER);
+        Optional<String> bm = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
         if (bm.isEmpty()) return;
 
         BookmakerParser parser = getParser(bm.get());
         if (parser == null) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("wizard.parser_error", ctx.chatId(), bm.get()));
+                messageSource.getMessage("wizard.parser_error", ctx.fromId(), bm.get()));
             return;
         }
 
@@ -126,26 +126,26 @@ public class SportSelectCallback implements CallbackHandler {
         ParseResult<List<TournamentDto>> tournsResult = parser.fetchTournaments(sportId);
         if (!tournsResult.success() || tournsResult.data() == null) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("wizard.parser_error", ctx.chatId(), bm.get()));
+                messageSource.getMessage("wizard.parser_error", ctx.fromId(), bm.get()));
             return;
         }
 
-        sessionService.setStateAndMergeContext(ctx.chatId(), BotState.SELECTING_TOURNAMENT,
+        sessionService.setStateAndMergeContext(ctx.fromId(), BotState.SELECTING_TOURNAMENT,
             Map.of(UserBotSession.CTX_SPORT_ID, sportId,
                    UserBotSession.CTX_SPORT_NAME, sportName,
                    UserBotSession.CTX_SPORT_ALIAS, sportAlias));
 
-        Set<String> existingUrls = buildExistingUrls(ctx.chatId(), bm.get());
+        Set<String> existingUrls = buildExistingUrls(ctx, bm.get());
         BookmakerType bookmakerType = BookmakerType.valueOf(bm.get().toUpperCase());
         String sportUrl = buildSportUrl(bookmakerType, sportId, sportAlias);
 
-        String monitorAllText = messageSource.getMessage("wizard.monitor_all_sport", ctx.chatId(), sportName);
-        String backText   = messageSource.getMessage("menu.back",   ctx.chatId());
-        String cancelText = messageSource.getMessage("menu.cancel", ctx.chatId());
+        String monitorAllText = messageSource.getMessage("wizard.monitor_all_sport", ctx.fromId(), sportName);
+        String backText   = messageSource.getMessage("menu.back",   ctx.fromId());
+        String cancelText = messageSource.getMessage("menu.cancel", ctx.fromId());
         InlineKeyboardMarkup keyboard = buildTournamentKeyboard(
             tournsResult.data(), 0, monitorAllText, backText, cancelText, existingUrls, sportUrl);
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-            messageSource.getMessage("wizard.select_tournament", ctx.chatId(), sportName),
+            messageSource.getMessage("wizard.select_tournament", ctx.fromId(), sportName),
             keyboard);
     }
 
@@ -183,8 +183,11 @@ public class SportSelectCallback implements CallbackHandler {
             .build();
     }
 
-    private Set<String> buildExistingUrls(Long chatId, String bookmakerCode) {
-        return controllerService.getUserControllers(chatId).stream()
+    private Set<String> buildExistingUrls(BotUpdateContext ctx, String bookmakerCode) {
+        List<ControllerDto> controllers = ctx.isGroupChat()
+            ? controllerService.getGroupControllers(ctx.chatId())
+            : controllerService.getUserControllers(ctx.fromId());
+        return controllers.stream()
             .filter(c -> bookmakerCode.equalsIgnoreCase(c.bookmaker()))
             .map(ControllerDto::url)
             .collect(Collectors.toSet());

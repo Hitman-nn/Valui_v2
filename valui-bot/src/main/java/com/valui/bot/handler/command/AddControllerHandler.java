@@ -41,7 +41,7 @@ public class AddControllerHandler implements CommandHandler {
     @Override
     public void handle(BotUpdateContext ctx) {
         try {
-            guard.guardAddController(ctx.chatId(), ctx.sender());
+            guard.guardAddController(ctx.fromId(), ctx.chatId(), ctx.sender());
         } catch (SubscriptionLimitExceededException e) {
             return;
         }
@@ -49,19 +49,19 @@ public class AddControllerHandler implements CommandHandler {
         // Delete the previous wizard message for this user (if any) before opening a new one.
         wizardMessageTracker.deleteStale(ctx.chatId(), ctx.sender());
 
-        List<String> allowed = planLimitChecker.getLimitInfo(ctx.chatId()).allowedBookmakers();
+        List<String> allowed = planLimitChecker.getLimitInfo(ctx.fromId()).allowedBookmakers();
 
         var kb = InlineKeyboardBuilder.create().columns(2);
         for (String bm : allowed) {
             kb.button(bm, CallbackData.bookmakerSelect(bm));
         }
 
-        sessionService.setStateWithContext(ctx.chatId(), BotState.SELECTING_BOOKMAKER, new HashMap<>());
+        sessionService.setStateWithContext(ctx.fromId(), BotState.SELECTING_BOOKMAKER, new HashMap<>());
 
         try {
             Message sent = ctx.sender().execute(SendMessage.builder()
                 .chatId(ctx.chatId())
-                .text(messageSource.getMessage("wizard.select_bookmaker", ctx.chatId()))
+                .text(messageSource.getMessage("wizard.select_bookmaker", ctx.fromId()))
                 .replyMarkup(kb.build())
                 .build());
             // Track this message so it can be cleaned up when the next wizard starts.

@@ -69,6 +69,10 @@ public class ControllerEntity implements HasUpdatedAt {
     @Column(name = "last_event_at")
     private OffsetDateTime lastEventAt;
 
+    /** Telegram chat to receive notifications. NULL → user's personal chat (legacy/private). */
+    @Column(name = "notification_chat_id")
+    private Long notificationChatId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

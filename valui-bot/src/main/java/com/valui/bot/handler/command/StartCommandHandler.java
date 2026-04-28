@@ -32,19 +32,19 @@ public class StartCommandHandler implements CommandHandler {
         if (ctx.userInfo() == null) {
             User from = ctx.update().getMessage().getFrom();
             userService.registerOrGetUser(new TelegramUserDto(
-                ctx.chatId(),
+                ctx.fromId(),
                 ctx.username(),
                 from != null ? from.getFirstName() : null,
                 from != null ? from.getLanguageCode() : null
             ));
-            log.info("✅ Новый пользователь зарегистрирован: chatId={} username={}", ctx.chatId(), ctx.username());
+            log.info("✅ Новый пользователь зарегистрирован: fromId={} username={}", ctx.fromId(), ctx.username());
         }
 
-        sessionService.clearSession(ctx.chatId());
+        sessionService.clearSession(ctx.fromId());
 
         String name = ctx.username() != null ? "@" + ctx.username() : "друг";
         com.valui.bot.handler.MessageSend.textMarkdownWithKeyboard(ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("bot.welcome", ctx.chatId(), name),
-            MainMenuKeyboard.build(ctx.chatId(), messageSource));
+            messageSource.getMessage("bot.welcome", ctx.fromId(), name),
+            MainMenuKeyboard.build(ctx.fromId(), messageSource, ctx.isGroupChat()));
     }
 }

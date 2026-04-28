@@ -43,6 +43,7 @@ class PlanLimitCheckerTest {
     @Mock private SubscriptionRepository subscriptionRepository;
     @Mock private ControllerRepository controllerRepository;
     @Mock private GlobalFilterRepository globalFilterRepository;
+    @Mock private GroupQuotaService groupQuotaService;
 
     @InjectMocks private PlanLimitChecker checker;
 
@@ -55,7 +56,8 @@ class PlanLimitCheckerTest {
     void setUp() {
         user = UserEntity.builder()
             .id(USER_ID).telegramId(TG_ID)
-            .role(UserRole.USER).status(UserStatus.ACTIVE).build();
+            .role(UserRole.USER).status(UserStatus.ACTIVE)
+            .tokenBalance(5).build();
     }
 
     // ─── checkControllerLimit ─────────────────────────────────────────────────
@@ -176,12 +178,14 @@ class PlanLimitCheckerTest {
         assertThat(info.filtersMax()).isEqualTo(30);
         assertThat(info.planName()).isEqualTo("PRO plan");
         assertThat(info.expiresAt()).isNull();
+        assertThat(info.tokenBalance()).isEqualTo(5); // from user.getTokenBalance()
     }
 
     @Test
     @DisplayName("getLimitInfo: user not found → UserNotFoundException")
     void getLimitInfo_userNotFound_throws() {
         given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.empty());
+        // No subscription stub needed — exception thrown before that lookup
         assertThatThrownBy(() -> checker.getLimitInfo(TG_ID))
             .isInstanceOf(UserNotFoundException.class);
     }
@@ -196,7 +200,7 @@ class PlanLimitCheckerTest {
             UUID.randomUUID(), code, code + " plan",
             maxC, maxF, 60,
             bk, List.of("TELEGRAM"),
-            BigDecimal.ONE
+            BigDecimal.ONE, 0
         );
     }
 }
