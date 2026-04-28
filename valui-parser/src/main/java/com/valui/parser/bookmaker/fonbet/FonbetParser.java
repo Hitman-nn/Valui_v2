@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.valui.parser.http.BookmakerHttpClient.BLOCK_TIMEOUT;
 
@@ -28,9 +29,16 @@ public class FonbetParser implements BookmakerParser {
     private static final String DEFAULT_API =
             "https://line32w.bk6bba-resources.com/events/list?lang=ru&scopeMarket=1600";
 
+    // Snapshot TTL: reuse the same JSON across fetchSports/fetchTournaments/fetchMatches
+    // calls within one monitor cycle so we hit Fonbet API once per cycle, not three times.
+    private static final long SNAP_TTL_MS = 30_000;
+
     private final BookmakerHttpClient http;
     private final FonbetEndpointPool pool;
     private final String fallbackUrl;
+    private final AtomicReference<CachedSnap> snapCache = new AtomicReference<>();
+
+    private record CachedSnap(JsonNode data, long ts) {}
 
     @Autowired
     public FonbetParser(@Qualifier("fonbetHttpClient") BookmakerHttpClient http, FonbetEndpointPool pool) {
@@ -138,11 +146,16 @@ public class FonbetParser implements BookmakerParser {
     // ── snapshot ──────────────────────────────────────────────────────────────
 
     private JsonNode fetchSnapshot() {
+        CachedSnap cached = snapCache.get();
+        if (cached != null && System.currentTimeMillis() - cached.ts < SNAP_TTL_MS) {
+            return cached.data;
+        }
         String url = (pool != null) ? pool.getBestEndpoint() : fallbackUrl;
         try {
             JsonNode snap = http.getJson(url, JsonNode.class).block(BLOCK_TIMEOUT);
             if (snap == null) throw new IllegalStateException("Fonbet API returned null");
             if (pool != null) pool.markSuccess(url);
+            snapCache.set(new CachedSnap(snap, System.currentTimeMillis()));
             return snap;
         } catch (Exception e) {
             if (pool != null) pool.markFailure(url);

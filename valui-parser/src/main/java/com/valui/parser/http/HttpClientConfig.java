@@ -37,8 +37,11 @@ public class HttpClientConfig {
     }
 
     @Bean @Qualifier("fonbetHttpClient")
-    public BookmakerHttpClient fonbetHttpClient(ProxyProperties proxy) {
-        return new BookmakerHttpClient(buildWebClient(proxy.isEnabled() ? proxy : null));
+    public BookmakerHttpClient fonbetHttpClient() {
+        // Fonbet CDN mirrors (bk6bba-resources.com) resolve correctly via JVM InetAddress
+        // (DefaultAddressResolverGroup, set when proxy=null). Routing through an HTTP proxy
+        // adds a single point of failure and these domains don't require proxy access.
+        return new BookmakerHttpClient(buildWebClient(null));
     }
 
     @Bean @Qualifier("olimpHttpClient")
