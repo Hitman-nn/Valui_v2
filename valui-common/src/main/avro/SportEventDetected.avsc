@@ -1,17 +1,48 @@
 {
-  "namespace": "com.valui.common.avro",
-  "type": "record",
-  "name": "SportEventDetected",
-  "doc": "Published to sport.events.detected when a new betting event is detected for a controller.",
+  "namespace": "valui.events.v1",
+  "type":      "record",
+  "name":      "SportEventDetected",
+  "doc":       "Published to sport.events.detected when a new betting event is detected for a controller.",
   "fields": [
-    {"name": "eventId",      "type": "string",                                              "doc": "UUID — unique Kafka message ID"},
-    {"name": "controllerId", "type": "string",                                              "doc": "UUID of the Controller that triggered detection"},
-    {"name": "userId",          "type": "string",                                              "doc": "UUID of the owning user"},
-    {"name": "telegramId",      "type": ["null", "long"],  "default": null,                  "doc": "Telegram chat ID of the owner, null if not yet linked"},
-    {"name": "bookmaker",       "type": "string",                                              "doc": "BookmakerType enum name, e.g. FONBET"},
-    {"name": "externalEventId", "type": "string",                                              "doc": "External ID assigned by the bookmaker (match/tournament ID)"},
-    {"name": "title",           "type": ["null", "string"], "default": null,                  "doc": "Match title, e.g. 'Team A - Team B'"},
-    {"name": "url",             "type": ["null", "string"], "default": null,                  "doc": "Source URL from the controller"},
-    {"name": "detectedAt",      "type": {"type": "long", "logicalType": "timestamp-millis"},  "doc": "When the event was first detected (epoch ms)"}
+    {
+      "name": "event_id",
+      "type": "string",
+      "doc":  "Unique Kafka message UUID (also used as Kafka message key for idempotency)"
+    },
+    {
+      "name": "controller_id",
+      "type": "string",
+      "doc":  "UUID of the Controller that triggered detection"
+    },
+    {
+      "name": "user_id",
+      "type": "string",
+      "doc":  "UUID of the owning user"
+    },
+    {
+      "name": "telegram_id",
+      "type": "long",
+      "doc":  "Telegram chat ID of the owner"
+    },
+    {
+      "name": "bookmaker",
+      "type": "string",
+      "doc":  "BookmakerType enum name, e.g. FONBET"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "doc":  "Match or tournament title, e.g. 'Team A - Team B'"
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "doc":  "Source URL from the controller"
+    },
+    {
+      "name": "detected_at",
+      "type": {"type": "long", "logicalType": "timestamp-millis"},
+      "doc":  "When the event was first detected (epoch ms)"
+    }
   ]
 }

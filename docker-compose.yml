@@ -92,6 +92,32 @@ services:
       start_period: 60s
     restart: unless-stopped
 
+  # ── Confluent Schema Registry 7.6 ────────────────────────────
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.1
+    container_name: valui-schema-registry
+    hostname: schema-registry
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME:                    schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_LISTENERS:                    http://0.0.0.0:8081
+      SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL:   BACKWARD
+      SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: PLAINTEXT
+    ports:
+      - "${SCHEMA_REGISTRY_PORT:-8081}:8081"
+    networks:
+      - valui-network
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8081/subjects > /dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
   # ── Kafka UI ──────────────────────────────────────────────────
   kafka-ui:
     image: provectuslabs/kafka-ui:v0.7.2

@@ -38,5 +38,65 @@
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
         </dependency>
+        <!--
+          Avro: schema parsing + generated SpecificRecord classes in valui.events.v1.*.
+          Not a Spring runtime dep — pure Java library.
+          Generated classes are the migration target for Kafka messages (Phase 2).
+        -->
+        <dependency>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro</artifactId>
+            <version>${avro.version}</version>
+        </dependency>
     </dependencies>
+
+    <build>
+        <!--
+          Include src/main/avro/*.avsc as classpath resources (target path: avro/).
+          This makes schemas accessible at runtime for SchemaRegistrationService
+          and for tests via ClassLoader.getResourceAsStream("avro/xxx.avsc").
+        -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>src/main/avro</directory>
+                <targetPath>avro</targetPath>
+            </resource>
+        </resources>
+
+        <plugins>
+            <!--
+              Generates Java SpecificRecord classes from .avsc schemas.
+              Output: target/generated-sources/avro/ → package valui.events.v1.*
+              These classes are separate from existing com.valui.common.kafka records
+              and serve as the migration target for Phase 2 (full Avro serialisation).
+            -->
+            <plugin>
+                <groupId>org.apache.avro</groupId>
+                <artifactId>avro-maven-plugin</artifactId>
+                <version>${avro.version}</version>
+                <executions>
+                    <execution>
+                        <id>generate-avro-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>schema</goal>
+                        </goals>
+                        <configuration>
+                            <sourceDirectory>${project.basedir}/src/main/avro</sourceDirectory>
+                            <outputDirectory>${project.build.directory}/generated-sources/avro</outputDirectory>
+                            <!-- Use java.lang.String instead of CharSequence/Utf8 for string fields -->
+                            <stringType>String</stringType>
+                            <!-- Generate getters/setters (needed by KafkaAvroSerializer in Phase 2) -->
+                            <createSetters>true</createSetters>
+                            <!-- Add @AvroGenerated to generated classes -->
+                            <customConversions/>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>

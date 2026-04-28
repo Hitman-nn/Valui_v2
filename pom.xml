@@ -45,6 +45,9 @@
         <!-- ── API / Docs ────────────────────────────────────────────────── -->
         <springdoc.version>2.6.0</springdoc.version>
 
+        <!-- ── Avro / Schema Registry ───────────────────────────────────── -->
+        <avro.version>1.11.3</avro.version>
+
         <!-- ── Testing ───────────────────────────────────────────────────── -->
         <testcontainers.version>1.20.1</testcontainers.version>
 

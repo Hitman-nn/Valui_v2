@@ -1,13 +1,39 @@
 {
-  "namespace": "com.valui.common.avro",
-  "type": "record",
-  "name": "UserNotificationRequest",
-  "doc": "Published to user.notifications.pending. Key = userId for per-user ordering.",
+  "namespace": "valui.events.v1",
+  "type":      "record",
+  "name":      "UserNotificationRequest",
+  "doc":       "Published to user.notifications.pending. Key = userId for per-user ordering.",
   "fields": [
-    {"name": "userId",      "type": "string",                         "doc": "UUID of the target user"},
-    {"name": "telegramId",  "type": "long",                           "doc": "Telegram chat ID for delivery"},
-    {"name": "channel",     "type": "string",                         "doc": "NotificationChannel enum name, e.g. TELEGRAM"},
-    {"name": "messageText", "type": "string",                         "doc": "Rendered notification text"},
-    {"name": "eventId",     "type": ["null", "string"], "default": null, "doc": "Source eventId for idempotency checks"}
+    {
+      "name": "notification_id",
+      "type": "string",
+      "doc":  "UUID of the NotificationLog row — used for idempotency and status tracking"
+    },
+    {
+      "name": "user_id",
+      "type": "string",
+      "doc":  "UUID of the target user"
+    },
+    {
+      "name": "telegram_id",
+      "type": "long",
+      "doc":  "Telegram chat ID for delivery"
+    },
+    {
+      "name": "channel",
+      "type": "string",
+      "doc":  "NotificationChannel enum name: TELEGRAM | EMAIL | WEBHOOK"
+    },
+    {
+      "name": "message_text",
+      "type": "string",
+      "doc":  "Fully rendered notification text (may contain Markdown)"
+    },
+    {
+      "name": "event_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc":  "Source SportEventDetected.event_id for tracing; null for system-generated messages"
+    }
   ]
 }

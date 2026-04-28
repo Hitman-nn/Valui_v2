@@ -1,12 +1,29 @@
 {
-  "namespace": "com.valui.common.avro",
-  "type": "record",
-  "name": "SubscriptionChangedEvent",
-  "doc": "Published to subscription.events (compacted). Key = userId → last plan state per user.",
+  "namespace": "valui.events.v1",
+  "type":      "record",
+  "name":      "SubscriptionChangedEvent",
+  "doc":       "Published to subscription.events (log-compacted). Key = userId → last plan state per user.",
   "fields": [
-    {"name": "userId",    "type": "string",                         "doc": "UUID — also used as partition key"},
-    {"name": "oldPlan",   "type": ["null", "string"], "default": null, "doc": "Previous plan code, null on first activation"},
-    {"name": "newPlan",   "type": "string",                         "doc": "New active plan code"},
-    {"name": "changedAt", "type": {"type": "long", "logicalType": "timestamp-millis"}, "doc": "Epoch ms"}
+    {
+      "name": "user_id",
+      "type": "string",
+      "doc":  "UUID — also used as the Kafka partition key"
+    },
+    {
+      "name": "old_plan",
+      "type": ["null", "string"],
+      "default": null,
+      "doc":  "Previous plan code; null on first activation"
+    },
+    {
+      "name": "new_plan",
+      "type": "string",
+      "doc":  "New active plan code, e.g. PRO, FREE"
+    },
+    {
+      "name": "changed_at",
+      "type": {"type": "long", "logicalType": "timestamp-millis"},
+      "doc":  "When the plan changed (epoch ms)"
+    }
   ]
 }

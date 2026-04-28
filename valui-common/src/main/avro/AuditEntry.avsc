@@ -1,14 +1,50 @@
 {
-  "namespace": "com.valui.common.avro",
-  "type": "record",
-  "name": "AuditEntry",
-  "doc": "Published to audit.log for every significant domain action. Retention 90 days.",
+  "namespace": "valui.events.v1",
+  "type":      "record",
+  "name":      "AuditEntry",
+  "doc":       "Published to audit.log for every significant domain action. Retention 90 days.",
   "fields": [
-    {"name": "userId",     "type": "string",                         "doc": "Acting user UUID"},
-    {"name": "action",     "type": "string",                         "doc": "Action name, e.g. CONTROLLER_ADDED"},
-    {"name": "entityType", "type": "string",                         "doc": "Domain entity type, e.g. Controller"},
-    {"name": "entityId",   "type": ["null", "string"], "default": null, "doc": "UUID of the affected entity"},
-    {"name": "details",    "type": ["null", "string"], "default": null, "doc": "Optional JSON details"},
-    {"name": "timestamp",  "type": {"type": "long", "logicalType": "timestamp-millis"}, "doc": "Epoch ms"}
+    {
+      "name": "audit_id",
+      "type": "string",
+      "doc":  "Unique UUID for this audit record"
+    },
+    {
+      "name": "user_id",
+      "type": "string",
+      "doc":  "UUID of the acting user"
+    },
+    {
+      "name": "telegram_id",
+      "type": "long",
+      "doc":  "Telegram ID of the acting user (denormalised for efficient querying)"
+    },
+    {
+      "name": "action",
+      "type": "string",
+      "doc":  "Domain action name, e.g. ADD_CONTROLLER, BAN_USER"
+    },
+    {
+      "name": "entity_type",
+      "type": ["null", "string"],
+      "default": null,
+      "doc":  "Domain entity type affected, e.g. Controller, User; null for global actions"
+    },
+    {
+      "name": "entity_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc":  "UUID of the affected entity; null when not applicable"
+    },
+    {
+      "name": "details_json",
+      "type": "string",
+      "doc":  "JSON object with action-specific details (method args, error info, etc.)"
+    },
+    {
+      "name": "occurred_at",
+      "type": {"type": "long", "logicalType": "timestamp-millis"},
+      "doc":  "When the action occurred (epoch ms)"
+    }
   ]
 }
