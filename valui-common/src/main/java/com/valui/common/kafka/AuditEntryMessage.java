@@ -9,9 +9,11 @@ import java.time.Instant;
  */
 public record AuditEntryMessage(
         String userId,
+        Long telegramId,
         String action,
         String entityType,
         String entityId,
         String details,
+        String ipAddress,
         Instant timestamp
 ) {}

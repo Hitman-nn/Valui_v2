@@ -1,5 +1,6 @@
 package com.valui.user.service;
 
+import com.valui.common.annotation.Audit;
 import com.valui.common.domain.SubscriptionStatus;
 import com.valui.common.entity.SubscriptionEntity;
 import com.valui.common.entity.SubscriptionPlanEntity;
@@ -95,6 +96,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     @Override
     @Transactional
     @CacheEvict(value = PLANS_CACHE, allEntries = true)
+    @Audit(action = "CHANGE_PLAN", entityType = "Subscription")
     public SubscriptionEntity activatePlan(UUID userId, String planCode, String paymentRef) {
         UserEntity user = userRepository.findById(userId)
             .orElseThrow(() -> new UserNotFoundException(userId));

@@ -8,6 +8,7 @@ import com.valui.common.kafka.KafkaTopics;
 import com.valui.common.kafka.SportEventDetectedMessage;
 import com.valui.common.kafka.UserNotificationRequestMessage;
 import com.valui.common.domain.NotificationChannel;
+import com.valui.common.domain.NotificationStatus;
 import com.valui.notify.formatter.NotificationFormatter;
 import com.valui.common.entity.NotificationLogEntity;
 import com.valui.notify.log.NotificationLogService;
@@ -79,7 +80,7 @@ class SportEventConsumerTest {
                 Instant.now());
 
         logEntry = NotificationLogEntity.builder()
-                .id(UUID.randomUUID()).status("PENDING").build();
+                .id(UUID.randomUUID()).status(NotificationStatus.PENDING).build();
 
         given(controllerRepo.findById(CTRL_ID)).willReturn(Optional.of(activeController));
         given(userRepo.findById(USER_ID)).willReturn(Optional.of(activeUser));

@@ -1,5 +1,6 @@
 package com.valui.user.service;
 
+import com.valui.common.annotation.Audit;
 import com.valui.common.domain.SubscriptionStatus;
 import com.valui.common.domain.UserRole;
 import com.valui.common.domain.UserStatus;
@@ -91,6 +92,7 @@ public class UserServiceImpl implements UserService {
     @Transactional
     @PreAuthorize("hasRole('ADMIN')")
     @CacheEvict(value = USERS_CACHE, allEntries = true)
+    @Audit(action = "BAN_USER", entityType = "User")
     public void banUser(UUID userId) {
         UserEntity user = userRepository.findById(userId)
             .orElseThrow(() -> new UserNotFoundException(userId));

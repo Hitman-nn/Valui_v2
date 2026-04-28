@@ -2,6 +2,7 @@ package com.valui.notify.config;
 
 import com.valui.common.kafka.KafkaTopics;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.springframework.kafka.listener.ContainerProperties;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
@@ -125,15 +126,36 @@ public class KafkaConsumerConfig {
 
     // ── Audit factory ──────────────────────────────────────────────────────────
 
+    /**
+     * Batch listener: drains up to 50 records per poll, persists via saveAll.
+     * Manual ACK (AckMode.MANUAL_IMMEDIATE) so we commit only after successful saveAll.
+     * Error handler logs and skips — audit loss is preferable to poison-pill blocking.
+     */
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, Object> auditContainerFactory(
             KafkaProperties kafkaProperties) {
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
-        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-audit-group"));
+        factory.setConsumerFactory(auditConsumerFactory(kafkaProperties));
         factory.setConcurrency(2);
-        // Audit: log and skip on failure — audit loss is preferable to DLQ feedback loops
+        factory.setBatchListener(true);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(0L, 1)));
         return factory;
+    }
+
+    private ConsumerFactory<String, Object> auditConsumerFactory(KafkaProperties kafkaProperties) {
+        Map<String, Object> props = new HashMap<>(kafkaProperties.buildConsumerProperties(null));
+        props.put(ConsumerConfig.GROUP_ID_CONFIG,             "valui-audit-group");
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,    "earliest");
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,   StringDeserializer.class);
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
+        props.put(JsonDeserializer.TRUSTED_PACKAGES,          "com.valui.*");
+        props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS,     true);
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,   false);
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG,     50);
+        return new DefaultKafkaConsumerFactory<>(props,
+                new StringDeserializer(),
+                new JsonDeserializer<>(Object.class, false));
     }
 }

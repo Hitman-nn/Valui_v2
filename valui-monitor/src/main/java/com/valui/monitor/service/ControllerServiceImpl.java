@@ -1,5 +1,6 @@
 package com.valui.monitor.service;
 
+import com.valui.common.annotation.Audit;
 import com.valui.common.domain.BookmakerType;
 import com.valui.common.domain.ControllerType;
 import com.valui.common.entity.ControllerEntity;
@@ -44,6 +45,7 @@ public class ControllerServiceImpl implements ControllerService {
 
     @Override
     @Transactional
+    @Audit(action = "ADD_CONTROLLER", entityType = "Controller")
     public ControllerDto addController(CreateControllerRequest req, Long telegramId) {
         UserEntity user = requireUser(telegramId);
 
@@ -80,6 +82,7 @@ public class ControllerServiceImpl implements ControllerService {
 
     @Override
     @Transactional
+    @Audit(action = "REMOVE_CONTROLLER", entityType = "Controller")
     public void removeController(UUID controllerId, Long telegramId) {
         UserEntity user = requireUser(telegramId);
         ControllerEntity entity = requireOwned(controllerId, user.getId());
@@ -129,6 +132,7 @@ public class ControllerServiceImpl implements ControllerService {
 
     @Override
     @Transactional
+    @Audit(action = "UPDATE_FILTER", entityType = "Controller")
     public ControllerDto updateFilterRule(UUID controllerId, Long telegramId, String rule) {
         UserEntity user = requireUser(telegramId);
         ControllerEntity entity = requireOwned(controllerId, user.getId());
