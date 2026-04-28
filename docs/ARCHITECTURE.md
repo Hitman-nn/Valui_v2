@@ -15,20 +15,20 @@
    - 4.3 [ControllerTaskExecutor](#43-controllertaskexecutor)
    - 4.4 [Метрики](#44-метрики)
 5. [Дедупликация событий](#5-дедупликация-событий)
-   - 5.1 [Зачем Redis, а не только БД](#51-зачем-redis-а-не-только-бд)
-   - 5.2 [EventDeduplicationService](#52-eventdeduplicationservice)
-   - 5.3 [DedupSyncScheduler — ночная синхронизация](#53-dedupsyncscheduler--ночная-синхронизация)
-   - 5.4 [Граничные случаи](#54-граничные-случаи)
-6. [Парсеры букмекеров (valui-parser)](#6-парсеры-букмекеров-valui-parser)
-   - 6.1 [Fonbet](#61-fonbet)
-   - 6.2 [1xBet](#62-1xbet)
-   - 6.3 [Olimp](#63-olimp)
-   - 6.4 [BetCity](#64-betcity)
-   - 6.5 [BetBoom](#65-betboom)
-7. [HTTP-клиенты и прокси](#7-http-клиенты-и-прокси)
-8. [Сводная таблица парсеров](#8-сводная-таблица-парсеров)
-9. [Конфигурация (application.yml)](#9-конфигурация-applicationyml)
-10. [Технологический стек](#10-технологический-стек)
+6. [Kafka-инфраструктура](#6-kafka-инфраструктура)
+   - 6.1 [Топики](#61-топики)
+   - 6.2 [Продюсер (valui-monitor)](#62-продюсер-valui-monitor)
+   - 6.3 [Transactional Outbox Pattern](#63-transactional-outbox-pattern)
+7. [Пайплайн уведомлений (valui-notify)](#7-пайплайн-уведомлений-valui-notify)
+   - 7.1 [SportEventConsumer](#71-sporteventconsumer)
+   - 7.2 [NotificationDispatcher](#72-notificationdispatcher)
+   - 7.3 [TelegramNotificationSender + Rate Limiting](#73-telegramnotificationsender--rate-limiting)
+   - 7.4 [DLQ Consumer](#74-dlq-consumer)
+8. [Схемы классов](#8-схемы-классов)
+9. [Парсеры букмекеров (valui-parser)](#9-парсеры-букмекеров-valui-parser)
+10. [HTTP-клиенты и прокси](#10-http-клиенты-и-прокси)
+11. [Конфигурация (application.yml)](#11-конфигурация-applicationyml)
+12. [Технологический стек](#12-технологический-стек)
 
 ---
 
@@ -40,26 +40,39 @@ Valui — Telegram-бот, который мониторит линии букм
 **Принцип работы в одном предложении:**  
 Каждый *controller* — это сохранённый пользователем URL букмекера; планировщик
 регулярно опрашивает этот URL через парсер, сравнивает результат с тем, что уже
-было видено (дедупликация), и публикует новые события в Kafka → Telegram.
+было видено (дедупликация), сохраняет outbox-строку в той же транзакции и публикует
+события в Kafka → `SportEventConsumer` фильтрует, форматирует и отправляет
+уведомление через Telegram.
 
 ---
 
 ## 2. Модульная структура
 
 ```
-valui-app       ← Fat JAR, точка входа Spring Boot
-valui-common    ← Shared DTOs, события, enum BookmakerType (без Spring)
+valui-app       ← Fat JAR, точка входа Spring Boot (@SpringBootApplication)
+valui-common    ← Shared DTOs, Kafka-записи, enum BookmakerType (без Spring)
 valui-bot       ← Telegram-бот, FSM состояний, inline-клавиатуры
 valui-user      ← Пользователи, подписки, JPA-репозитории, Flyway
 valui-parser    ← Парсеры HTTP/WebSocket для всех букмекеров
-valui-monitor   ← Планировщик + дедупликация + публикация событий
+valui-monitor   ← Планировщик + дедупликация + outbox + публикация Kafka
 valui-notify    ← Kafka-consumer, фильтрация, отправка уведомлений
 valui-admin     ← REST API для административных операций
 ```
 
-Зависимости текут в одну сторону: `app → monitor/notify/bot → parser/user → common`.
-`valui-parser` не зависит от `valui-user` — парсеры не знают ни о пользователях,
-ни о контроллерах.
+**Граф зависимостей (упрощённо):**
+
+```
+app ─────────────────────────────────────────────────────┐
+ │                                                        │
+ ├── monitor ──── parser ──── common                     │
+ │        │                                               │
+ ├── notify ──── bot ──── user ──── common                │
+ │                                                        │
+ └── admin ─────────────────────────────────────────────-┘
+```
+
+Зависимости текут в одну сторону. `valui-parser` не зависит от `valui-user`.
+`valui-common` не имеет Spring-зависимостей — только Jakarta/Java SE.
 
 ---
 
@@ -69,35 +82,64 @@ valui-admin     ← REST API для административных опера�
 Пользователь в Telegram добавляет URL
           │
           ▼
-  valui-bot сохраняет Controller в PostgreSQL
+  valui-bot → Controller сохранён в PostgreSQL
   (bookmaker, url, pollIntervalSec, userId, isActive=true)
           │
           ▼ ApplicationEvent: ControllerAddedEvent
   MonitorScheduler.scheduleController()
-  ├── dedup.seedIfAbsent()  ← заполняет Redis из DB (идемпотентно)
-  └── triggerPool.scheduleWithFixedDelay(task, 0, pollIntervalSec, SECONDS)
+  ├── dedup.seedIfAbsent()   ← заполняет Redis из DB (идемпотентно)
+  └── triggerPool.scheduleWithFixedDelay(task, 0, pollInterval, SECONDS)
           │
           ▼ каждые pollIntervalSec секунд
   ControllerTask.run() на Virtual Thread
   ├── TX-1 (readOnly): loadContext() — свежий контекст из DB
-  ├── fetch() — внешний HTTP/WS вызов (вне транзакции!)
+  ├── fetch() — внешний HTTP/WS (вне транзакции!)
   └── TX-2: persistNewEvents()
-       ├── dedup.claimIfNew()  ← Redis SADD (атомарно)
+       ├── dedup.claimIfNew()         ← Redis SADD (атомарно)
        ├── DetectedEventRepository.save()
+       ├── OutboxEventRepository.save()  ← NEW: outbox в той же TX
        └── ApplicationEventPublisher.publishEvent(SportEventDetectedEvent)
           │
-          ▼ внутри той же TX-2
-  MonitorEventListener → KafkaTemplate.send("valui.match.discovered")
+          ▼ после коммита TX-2
+  SportEventKafkaProducer (@TransactionalEventListener AFTER_COMMIT)
+  └── OutboxSenderService.publishImmediate(externalEventId)
+       └── KafkaTemplate.send("sport.events.detected")  ← at-least-once
+          │
+          ▼ OutboxSenderService @Scheduled(5s) — retry несвязанных строк
+  Kafka: topic "sport.events.detected" (12 partitions)
           │
           ▼
-  valui-notify: MatchEventConsumer → NotificationDispatcher → Telegram
+  valui-notify: SportEventConsumer
+  ├── loadController() + loadUser() из DB
+  ├── Проверить: isActive, !isMuted, user.status==ACTIVE
+  ├── Применить filterRule (regex)
+  ├── NotificationLogService.createPending() ← запись в notification_log
+  ├── NotificationFormatter.buildTelegramMessage()
+  └── KafkaTemplate.send("user.notifications.pending")
+          │
+          ▼
+  valui-notify: NotificationDispatcher
+  └── TelegramNotificationSender
+       ├── TelegramRateLimiter (Redis 1msg/s per chatId)
+       └── AbsSender.execute(SendMessage) → Telegram API
+          │
+          ▼ при ошибке
+  Kafka: topic "notifications.dlq"
+          │
+          ▼
+  DlqConsumer: 3 retry (1s → 5s → 30s backoff)
+  └── после 3 неудач: notification_log.status = FAILED + ALERT
 ```
 
 **Почему HTTP-вызов вне транзакции?**  
 Держать транзакцию открытой на время сетевого запроса (сотни мс) означает
-удерживать соединение из пула HikariCP. При 50 параллельных задачах это
-исчерпало бы пул. Поэтому: TX-1 (загрузка контекста) → закрыть → HTTP → TX-2
-(запись результата).
+удерживать соединение из пула HikariCP. При 50 параллельных задачах — исчерпание
+пула. Поэтому: TX-1 (загрузка контекста) → закрыть → HTTP → TX-2 (запись).
+
+**Почему outbox, а не прямой KafkaTemplate внутри TX?**  
+Прямой вызов `kafkaTemplate.send()` внутри транзакции не гарантирует at-least-once:
+если TX закоммитилась, а Kafka-send упал — сообщение потеряно. Outbox сохраняется
+атомарно с бизнес-данными; `@Scheduled`-sender гарантирует повторную доставку.
 
 ---
 
@@ -113,450 +155,551 @@ valui-admin     ← REST API для административных опера�
 
 | Пул | Тип | Размер | Назначение |
 |-----|-----|--------|-----------|
-| `triggerPool` | Platform threads | `CPU/2`, мин. 2 | Только fires `scheduleWithFixedDelay` — минимальная работа |
-| `taskPool` | **Virtual threads** | Без ограничений | Выполняет тело задачи (HTTP + DB) |
+| `triggerPool` | Platform threads | `CPU/2`, мин. 2 | Только fires `scheduleWithFixedDelay` |
+| `taskPool` | **Virtual threads** | Без ограничений | Тело задачи (HTTP + DB) |
 
 **Почему разделение triggerPool / taskPool?**  
-`ScheduledExecutorService` не поддерживает Virtual Threads напрямую — `scheduleWithFixedDelay`
-требует платформенных потоков для надёжного учёта таймингов. Само тело задачи
-отправляется в `taskPool` из Virtual Threads — это позволяет сотням задач
-блокировать I/O без overhead платформенных потоков.
+`ScheduledExecutorService` не поддерживает Virtual Threads напрямую. Само тело
+задачи — Virtual Thread, что позволяет сотням задач блокировать I/O без overhead.
 
 **Защита от перегрузки:**
 - `globalSemaphore(50)` — жёсткий cap на всю систему
-- `perUserCounter(5)` — cap на одного пользователя (защита от монополии)
-- Если семафор не захвачен → итерация **тихо пропускается**, следующий тик повторит
+- `perUserCounter(5)` — cap на одного пользователя
+- Если семафор не захвачен → итерация тихо пропускается
 
 **Реакция на события Spring:**
 ```
 ControllerAddedEvent      → scheduleController()
 ControllerRemovedEvent    → unscheduleController()
-SubscriptionChangedEvent  → rescheduleUser()   ← пересчёт pollIntervalSec
-SubscriptionExpiredEvent  → rescheduleUser()   ← возможно, снятие с расписания
+SubscriptionChangedEvent  → rescheduleUser()
 ```
-
-**При старте (`@PostConstruct`):**  
-Загружает все активные контроллеры из DB и планирует их. Это гарантирует
-восстановление мониторинга после рестарта без потери состояния.
-
-**При остановке (`@PreDestroy`):**  
-Отменяет все `ScheduledFuture`, не ждёт завершения текущих задач (`cancel(false)`).
 
 ---
 
 ### 4.2 ControllerTask
 
-**Файл:** `valui-monitor/.../scheduler/ControllerTask.java`
+Реализует `Runnable`. Не Spring-бин — создаётся `MonitorScheduler` на каждый контроллер.
 
-Реализует `Runnable`. Не является Spring-бином — создаётся `MonitorScheduler`
-при каждом `doSchedule()` и живёт до `unscheduleController()`.
-
-**Поток выполнения:**
 ```
 run()
- ├── tryAcquire(globalSemaphore) → если нет: metrics.onTaskSkipped() + return
- ├── userSlots.incrementAndGet() → если > max: userSlots.decrement() + return
+ ├── tryAcquire(globalSemaphore)
+ ├── userSlots.incrementAndGet()
  ├── executeTask()
  │    ├── loadContext(controllerId)  — TX-1 readOnly
- │    │    └── если контроллер неактивен или URL не парсится → return (без ошибки)
- │    ├── fetch(ctx)                 — внешний вызов, БЕЗ транзакции
- │    │    └── при ошибке: log.warn + return (circuit breaker сам закроется)
- │    └── persistNewEvents(ctx, items) — TX-2
- └── release(globalSemaphore) + sample.stop(taskTimer)
+ │    ├── fetch(ctx)                 — HTTP/WS без TX
+ │    └── persistNewEvents(ctx)      — TX-2 write
+ └── release(globalSemaphore)
 ```
-
-**Важно:** `loadContext` вызывается на каждой итерации (не кэшируется),
-потому что пользователь может изменить или удалить контроллер между тиками.
 
 ---
 
 ### 4.3 ControllerTaskExecutor
 
-**Файл:** `valui-monitor/.../scheduler/ControllerTaskExecutor.java`
-
-Spring-сервис. Инкапсулирует все транзакционные операции, чтобы `ControllerTask`
-(не Spring-бин) мог вызывать их через проксированный бин.
-
-**Три шага:**
+Spring-сервис с транзакционными методами.
 
 | Метод | TX | Что делает |
 |-------|-----|-----------|
-| `loadAllActiveForScheduling()` | readOnly | Загружает все активные контроллеры при старте |
-| `loadContext(id)` | readOnly | Загружает контекст + парсит URL для извлечения tournamentId/sportId |
-| `fetch(ctx)` | нет | Вызывает `parser.fetchMatches()` или `fetchTournaments()` |
-| `persistNewEvents(ctx, items)` | write | Dedup → save → update timestamps → publish event |
+| `loadAllActiveForScheduling()` | readOnly | Все активные контроллеры при старте |
+| `loadContext(id)` | readOnly | Контекст + парсинг URL |
+| `fetch(ctx)` | нет | HTTP/WS запрос к парсеру |
+| `persistNewEvents(ctx, items)` | write | Dedup → save DetectedEvent → **save OutboxEvent** → publish SpringEvent |
 
 **`persistNewEvents` — детали:**
-1. `dedup.claimIfNew(controllerId, eventId)` — Redis SADD (атомарно, O(1))
-2. Если новое → `DetectedEventRepository.save(entity)`
-3. При `DataIntegrityViolationException` (race Redis TTL + параллельный поток): логируем как дубликат, не падаем
-4. `ctrl.lastCheckedAt = now()` — всегда
-5. `ctrl.lastEventAt = now()` — только если есть новые события
-6. `ApplicationEventPublisher.publishEvent(SportEventDetectedEvent)` — публикуется **внутри транзакции**, чтобы rollback отменил и событие
+1. `dedup.claimIfNew()` → Redis SADD (O(1), атомарно)
+2. `DetectedEventRepository.save(entity)` — бизнес-данные
+3. `OutboxEventRepository.save(outbox)` — outbox в **той же TX**
+4. `ApplicationEventPublisher.publishEvent(SportEventDetectedEvent)` — Spring-событие
+5. `@TransactionalEventListener(AFTER_COMMIT)` срабатывает после коммита →  
+   `OutboxSenderService.publishImmediate()` → Kafka
 
 ---
 
 ### 4.4 Метрики
 
-**Файл:** `valui-monitor/.../scheduler/MonitorMetrics.java`
-
-Все метрики через Micrometer → Prometheus (`/actuator/metrics`).
-
 | Метрика | Тип | Описание |
 |---------|-----|---------|
-| `monitor.controllers.scheduled` | Gauge | Сколько контроллеров активно сейчас |
-| `monitor.events.detected` | Counter | Суммарно новых событий с запуска |
-| `monitor.tasks.skipped` | Counter | Пропущено из-за лимитов concurrency |
-| `monitor.task.duration` | Timer + histogram | Время выполнения одной задачи p50/p95/p99 |
-| `cache.dedup.hit` | Counter | Событий отфильтровано как уже виденные |
-| `cache.dedup.miss` | Counter | Новых событий (miss = реально новое) |
-| `cache.dedup.set_size{controller_id}` | Gauge | Размер Redis SET на контроллер |
+| `monitor.controllers.scheduled` | Gauge | Активных контроллеров |
+| `monitor.events.detected` | Counter | Всего новых событий |
+| `monitor.tasks.skipped` | Counter | Пропущено из-за лимитов |
+| `monitor.task.duration` | Timer | Время задачи p50/p95/p99 |
+| `cache.dedup.hit/miss` | Counter | Redis dedup статистика |
+| `kafka.producer.sport_events.sent` | Counter | Kafka отправлено успешно |
+| `kafka.producer.sport_events.failed` | Counter | Kafka ошибки |
+| `kafka.producer.sport_events.latency` | Timer | Время от send до ack |
 
 ---
 
 ## 5. Дедупликация событий
 
-### 5.1 Зачем Redis, а не только БД
+**Redis SET** (`SADD` / `SISMEMBER`) — быстрый first-check O(1) без DB.
 
-Наивный подход — проверять каждый eventId через `SELECT EXISTS(...)` в PostgreSQL.
-Это работает, но:
-- При 50 параллельных задачах × 100+ матчей = тысячи `SELECT EXISTS` в секунду
-- Каждый запрос → транзакция → соединение из пула → latency
-
-**Redis SET** (`SADD` / `SISMEMBER`) работает за O(1) без сетевого round-trip к DB
-и не требует транзакции. Это принципиально другой порядок нагрузки.
-
-**Но Redis — не источник истины.** Данные могут исчезнуть (TTL истёк, Redis
-перезапущен, ключ удалён вручную). Поэтому схема двухуровневая:
-- **Redis** — быстрый first-check, атомарный claim
-- **PostgreSQL** — авторитетный источник, recovery, аналитика
-- **DedupSyncScheduler** — ночная синхронизация между ними
-
----
-
-### 5.2 EventDeduplicationService
-
-**Файл:** `valui-monitor/.../dedup/EventDeduplicationService.java`
-
-**Redis-структура:**
 ```
-Ключ: "dedup:ctrl:{controllerId}"    (String UUID)
+Ключ: "dedup:ctrl:{controllerId}"
 Тип:  Redis SET
-TTL:  7 дней (обновляется при каждой записи)
+TTL:  7 дней
 ```
 
-**Основной метод — `claimIfNew(controllerId, eventId)`:**
-```
-SADD "dedup:ctrl:{id}" "{eventId}"
-  └── возвращает 1 (добавлено, новое) или 0 (уже было)
-EXPIRE "dedup:ctrl:{id}" 7d
-```
-Это **атомарная операция** — нет TOCTOU гонки между проверкой и добавлением.
-Именно поэтому используется `claimIfNew`, а не отдельные `isNewEvent` + `markAsSeen`.
+`claimIfNew(controllerId, eventId)` — атомарный SADD: возвращает `true` только
+для новых eventId. Исключает TOCTOU-гонку.
 
-**`seedIfAbsent(controllerId)`** — вызывается при постановке контроллера в расписание:
-- Если ключ в Redis уже есть → ничего не делает (идемпотентно)
-- Если нет → загружает eventId из DB за последние `dedupTtlDays` (7 дней) → SADD всё
-- Защищает от дублей после рестарта приложения
+**Двухуровневая схема надёжности:**
+- Redis — быстрый claim
+- PostgreSQL — источник истины
+- `DedupSyncScheduler` (03:00 ежедневно) — синхронизация Redis ↔ DB
 
-**`syncSeenEvents(controllerId, authoritative)`** — вызывается из DedupSyncScheduler:
-- Двусторонняя сверка: `redis ∖ db` → удалить из Redis; `db ∖ redis` → добавить в Redis
+**Граничный случай — TTL истёк без рестарта:**  
+Все события кажутся "новыми" → пытаются INSERT → `DataIntegrityViolationException`
+→ перехватывается, логируется. `publishEvent` не вызывается, дубля нет.
 
 ---
 
-### 5.3 DedupSyncScheduler — ночная синхронизация
+## 6. Kafka-инфраструктура
 
-**Файл:** `valui-monitor/.../dedup/DedupSyncScheduler.java`
+### 6.1 Топики
 
-**Расписание:** `0 0 3 * * *` (каждый день в 03:00), настраивается через
-`valui.monitor.dedup-sync-cron`.
+Все топики создаются `KafkaTopicsConfig` через `KafkaAdmin` (idempotent, на старте).
 
-**Зачем нужна:**
+| Топик | Partitions | Replication | Retention | Политика |
+|-------|-----------|-------------|-----------|---------|
+| `sport.events.detected` | 12 | 1 (local) / 3 (prod) | 7 дней | DELETE |
+| `user.notifications.pending` | 6 | 1 / 3 | 3 дня | DELETE |
+| `subscription.events` | 4 | 1 / 3 | compacted | COMPACT |
+| `audit.log` | 6 | 1 / 3 | 30 дней | DELETE |
+| `notifications.dlq` | 3 | 1 / 3 | 14 дней | DELETE |
 
-| Сценарий | Без синхронизации | С синхронизацией |
-|----------|-------------------|-----------------|
-| Redis TTL истёк (ключ пропал) | При рестарте seed из DB, но если приложение не рестартовало — следующий тик снова найдёт "новые" события, которые уже есть в DB | Синхронизация добавляет их обратно в Redis |
-| Оператор удалил событие из DB вручную | Redis продолжает считать его виденным → никогда не уведомит снова | Синхронизация удаляет из Redis → следующий парсинг создаст уведомление заново |
-| Crash посередине TX-2 | Redis заклеймил событие, DB не сохранила | Синхронизация удалит из Redis → событие будет найдено снова |
+**Ключи партиционирования:**
+- `sport.events.detected` → key = `controllerId` — все события одного контроллера в одну партицию
+- `user.notifications.pending` → key = `userId` — упорядоченность для одного пользователя
 
-**Логика на одном контроллере:**
+### 6.2 Продюсер (valui-monitor)
+
+**Гарантии надёжности** (`KafkaProducerConfig`):
+
+```yaml
+acks: all              # ждать подтверждения от всех in-sync replicas
+retries: 3             # автоматические повторы
+enable-idempotence: true  # exactly-once на уровне брокера
+max-in-flight: 5       # макс. в полёте (лимит при idempotence)
+linger-ms: 5           # небольшой батчинг для снижения нагрузки
+```
+
+**Type headers:** `ADD_TYPE_INFO_HEADERS=true` — продюсер добавляет `__TypeId__`
+в заголовок; консьюмер с `USE_TYPE_INFO_HEADERS=true` автоматически десериализует
+в нужный Java-тип без явного конфига.
+
+### 6.3 Transactional Outbox Pattern
+
+**Проблема:** прямой `kafkaTemplate.send()` после коммита TX — не atomic.
+Crash между коммитом DB и отправкой в Kafka = потеря сообщения.
+
+**Решение (Outbox):**
+
+```
+persistNewEvents() [в TX]
+ ├── DetectedEventEntity → detected_events
+ └── OutboxEvent → outbox_events (topic, messageKey, eventData, sentAt=null)
+     ↓ TX коммит
+SportEventKafkaProducer [@TransactionalEventListener(AFTER_COMMIT)]
+ └── OutboxSenderService.publishImmediate(externalEventId)
+      ├── найти outbox по externalEventId, где sentAt IS NULL
+      ├── KafkaTemplate.send(ProducerRecord с headers: source, version)
+      └── на успех: OutboxMarkingService.markSent(outbox.id)  [REQUIRES_NEW TX]
+          ↓ при падении Kafka или краше приложения
+OutboxSenderService [@Scheduled(5000)]
+ └── найти unsent outbox WHERE createdAt < now()-15s
+      └── повторить publish + markSent
+```
+
+**Таблица `outbox_events`** (Flyway V8):
+
+| Колонка | Тип | Описание |
+|---------|-----|---------|
+| `id` | BIGSERIAL | PK |
+| `topic` | VARCHAR(64) | Kafka топик |
+| `message_key` | VARCHAR(36) | controllerId (ключ партиции) |
+| `external_event_id` | VARCHAR(255) | UNIQUE — внешний ID от букмекера |
+| `controller_id` / `user_id` | VARCHAR(36) | Денормализованные данные для повтора |
+| `telegram_id` | BIGINT | nullable |
+| `bookmaker` / `title` / `url` | VARCHAR/TEXT | Данные события |
+| `created_at` | TIMESTAMPTZ | Время создания |
+| `sent_at` | TIMESTAMPTZ | null = не отправлено |
+| `retry_count` | INT | Число попыток |
+
+**Partial index:** `WHERE sent_at IS NULL` — сканирует только необработанные строки.
+
+---
+
+## 7. Пайплайн уведомлений (valui-notify)
+
+### 7.1 SportEventConsumer
+
+**Группа:** `valui-notify-group` | **Топик:** `sport.events.detected` | **Concurrency:** 3
+
+Фильтры (порядок важен, первый false = drop):
+
+1. `controller.isActive == true`
+2. `controller.isMuted == false`
+3. `user.status == ACTIVE`
+4. `filterRule` regex совпадает с `event.title` (если правило задано)
+
+При прохождении всех фильтров:
+- `NotificationLogEntity` (status=PENDING) → `notification_log`
+- `NotificationFormatter.buildTelegramMessage()` → Markdown ≤4096 символов
+- Publish → `user.notifications.pending` с `notificationLogId` в теле
+
+**Важно:** controller и user загружаются через отдельные `findById()` запросы
+(не через lazy-загрузку `controller.getUser()`), чтобы избежать `LazyInitializationException`
+вне транзакции.
+
+**filterRule:** применяется как `Pattern.compile(rule, CASE_INSENSITIVE).matcher(title).find()`.
+При невалидном regex — логируем warning, пропускаем фильтр (событие проходит).
+
+### 7.2 NotificationDispatcher
+
+**Группа:** `valui-notify-dispatch-group` | **Топик:** `user.notifications.pending` | **Concurrency:** 2
+
+Маршрутизирует по `channel`:
+
 ```java
-dbIds = detectedRepo.findExternalIds(controllerId, cutoff)    // источник истины
-dedup.syncSeenEvents(controllerId, Set.copyOf(dbIds))
-  ├── toRemove = redis \ dbIds  → redis.SREM(...)
-  └── toAdd   = dbIds \ redis  → redis.SADD(...)
+switch (NotificationChannel.valueOf(request.channel())) {
+    case TELEGRAM → TelegramNotificationSender
+    case EMAIL    → EmailNotificationSender (stub)
+    case WEBHOOK  → WebhookNotificationSender (stub)
+}
 ```
 
-**Время cutoff = `now() - dedupTtlDays`** — синхронизируем только те события,
-которые «молоды» относительно TTL Redis SET. Старые события в DB игнорируются —
-они всё равно пропали бы из Redis по TTL.
+На успех: `notification_log.status = SENT`, `sent_at = now()`  
+На ошибку: `status = FAILED` + forward в `notifications.dlq`
+
+### 7.3 TelegramNotificationSender + Rate Limiting
+
+**Rate limiter** (`TelegramRateLimiter`) — Redis INCR+TTL, 1 msg/s per chatId:
+
+```
+key = "rate:tg:{chatId}"
+INCR key  → count
+if count == 1: EXPIRE key 1s
+allow = (count <= 1)
+```
+
+При превышении — sleep 1.2s + повторная попытка. При двукратном отказе — `RuntimeException`
+→ сообщение в DLQ.
+
+**429 от Telegram:** `TelegramApiRequestException.getErrorCode() == 429` →
+sleep `MAX_RATE_WAIT_MS` (2s) → одна повторная попытка.
+
+**Вызов:** `absSender.execute(SendMessage)` напрямую (не через `MessageSend.textMarkdown`),
+чтобы исключения 429 не были проглочены.
+
+### 7.4 DLQ Consumer
+
+**Группа:** `valui-dlq-group` | **Топик:** `notifications.dlq` | **Concurrency:** 1
+
+Стратегия: 3 попытки с backoff **перед** каждой:
+
+| Попытка | Задержка перед |
+|---------|---------------|
+| 1 | 1 с |
+| 2 | 5 с |
+| 3 | 30 с |
+
+После 3 неудач: `notification_log.status = FAILED` + `log.error("ALERT: ...")`.
+
+**Concurrency=1:** DLQ низкочастотный, единственный поток предотвращает
+параллельное переотправление одному пользователю.
+
+**Типизация:** DLQ может принять и `SportEventDetectedMessage` (из consumer sports),
+и `UserNotificationRequestMessage` (из dispatcher). Обрабатывается через `instanceof`
+pattern matching; неизвестные типы логируются и пропускаются.
 
 ---
 
-### 5.4 Граничные случаи
+## 8. Схемы классов
 
-**Redis TTL истёк + нет рестарта:**  
-Ключ пропал из Redis. При следующем тике `claimIfNew` вернёт `true` для всех
-событий → будут попытки INSERT в DB → `DataIntegrityViolationException` →
-перехватывается, логируется как дубликат, транзакция продолжается.
-Реального дублирующего уведомления не будет, потому что `save()` упал до `publishEvent()`.
+### 8.1 Зависимости модулей
 
-**Параллельные задачи одного контроллера:**  
-`claimIfNew` — один SADD в Redis, который атомарен. Два потока не могут оба
-получить `true` для одного eventId. (Теоретически возможно при множественных
-репликах Redis без Lua-скрипта, но в текущей single-node конфигурации — безопасно.)
+```mermaid
+graph TD
+    app([valui-app]) --> monitor
+    app --> notify
+    app --> bot
+    app --> user
+    app --> parser
+    app --> admin
+    app --> common
 
-**Полная потеря Redis:**  
-`seedIfAbsent` при рестарте восстановит состояние из DB. Без рестарта —
-события дойдут до `DataIntegrityViolationException`, пользователь не получит дубль.
+    monitor --> parser
+    monitor --> user
+    monitor --> common
+
+    notify --> bot
+    notify --> user
+    notify --> common
+
+    bot --> user
+    bot --> common
+
+    user --> common
+
+    parser --> common
+
+    admin --> user
+    admin --> common
+```
+
+### 8.2 Kafka — поток событий
+
+```mermaid
+sequenceDiagram
+    participant CTE as ControllerTaskExecutor
+    participant OB as outbox_events (DB)
+    participant SEKP as SportEventKafkaProducer
+    participant OSS as OutboxSenderService
+    participant K1 as sport.events.detected
+    participant SEC as SportEventConsumer
+    participant NL as notification_log (DB)
+    participant K2 as user.notifications.pending
+    participant ND as NotificationDispatcher
+    participant TG as Telegram API
+    participant DLQ as notifications.dlq
+    participant DLQC as DlqConsumer
+
+    CTE->>OB: save OutboxEvent [в TX]
+    CTE->>SEKP: publishEvent(SportEventDetectedEvent) [в TX]
+    Note over CTE: TX коммит
+    SEKP->>OSS: publishImmediate(externalEventId)
+    OSS->>OB: findByExternalEventId (sentAt IS NULL)
+    OSS->>K1: send(ProducerRecord)
+    OSS->>OB: markSent [REQUIRES_NEW TX]
+
+    K1->>SEC: consume SportEventDetectedMessage
+    SEC->>NL: createPending()
+    SEC->>K2: send UserNotificationRequestMessage
+
+    K2->>ND: consume
+    ND->>TG: AbsSender.execute(SendMessage)
+    alt success
+        ND->>NL: markSent()
+    else failure
+        ND->>NL: markFailed()
+        ND->>DLQ: forward + retry headers
+        DLQ->>DLQC: consume
+        DLQC->>TG: retry (1s → 5s → 30s)
+        alt all retries failed
+            DLQC->>NL: markFailed() + ALERT
+        end
+    end
+```
+
+### 8.3 Классы valui-monitor (Outbox)
+
+```mermaid
+classDiagram
+    class ControllerTaskExecutor {
+        +persistNewEvents(ctx, items) int
+        -controllerRepo: ControllerRepository
+        -detectedRepo: DetectedEventRepository
+        -outboxRepo: OutboxEventRepository
+        -outboxSenderService: OutboxSenderService
+        -events: ApplicationEventPublisher
+    }
+
+    class OutboxEvent {
+        +id: Long
+        +topic: String
+        +messageKey: String
+        +externalEventId: String
+        +controllerId: String
+        +userId: String
+        +telegramId: Long
+        +bookmaker: String
+        +title: String
+        +url: String
+        +createdAt: OffsetDateTime
+        +sentAt: OffsetDateTime
+        +retryCount: int
+    }
+
+    class OutboxSenderService {
+        +publishImmediate(externalEventId)
+        +scanAndSend() [Scheduled 5s]
+        +buildOutboxEvent(...) OutboxEvent
+        -doPublish(outbox)
+    }
+
+    class OutboxMarkingService {
+        +markSent(outboxId) [Transactional]
+    }
+
+    class SportEventKafkaProducer {
+        +onSportEventDetected(event) [TransactionalEventListener AFTER_COMMIT]
+    }
+
+    class KafkaProducerMetrics {
+        +onSendSuccess(nanos)
+        +onSendFailed()
+    }
+
+    ControllerTaskExecutor --> OutboxEvent : creates
+    ControllerTaskExecutor --> OutboxSenderService : buildOutboxEvent
+    OutboxSenderService --> OutboxMarkingService : markSent
+    OutboxSenderService --> KafkaProducerMetrics
+    SportEventKafkaProducer --> OutboxSenderService : publishImmediate
+```
+
+### 8.4 Классы valui-notify (Notification Pipeline)
+
+```mermaid
+classDiagram
+    class SportEventConsumer {
+        +onSportEventDetected(event) [KafkaListener]
+        -controllerRepo: ControllerRepository
+        -userRepo: UserRepository
+        -detectedEventRepo: DetectedEventRepository
+        -notificationLogService: NotificationLogService
+        -formatter: NotificationFormatter
+        -kafkaTemplate: KafkaTemplate
+    }
+
+    class NotificationDispatcher {
+        +onNotificationPending(request) [KafkaListener]
+        -dispatchService: NotificationDispatchService
+        -logService: NotificationLogService
+        -kafkaTemplate: KafkaTemplate
+    }
+
+    class NotificationDispatchService {
+        +dispatch(request)
+        -telegramSender: TelegramNotificationSender
+        -emailSender: EmailNotificationSender
+        -webhookSender: WebhookNotificationSender
+    }
+
+    class NotificationSender {
+        <<interface>>
+        +send(recipientId, messageText)
+    }
+
+    class TelegramNotificationSender {
+        +send(chatId, text)
+        -absSender: AbsSender
+        -rateLimiter: TelegramRateLimiter
+    }
+
+    class TelegramRateLimiter {
+        +tryAcquire(chatId) boolean
+        -redisTemplate: StringRedisTemplate
+    }
+
+    class NotificationLogService {
+        +createPending(userId, eventId, channel) NotificationLogEntity
+        +markSent(logId)
+        +markFailed(logId, error)
+    }
+
+    class NotificationFormatter {
+        +buildTelegramMessage(event, ctrl) String
+    }
+
+    class DlqConsumer {
+        +handleDlq(record) [KafkaListener]
+        -dispatchService: NotificationDispatchService
+        -logService: NotificationLogService
+    }
+
+    NotificationDispatchService --> NotificationSender
+    NotificationSender <|.. TelegramNotificationSender
+    NotificationSender <|.. EmailNotificationSender
+    NotificationSender <|.. WebhookNotificationSender
+    TelegramNotificationSender --> TelegramRateLimiter
+    SportEventConsumer --> NotificationLogService
+    SportEventConsumer --> NotificationFormatter
+    NotificationDispatcher --> NotificationDispatchService
+    NotificationDispatcher --> NotificationLogService
+    DlqConsumer --> NotificationDispatchService
+    DlqConsumer --> NotificationLogService
+```
+
+### 8.5 Схема базы данных (ключевые таблицы)
+
+```mermaid
+erDiagram
+    users {
+        UUID id PK
+        BIGINT telegram_id
+        VARCHAR status
+        VARCHAR role
+    }
+
+    controllers {
+        UUID id PK
+        UUID user_id FK
+        VARCHAR bookmaker
+        TEXT url
+        TEXT filter_rule
+        BOOLEAN is_active
+        BOOLEAN is_muted
+        INT poll_interval_sec
+    }
+
+    detected_events {
+        UUID id PK
+        UUID controller_id FK
+        VARCHAR event_external_id
+        TEXT title
+        TEXT url
+        TIMESTAMPTZ detected_at
+    }
+
+    outbox_events {
+        BIGINT id PK
+        VARCHAR topic
+        VARCHAR message_key
+        VARCHAR external_event_id
+        VARCHAR controller_id
+        VARCHAR user_id
+        BIGINT telegram_id
+        VARCHAR bookmaker
+        VARCHAR title
+        TEXT url
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ sent_at
+        INT retry_count
+    }
+
+    notification_log {
+        UUID id PK
+        UUID user_id FK
+        UUID event_id FK
+        VARCHAR channel
+        VARCHAR status
+        TEXT error_message
+        INT attempts
+        TIMESTAMPTZ sent_at
+        TIMESTAMPTZ created_at
+    }
+
+    users ||--o{ controllers : "owns"
+    controllers ||--o{ detected_events : "triggers"
+    detected_events ||--o{ notification_log : "generates"
+    users ||--o{ notification_log : "receives"
+```
 
 ---
 
-## 6. Парсеры букмекеров (valui-parser)
+## 9. Парсеры букмекеров (valui-parser)
 
-Все парсеры реализуют интерфейс `BookmakerParser`:
+Все парсеры реализуют `BookmakerParser`:
+
 ```java
 ParseResult<List<SportDto>>      fetchSports()
 ParseResult<List<TournamentDto>> fetchTournaments(String sportId)
 ParseResult<List<MatchDto>>      fetchMatches(String tournamentId)
-boolean                          isAvailable()
 ```
 
 Оборачиваются в `@CircuitBreaker` + `@Retry` через Resilience4j.
-`ParseResult` содержит `data`, `success`, `errorMessage`, `durationMs`.
 
-Circuit Breaker **не** кидает исключения в вызывающий код — парсер вызывает
-fallback-метод, который возвращает `ParseResult.error(...)`. Планировщик получает
-пустой список и тихо пропускает итерацию.
-
----
-
-### 6.1 Fonbet
-
-**Файлы:**
-- `bookmaker/fonbet/FonbetParser.java`
-- `bookmaker/fonbet/FonbetEndpointPool.java`
-
-**Протокол:** HTTPS, JSON, без прокси  
-**API:** `https://line{XX}w.bk6bba-resources.com/events/list?lang=ru&scopeMarket=1600`
-
-**Почему пул зеркал?**  
-Fonbet не имеет стабильного публичного API — официальный домен `fon.bet` не
-даёт прямого доступа к данным. Зеркала `bk6bba-resources.com` (200 штук:
-`line01w`…`line99w` × 2 CDN-суффикса) — реальные CDN-узлы, часть из которых
-всегда доступна. Пул выбирает наиболее «свежий» (по timestamp последнего успеха).
-
-**Redis ZSet `fonbet:endpoints`:**
-```
-score = System.currentTimeMillis() после успешного запроса
-score = 0.0                        после неудачи
-getBestEndpoint() → reverseRange(key, 0, 0) — URL с максимальным score
-```
-
-**Bootstrap при старте** (фоновый поток, не блокирует Spring):
-```
-HEAD https://lineXXw... (8 параллельных потоков)
-  ├── 200 OK → redis ZADD score=currentMs
-  ├── 405   → GET Range:bytes=0-0 → 206=OK → redis ZADD score=currentMs
-  └── ошибка → redis ZADD score=0.0
-```
-Через ~15-30с в логах: `[FonbetPool] bootstrap done: alive=45/200 in 18000ms`
-
-**Аварийный rescan:** если после `markFailure` число живых зеркал (score > 0) < 3
-→ запускается экстренный rescan (cooldown 10 мин между rescan'ами).
-
-**Еженедельный rescan:** каждый вторник в 03:00 Moscow (16 потоков, все 200 зеркал).
-
-**Кэш снимка (in-memory, TTL 30с):**  
-`fetchSports()`, `fetchTournaments()`, `fetchMatches()` вызываются планировщиком
-за один цикл подряд. Без кэша — 3 HTTP-запроса на один тик. `AtomicReference<CachedSnap>`
-с `ts` гарантирует один запрос за 30 секунд.
-
-**Circuit Breaker `fonbet-cb`:** порог 50%, окно 10, открыт 30с.
-
----
-
-### 6.2 1xBet
-
-**Файлы:**
-- `bookmaker/xbet/XBetParser.java`
-- `http/SocksBookmakerHttpClient.java`
-
-**Протокол:** HTTPS через HTTP CONNECT прокси, JSON (gzip)  
-**API:** `https://1xbet.kz/service-api/LineFeed/Get*Zip`  
-**Прокси:** `91.147.122.69:4232` (HTTP proxy)
-
-**Почему нельзя использовать WebClient (Reactor Netty)?**  
-Reactor Netty использует собственный TLS-стек (Netty + OpenSSL / BoringSSL через
-`netty-tcnative`), который формирует JA3-fingerprint, отличный от браузерного.
-Сервер `1xbet.kz` проверяет JA3 и отвергает соединение с TCP RST даже при
-принудительном HTTP/1.1 (`HttpProtocol.HTTP11`).
-
-**`SocksBookmakerHttpClient` использует `java.net.http.HttpClient` (JDK 21):**  
-JDK HttpClient использует JSSE — ту же TLS-реализацию, что и `HttpURLConnection`.
-Её JA3 fingerprint совпадает с ожидаемым сервером.
-
-**Почему HTTP CONNECT, а не SOCKS5?**  
-SOCKS5 аутентификация через `Authenticator.setDefault()` (глобальный JVM-синглтон)
-ненадёжна в JDK HttpClient — поведение менялось между версиями JDK 11–21.
-HTTP CONNECT с явным `.authenticator()` на builder — официально поддерживаемый путь.
-
-**`jdk.http.auth.tunneling.disabledSchemes`:**  
-С JDK 8u111 JDK запрещает Basic-аутентификацию в CONNECT-тоннелях по умолчанию
-(security fix). Сбрасывается через `System.setProperty` в `static {}` блоке класса.
-Это влияет только на данный JVM-процесс и только на proxy-аутентификацию.
-
-**Кэш чемпионатов:** `ParserCacheService` → Redis, ключ `xbet:champs`, TTL 1 мин.
-`fetchTournaments` и `fetchMatches` оба используют этот кэш, чтобы не загружать
-весь список чемпионатов дважды.
-
-**Circuit Breaker `xbet-cb`:** порог 50%, окно 10, открыт 30с.
-
----
-
-### 6.3 Olimp
-
-**Файл:** `bookmaker/olimp/OlimpParser.java`
-
-**Протокол:** HTTPS, JSON, без прокси  
-**API:** `https://www.olimp.bet/api/v4/0/line/*`
-
-**Эндпоинты:**
-- `GET /sports` → список видов спорта
-- `GET /sports-with-competitions` → виды спорта со вложенными турнирами (весь список)
-- `GET /planned-events` → все запланированные матчи (весь список)
-
-**Особенность:** API olimp.bet не поддерживает фильтрацию по sportId/tournamentId
-в параметрах запроса. `fetchTournaments(sportId)` и `fetchMatches(tournamentId)`
-загружают **весь** список и фильтруют на стороне клиента. Это нормально при
-умеренном объёме данных, но стоит иметь в виду при росте.
-
-**Circuit Breaker `olimp-cb`:** порог 50%, окно 10, открыт 30с.
-
----
-
-### 6.4 BetCity
-
-**Файл:** `bookmaker/betcity/BetCityParser.java`
-
-**Протокол:** HTTPS, JSON, без прокси  
-**API:** `https://ad.betcity.ru/d/off/*`
-
-**Эндпоинты:**
-- `GET  /sports` → список видов спорта
-- `GET  /champs?rev=4&ids_sp={sportId}` → чемпионаты по спорту
-- `POST /events?rev=6` c `multipart/form-data { ids: tournamentId }` → матчи
-
-**Почему POST multipart?**  
-betcity.ru не принимает tournamentId через query-params — требует форму.
-`WebClient.postMultipart(...)` автоматически формирует `multipart/form-data`
-с правильным boundary.
-
-**Circuit Breaker `betcity-cb`:** порог 50%, окно 10, открыт 30с.
-
----
-
-### 6.5 BetBoom
-
-**Файлы:**
-- `bookmaker/betboom/BetBoomParser.java`
-- `bookmaker/betboom/ws/WsRequestService.java`
-- `bookmaker/betboom/ws/WsClientBorrowingPool.java`
-- `bookmaker/betboom/ws/WsClient.java`
-
-**Протокол:** WebSocket Secure (WSS) + бинарный Protobuf  
-**URL:** `wss://ru-ws.sporthub.bet:444/api/tree_ws/v1`  
-**Origin заголовок:** `https://betboom.ru` (обязателен, сервер проверяет)
-
-**Почему WSS + Protobuf, а не REST?**  
-BetBoom не предоставляет публичного REST API. Официальный веб-сайт использует
-WebSocket с бинарным Protobuf-протоколом. Парсер реверс-инжинирит этот протокол.
-
-**Структура сообщений:**
-```
-Запрос:  бинарный Protobuf Envelope (Request*)
-Ответ:   бинарный Protobuf Envelope (Response*)
-           └── ServerFrame
-                 └── Body[]  (первый непустой Body → конкретный тип данных)
-```
-
-**Пул соединений `WsClientBorrowingPool`:**
-
-| Параметр | Значение | Смысл |
-|----------|----------|-------|
-| `min-size` | 2 | Минимум готовых соединений |
-| `max-size` | 6 | Никогда больше 6 одновременно |
-| `connect-timeout` | 5с | Таймаут на установку WS-соединения |
-| `ready-timeout` | 10с | Ожидание hello/auth фрейма |
-| `backoff-base` | 300мс | Начальный backoff при реконнекте |
-| `backoff-max` | 10с | Максимальный backoff |
-| `warmup.min-ready` | 2 | При старте ждать минимум 2 готовых соединения |
-| `warmup.timeout` | 15с | Или не более 15с на warmup |
-
-**`WsRequestService.sendAndAwaitFiltered`:**
-```
-jitter: Thread.sleep(random 0–200ms)  ← anti-flood, имитация реального пользователя
-globalRps.acquire()                   ← semaphore(40) — не более 40 RPS
-lease = pool.borrow()                 ← взять соединение из пула
-  client.clearInbox()
-  client.sendBinary(frame)
-  loop until deadline(3000ms):
-    bin = client.awaitBinary(leftMs)
-    if Envelope.matches(predicate) → return bin
-pool.release(lease)
-globalRps.release()
-```
-
-**`WS_TIMEOUT_MS = 3000`** — если за 3с нужный Envelope не пришёл, бросается
-`IllegalStateException("WS timeout")` → circuit breaker считает это отказом.
-
-**Circuit Breaker `betboom-cb`:**
-- Окно **6** (меньше, чем у HTTP-парсеров) — WS-соединение флапает сразу несколько запросов
-- Открыт **60с** (вдвое дольше) — WS-реконнект медленнее, чем HTTP retry
-- **Retry отключён** для BetBoom — WS-запросы non-idempotent, повтор может нарушить состояние соединения
-
----
-
-## 7. HTTP-клиенты и прокси
-
-**Файл:** `valui-parser/.../http/HttpClientConfig.java`
-
-| Бин | Класс | Прокси | DNS | Для кого |
-|-----|-------|--------|-----|---------|
-| `xbetHttpClient` | `SocksBookmakerHttpClient` | HTTP CONNECT 4232 | через прокси | XBet |
-| `fonbetHttpClient` | `BookmakerHttpClient` | нет | JVM InetAddress | Fonbet |
-| `olimpHttpClient` | `BookmakerHttpClient` | нет | JVM InetAddress | Olimp |
-| `betcityHttpClient` | `BookmakerHttpClient` | нет | JVM InetAddress | BetCity |
-| `betboomHttpClient` | `BookmakerHttpClient` | нет | JVM InetAddress | BetBoom (HTTP fallback) |
-
-**`BookmakerHttpClient` (Reactor Netty):**
-- Принудительно HTTP/1.1 (`HttpProtocol.HTTP11`) — убирает ALPN из TLS ClientHello
-- `DefaultAddressResolverGroup.INSTANCE` (JVM InetAddress) — системный DNS, надёжно резолвит CDN зеркала
-- Сжатие: gzip включён
-- Connect timeout: 8с, Response timeout: 15с, Block timeout: 20с
-- User-Agent: Chrome 120 (некоторые серверы фильтруют по UA)
-- Max response buffer: 10 MB
-
-**`SocksBookmakerHttpClient` (JDK 21 `java.net.http.HttpClient`):**
-- HTTP CONNECT proxy на `91.147.122.69:4232`
-- Authenticator задаётся явно на builder (не через `Authenticator.setDefault()`)
-- `jdk.http.auth.tunneling.disabledSchemes=""` в static блоке — разрешает Basic в CONNECT
-- TLS: JDK JSSE — формирует правильный JA3 fingerprint для 1xbet.kz
-- Ручная декомпрессия gzip в `decompress(response)`
-
-**`valui.bot.proxy`** (Telegram бот) — отдельная конфигурация, **не связана** с `parser.proxy`:
-```yaml
-valui.bot.proxy:
-  enabled: true
-  type: SOCKS5
-  port: 14232   # SOCKS5 порт — для Telegram
-parser.proxy:
-  port: 4232    # HTTP порт — для XBet
-```
-
----
-
-## 8. Сводная таблица парсеров
+### Сводная таблица
 
 | | Fonbet | 1xBet | Olimp | BetCity | BetBoom |
 |---|---|---|---|---|---|
@@ -564,116 +707,132 @@ parser.proxy:
 | **Формат** | JSON | JSON gzip | JSON | JSON | Protobuf |
 | **Прокси** | нет | HTTP 4232 | нет | нет | нет |
 | **HTTP-клиент** | Reactor Netty | JDK HttpClient | Reactor Netty | Reactor Netty | — |
-| **Кэш снимка** | 30с in-memory | Redis 1м (champs) | нет | нет | нет |
-| **Зеркала** | 200 (Redis ZSet) | нет | нет | нет | нет |
+| **Кэш** | 30с in-memory | Redis 1м | нет | нет | нет |
 | **CB окно** | 10 | 10 | 10 | 10 | 6 |
 | **CB открыт** | 30с | 30с | 30с | 30с | **60с** |
-| **Retry** | 2 попытки | 2 попытки | 2 попытки | 2 попытки | **нет** |
-| **Причина прокси/особенности** | CDN зеркала | Гео-блокировка + JA3 | — | POST multipart | WS + Protobuf |
+| **Retry** | 2 | 2 | 2 | 2 | **нет** |
+
+**Fonbet:** пул из 200 CDN-зеркал в Redis ZSet (score = timestamp последнего успеха).
+Bootstrap при старте — 8 параллельных HEAD-запросов.
+
+**1xBet:** JDK HttpClient (не WebFlux) — формирует правильный JA3-fingerprint.
+`jdk.http.auth.tunneling.disabledSchemes=""` для Basic-auth через HTTP CONNECT.
+
+**BetBoom:** WSS + бинарный Protobuf. Пул WS-соединений (min=2, max=6).
+`WsRequestService` с jitter 0–200ms для anti-flood.
 
 ---
 
-## 9. Конфигурация (application.yml)
+## 10. HTTP-клиенты и прокси
 
-Профили: `local` (docker-compose на localhost), `docker` (контейнеры), `prod` (env vars only).
+| Бин | Класс | Прокси | Для кого |
+|-----|-------|--------|---------|
+| `xbetHttpClient` | `SocksBookmakerHttpClient` | HTTP CONNECT :4232 | XBet |
+| `fonbetHttpClient` | `BookmakerHttpClient` | нет | Fonbet |
+| `olimpHttpClient` | `BookmakerHttpClient` | нет | Olimp |
+| `betcityHttpClient` | `BookmakerHttpClient` | нет | BetCity |
 
-**Ключевые параметры мониторинга:**
+**`BookmakerHttpClient` (Reactor Netty):**
+- HTTP/1.1, gzip, Connect: 8с, Response: 15с, Max buffer: 10 MB
+
+**`SocksBookmakerHttpClient` (JDK 21):**
+- JA3-safe TLS, HTTP CONNECT proxy, ручная gzip-декомпрессия
+
+**Telegram proxy** — отдельная конфигурация `valui.bot.proxy` (SOCKS5 :14232),
+**не связана** с `parser.proxy` (HTTP :4232).
+
+---
+
+## 11. Конфигурация (application.yml)
+
+Профили: `local` | `docker` | `prod`
+
+### Мониторинг
+
 ```yaml
 valui:
   monitor:
-    max-concurrent-tasks: 50       # глобальный cap на параллельные задачи
-    max-tasks-per-user: 5          # cap на одного пользователя
-    default-poll-interval-sec: 60  # дефолт если у контроллера не задан интервал
-    dedup-ttl-days: 7              # TTL Redis SET + горизонт синхронизации с DB
-    dedup-sync-cron: "0 0 3 * * *" # ночная синхронизация Redis ↔ DB
+    max-concurrent-tasks: 50
+    max-tasks-per-user: 5
+    default-poll-interval-sec: 60
+    dedup-ttl-days: 7
+    dedup-sync-cron: "0 0 3 * * *"
+    outbox:
+      scan-interval-ms: 5000   # частота @Scheduled retry outbox
 ```
 
-**Параметры парсера:**
+### Kafka
+
+```yaml
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      auto-offset-reset: earliest
+      group-id: valui-notify-group
+    producer:
+      acks: all
+
+kafka:
+  topics:
+    replication-factor: 1   # local/docker; 3 для prod
+  schema-registry:
+    url: ""                  # оставить пустым если нет Schema Registry
+```
+
+### Парсеры
+
 ```yaml
 parser:
+  proxy:
+    enabled: true
+    host: 91.147.122.69
+    port: 4232
+    username: user283146
+    password: 0w3qzb
   cache:
     sports-ttl: 1h
     tournaments-ttl: 30m
     matches-ttl: 5m
-  proxy:
-    enabled: true
-    host: 91.147.122.69
-    port: 4232          # HTTP proxy для XBet
-    username: user283146
-    password: 0w3qzb
 ```
 
-**WebSocket (BetBoom):**
-```yaml
-ws:
-  pool:
-    url: wss://ru-ws.sporthub.bet:444/api/tree_ws/v1
-    min-size: 2
-    max-size: 6
-    connect-timeout: 5s
-    ready-timeout: 10s
-    backoff-base: 300ms
-    backoff-max: 10s
-    warmup:
-      enabled: true
-      min-ready: 2
-      timeout: 15s
-  rps: 40   # глобальный RPS-лимит для WS-запросов
-```
+### Resilience4j
 
-**Resilience4j:**
 ```yaml
 resilience4j:
   circuitbreaker:
     configs:
       parser-default:
-        failure-rate-threshold: 50        # % ошибок для открытия
+        failure-rate-threshold: 50
         wait-duration-in-open-state: 30s
-        sliding-window-type: COUNT_BASED
         sliding-window-size: 10
-        permitted-number-of-calls-in-half-open-state: 3
-        automatic-transition-from-open-to-half-open-enabled: true
     instances:
-      betboom-cb:                         # исключение: WS медленнее
+      betboom-cb:
         wait-duration-in-open-state: 60s
         sliding-window-size: 6
-  retry:
-    instances:
-      parser-retry:
-        max-attempts: 2
-        wait-duration: 1s
-        retry-exceptions:                 # retry только при сетевой ошибке
-          - WebClientRequestException
-        ignore-exceptions:                # HTTP 4xx/5xx — не ретраить
-          - WebClientResponseException
 ```
 
 ---
 
-## 10. Технологический стек
+## 12. Технологический стек
 
 | Категория | Технология | Версия |
 |-----------|-----------|--------|
 | Язык | Java | 21 (Virtual Threads) |
-| Фреймворк | Spring Boot | 3.3.x |
+| Фреймворк | Spring Boot | 3.3.5 |
 | Сборка | Maven | 3.9+ |
 | БД | PostgreSQL | 15+ |
-| Миграции БД | Flyway | — |
+| Миграции | Flyway | — |
 | Кэш / Dedup | Redis (Lettuce) | — |
-| Брокер | Kafka | — |
-| HTTP (реактивный) | Spring WebFlux / Reactor Netty | — |
+| Брокер | Apache Kafka | 3.x |
+| HTTP (реактивный) | Reactor Netty / WebFlux | — |
 | HTTP (JA3-safe) | JDK 21 `java.net.http.HttpClient` | — |
 | WebSocket | Reactor Netty WS | — |
 | Protobuf | Google Protobuf | — |
 | Resilience | Resilience4j | — |
 | Метрики | Micrometer → Prometheus | — |
 | Кодогенерация | Lombok, MapStruct | — |
-| Telegram | telegrambots | 6.9.7 |
-| Тесты | JUnit 5, Testcontainers | — |
+| Telegram | telegrambots | 6.9.7.1 |
+| Тесты | JUnit 5, Mockito, Testcontainers | — |
 
-**Все парсеры находятся в современном стеке.** Единственное исключение — `SocksBookmakerHttpClient`
-намеренно использует `java.net.http.HttpClient` (не WebClient) из-за требований к
-TLS-fingerprint со стороны 1xbet.kz. Это архитектурное решение, а не технический долг.
-
-**`_migration/`** — устаревшая монолитная версия, оставлена как справочник.
-В продакшне не используется.
+> `_migration/` — устаревшая монолитная версия v1, оставлена как справочник.
