@@ -1,0 +1,13 @@
+{
+  "namespace": "com.valui.common.avro",
+  "type": "record",
+  "name": "UserNotificationRequest",
+  "doc": "Published to user.notifications.pending. Key = userId for per-user ordering.",
+  "fields": [
+    {"name": "userId",      "type": "string",                         "doc": "UUID of the target user"},
+    {"name": "telegramId",  "type": "long",                           "doc": "Telegram chat ID for delivery"},
+    {"name": "channel",     "type": "string",                         "doc": "NotificationChannel enum name, e.g. TELEGRAM"},
+    {"name": "messageText", "type": "string",                         "doc": "Rendered notification text"},
+    {"name": "eventId",     "type": ["null", "string"], "default": null, "doc": "Source eventId for idempotency checks"}
+  ]
+}

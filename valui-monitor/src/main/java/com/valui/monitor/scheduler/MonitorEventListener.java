@@ -1,8 +1,7 @@
 package com.valui.monitor.scheduler;
 
-import com.valui.common.domain.MatchStatus;
-import com.valui.common.dto.MatchDto;
-import com.valui.common.event.MatchDiscoveredEvent;
+import com.valui.common.kafka.KafkaTopics;
+import com.valui.common.kafka.SportEventDetectedMessage;
 import com.valui.monitor.event.SportEventDetectedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,40 +14,40 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Bridges the in-process SportEventDetectedEvent to the Kafka MatchDiscoveredEvent.
- * Runs @Async so the publishing transaction completes before Kafka send is attempted.
+ * Bridges the in-process SportEventDetectedEvent to the Kafka sport.events.detected topic.
+ * Runs @Async so the publishing transaction completes before the Kafka send is attempted.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class MonitorEventListener {
 
-    static final String TOPIC = "valui.match.discovered";
-
-    private final KafkaTemplate<String, MatchDiscoveredEvent> kafkaTemplate;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     @Async
     @EventListener
     public void on(SportEventDetectedEvent event) {
-        String[] parts = event.title() != null ? event.title().split(" - ", 2) : new String[0];
-        MatchDto match = new MatchDto(
-                event.externalEventId(),
-                event.bookmaker(),
-                "unknown",
-                parts.length > 0 ? parts[0].trim() : event.externalEventId(),
-                parts.length > 1 ? parts[1].trim() : "",
-                Instant.now(),
-                MatchStatus.PREMATCH,
-                null, null, null
-        );
-        MatchDiscoveredEvent kafkaEvent = new MatchDiscoveredEvent(
+        SportEventDetectedMessage message = new SportEventDetectedMessage(
                 UUID.randomUUID().toString(),
-                Instant.now(),
-                match
+                event.controllerId().toString(),
+                event.userId().toString(),
+                event.bookmaker().name(),
+                event.title(),
+                event.url(),
+                Instant.now()
         );
-        kafkaTemplate.send(TOPIC, event.externalEventId(), kafkaEvent)
-                .whenComplete((r, ex) -> {
-                    if (ex != null) log.error("Kafka publish failed for event {}: {}", event.externalEventId(), ex.getMessage());
+        kafkaTemplate.send(KafkaTopics.SPORT_EVENTS_DETECTED, event.externalEventId(), message)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("Kafka publish failed for event {} (controller {}): {}",
+                                event.externalEventId(), event.controllerId(), ex.getMessage());
+                    } else {
+                        log.debug("Published {} to {} partition {} offset {}",
+                                event.externalEventId(),
+                                KafkaTopics.SPORT_EVENTS_DETECTED,
+                                result.getRecordMetadata().partition(),
+                                result.getRecordMetadata().offset());
+                    }
                 });
     }
 }

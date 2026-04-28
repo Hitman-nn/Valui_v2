@@ -67,13 +67,18 @@ spring:
       retries: 3
       properties:
         enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        linger.ms: 5
+        spring.json.add.type.headers: true
     consumer:
-      group-id: valui-notify
+      group-id: valui-notify-group
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      enable-auto-commit: false
       properties:
         spring.json.trusted.packages: "com.valui.*"
+        spring.json.use.type.headers: true
 
   # i18n messages
   messages:
@@ -86,6 +91,17 @@ spring:
     scheduling:
       pool:
         size: 4
+
+# ─── Kafka topic & Schema Registry config ────────────────────────────────────
+# Separate top-level namespace so KafkaTopicsConfig can bind via @Value without
+# polluting spring.kafka.* which is owned by Spring Boot auto-configuration.
+kafka:
+  # Replication factor: 1 for local/docker (single-node), 3 for prod (see prod profile)
+  topics:
+    replication-factor: 1
+  # Optional Schema Registry. Set SCHEMA_REGISTRY_URL to enable Avro serialization.
+  schema-registry:
+    url: ${SCHEMA_REGISTRY_URL:}
 
 # Server
 server:
@@ -302,6 +318,21 @@ spring:
           org.apache.kafka.common.security.plain.PlainLoginModule required
           username="${KAFKA_USERNAME}"
           password="${KAFKA_PASSWORD}";
+    # KafkaAdmin also needs SASL — used by KafkaTopicsConfig to create topics on prod
+    admin:
+      properties:
+        security.protocol: SASL_SSL
+        sasl.mechanism: PLAIN
+        sasl.jaas.config: >
+          org.apache.kafka.common.security.plain.PlainLoginModule required
+          username="${KAFKA_USERNAME}"
+          password="${KAFKA_PASSWORD}";
+
+kafka:
+  topics:
+    replication-factor: 3   # 3 replicas in production for fault tolerance
+  schema-registry:
+    url: ${SCHEMA_REGISTRY_URL:}
 
 server:
   port: ${SERVER_PORT:8080}

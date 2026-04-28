@@ -1,6 +1,7 @@
 package com.valui.notify.consumer;
 
-import com.valui.common.event.MatchDiscoveredEvent;
+import com.valui.common.kafka.KafkaTopics;
+import com.valui.common.kafka.SportEventDetectedMessage;
 import com.valui.notify.dispatcher.NotificationDispatcher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,11 +16,12 @@ public class MatchEventConsumer {
     private final NotificationDispatcher dispatcher;
 
     @KafkaListener(
-            topics = "valui.match.discovered",
-            groupId = "${spring.kafka.consumer.group-id:valui-notify}"
+            topics = KafkaTopics.SPORT_EVENTS_DETECTED,
+            groupId = "valui-notify-group"
     )
-    public void onMatchDiscovered(MatchDiscoveredEvent event) {
-        log.debug("Received event {} for match {}", event.eventId(), event.match().id());
+    public void onSportEventDetected(SportEventDetectedMessage event) {
+        log.debug("Received event {} bookmaker={} title='{}'",
+                event.eventId(), event.bookmaker(), event.title());
         dispatcher.dispatch(event);
     }
 }

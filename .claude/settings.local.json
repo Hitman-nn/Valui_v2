@@ -3,7 +3,10 @@
     "allow": [
       "Bash(gh pr *)",
       "Read(//mnt/c/Users/User/IdeaProjects/Valui_v2/valui-parser/src/**)",
-      "Read(//c/Users/User/IdeaProjects/**)"
+      "Read(//c/Users/User/IdeaProjects/**)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\User\\\\IdeaProjects\\\\Valui_v2\\\\valui-common\\\\src\\\\main\\\\avro\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\User\\\\IdeaProjects\\\\Valui_v2\\\\valui-common\\\\src\\\\main\\\\java\\\\com\\\\valui\\\\common\\\\kafka\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\User\\\\IdeaProjects\\\\Valui_v2\\\\valui-notify\\\\src\\\\test\\\\java\\\\com\\\\valui\\\\notify\\\\kafka\")"
     ]
   }
 }

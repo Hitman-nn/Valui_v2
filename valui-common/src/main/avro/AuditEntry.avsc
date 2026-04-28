@@ -1,0 +1,14 @@
+{
+  "namespace": "com.valui.common.avro",
+  "type": "record",
+  "name": "AuditEntry",
+  "doc": "Published to audit.log for every significant domain action. Retention 90 days.",
+  "fields": [
+    {"name": "userId",     "type": "string",                         "doc": "Acting user UUID"},
+    {"name": "action",     "type": "string",                         "doc": "Action name, e.g. CONTROLLER_ADDED"},
+    {"name": "entityType", "type": "string",                         "doc": "Domain entity type, e.g. Controller"},
+    {"name": "entityId",   "type": ["null", "string"], "default": null, "doc": "UUID of the affected entity"},
+    {"name": "details",    "type": ["null", "string"], "default": null, "doc": "Optional JSON details"},
+    {"name": "timestamp",  "type": {"type": "long", "logicalType": "timestamp-millis"}, "doc": "Epoch ms"}
+  ]
+}

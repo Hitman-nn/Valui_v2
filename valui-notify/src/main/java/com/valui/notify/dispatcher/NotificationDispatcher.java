@@ -1,6 +1,6 @@
 package com.valui.notify.dispatcher;
 
-import com.valui.common.event.MatchDiscoveredEvent;
+import com.valui.common.kafka.SportEventDetectedMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -10,8 +10,9 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class NotificationDispatcher {
 
-    public void dispatch(MatchDiscoveredEvent event) {
-        // TODO: load subscribers, filter by bookmaker/sport, send via valui-bot
-        log.info("Dispatching notification for match {}", event.match().id());
+    // TODO: inject valui-bot TelegramSender, load subscribers, filter by bookmaker/sport
+    public void dispatch(SportEventDetectedMessage event) {
+        log.info("Dispatching notification for event {} bookmaker={} title='{}'",
+                event.eventId(), event.bookmaker(), event.title());
     }
 }
