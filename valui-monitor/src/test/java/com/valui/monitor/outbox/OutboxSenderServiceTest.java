@@ -2,7 +2,7 @@ package com.valui.monitor.outbox;
 
 import com.valui.common.kafka.KafkaTopics;
 import com.valui.common.kafka.SportEventDetectedMessage;
-import com.valui.monitor.kafka.KafkaProducerMetrics;
+import com.valui.monitor.kafka.SportEventKafkaMetrics;
 import com.valui.monitor.kafka.SportEventMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,7 +33,7 @@ class OutboxSenderServiceTest {
     @Mock OutboxEventRepository outboxRepo;
     @Mock KafkaTemplate<String, Object> kafkaTemplate;
     @Mock SportEventMapper mapper;
-    @Mock KafkaProducerMetrics metrics;
+    @Mock SportEventKafkaMetrics metrics;
     @Mock OutboxMarkingService markingService;
 
     @InjectMocks OutboxSenderService service;

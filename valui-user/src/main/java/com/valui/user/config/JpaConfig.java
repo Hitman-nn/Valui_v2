@@ -7,7 +7,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 @Configuration
 @EnableTransactionManagement
-@EnableJpaRepositories(basePackages = "com.valui.user.repository")
-@EntityScan(basePackages = "com.valui.common.entity")
+@EnableJpaRepositories(basePackages = "com.valui")
+@EntityScan(basePackages = "com.valui")
 public class JpaConfig {
 }

@@ -1,7 +1,2 @@
 package com.valui.notify.domain;
-
-public enum NotificationChannel {
-    TELEGRAM,
-    EMAIL,
-    WEBHOOK
-}
+// Deleted — use com.valui.common.domain.NotificationChannel

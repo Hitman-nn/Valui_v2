@@ -8,13 +8,13 @@ import org.springframework.stereotype.Component;
 import java.util.concurrent.TimeUnit;
 
 @Component
-public class KafkaProducerMetrics {
+public class SportEventKafkaMetrics {
 
     private final Counter sentTotal;
     private final Counter failedTotal;
     private final Timer sendLatency;
 
-    public KafkaProducerMetrics(MeterRegistry registry) {
+    public SportEventKafkaMetrics(MeterRegistry registry) {
         sentTotal = Counter.builder("kafka.producer.sport_events.sent")
                 .description("Messages successfully acked by broker on sport.events.detected")
                 .register(registry);

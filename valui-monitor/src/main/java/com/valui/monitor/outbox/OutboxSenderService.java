@@ -2,7 +2,7 @@ package com.valui.monitor.outbox;
 
 import com.valui.common.kafka.KafkaTopics;
 import com.valui.common.kafka.SportEventDetectedMessage;
-import com.valui.monitor.kafka.KafkaProducerMetrics;
+import com.valui.monitor.kafka.SportEventKafkaMetrics;
 import com.valui.monitor.kafka.SportEventMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +32,7 @@ public class OutboxSenderService {
     private final OutboxEventRepository outboxRepo;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final SportEventMapper mapper;
-    private final KafkaProducerMetrics metrics;
+    private final SportEventKafkaMetrics metrics;
     private final OutboxMarkingService markingService;
 
     public void publishImmediate(String externalEventId) {

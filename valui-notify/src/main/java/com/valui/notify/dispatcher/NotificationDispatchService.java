@@ -1,7 +1,7 @@
 package com.valui.notify.dispatcher;
 
 import com.valui.common.kafka.UserNotificationRequestMessage;
-import com.valui.notify.domain.NotificationChannel;
+import com.valui.common.domain.NotificationChannel;
 import com.valui.notify.sender.EmailNotificationSender;
 import com.valui.notify.sender.TelegramNotificationSender;
 import com.valui.notify.sender.WebhookNotificationSender;

@@ -1,6 +1,13 @@
 package com.valui.notify.log;
 
-import com.valui.notify.domain.NotificationChannel;
+import com.valui.common.domain.NotificationChannel;
+import com.valui.common.domain.NotificationStatus;
+import com.valui.common.entity.DetectedEventEntity;
+import com.valui.common.entity.NotificationLogEntity;
+import com.valui.common.entity.UserEntity;
+import com.valui.user.repository.DetectedEventRepository;
+import com.valui.user.repository.NotificationLogRepository;
+import com.valui.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,28 +20,41 @@ import java.util.UUID;
 public class NotificationLogService {
 
     private final NotificationLogRepository repo;
+    private final UserRepository userRepo;
+    private final DetectedEventRepository detectedEventRepo;
 
     @Transactional
     public NotificationLogEntity createPending(UUID userId, UUID detectedEventId, NotificationChannel channel) {
+        UserEntity user = userId != null ? userRepo.getReferenceById(userId) : null;
+        DetectedEventEntity event = detectedEventId != null
+                ? detectedEventRepo.getReferenceById(detectedEventId)
+                : null;
+
         return repo.save(NotificationLogEntity.builder()
-                .userId(userId)
-                .eventId(detectedEventId)
-                .channel(channel.name())
-                .status("PENDING")
-                .createdAt(OffsetDateTime.now())
+                .user(user)
+                .event(event)
+                .channel(channel)
+                .status(NotificationStatus.PENDING)
                 .build());
     }
 
     @Transactional
     public void markSent(UUID logId) {
-        repo.markSent(logId, OffsetDateTime.now());
+        repo.findById(logId).ifPresent(log -> {
+            log.setStatus(NotificationStatus.SENT);
+            log.setSentAt(OffsetDateTime.now());
+            log.setAttempts(log.getAttempts() + 1);
+        });
     }
 
     @Transactional
     public void markFailed(UUID logId, String errorMessage) {
-        String truncated = errorMessage != null && errorMessage.length() > 500
-                ? errorMessage.substring(0, 500)
-                : errorMessage;
-        repo.markFailed(logId, truncated);
+        repo.findById(logId).ifPresent(log -> {
+            log.setStatus(NotificationStatus.FAILED);
+            log.setErrorMessage(errorMessage != null && errorMessage.length() > 500
+                    ? errorMessage.substring(0, 500)
+                    : errorMessage);
+            log.setAttempts(log.getAttempts() + 1);
+        });
     }
 }
