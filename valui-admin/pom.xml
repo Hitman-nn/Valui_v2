@@ -67,6 +67,11 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- DlqController: read from dlq.final + replay via KafkaTemplate -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>

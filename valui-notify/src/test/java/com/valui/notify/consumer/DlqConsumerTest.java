@@ -2,7 +2,10 @@ package com.valui.notify.consumer;
 
 import com.valui.common.kafka.UserNotificationRequestMessage;
 import com.valui.notify.dispatcher.NotificationDispatchService;
+import com.valui.notify.exception.RetryableNotificationException;
 import com.valui.notify.log.NotificationLogService;
+import com.valui.notify.retry.DeadLetterPublisher;
+import com.valui.notify.retry.NotificationRetryPolicy;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -11,20 +14,31 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.BDDMockito.*;
 
+/**
+ * DlqConsumer is the 4th retry tier: sleeps 5 minutes, then one attempt.
+ * On success → markSent. On failure → DeadLetterPublisher (routes to dlq.final).
+ *
+ * Note: Thread.sleep is skipped by mocking — tests run fast.
+ */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("DlqConsumer — unit tests")
 class DlqConsumerTest {
 
     @Mock NotificationDispatchService dispatchService;
     @Mock NotificationLogService      logService;
-    @InjectMocks DlqConsumer          consumer;
+    @Mock DeadLetterPublisher         deadLetterPublisher;
+    @Mock NotificationRetryPolicy     retryPolicy;
+
+    @InjectMocks DlqConsumer consumer;
 
     static final UUID LOG_ID = UUID.randomUUID();
 
@@ -32,6 +46,7 @@ class DlqConsumerTest {
 
     @BeforeEach
     void setUp() {
+        consumer.delayMs = 0L; // skip 5-min sleep in tests
         request = new UserNotificationRequestMessage(
                 LOG_ID.toString(),
                 UUID.randomUUID().toString(),
@@ -39,66 +54,59 @@ class DlqConsumerTest {
                 "TELEGRAM",
                 "test message",
                 UUID.randomUUID().toString());
+
+        // Stub retryPolicy to avoid NPE in error path
+        given(retryPolicy.classify(any()))
+                .willReturn(new RetryableNotificationException("err", null, true, 0L));
     }
 
     private ConsumerRecord<String, Object> record(Object value) {
         return new ConsumerRecord<>("notifications.dlq", 0, 0L, "key", value);
     }
 
-    // ── success on first retry ────────────────────────────────────────────────
+    // ── success ───────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("first retry succeeds → markSent called, no markFailed")
-    void firstRetrySucceeds_marksSent() throws Exception {
-        // dispatch succeeds on first call
+    @DisplayName("Dispatch succeeds → markSent, no DLQ routing")
+    void dispatchSucceeds_marksSent() throws Exception {
         willDoNothing().given(dispatchService).dispatch(request);
 
         consumer.handleDlq(record(request));
 
-        verify(dispatchService, times(1)).dispatch(request);
+        verify(dispatchService).dispatch(request);
         verify(logService).markSent(LOG_ID);
         verify(logService, never()).markFailed(any(), any());
+        verifyNoInteractions(deadLetterPublisher);
     }
 
-    // ── failure on all 3 retries ──────────────────────────────────────────────
-
     @Test
-    @DisplayName("all 3 retries fail → markFailed called with error message")
-    void allRetriesFail_marksFailed() throws Exception {
+    @DisplayName("Dispatch fails → markFailed + DeadLetterPublisher called")
+    void dispatchFails_marksFailedAndRoutes() throws Exception {
         willThrow(new RuntimeException("send error")).given(dispatchService).dispatch(request);
 
         consumer.handleDlq(record(request));
 
-        verify(dispatchService, times(3)).dispatch(request);
+        verify(dispatchService).dispatch(request);
         verify(logService, never()).markSent(any());
         verify(logService).markFailed(eq(LOG_ID), contains("send error"));
+        verify(deadLetterPublisher).publishToDlq(any(), any());
     }
 
-    // ── success on third retry ────────────────────────────────────────────────
-
     @Test
-    @DisplayName("first two retries fail, third succeeds → markSent called")
-    void thirdRetrySucceeds_marksSent() throws Exception {
-        willThrow(new RuntimeException("fail"))
-                .willThrow(new RuntimeException("fail"))
-                .willDoNothing()
-                .given(dispatchService).dispatch(request);
-
-        consumer.handleDlq(record(request));
-
-        verify(dispatchService, times(3)).dispatch(request);
-        verify(logService).markSent(LOG_ID);
-        verify(logService, never()).markFailed(any(), any());
-    }
-
-    // ── unexpected payload type ───────────────────────────────────────────────
-
-    @Test
-    @DisplayName("unexpected payload type → skipped, no dispatch or log interaction")
+    @DisplayName("Unexpected payload type → skipped, no dispatch or log interaction")
     void unexpectedPayload_skipped() {
         consumer.handleDlq(record("not a notification"));
 
         verifyNoInteractions(dispatchService);
         verifyNoInteractions(logService);
+        verifyNoInteractions(deadLetterPublisher);
+    }
+
+    @Test
+    @DisplayName("Null payload → skipped gracefully")
+    void nullPayload_skipped() {
+        consumer.handleDlq(record(null));
+
+        verifyNoInteractions(dispatchService);
     }
 }

@@ -124,6 +124,25 @@ public class KafkaConsumerConfig {
         return factory;
     }
 
+    // ── Retry factory ─────────────────────────────────────────────────────────
+
+    /**
+     * Shared factory for the three delayed-retry topics (1 s, 5 s, 30 s).
+     * concurrency=1 per topic — retry traffic is low-volume and ordering matters.
+     * No container-level error handler; RetryTopicConsumer handles all failures
+     * itself via DeadLetterPublisher to avoid double-counting retry attempts.
+     */
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, Object> retryContainerFactory(
+            KafkaProperties kafkaProperties) {
+
+        var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-retry-group"));
+        factory.setConcurrency(1);
+        factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(0L, 0)));
+        return factory;
+    }
+
     // ── Audit factory ──────────────────────────────────────────────────────────
 
     /**

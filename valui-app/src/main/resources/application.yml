@@ -160,6 +160,10 @@ valui:
     # Shared secret between the Telegram bot and this API (set BOT_AUTH_SECRET in production)
     bot-secret: ${BOT_AUTH_SECRET:change-me}
 
+# Telegram admin notification (used by AdminNotificationService for DLQ alerts)
+telegram:
+  admin-chat-id: ${TELEGRAM_ADMIN_CHAT_ID:0}
+
 ws:
   pool:
     url: ${BETBOOM_WS_URL:wss://ru-ws.sporthub.bet:444/api/tree_ws/v1}

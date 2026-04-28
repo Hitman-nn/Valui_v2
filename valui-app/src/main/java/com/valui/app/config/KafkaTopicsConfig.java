@@ -126,6 +126,49 @@ public class KafkaTopicsConfig {
                 .build();
     }
 
+    // ── Notification retry ladder ──────────────────────────────────────────────
+
+    @Bean
+    public org.apache.kafka.clients.admin.NewTopic notificationsRetry1s() {
+        return TopicBuilder.name(KafkaTopics.NOTIFICATIONS_RETRY_1S)
+                .partitions(3).replicas(replicationFactor)
+                .config(TopicConfig.RETENTION_MS_CONFIG,   ms(1, ChronoUnit.DAYS))
+                .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE)
+                .build();
+    }
+
+    @Bean
+    public org.apache.kafka.clients.admin.NewTopic notificationsRetry5s() {
+        return TopicBuilder.name(KafkaTopics.NOTIFICATIONS_RETRY_5S)
+                .partitions(3).replicas(replicationFactor)
+                .config(TopicConfig.RETENTION_MS_CONFIG,   ms(1, ChronoUnit.DAYS))
+                .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE)
+                .build();
+    }
+
+    @Bean
+    public org.apache.kafka.clients.admin.NewTopic notificationsRetry30s() {
+        return TopicBuilder.name(KafkaTopics.NOTIFICATIONS_RETRY_30S)
+                .partitions(3).replicas(replicationFactor)
+                .config(TopicConfig.RETENTION_MS_CONFIG,   ms(1, ChronoUnit.DAYS))
+                .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE)
+                .build();
+    }
+
+    /**
+     * Terminal DLQ: messages that exhausted all 4 retry attempts land here.
+     * Not consumed by any listener; used only for monitoring and manual replay.
+     * Long retention (30 days) to allow ops team time to investigate.
+     */
+    @Bean
+    public org.apache.kafka.clients.admin.NewTopic notificationsDlqFinal() {
+        return TopicBuilder.name(KafkaTopics.NOTIFICATIONS_DLQ_FINAL)
+                .partitions(3).replicas(replicationFactor)
+                .config(TopicConfig.RETENTION_MS_CONFIG,   ms(30, ChronoUnit.DAYS))
+                .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE)
+                .build();
+    }
+
     // ── helpers ────────────────────────────────────────────────────────────────
 
     private static String ms(long amount, ChronoUnit unit) {
