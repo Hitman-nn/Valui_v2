@@ -85,6 +85,44 @@ public class KafkaConsumerConfig {
         return new DefaultErrorHandler(recoverer, new FixedBackOff(1_000L, 2));
     }
 
+    // ── Dispatch factory: user.notifications.pending ──────────────────────────
+
+    /**
+     * Factory for {@link com.valui.notify.dispatcher.NotificationDispatcher}.
+     * concurrency=2 — notifications are I/O-bound (Telegram HTTP); 2 threads is enough.
+     * Error handler routes to DLQ on persistent failure (after 2 retries).
+     */
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, Object> dispatchContainerFactory(
+            KafkaProperties kafkaProperties,
+            KafkaTemplate<String, Object> kafkaTemplate) {
+
+        var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-notify-dispatch-group"));
+        factory.setConcurrency(2);
+        factory.setCommonErrorHandler(notifyErrorHandler(kafkaTemplate));
+        return factory;
+    }
+
+    // ── DLQ factory: notifications.dlq ────────────────────────────────────────
+
+    /**
+     * Factory for {@link com.valui.notify.consumer.DlqConsumer}.
+     * concurrency=1 — DLQ is low-volume; single thread avoids ordering issues.
+     * No DLQ error handler — the consumer handles all retries itself; on permanent
+     * failure it marks the log row FAILED without re-routing to another topic.
+     */
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, Object> dlqContainerFactory(
+            KafkaProperties kafkaProperties) {
+
+        var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-dlq-group"));
+        factory.setConcurrency(1);
+        factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(0L, 0)));
+        return factory;
+    }
+
     // ── Audit factory ──────────────────────────────────────────────────────────
 
     @Bean

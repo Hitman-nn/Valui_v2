@@ -6,6 +6,7 @@ package com.valui.common.kafka;
  * Mirrors UserNotificationRequest.avsc.
  */
 public record UserNotificationRequestMessage(
+        String notificationLogId, // UUID of the notification_log row — used by dispatcher to update status
         String userId,
         Long telegramId,
         String channel,
