@@ -6,10 +6,12 @@
   "fields": [
     {"name": "eventId",      "type": "string",                                              "doc": "UUID — unique Kafka message ID"},
     {"name": "controllerId", "type": "string",                                              "doc": "UUID of the Controller that triggered detection"},
-    {"name": "userId",       "type": "string",                                              "doc": "UUID of the owning user"},
-    {"name": "bookmaker",    "type": "string",                                              "doc": "BookmakerType enum name, e.g. FONBET"},
-    {"name": "title",        "type": ["null", "string"], "default": null,                  "doc": "Match title, e.g. 'Team A - Team B'"},
-    {"name": "url",          "type": ["null", "string"], "default": null,                  "doc": "Source URL from the controller"},
-    {"name": "detectedAt",   "type": {"type": "long", "logicalType": "timestamp-millis"},  "doc": "When the event was first detected (epoch ms)"}
+    {"name": "userId",          "type": "string",                                              "doc": "UUID of the owning user"},
+    {"name": "telegramId",      "type": ["null", "long"],  "default": null,                  "doc": "Telegram chat ID of the owner, null if not yet linked"},
+    {"name": "bookmaker",       "type": "string",                                              "doc": "BookmakerType enum name, e.g. FONBET"},
+    {"name": "externalEventId", "type": "string",                                              "doc": "External ID assigned by the bookmaker (match/tournament ID)"},
+    {"name": "title",           "type": ["null", "string"], "default": null,                  "doc": "Match title, e.g. 'Team A - Team B'"},
+    {"name": "url",             "type": ["null", "string"], "default": null,                  "doc": "Source URL from the controller"},
+    {"name": "detectedAt",      "type": {"type": "long", "logicalType": "timestamp-millis"},  "doc": "When the event was first detected (epoch ms)"}
   ]
 }

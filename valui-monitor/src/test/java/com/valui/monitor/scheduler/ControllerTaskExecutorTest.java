@@ -11,6 +11,9 @@ import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.dedup.EventDeduplicationService;
 import com.valui.monitor.event.SportEventDetectedEvent;
+import com.valui.monitor.outbox.OutboxEvent;
+import com.valui.monitor.outbox.OutboxEventRepository;
+import com.valui.monitor.outbox.OutboxSenderService;
 import com.valui.monitor.scheduler.ControllerTaskExecutor.ParsedItem;
 import com.valui.monitor.scheduler.ControllerTaskExecutor.TaskContext;
 import com.valui.parser.api.BookmakerParser;
@@ -52,6 +55,8 @@ class ControllerTaskExecutorTest {
     @Mock ApplicationEventPublisher events;
     @Mock MonitorProperties props;
     @Mock EventDeduplicationService dedup;
+    @Mock OutboxEventRepository outboxRepo;
+    @Mock OutboxSenderService outboxSenderService;
 
     @InjectMocks ControllerTaskExecutor executor;
 
@@ -84,6 +89,9 @@ class ControllerTaskExecutorTest {
                 ControllerType.TOURNAMENT);
 
         given(props.getDefaultPollIntervalSec()).willReturn(60);
+        given(outboxSenderService.buildOutboxEvent(any(), any(), any(), any(), any(), any(), any()))
+                .willReturn(OutboxEvent.builder().externalEventId("stub").build());
+        given(outboxRepo.save(any())).willAnswer(inv -> inv.getArgument(0));
     }
 
     // ── persistNewEvents: new event ───────────────────────────────────────────

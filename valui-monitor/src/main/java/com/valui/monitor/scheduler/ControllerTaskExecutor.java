@@ -9,6 +9,8 @@ import com.valui.common.parser.dto.TournamentDto;
 import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.dedup.EventDeduplicationService;
 import com.valui.monitor.event.SportEventDetectedEvent;
+import com.valui.monitor.outbox.OutboxEventRepository;
+import com.valui.monitor.outbox.OutboxSenderService;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
@@ -43,6 +45,8 @@ public class ControllerTaskExecutor {
     private final ApplicationEventPublisher events;
     private final MonitorProperties props;
     private final EventDeduplicationService dedup;
+    private final OutboxEventRepository outboxRepo;
+    private final OutboxSenderService outboxSenderService;
 
     /** Minimal projection for scheduling decisions (no lazy associations). */
     public record ControllerScheduleInfo(
@@ -192,15 +196,27 @@ public class ControllerTaskExecutor {
         if (!saved.isEmpty()) ctrl.setLastEventAt(now);
         controllerRepo.save(ctrl);
 
-        // Publish inside transaction so rollback cleans up both DB and in-flight events
-        saved.forEach(e -> events.publishEvent(new SportEventDetectedEvent(
-                ctrl.getId(),
-                ctx.userId(),
-                ctx.telegramId(),
-                ctx.bookmaker(),
-                e.getEventExternalId(),
-                e.getTitle(),
-                e.getUrl())));
+        // Save outbox row and publish Spring event in the same transaction.
+        // SportEventKafkaProducer fires AFTER_COMMIT for immediate Kafka delivery;
+        // OutboxSenderService retries any row still unsent after 15 s.
+        saved.forEach(e -> {
+            outboxRepo.save(outboxSenderService.buildOutboxEvent(
+                    e.getEventExternalId(),
+                    ctx.controllerId().toString(),
+                    ctx.userId().toString(),
+                    ctx.telegramId(),
+                    ctx.bookmaker().name(),
+                    e.getTitle(),
+                    e.getUrl()));
+            events.publishEvent(new SportEventDetectedEvent(
+                    ctrl.getId(),
+                    ctx.userId(),
+                    ctx.telegramId(),
+                    ctx.bookmaker(),
+                    e.getEventExternalId(),
+                    e.getTitle(),
+                    e.getUrl()));
+        });
 
         return saved.size();
     }
