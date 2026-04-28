@@ -30,23 +30,6 @@ public class WsRequestService {
         return pool;
     }
 
-    /** Send frame and await first binary response (no envelope filter). */
-    public byte[] sendAndAwait(byte[] frame, long awaitMs) throws Exception {
-        Thread.sleep(ThreadLocalRandom.current().nextInt(0, 200));
-        long cid = ThreadLocalRandom.current().nextLong();
-        globalRps.acquire();
-        try (WsLease lease = pool.borrow()) {
-            lease.getClient().clearInbox();
-            log.debug("[cid={}] sendAndAwait: frame size={}", cid, frame.length);
-            lease.sendBinary(frame).join();
-            byte[] resp = lease.getClient().awaitBinary(awaitMs, TimeUnit.MILLISECONDS);
-            if (resp == null) log.warn("[cid={}] sendAndAwait: timeout {} ms", cid, awaitMs);
-            return resp;
-        } finally {
-            globalRps.release();
-        }
-    }
-
     /** Send frame and await first Envelope matching the predicate. */
     public byte[] sendAndAwaitFiltered(byte[] frame, long awaitMs,
                                        Predicate<Envelope> ok) throws Exception {

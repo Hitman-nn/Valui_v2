@@ -2,7 +2,7 @@ package com.valui.parser.bookmaker.xbet;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.valui.common.domain.BookmakerType;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.BookmakerParser;
@@ -83,8 +83,11 @@ public class XBetParser implements BookmakerParser {
         long start = ms();
         List<TournamentDto> tournaments = new ArrayList<>();
         for (JsonNode v : valueArray(getChampsJson())) {
-            if (!sportId.equalsIgnoreCase(s(v, "SI"))) continue;
-            String id = s(v, "LI"), title = s(v, "L"), se = s(v, "SE"), le = s(v, "LE");
+            // SI = numeric sport ID; SE = sport alias slug (e.g. "football").
+            // UrlParser.extractXbet returns the URL path segment, which may be either form.
+            String si = s(v, "SI"), se = s(v, "SE"), le = s(v, "LE");
+            if (!sportId.equalsIgnoreCase(si) && !sportId.equalsIgnoreCase(se)) continue;
+            String id = s(v, "LI"), title = s(v, "L");
             if (id == null || title == null) continue;
             String url = "https://1xstavka.ru/line/" + slug(se) + "/" + id
                     + (le != null ? "-" + slug(le) : "");
@@ -96,13 +99,13 @@ public class XBetParser implements BookmakerParser {
     @CircuitBreaker(name = "xbet-cb", fallbackMethod = "fetchMatchesFallback")
     @Retry(name = "parser-retry")
     @Override
-    public ParseResult<List<MatchDto>> fetchMatches(String tournamentId) {
+    public ParseResult<List<ParsedMatchDto>> fetchMatches(String tournamentId) {
         long start = ms();
         String sportId = resolveSportId(tournamentId);
         JsonNode root = block(http.getJson(
                 matchesApi + "sports=" + sportId + "&champs=" + tournamentId + "&count=1000&mode=4",
                 JsonNode.class));
-        List<MatchDto> matches = new ArrayList<>();
+        List<ParsedMatchDto> matches = new ArrayList<>();
         for (JsonNode v : valueArray(root)) {
             if (!tournamentId.equalsIgnoreCase(s(v, "LI"))) continue;
             String ci = s(v, "CI"), o1 = s(v, "O1"), o2 = s(v, "O2");
@@ -110,7 +113,7 @@ public class XBetParser implements BookmakerParser {
             if (ci == null || o1 == null || o2 == null) continue;
             String url = "https://1xstavka.ru/line/" + slug(s(v, "SE"))
                     + "/" + tournamentId + "/" + ci + "-" + slug(o1e) + "-" + slug(o2e);
-            matches.add(new MatchDto(ci, o1 + " - " + o2, tournamentId, url,
+            matches.add(new ParsedMatchDto(ci, o1 + " - " + o2, tournamentId, url,
                     parseInstant(s(v, "T")), "1".equals(s(v, "CL"))));
         }
         return ParseResult.ok(matches, ms() - start);
@@ -134,7 +137,7 @@ public class XBetParser implements BookmakerParser {
         return ParseResult.error("xbet-cb: " + t.getMessage());
     }
 
-    private ParseResult<List<MatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
+    private ParseResult<List<ParsedMatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
         log.warn("xbet fetchMatches fallback tournamentId={} [{}]: {}", tournamentId, t.getClass().getSimpleName(), describe(t));
         return ParseResult.error("xbet-cb: " + t.getMessage());
     }

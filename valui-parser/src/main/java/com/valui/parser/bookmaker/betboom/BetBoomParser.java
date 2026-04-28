@@ -3,7 +3,7 @@ package com.valui.parser.bookmaker.betboom;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.valui.common.domain.BookmakerType;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.BookmakerParser;
@@ -92,7 +92,7 @@ public class BetBoomParser implements BookmakerParser {
 
     @CircuitBreaker(name = "betboom-cb", fallbackMethod = "fetchMatchesFallback")
     @Override
-    public ParseResult<List<MatchDto>> fetchMatches(String tournamentId) {
+    public ParseResult<List<ParsedMatchDto>> fetchMatches(String tournamentId) {
         long start = ms();
         int tid = parseInt(tournamentId, "tournamentId");
         byte[] req  = BetBoomSubscribeBuilder.tournamentMatchesBytes(LINE, tid);
@@ -111,7 +111,7 @@ public class BetBoomParser implements BookmakerParser {
         int sectionTid = mf.getSection().hasTournament()
                 ? mf.getSection().getTournament().getId() : 0;
 
-        List<MatchDto> matches = new ArrayList<>();
+        List<ParsedMatchDto> matches = new ArrayList<>();
         for (MatchesBody.Match match : mf.getSection().getMatchesList()) {
             if (!match.hasHeader()) continue;
             int eid = match.getHeader().getId();
@@ -124,7 +124,7 @@ public class BetBoomParser implements BookmakerParser {
             String title = (!home.isBlank() || !away.isBlank()) ? home + " - " + away : "match#" + eid;
             String url = "https://betboom.ru/sport/" + sportAlias + "/" + countryId
                     + "/" + sectionTid + "/" + eid + "?period=all";
-            matches.add(new MatchDto(String.valueOf(eid), title, tournamentId, url,
+            matches.add(new ParsedMatchDto(String.valueOf(eid), title, tournamentId, url,
                     parseInstant(match.getHeader().getStartsAt()), match.getHeader().getLive() == 1));
         }
         return ParseResult.ok(matches, ms() - start);
@@ -145,7 +145,7 @@ public class BetBoomParser implements BookmakerParser {
         return ParseResult.error("betboom-cb: " + t.getMessage());
     }
 
-    private ParseResult<List<MatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
+    private ParseResult<List<ParsedMatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
         log.warn("betboom fetchMatches fallback tournamentId={}: {}", tournamentId, t.getMessage());
         return ParseResult.error("betboom-cb: " + t.getMessage());
     }

@@ -7,7 +7,7 @@ import com.valui.common.domain.UserStatus;
 import com.valui.common.entity.ControllerEntity;
 import com.valui.common.entity.DetectedEventEntity;
 import com.valui.common.entity.UserEntity;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.dedup.EventDeduplicationService;
 import com.valui.monitor.event.SportEventDetectedEvent;
@@ -168,7 +168,7 @@ class ControllerTaskExecutorTest {
         given(parserFactory.getParser(eq(BookmakerType.XBET))).willReturn(parser);
         given(parser.fetchMatches(TOURNAMENT_ID)).willReturn(
                 ParseResult.ok(List.of(
-                        new MatchDto("m1", "A - B", TOURNAMENT_ID, "https://...", Instant.now(), false)
+                        new ParsedMatchDto("m1", "A - B", TOURNAMENT_ID, "https://...", Instant.now(), false)
                 ), 50L));
 
         List<ParsedItem> items = executor.fetch(ctx);

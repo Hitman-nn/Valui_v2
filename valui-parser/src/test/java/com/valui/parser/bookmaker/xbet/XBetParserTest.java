@@ -1,7 +1,7 @@
 package com.valui.parser.bookmaker.xbet;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.ParseResult;
@@ -86,7 +86,7 @@ class XBetParserTest {
                 Map.of("LI", "1001", "CI", "7777", "O1", "Зенит", "O2", "ЦСКА",
                        "O1E", "zenit", "O2E", "cska", "SE", "football"))));
 
-        ParseResult<List<MatchDto>> result = parser.fetchMatches("1001");
+        ParseResult<List<ParsedMatchDto>> result = parser.fetchMatches("1001");
 
         assertThat(result.success()).isTrue();
         assertThat(result.data()).hasSize(1);

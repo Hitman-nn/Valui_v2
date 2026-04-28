@@ -1,7 +1,7 @@
 package com.valui.parser.bookmaker.betcity;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.ParseResult;
@@ -67,7 +67,7 @@ class BetCityParserTest {
                         "7002", Map.of("name_ht", "Спартак", "name_at", "Динамо")
                 )
         )))))));
-        ParseResult<List<MatchDto>> result = parser.fetchMatches("999");
+        ParseResult<List<ParsedMatchDto>> result = parser.fetchMatches("999");
         assertThat(result.success()).isTrue();
         assertThat(result.data()).hasSize(2);
     }

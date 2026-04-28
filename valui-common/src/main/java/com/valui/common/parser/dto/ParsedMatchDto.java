@@ -2,9 +2,7 @@ package com.valui.common.parser.dto;
 
 import java.time.Instant;
 
-/** @deprecated Renamed to {@link ParsedMatchDto} to avoid ambiguity with {@code com.valui.common.dto.MatchDto}. */
-@Deprecated(forRemoval = true)
-public record MatchDto(
+public record ParsedMatchDto(
         String id,
         String title,
         String tournamentId,

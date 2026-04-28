@@ -2,7 +2,7 @@ package com.valui.parser.bookmaker.betcity;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.valui.common.domain.BookmakerType;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.BookmakerParser;
@@ -93,12 +93,12 @@ public class BetCityParser implements BookmakerParser {
     @CircuitBreaker(name = "betcity-cb", fallbackMethod = "fetchMatchesFallback")
     @Retry(name = "parser-retry")
     @Override
-    public ParseResult<List<MatchDto>> fetchMatches(String tournamentId) {
+    public ParseResult<List<ParsedMatchDto>> fetchMatches(String tournamentId) {
         long start = ms();
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("ids", tournamentId);
         JsonNode root = block(http.postMultipart(eventsApi, form, JsonNode.class));
-        List<MatchDto> matches = new ArrayList<>();
+        List<ParsedMatchDto> matches = new ArrayList<>();
         if (root == null) return ParseResult.ok(matches, ms() - start);
         root.path("reply").path("sports").fields().forEachRemaining(sportEntry -> {
             String sportId = sportEntry.getKey();
@@ -110,7 +110,7 @@ public class BetCityParser implements BookmakerParser {
                 String t1 = s(evtEntry.getValue(), "name_ht"), t2 = s(evtEntry.getValue(), "name_at");
                 if (t1 == null || t2 == null) return;
                 String url = "https://betcity.ru/ru/line/" + alias + "/" + tournamentId + "/" + id;
-                matches.add(new MatchDto(id, t1 + " - " + t2, tournamentId, url,
+                matches.add(new ParsedMatchDto(id, t1 + " - " + t2, tournamentId, url,
                         parseInstant(s(evtEntry.getValue(), "date_dt")), false));
             });
         });
@@ -135,7 +135,7 @@ public class BetCityParser implements BookmakerParser {
         return ParseResult.error("betcity-cb: " + t.getMessage());
     }
 
-    private ParseResult<List<MatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
+    private ParseResult<List<ParsedMatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
         log.warn("betcity fetchMatches fallback: {}", t.getMessage());
         return ParseResult.error("betcity-cb: " + t.getMessage());
     }

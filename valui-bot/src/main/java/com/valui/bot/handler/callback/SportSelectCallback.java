@@ -25,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -148,17 +149,25 @@ public class SportSelectCallback implements CallbackHandler {
             keyboard);
     }
 
+    /**
+     * Builds the tournament keyboard. Tournaments are sorted alphabetically so the list
+     * order is stable across page navigation even if the API response order varies between calls.
+     */
     static InlineKeyboardMarkup buildTournamentKeyboard(
             List<TournamentDto> tournaments, int page,
             String monitorAllText, String backText, String cancelText,
             Set<String> existingUrls, String sportUrl) {
+
+        List<TournamentDto> sorted = tournaments.stream()
+                .sorted(Comparator.comparing(t -> t.title().toLowerCase()))
+                .toList();
 
         boolean sportExists = existingUrls.contains(sportUrl);
         String monitorAllCallback = sportExists ? CallbackData.TOURN_EXIST : CallbackData.TOURN_ALL;
         String monitorAllLabel   = sportExists ? "✅ " + monitorAllText : monitorAllText;
 
         return PagedKeyboardBuilder.<TournamentDto>create()
-            .items(tournaments)
+            .items(sorted)
             .itemRenderer(t -> {
                 boolean exists = existingUrls.contains(t.url());
                 String label    = exists ? "✅ " + t.title() : t.title();

@@ -35,9 +35,9 @@ public class ParserHealthChecker {
         try {
             boolean available = parser.isAvailable();
             if (available) {
-                int prev = consecutiveFailures.put(type, 0) != null
-                        ? consecutiveFailures.getOrDefault(type, 0) : 0;
-                if (prev > 0) log.info("Parser {} recovered", type);
+                int prev = consecutiveFailures.getOrDefault(type, 0);
+                consecutiveFailures.put(type, 0);
+                if (prev > 0) log.info("Parser {} recovered after {} failures", type, prev);
             } else {
                 recordFailure(type, "isAvailable() returned false");
             }

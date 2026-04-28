@@ -10,8 +10,10 @@ import com.valui.bot.service.BotSessionService;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
 import com.valui.common.domain.BookmakerType;
+import com.valui.common.domain.ControllerType;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.monitor.dto.ControllerDto;
+import com.valui.monitor.dto.CreateControllerRequest;
 import com.valui.monitor.service.ControllerService;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
@@ -128,6 +130,11 @@ public class TournamentSelectCallback implements CallbackHandler {
         showFilterPrompt(ctx, messageId);
     }
 
+    /**
+     * Directly creates a TOURNAMENT controller without a confirmation step.
+     * After creation the user is returned to the tournament list, which now shows
+     * the new entry marked with ✅.
+     */
     private void handleTournamentSelect(BotUpdateContext ctx, String data, int messageId) {
         String tournamentId = data.substring(CallbackData.TOURN_SEL_PREFIX.length());
         Optional<String> bm      = sessionService.getContext(ctx.chatId(), UserBotSession.CTX_BOOKMAKER);
@@ -160,14 +167,21 @@ public class TournamentSelectCallback implements CallbackHandler {
             return;
         }
 
-        sessionService.setStateAndMergeContext(ctx.chatId(), BotState.WAITING_CONFIRM_CREATE, Map.of(
-            UserBotSession.CTX_CONTROLLER_TYPE,  "TOURNAMENT",
-            UserBotSession.CTX_TOURNAMENT_ID,    tournament.id(),
-            UserBotSession.CTX_TOURNAMENT_TITLE, tournament.title(),
-            UserBotSession.CTX_TOURNAMENT_URL,   tournament.url()
-        ));
+        try {
+            controllerService.addController(
+                new CreateControllerRequest(tournament.url(), bm.get(), tournament.title(), false, null),
+                ctx.chatId());
+            log.info("✅ Контроллер создан: chatId={} bm={} url={}", ctx.chatId(), bm.get(), tournament.url());
+        } catch (Exception e) {
+            log.error("❌ Ошибка создания контроллера chatId={}: {}", ctx.chatId(), e.getMessage());
+            sessionService.clearSession(ctx.chatId());
+            MessageSend.text(ctx.sender(), ctx.chatId(),
+                messageSource.getMessage("error.general", ctx.chatId()));
+            return;
+        }
 
-        showConfirmPrompt(ctx, messageId);
+        // Return to tournament list — the created entry will now appear marked with ✅
+        backNavigator.returnToTournamentList(ctx.sender(), ctx.chatId(), messageId);
     }
 
     private void showFilterPrompt(BotUpdateContext ctx, int messageId) {
@@ -181,12 +195,6 @@ public class TournamentSelectCallback implements CallbackHandler {
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.enter_filter", ctx.chatId()),
             keyboard);
-    }
-
-    private void showConfirmPrompt(BotUpdateContext ctx, int messageId) {
-        String text = ControllerConfirmCallback.buildConfirmText(ctx.chatId(), sessionService, messageSource);
-        InlineKeyboardMarkup keyboard = ControllerConfirmCallback.buildConfirmKeyboard(ctx.chatId(), messageSource);
-        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, text, keyboard);
     }
 
     static String buildSportUrl(BookmakerType bm, String sportId, String alias) {

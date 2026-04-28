@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(gh pr *)"
+      "Bash(gh pr *)",
+      "Read(//mnt/c/Users/User/IdeaProjects/Valui_v2/valui-parser/src/**)",
+      "Read(//c/Users/User/IdeaProjects/**)"
     ]
   }
 }

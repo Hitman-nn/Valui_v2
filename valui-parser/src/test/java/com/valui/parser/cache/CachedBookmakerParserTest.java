@@ -1,7 +1,7 @@
 package com.valui.parser.cache;
 
 import com.valui.common.domain.BookmakerType;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.BookmakerParser;
@@ -133,11 +133,11 @@ class CachedBookmakerParserTest {
 
     @Test
     void fetchMatches_cacheHit_doesNotCallDelegate() {
-        List<MatchDto> data = List.of(
-                new MatchDto("500", "A - B", "100", "/match/500", Instant.EPOCH, false));
+        List<ParsedMatchDto> data = List.of(
+                new ParsedMatchDto("500", "A - B", "100", "/match/500", Instant.EPOCH, false));
         when(cache.getMatches(BookmakerType.XBET, "100")).thenReturn(Optional.of(data));
 
-        ParseResult<List<MatchDto>> result = cachedParser.fetchMatches(BookmakerType.XBET, "100");
+        ParseResult<List<ParsedMatchDto>> result = cachedParser.fetchMatches(BookmakerType.XBET, "100");
 
         assertThat(result.success()).isTrue();
         assertThat(result.data()).isEqualTo(data);
@@ -146,15 +146,15 @@ class CachedBookmakerParserTest {
 
     @Test
     void fetchMatches_cacheMiss_callsDelegateAndStores() {
-        List<MatchDto> fresh = List.of(
-                new MatchDto("500", "A - B", "100", "/match/500", Instant.EPOCH, false));
+        List<ParsedMatchDto> fresh = List.of(
+                new ParsedMatchDto("500", "A - B", "100", "/match/500", Instant.EPOCH, false));
         when(cache.getMatches(BookmakerType.XBET, "100"))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.empty());
         when(cache.tryLock(anyString(), any(Duration.class))).thenReturn(true);
         when(xbetParser.fetchMatches("100")).thenReturn(ParseResult.ok(fresh, 60));
 
-        ParseResult<List<MatchDto>> result = cachedParser.fetchMatches(BookmakerType.XBET, "100");
+        ParseResult<List<ParsedMatchDto>> result = cachedParser.fetchMatches(BookmakerType.XBET, "100");
 
         assertThat(result.success()).isTrue();
         assertThat(result.data()).isEqualTo(fresh);

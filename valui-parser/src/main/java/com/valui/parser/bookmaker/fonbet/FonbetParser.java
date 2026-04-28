@@ -2,7 +2,7 @@ package com.valui.parser.bookmaker.fonbet;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.valui.common.domain.BookmakerType;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.BookmakerParser;
@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
+import java.text.Normalizer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -70,7 +71,7 @@ public class FonbetParser implements BookmakerParser {
         for (JsonNode item : sportsArray(snap)) {
             if (!item.path("parentId").isNull() && !item.path("parentId").isMissingNode()) continue;
             String id = s(item, "id"), name = s(item, "name");
-            if (id != null && name != null) sports.add(new SportDto(id, name, slugify(name)));
+            if (id != null && name != null) sports.add(new SportDto(id, name, slugify(name, id)));
         }
         return ParseResult.ok(sports, ms() - start);
     }
@@ -97,10 +98,10 @@ public class FonbetParser implements BookmakerParser {
     @CircuitBreaker(name = "fonbet-cb", fallbackMethod = "fetchMatchesFallback")
     @Retry(name = "parser-retry")
     @Override
-    public ParseResult<List<MatchDto>> fetchMatches(String tournamentId) {
+    public ParseResult<List<ParsedMatchDto>> fetchMatches(String tournamentId) {
         long start = ms();
         JsonNode snap = fetchSnapshot();
-        List<MatchDto> matches = new ArrayList<>();
+        List<ParsedMatchDto> matches = new ArrayList<>();
         JsonNode events = snap.path("events");
         if (!events.isArray()) return ParseResult.ok(matches, ms() - start);
         for (JsonNode ev : events) {
@@ -110,7 +111,7 @@ public class FonbetParser implements BookmakerParser {
             String id = s(ev, "id"), t1 = s(ev, "team1"), t2 = s(ev, "team2");
             if (id == null || t1 == null || t2 == null) continue;
             Instant startsAt = parseInstant(s(ev, "startTime"), false);
-            matches.add(new MatchDto(id, t1 + " - " + t2, tournamentId,
+            matches.add(new ParsedMatchDto(id, t1 + " - " + t2, tournamentId,
                     "https://www.fon.bet/sports/" + tournamentId + "/" + id,
                     startsAt, ev.path("live").asBoolean(false)));
         }
@@ -119,6 +120,9 @@ public class FonbetParser implements BookmakerParser {
 
     @Override
     public boolean isAvailable() {
+        // Calls fetchSnapshot() directly (private method) — intentionally bypasses the
+        // @CircuitBreaker AOP proxy, which only intercepts public calls from outside the bean.
+        // Health checks should probe the real connection, not short-circuit via the breaker.
         try { fetchSnapshot(); return true; }
         catch (Exception e) {
             log.debug("Fonbet isAvailable failed: {}", e.getMessage());
@@ -138,7 +142,7 @@ public class FonbetParser implements BookmakerParser {
         return ParseResult.error("fonbet-cb: " + t.getMessage());
     }
 
-    private ParseResult<List<MatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
+    private ParseResult<List<ParsedMatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
         log.warn("fonbet fetchMatches fallback: {}", t.getMessage());
         return ParseResult.error("fonbet-cb: " + t.getMessage());
     }
@@ -174,8 +178,18 @@ public class FonbetParser implements BookmakerParser {
         JsonNode v = n.path(f); return v.isMissingNode() || v.isNull() ? null : v.asText();
     }
 
-    private static String slugify(String name) {
-        return name.toLowerCase().replaceAll("[^a-z0-9]+", "-");
+    /**
+     * Converts a sport name to an ASCII alias. For Cyrillic / non-Latin names where
+     * NFD decomposition yields no ASCII characters, falls back to the numeric sport ID
+     * so the alias is never an empty string.
+     */
+    private static String slugify(String name, String fallbackId) {
+        String slug = Normalizer.normalize(name, Normalizer.Form.NFD)
+                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
+                .toLowerCase()
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("(^-+|-+$)", "");
+        return slug.isEmpty() ? fallbackId : slug;
     }
 
     private static Instant parseInstant(String s, boolean millis) {

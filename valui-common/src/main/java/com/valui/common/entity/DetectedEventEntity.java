@@ -1,5 +1,7 @@
 package com.valui.common.entity;
 
+import com.valui.common.entity.audit.AuditEntityListener;
+import com.valui.common.entity.audit.HasCreatedAt;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -14,12 +16,13 @@ import java.util.UUID;
         columnNames = {"controller_id", "event_external_id"}
     )
 )
+@EntityListeners(AuditEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class DetectedEventEntity {
+public class DetectedEventEntity implements HasCreatedAt {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -42,16 +45,21 @@ public class DetectedEventEntity {
     @Column(name = "extra_data", columnDefinition = "text")
     private String extraData;
 
+    // Stored as "detected_at" in the DB; mapped via HasCreatedAt so AuditEntityListener
+    // sets it on @PrePersist consistently with the rest of the audit infrastructure.
     @Column(name = "detected_at", nullable = false, updatable = false)
     private OffsetDateTime detectedAt;
 
     @Column(name = "expires_at")
     private OffsetDateTime expiresAt;
 
-    @PrePersist
-    void prePersist() {
-        if (detectedAt == null) {
-            detectedAt = OffsetDateTime.now();
-        }
+    // HasCreatedAt maps to the domain-meaningful "detectedAt" field.
+    // Conditional set preserves any pre-assigned value (e.g. in migrations).
+    @Override
+    public OffsetDateTime getCreatedAt() { return detectedAt; }
+
+    @Override
+    public void setCreatedAt(OffsetDateTime value) {
+        if (this.detectedAt == null) this.detectedAt = value;
     }
 }

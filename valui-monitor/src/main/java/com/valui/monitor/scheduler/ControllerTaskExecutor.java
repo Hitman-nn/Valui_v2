@@ -4,7 +4,7 @@ import com.valui.common.domain.BookmakerType;
 import com.valui.common.domain.ControllerType;
 import com.valui.common.entity.ControllerEntity;
 import com.valui.common.entity.DetectedEventEntity;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.dedup.EventDeduplicationService;
@@ -129,7 +129,7 @@ public class ControllerTaskExecutor {
         BookmakerParser parser = parserFactory.getParser(ctx.bookmaker());
 
         if (ctx.tournamentId() != null) {
-            ParseResult<List<MatchDto>> result = parser.fetchMatches(ctx.tournamentId());
+            ParseResult<List<ParsedMatchDto>> result = parser.fetchMatches(ctx.tournamentId());
             if (!result.success() || result.data() == null) {
                 if (!result.success())
                     log.debug("fetchMatches error for {}: {}", ctx.controllerId(), result.errorMessage());

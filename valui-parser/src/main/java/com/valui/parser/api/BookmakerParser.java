@@ -1,7 +1,7 @@
 package com.valui.parser.api;
 
 import com.valui.common.domain.BookmakerType;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 
@@ -15,7 +15,7 @@ public interface BookmakerParser {
 
     ParseResult<List<TournamentDto>> fetchTournaments(String sportId);
 
-    ParseResult<List<MatchDto>> fetchMatches(String tournamentId);
+    ParseResult<List<ParsedMatchDto>> fetchMatches(String tournamentId);
 
     default boolean isAvailable() {
         return true;

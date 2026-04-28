@@ -20,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -31,6 +32,11 @@ public class BookmakerSelectCallback implements CallbackHandler {
     private final BotSessionService sessionService;
     private final BotMessageSource messageSource;
     private final ParserFactory parserFactory;
+
+    // Sports pinned to the top of page 0 in this priority order.
+    // Matched via case-insensitive contains so "Хоккей с шайбой" still ranks as hockey.
+    private static final List<String> PRIORITY_KEYWORDS =
+            List.of("футбол", "теннис", "хоккей", "баскетбол");
 
     @Override
     public String callbackPrefix() { return CallbackData.BK_SELECT_PREFIX; }
@@ -87,15 +93,42 @@ public class BookmakerSelectCallback implements CallbackHandler {
             .build();
     }
 
+    /**
+     * Builds the sports keyboard with stable alphabetical ordering and priority sports
+     * (Футбол, Теннис, Хоккей, Баскетбол) always pinned to the top of the list so
+     * they appear on page 0 regardless of API response order.
+     *
+     * Stable sort prevents duplicates/missing items on page navigation because the list
+     * order is deterministic even if the API returns items in a different sequence per call.
+     */
     static InlineKeyboardMarkup buildSportsKeyboard(
             List<SportDto> sports, int page, String backText) {
         return PagedKeyboardBuilder.<SportDto>create()
-            .items(sports)
+            .items(sortedSports(sports))
             .itemRenderer(s -> KeyboardButton.callback(s.name(), CallbackData.sportSel(s.id())))
             .pageSize(8)
             .currentPage(page)
             .navigationCallbackPrefix(CallbackData.SPORT_PAGE_PREFIX)
             .appendRow(KeyboardButton.callback(backText, CallbackData.SPORT_BACK))
             .build();
+    }
+
+    /**
+     * Returns sports sorted so that priority sports (Футбол, Теннис, Хоккей, Баскетбол)
+     * appear first in priority order, followed by all remaining sports alphabetically.
+     */
+    static List<SportDto> sortedSports(List<SportDto> sports) {
+        return sports.stream()
+                .sorted(Comparator.comparingInt(BookmakerSelectCallback::priorityOf)
+                        .thenComparing(s -> s.name().toLowerCase()))
+                .toList();
+    }
+
+    private static int priorityOf(SportDto s) {
+        String lower = s.name().toLowerCase();
+        for (int i = 0; i < PRIORITY_KEYWORDS.size(); i++) {
+            if (lower.contains(PRIORITY_KEYWORDS.get(i))) return i;
+        }
+        return PRIORITY_KEYWORDS.size();
     }
 }

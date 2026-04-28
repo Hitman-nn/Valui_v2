@@ -1,7 +1,7 @@
 package com.valui.parser.bookmaker.olimp;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.ParseResult;
@@ -67,7 +67,7 @@ class OlimpParserTest {
                 Map.of("payload", Map.of("id", "500", "name", "A - B", "competitionId", "100", "sportId", "1")),
                 Map.of("payload", Map.of("id", "501", "name", "C - D", "competitionId", "999", "sportId", "2"))
         ));
-        ParseResult<List<MatchDto>> result = parser.fetchMatches("100");
+        ParseResult<List<ParsedMatchDto>> result = parser.fetchMatches("100");
         assertThat(result.success()).isTrue();
         assertThat(result.data()).hasSize(1);
         assertThat(result.data().get(0).id()).isEqualTo("500");

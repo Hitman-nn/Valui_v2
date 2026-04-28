@@ -1,6 +1,6 @@
 package com.valui.parser.http;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import reactor.core.publisher.Mono;
 
@@ -50,10 +50,11 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
             "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
     private final HttpClient jdkClient;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
-    public SocksBookmakerHttpClient(ProxyProperties proxy) {
+    public SocksBookmakerHttpClient(ProxyProperties proxy, ObjectMapper objectMapper) {
         super(HttpClientConfig.buildWebClient(null));
+        this.objectMapper = objectMapper;
 
         InetSocketAddress proxyAddr = new InetSocketAddress(proxy.getHost(), proxy.getPort());
         jdkClient = HttpClient.newBuilder()
@@ -80,6 +81,16 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
 
     @Override
     public <T> Mono<T> getJson(String url, Class<T> type) {
+        return Mono.fromCallable(() -> {
+            HttpRequest req = buildRequest(url).build();
+            HttpResponse<byte[]> resp = jdkClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
+            checkStatus(resp);
+            return objectMapper.readValue(decompress(resp), type);
+        });
+    }
+
+    @Override
+    public <T> Mono<T> getJson(String url, TypeReference<T> type) {
         return Mono.fromCallable(() -> {
             HttpRequest req = buildRequest(url).build();
             HttpResponse<byte[]> resp = jdkClient.send(req, HttpResponse.BodyHandlers.ofByteArray());

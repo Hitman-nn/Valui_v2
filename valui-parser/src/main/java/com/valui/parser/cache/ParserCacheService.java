@@ -4,18 +4,19 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.valui.common.domain.BookmakerType;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 @Slf4j
 @Component
@@ -52,11 +53,11 @@ public class ParserCacheService {
 
     // ── Matches ───────────────────────────────────────────────────────────────
 
-    public Optional<List<MatchDto>> getMatches(BookmakerType bk, String tournamentId) {
+    public Optional<List<ParsedMatchDto>> getMatches(BookmakerType bk, String tournamentId) {
         return get(matchesKey(bk, tournamentId), new TypeReference<>() {});
     }
 
-    public void setMatches(BookmakerType bk, String tournamentId, List<MatchDto> data) {
+    public void setMatches(BookmakerType bk, String tournamentId, List<ParsedMatchDto> data) {
         set(matchesKey(bk, tournamentId), data, props.getMatchesTtl());
     }
 
@@ -126,9 +127,21 @@ public class ParserCacheService {
         }
     }
 
+    /**
+     * Deletes all keys matching the pattern using Redis SCAN (non-blocking).
+     * Uses RedisTemplate.scan() — the high-level Spring Data Redis 3.x API —
+     * instead of the raw connection-level scan which triggers a deprecation warning.
+     */
     private void deleteByPattern(String pattern) {
-        Set<String> keys = redis.keys(pattern);
-        if (keys != null && !keys.isEmpty()) redis.delete(keys);
+        ScanOptions opts = ScanOptions.scanOptions().match(pattern).count(200).build();
+        List<String> toDelete = new ArrayList<>();
+        try (var cursor = redis.scan(opts)) {
+            cursor.forEachRemaining(toDelete::add);
+        } catch (Exception e) {
+            log.warn("deleteByPattern scan error for '{}': {}", pattern, e.getMessage());
+            return;
+        }
+        if (!toDelete.isEmpty()) redis.delete(toDelete);
     }
 
     private static String sportsKey(BookmakerType bk) {

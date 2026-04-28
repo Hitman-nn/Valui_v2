@@ -62,7 +62,8 @@ public class MonitorScheduler {
                 Executors.newScheduledThreadPool(
                         Math.max(2, Runtime.getRuntime().availableProcessors() / 2),
                         Thread.ofPlatform().name("monitor-trigger-", 0).factory()),
-                Executors.newVirtualThreadPerTaskExecutor());
+                Executors.newThreadPerTaskExecutor(
+                        Thread.ofVirtual().name("monitor-task-", 0).factory()));
     }
 
     /** Package-private constructor for tests — allows injecting stub executors. */

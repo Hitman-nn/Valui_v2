@@ -1,7 +1,7 @@
 package com.valui.parser.bookmaker.fonbet;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.ParseResult;
@@ -58,7 +58,7 @@ class FonbetParserTest {
     @Test
     void fetchMatches_filtersTopLevelEvents() throws Exception {
         server.enqueue(jsonResponse(snapshotBody()));
-        ParseResult<List<MatchDto>> result = parser.fetchMatches("10");
+        ParseResult<List<ParsedMatchDto>> result = parser.fetchMatches("10");
         assertThat(result.success()).isTrue();
         assertThat(result.data()).hasSize(1); // sub-event (parentId=99) filtered out
         assertThat(result.data().get(0).title()).isEqualTo("Team A - Team B");

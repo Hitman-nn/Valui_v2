@@ -1,7 +1,7 @@
 package com.valui.parser.factory;
 
 import com.valui.common.domain.BookmakerType;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.BookmakerParser;
@@ -60,7 +60,7 @@ class ParserFactoryTest {
             @Override public BookmakerType getBookmaker() { return type; }
             @Override public ParseResult<List<SportDto>> fetchSports() { return ParseResult.ok(List.of(), 0L); }
             @Override public ParseResult<List<TournamentDto>> fetchTournaments(String s) { return ParseResult.ok(List.of(), 0L); }
-            @Override public ParseResult<List<MatchDto>> fetchMatches(String s) { return ParseResult.ok(List.of(), 0L); }
+            @Override public ParseResult<List<ParsedMatchDto>> fetchMatches(String s) { return ParseResult.ok(List.of(), 0L); }
             @Override public boolean isAvailable() { return available; }
         };
     }

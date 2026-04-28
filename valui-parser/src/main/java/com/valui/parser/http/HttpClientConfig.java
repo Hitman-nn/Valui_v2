@@ -1,5 +1,6 @@
 package com.valui.parser.http;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.channel.ChannelOption;
 import io.netty.resolver.DefaultAddressResolverGroup;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -26,12 +27,11 @@ public class HttpClientConfig {
             "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
     @Bean @Qualifier("xbetHttpClient")
-    public BookmakerHttpClient xbetHttpClient(ProxyProperties proxy) {
+    public BookmakerHttpClient xbetHttpClient(ProxyProperties proxy, ObjectMapper objectMapper) {
         if (proxy.isEnabled()) {
-            // JDK HttpClient + SOCKS5 — avoids Reactor Netty's JA3 fingerprint
-            // that 1xbet.kz rejects. JDK's JSSE TLS matches HttpURLConnection's
-            // fingerprint which 1xbet accepts.
-            return new SocksBookmakerHttpClient(proxy);
+            // JDK HttpClient + HTTP CONNECT proxy — avoids Reactor Netty's JA3 fingerprint
+            // that 1xbet.kz rejects. JDK JSSE TLS matches the fingerprint 1xbet accepts.
+            return new SocksBookmakerHttpClient(proxy, objectMapper);
         }
         return new BookmakerHttpClient(buildWebClient(null));
     }

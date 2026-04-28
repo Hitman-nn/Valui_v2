@@ -2,7 +2,7 @@ package com.valui.parser.bookmaker.olimp;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.valui.common.domain.BookmakerType;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.BookmakerParser;
@@ -92,17 +92,17 @@ public class OlimpParser implements BookmakerParser {
     @CircuitBreaker(name = "olimp-cb", fallbackMethod = "fetchMatchesFallback")
     @Retry(name = "parser-retry")
     @Override
-    public ParseResult<List<MatchDto>> fetchMatches(String tournamentId) {
+    public ParseResult<List<ParsedMatchDto>> fetchMatches(String tournamentId) {
         long start = ms();
         JsonNode arr = block(http.getJson(eventsApi, JsonNode.class));
-        List<MatchDto> matches = new ArrayList<>();
+        List<ParsedMatchDto> matches = new ArrayList<>();
         for (JsonNode item : iter(arr)) {
             JsonNode p = item.path("payload");
             if (!tournamentId.equals(s(p, "competitionId"))) continue;
             String id = s(p, "id"), name = s(p, "name"), sId = s(p, "sportId");
             if (id == null || name == null) continue;
             String url = "https://www.olimp.bet/line/" + sId + "/" + tournamentId + "/" + id;
-            matches.add(new MatchDto(id, name, tournamentId, url,
+            matches.add(new ParsedMatchDto(id, name, tournamentId, url,
                     parseInstant(s(p, "startsAt")), p.path("isLive").asBoolean(false)));
         }
         return ParseResult.ok(matches, ms() - start);
@@ -126,7 +126,7 @@ public class OlimpParser implements BookmakerParser {
         return ParseResult.error("olimp-cb: " + t.getMessage());
     }
 
-    private ParseResult<List<MatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
+    private ParseResult<List<ParsedMatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
         log.warn("olimp fetchMatches fallback: {}", t.getMessage());
         return ParseResult.error("olimp-cb: " + t.getMessage());
     }

@@ -1,7 +1,7 @@
 package com.valui.parser.health;
 
 import com.valui.common.domain.BookmakerType;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.BookmakerParser;
@@ -96,7 +96,7 @@ class ParserHealthServiceTest {
             @Override public BookmakerType getBookmaker() { return type; }
             @Override public ParseResult<List<SportDto>> fetchSports() { return ParseResult.ok(List.of(), 0); }
             @Override public ParseResult<List<TournamentDto>> fetchTournaments(String s) { return ParseResult.ok(List.of(), 0); }
-            @Override public ParseResult<List<MatchDto>> fetchMatches(String s) { return ParseResult.ok(List.of(), 0); }
+            @Override public ParseResult<List<ParsedMatchDto>> fetchMatches(String s) { return ParseResult.ok(List.of(), 0); }
         };
     }
 }

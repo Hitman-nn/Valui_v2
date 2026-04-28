@@ -4,7 +4,7 @@ import com.google.protobuf.ByteString;
 import com.valui.common.domain.BookmakerType;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
-import com.valui.common.parser.dto.MatchDto;
+import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.bookmaker.betboom.ws.WsClientBorrowingPool;
 import com.valui.parser.bookmaker.betboom.ws.WsRequestService;
