@@ -10,6 +10,7 @@ import com.valui.bot.service.BotSessionService;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
 import com.valui.common.domain.ControllerType;
+import com.valui.common.exception.InsufficientTokensException;
 import com.valui.monitor.dto.CreateControllerRequest;
 import com.valui.monitor.service.ControllerService;
 import lombok.RequiredArgsConstructor;
@@ -87,6 +88,11 @@ public class ControllerConfirmCallback implements CallbackHandler {
                 backNavigator.returnToTournamentList(ctx.sender(), ctx.chatId(), messageId);
             }
 
+        } catch (InsufficientTokensException e) {
+            log.info("⚠️ Нехватка токенов для контроллера fromId={}: {}", ctx.fromId(), e.getMessage());
+            sessionService.clearSession(ctx.fromId());
+            MessageSend.text(ctx.sender(), ctx.chatId(),
+                messageSource.getMessage("error.insufficient_tokens", ctx.fromId()));
         } catch (Exception e) {
             log.error("❌ Ошибка создания контроллера fromId={}: {}", ctx.fromId(), e.getMessage());
             sessionService.clearSession(ctx.fromId());

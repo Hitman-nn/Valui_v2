@@ -49,4 +49,14 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
 
     @Query("SELECT c FROM ControllerEntity c WHERE c.notificationChatId = :chatId AND c.isActive = true ORDER BY c.createdAt DESC")
     Page<ControllerEntity> findByNotificationChatIdOrderByCreatedAtDesc(@Param("chatId") Long chatId, Pageable pageable);
+
+    int countByUserIdAndBookmakerAndIsActiveTrue(UUID userId, BookmakerType bookmaker);
+
+    List<ControllerEntity> findAllByUserIdAndBookmakerAndIsActiveTrue(UUID userId, BookmakerType bookmaker);
+
+    List<ControllerEntity> findAllByUserIdAndPausedByTokensTrue(UUID userId);
+
+    @Modifying
+    @Query("UPDATE ControllerEntity c SET c.pausedByTokens = :paused, c.isActive = :active, c.isMuted = :muted WHERE c.id = :id")
+    int updateTokenPauseState(@Param("id") UUID id, @Param("paused") boolean paused, @Param("active") boolean active, @Param("muted") boolean muted);
 }

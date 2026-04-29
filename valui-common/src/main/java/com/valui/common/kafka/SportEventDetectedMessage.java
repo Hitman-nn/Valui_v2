@@ -12,6 +12,7 @@ public record SportEventDetectedMessage(
         String controllerId,
         String userId,
         Long telegramId,
+        Long chatId,
         String bookmaker,
         String externalEventId,
         String title,

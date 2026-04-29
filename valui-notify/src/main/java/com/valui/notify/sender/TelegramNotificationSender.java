@@ -98,11 +98,6 @@ public class TelegramNotificationSender implements NotificationSender {
                     .button("➕ Следить за турниром", CallbackData.qadd(request.quickAddKey()))
                     .build();
         }
-        if (request.eventUrl() != null && !request.eventUrl().isBlank()) {
-            return InlineKeyboardBuilder.create()
-                    .urlButton("🔗 Открыть матч", request.eventUrl())
-                    .build();
-        }
         return null;
     }
 }

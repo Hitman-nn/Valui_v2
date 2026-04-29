@@ -9,7 +9,6 @@ import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.UserNotFoundException;
 import com.valui.user.dto.SubscriptionPlanDto;
 import com.valui.user.event.SubscriptionExpiredEvent;
-import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.SubscriptionPlanRepository;
 import com.valui.user.repository.SubscriptionRepository;
 import com.valui.user.repository.UserRepository;
@@ -36,12 +35,11 @@ import static org.mockito.BDDMockito.*;
 @DisplayName("SubscriptionService — unit tests")
 class SubscriptionServiceTest {
 
-    @Mock private UserRepository userRepository;
-    @Mock private SubscriptionRepository subscriptionRepository;
+    @Mock private UserRepository             userRepository;
+    @Mock private SubscriptionRepository     subscriptionRepository;
     @Mock private SubscriptionPlanRepository subscriptionPlanRepository;
-    @Mock private ControllerRepository controllerRepository;
-    @Mock private ApplicationEventPublisher eventPublisher;
-    @Mock private GroupQuotaService groupQuotaService;
+    @Mock private ApplicationEventPublisher  eventPublisher;
+    @Mock private TokenLedgerService         tokenLedgerService;
 
     @InjectMocks private SubscriptionServiceImpl subscriptionService;
 
@@ -96,60 +94,6 @@ class SubscriptionServiceTest {
             .isInstanceOf(UserNotFoundException.class);
     }
 
-    // ─── canAddController ────────────────────────────────────────────────────
-
-    @Test
-    @DisplayName("canAddController: below limit → true")
-    void canAddController_belowLimit_returnsTrue() {
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(subscriptionRepository.findTopByUserIdAndStatusOrderByStartedAtDesc(USER_ID, SubscriptionStatus.ACTIVE))
-            .willReturn(Optional.of(activeSub));
-        given(controllerRepository.countByUserIdAndIsActiveTrue(USER_ID)).willReturn(2);
-
-        assertThat(subscriptionService.canAddController(TG_ID)).isTrue();
-    }
-
-    @Test
-    @DisplayName("canAddController: at limit → false")
-    void canAddController_atLimit_returnsFalse() {
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(subscriptionRepository.findTopByUserIdAndStatusOrderByStartedAtDesc(USER_ID, SubscriptionStatus.ACTIVE))
-            .willReturn(Optional.of(activeSub));
-        given(controllerRepository.countByUserIdAndIsActiveTrue(USER_ID)).willReturn(3); // FREE max
-
-        assertThat(subscriptionService.canAddController(TG_ID)).isFalse();
-    }
-
-    @Test
-    @DisplayName("canAddController: user not found → false (safe default)")
-    void canAddController_exception_returnsFalse() {
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.empty());
-        assertThat(subscriptionService.canAddController(TG_ID)).isFalse();
-    }
-
-    // ─── canUseBookmaker ─────────────────────────────────────────────────────
-
-    @Test
-    @DisplayName("canUseBookmaker: allowed bookmaker → true")
-    void canUseBookmaker_allowed_returnsTrue() {
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(subscriptionRepository.findTopByUserIdAndStatusOrderByStartedAtDesc(USER_ID, SubscriptionStatus.ACTIVE))
-            .willReturn(Optional.of(activeSub));
-
-        assertThat(subscriptionService.canUseBookmaker(TG_ID, "XBET")).isTrue();
-        assertThat(subscriptionService.canUseBookmaker(TG_ID, "xbet")).isTrue(); // case-insensitive
-    }
-
-    @Test
-    @DisplayName("canUseBookmaker: not in plan → false")
-    void canUseBookmaker_notAllowed_returnsFalse() {
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(subscriptionRepository.findTopByUserIdAndStatusOrderByStartedAtDesc(USER_ID, SubscriptionStatus.ACTIVE))
-            .willReturn(Optional.of(activeSub));
-
-        assertThat(subscriptionService.canUseBookmaker(TG_ID, "BETBOOM")).isFalse();
-    }
-
     // ─── getPollInterval ─────────────────────────────────────────────────────
 
     @Test
@@ -185,8 +129,7 @@ class SubscriptionServiceTest {
         assertThat(result.getPlan().getCode()).isEqualTo("PRO");
         assertThat(result.getStatus()).isEqualTo(SubscriptionStatus.ACTIVE);
         assertThat(result.getPaymentRef()).isEqualTo("PAY-123");
-        assertThat(result.getExpiresAt()).isAfter(OffsetDateTime.now().plusDays(29)); // ~30 days
-        // old sub was cancelled
+        assertThat(result.getExpiresAt()).isAfter(OffsetDateTime.now().plusDays(29));
         assertThat(activeSub.getStatus()).isEqualTo(SubscriptionStatus.CANCELLED);
     }
 
@@ -222,7 +165,7 @@ class SubscriptionServiceTest {
         subscriptionService.expireSubscription(SUB_ID);
 
         assertThat(proSub.getStatus()).isEqualTo(SubscriptionStatus.EXPIRED);
-        then(subscriptionRepository).should(times(2)).save(any()); // expire old + save new FREE
+        then(subscriptionRepository).should(times(2)).save(any());
 
         ArgumentCaptor<SubscriptionExpiredEvent> eventCaptor =
             ArgumentCaptor.forClass(SubscriptionExpiredEvent.class);

@@ -9,10 +9,12 @@ import com.valui.common.exception.ControllerAccessException;
 import com.valui.common.exception.ControllerNotFoundException;
 import com.valui.common.exception.UserNotFoundException;
 import com.valui.common.exception.ValuiException;
+import com.valui.monitor.dedup.EventDeduplicationService;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.dto.CreateControllerRequest;
 import com.valui.monitor.event.ControllerAddedEvent;
 import com.valui.monitor.event.ControllerRemovedEvent;
+import com.valui.monitor.scheduler.MonitorScheduler;
 import com.valui.parser.util.ParsedUrlIds;
 import com.valui.parser.util.UrlParser;
 import com.valui.user.api.ControllerPortService;
@@ -27,7 +29,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -37,11 +39,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ControllerServiceImpl implements ControllerService {
 
-    private final ControllerPortService controllerPort;
-    private final DetectedEventPortService detectedEventPort;
-    private final UserService userService;
-    private final PlanLimitFacade planLimitFacade;
-    private final ApplicationEventPublisher eventPublisher;
+    private final ControllerPortService      controllerPort;
+    private final DetectedEventPortService   detectedEventPort;
+    private final UserService                userService;
+    private final PlanLimitFacade            planLimitFacade;
+    private final ApplicationEventPublisher  eventPublisher;
+    private final EventDeduplicationService  dedup;
+    private final MonitorScheduler           monitorScheduler;
 
     @Override
     @Transactional
@@ -49,40 +53,36 @@ public class ControllerServiceImpl implements ControllerService {
     public ControllerDto addController(CreateControllerRequest req, Long telegramId, Long notificationChatId) {
         UserEntity user = requireUser(telegramId);
 
-        planLimitFacade.checkControllerLimit(telegramId);
-
-        // Group chat: also check that the group hasn't hit its own ceiling
-        if (notificationChatId != null && notificationChatId < 0) {
-            planLimitFacade.checkGroupCapacity(notificationChatId);
-        }
-
         BookmakerType bookmaker = resolveBookmaker(req);
-        planLimitFacade.checkBookmakerAccess(telegramId, bookmaker.name());
 
         if (controllerPort.existsByUserAndBookmakerAndUrl(user.getId(), bookmaker, req.url())) {
             throw new ValuiException("Controller already exists for this URL", 409);
         }
 
+        // Списываем токены если это первый контроллер данной БК у пользователя
+        planLimitFacade.debitForBkSlotIfNew(telegramId, bookmaker.name());
+
         ControllerType type = (req.typeHint() != null) ? req.typeHint() : resolveType(req.url(), bookmaker);
         int pollIntervalSec = planLimitFacade.getLimitInfo(telegramId).pollIntervalSec();
 
         ControllerEntity saved = controllerPort.save(
-                ControllerEntity.builder()
-                        .user(user)
-                        .bookmaker(bookmaker)
-                        .url(req.url())
-                        .title(req.title())
-                        .type(type)
-                        .isMuted(req.isMuted())
-                        .isActive(true)
-                        .pollIntervalSec(pollIntervalSec)
-                        .notificationChatId(notificationChatId)
-                        .build()
+            ControllerEntity.builder()
+                .user(user)
+                .bookmaker(bookmaker)
+                .url(req.url())
+                .title(req.title())
+                .type(type)
+                .isMuted(req.isMuted())
+                .isActive(true)
+                .pollIntervalSec(pollIntervalSec)
+                .notificationChatId(notificationChatId)
+                .build()
         );
-        log.info("✅ Контроллер добавлен: id={} букмекер={} telegramId={} notifChat={}",
-                saved.getId(), bookmaker, telegramId, notificationChatId);
+        Long effectiveChatId = notificationChatId != null ? notificationChatId : user.getTelegramId();
+        controllerPort.createSubscription(saved.getId(), effectiveChatId, user.getId(), user.getTelegramId());
+        log.info("[CONTROLLER] Добавлен: id={} бк={} telegramId={}", saved.getId(), bookmaker, telegramId);
         eventPublisher.publishEvent(new ControllerAddedEvent(
-                saved.getId(), user.getId(), telegramId, bookmaker, pollIntervalSec));
+            saved.getId(), user.getId(), telegramId, bookmaker, pollIntervalSec));
         return toDto(saved);
     }
 
@@ -94,52 +94,73 @@ public class ControllerServiceImpl implements ControllerService {
         ControllerEntity entity = requireOwned(controllerId, user.getId());
         entity.setIsActive(false);
         controllerPort.save(entity);
-        log.info("🗑  Контроллер удалён: id={} telegramId={}", controllerId, telegramId);
+        log.info("[CONTROLLER] Удалён: id={} telegramId={}", controllerId, telegramId);
         eventPublisher.publishEvent(new ControllerRemovedEvent(controllerId, user.getId()));
     }
 
     @Override
     public ControllerDto getController(UUID controllerId) {
         return toDto(controllerPort.findById(controllerId)
-                .orElseThrow(() -> new ControllerNotFoundException(controllerId)));
+            .orElseThrow(() -> new ControllerNotFoundException(controllerId)));
     }
 
     @Override
     public List<ControllerDto> getUserControllers(Long telegramId) {
         UserEntity user = requireUser(telegramId);
         return controllerPort.findAllActiveByUserId(user.getId())
-                .stream().map(this::toDto).toList();
+            .stream().map(this::toDto).toList();
     }
 
     @Override
     public List<ControllerDto> getGroupControllers(Long notificationChatId) {
         return controllerPort.findAllActiveByNotificationChatId(notificationChatId)
-                .stream().map(this::toDto).toList();
+            .stream().map(this::toDto).toList();
     }
 
     @Override
     public Page<ControllerDto> getUserControllers(Long telegramId, Pageable pageable) {
         UserEntity user = requireUser(telegramId);
         return controllerPort.findByUserIdPageable(user.getId(), pageable)
-                .map(this::toDto);
+            .map(this::toDto);
     }
 
     @Override
     @Transactional
     public void muteController(UUID controllerId, Long telegramId) {
-        UserEntity user = requireUser(telegramId);
-        ControllerEntity entity = requireOwned(controllerId, user.getId());
-        entity.setIsMuted(true);
-        controllerPort.save(entity);
+        muteForChat(controllerId, telegramId, telegramId);
     }
 
     @Override
     @Transactional
     public void unmuteController(UUID controllerId, Long telegramId) {
-        UserEntity user = requireUser(telegramId);
-        ControllerEntity entity = requireOwned(controllerId, user.getId());
-        entity.setIsMuted(false);
-        controllerPort.save(entity);
+        unmuteForChat(controllerId, telegramId, telegramId);
+    }
+
+    @Override
+    @Transactional
+    public void muteForChat(UUID controllerId, Long telegramId, Long chatId) {
+        requireUser(telegramId);
+        controllerPort.muteSubscription(controllerId, chatId);
+        if (!controllerPort.hasActiveSubscriptions(controllerId)) {
+            dedup.clearController(controllerId);
+            controllerPort.updateLastCheckedAt(controllerId, null);
+            monitorScheduler.unscheduleController(controllerId);
+        }
+        log.info("[CTRL] Замьючен chatId={} controllerId={}", chatId, controllerId);
+    }
+
+    @Override
+    @Transactional
+    public void unmuteForChat(UUID controllerId, Long telegramId, Long chatId) {
+        requireUser(telegramId);
+        controllerPort.unmuteSubscription(controllerId, chatId);
+        if (!monitorScheduler.getScheduledControllerIds().contains(controllerId)) {
+            controllerPort.findById(controllerId).ifPresent(c -> {
+                int interval = c.getPollIntervalSec() != null ? c.getPollIntervalSec() : 60;
+                monitorScheduler.scheduleController(controllerId, c.getUser().getId(), interval);
+            });
+        }
+        log.info("[CTRL] Размьючен chatId={} controllerId={}", chatId, controllerId);
     }
 
     @Override
@@ -149,9 +170,10 @@ public class ControllerServiceImpl implements ControllerService {
         UserEntity user = requireUser(telegramId);
         ControllerEntity entity = requireOwned(controllerId, user.getId());
 
-        // Count against limit only when a new filter is being added (was null before)
+        // Списываем токены только при добавлении нового фильтра (не при обновлении или удалении)
         if (entity.getFilterRule() == null && rule != null && !rule.isBlank()) {
-            planLimitFacade.checkFilterLimit(telegramId);
+            planLimitFacade.debitForControllerFilter(telegramId);
+            entity.setFilterSetAt(OffsetDateTime.now());
         }
 
         entity.setFilterRule(rule != null && rule.isBlank() ? null : rule);
@@ -163,39 +185,69 @@ public class ControllerServiceImpl implements ControllerService {
     @Transactional
     public void deactivateController(UUID controllerId) {
         controllerPort.findById(controllerId)
-                .orElseThrow(() -> new ControllerNotFoundException(controllerId));
+            .orElseThrow(() -> new ControllerNotFoundException(controllerId));
         controllerPort.updateIsActive(controllerId, false);
-        log.info("🔒 Контроллер деактивирован (admin): id={}", controllerId);
+        log.info("[CONTROLLER] Деактивирован (admin): id={}", controllerId);
         eventPublisher.publishEvent(new ControllerRemovedEvent(controllerId, null));
+    }
+
+    @Override
+    @Transactional
+    public void stopForChat(UUID controllerId, Long telegramId, Long chatId) {
+        requireUser(telegramId);
+        controllerPort.removeSubscription(controllerId, chatId);
+        if (!controllerPort.hasActiveSubscriptions(controllerId)) {
+            dedup.clearController(controllerId);
+            controllerPort.updateLastCheckedAt(controllerId, null);
+            monitorScheduler.unscheduleController(controllerId);
+        }
+        log.info("[CTRL] Остановлен chatId={} controllerId={}", chatId, controllerId);
+    }
+
+    @Override
+    public ControllerDto getControllerForChat(UUID controllerId, Long chatId) {
+        ControllerEntity e = controllerPort.findById(controllerId)
+            .orElseThrow(() -> new ControllerNotFoundException(controllerId));
+        boolean isMuted = controllerPort.findSubscription(controllerId, chatId)
+            .map(s -> s.isMuted() || s.isPausedByTokens())
+            .orElse(false);
+        long eventCount = detectedEventPort.countByControllerId(e.getId());
+        return new ControllerDto(
+            e.getId(), e.getBookmaker().name(), e.getUrl(), e.getTitle(),
+            e.getFilterRule(), isMuted, Boolean.TRUE.equals(e.getIsActive()),
+            e.getLastCheckedAt() != null ? e.getLastCheckedAt().toInstant() : null,
+            e.getLastEventAt()   != null ? e.getLastEventAt().toInstant()   : null,
+            (int) eventCount, e.getType(), e.getNotificationChatId()
+        );
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private UserEntity requireUser(Long telegramId) {
         return userService.findByTelegramId(telegramId)
-                .orElseThrow(() -> new UserNotFoundException(telegramId));
+            .orElseThrow(() -> new UserNotFoundException(telegramId));
     }
 
     private ControllerEntity requireOwned(UUID controllerId, UUID userId) {
         return controllerPort.findByIdAndUserId(controllerId, userId)
-                .orElseThrow(() -> new ControllerAccessException(controllerId));
+            .orElseThrow(() -> new ControllerAccessException(controllerId));
     }
 
     private ControllerDto toDto(ControllerEntity e) {
         long eventCount = detectedEventPort.countByControllerId(e.getId());
         return new ControllerDto(
-                e.getId(),
-                e.getBookmaker().name(),
-                e.getUrl(),
-                e.getTitle(),
-                e.getFilterRule(),
-                Boolean.TRUE.equals(e.getIsMuted()),
-                Boolean.TRUE.equals(e.getIsActive()),
-                e.getLastCheckedAt() != null ? e.getLastCheckedAt().toInstant() : null,
-                e.getLastEventAt()   != null ? e.getLastEventAt().toInstant()   : null,
-                (int) eventCount,
-                e.getType(),
-                e.getNotificationChatId()
+            e.getId(),
+            e.getBookmaker().name(),
+            e.getUrl(),
+            e.getTitle(),
+            e.getFilterRule(),
+            Boolean.TRUE.equals(e.getIsMuted()),
+            Boolean.TRUE.equals(e.getIsActive()),
+            e.getLastCheckedAt() != null ? e.getLastCheckedAt().toInstant() : null,
+            e.getLastEventAt()   != null ? e.getLastEventAt().toInstant()   : null,
+            (int) eventCount,
+            e.getType(),
+            e.getNotificationChatId()
         );
     }
 

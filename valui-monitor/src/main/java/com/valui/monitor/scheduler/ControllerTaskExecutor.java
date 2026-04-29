@@ -3,6 +3,7 @@ package com.valui.monitor.scheduler;
 import com.valui.common.domain.BookmakerType;
 import com.valui.common.domain.ControllerType;
 import com.valui.common.entity.ControllerEntity;
+import com.valui.common.entity.ControllerSubscriptionEntity;
 import com.valui.common.entity.DetectedEventEntity;
 import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.TournamentDto;
@@ -170,25 +171,35 @@ public class ControllerTaskExecutor {
         ControllerEntity ctrl = controllerPort.findById(ctx.controllerId())
                 .orElseThrow(() -> new IllegalStateException("Controller vanished: " + ctx.controllerId()));
 
+        // First run (warmup): lastCheckedAt == null → mark all events as seen silently
+        boolean isFirstRun = ctrl.getLastCheckedAt() == null;
+
         List<DetectedEventEntity> saved = new ArrayList<>();
         for (ParsedItem item : fetched) {
             // Redis atomic claim replaces the per-event DB existsBy query (O(1) vs O(log n))
             if (!dedup.claimIfNew(ctx.controllerId(), item.id())) continue;
 
-            try {
-                DetectedEventEntity entity = DetectedEventEntity.builder()
-                        .controller(ctrl)
-                        .eventExternalId(item.id())
-                        .title(item.title() != null ? item.title() : item.id())
-                        .url(item.url())
-                        .build();
-                saved.add(detectedEventPort.save(entity));
-            } catch (org.springframework.dao.DataIntegrityViolationException ex) {
-                // Redis claimed it as new but DB already has it (TTL expired + race condition).
-                // Treat as duplicate — the nightly sync will reconcile.
-                log.debug("Duplicate event in DB (Redis TTL expired?): controller={} eventId={}",
-                        ctx.controllerId(), item.id());
+            if (!isFirstRun) {
+                try {
+                    DetectedEventEntity entity = DetectedEventEntity.builder()
+                            .controller(ctrl)
+                            .eventExternalId(item.id())
+                            .title(item.title() != null ? item.title() : item.id())
+                            .url(item.url())
+                            .build();
+                    saved.add(detectedEventPort.save(entity));
+                } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+                    // Redis claimed it as new but DB already has it (TTL expired + race condition).
+                    // Treat as duplicate — the nightly sync will reconcile.
+                    log.debug("Duplicate event in DB (Redis TTL expired?): controller={} eventId={}",
+                            ctx.controllerId(), item.id());
+                }
             }
+        }
+
+        if (isFirstRun) {
+            log.info("[CTRL] Warmup run for controller {} — {} events marked as seen silently",
+                    ctx.controllerId(), fetched.size());
         }
 
         OffsetDateTime now = OffsetDateTime.now();
@@ -196,27 +207,34 @@ public class ControllerTaskExecutor {
         if (!saved.isEmpty()) ctrl.setLastEventAt(now);
         controllerPort.save(ctrl);
 
-        // Save outbox row and publish Spring event in the same transaction.
-        // SportEventKafkaProducer fires AFTER_COMMIT for immediate Kafka delivery;
-        // OutboxSenderService retries any row still unsent after 15 s.
-        saved.forEach(e -> {
-            outboxRepo.save(outboxSenderService.buildOutboxEvent(
-                    e.getEventExternalId(),
-                    ctx.controllerId().toString(),
-                    ctx.userId().toString(),
-                    ctx.telegramId(),
-                    ctx.bookmaker().name(),
-                    e.getTitle(),
-                    e.getUrl()));
-            events.publishEvent(new SportEventDetectedEvent(
-                    ctrl.getId(),
-                    ctx.userId(),
-                    ctx.telegramId(),
-                    ctx.bookmaker(),
-                    e.getEventExternalId(),
-                    e.getTitle(),
-                    e.getUrl()));
-        });
+        if (!isFirstRun && !saved.isEmpty()) {
+            // Fan-out: save outbox row and publish Spring event for EACH active subscription.
+            // SportEventKafkaProducer fires AFTER_COMMIT for immediate Kafka delivery;
+            // OutboxSenderService retries any row still unsent after 15 s.
+            List<ControllerSubscriptionEntity> subs = controllerPort.findActiveSubscriptions(ctx.controllerId());
+            saved.forEach(e -> {
+                for (ControllerSubscriptionEntity sub : subs) {
+                    outboxRepo.save(outboxSenderService.buildOutboxEvent(
+                            e.getEventExternalId(),
+                            ctx.controllerId().toString(),
+                            sub.getUserId().toString(),
+                            sub.getTelegramId(),
+                            sub.getChatId(),
+                            ctx.bookmaker().name(),
+                            e.getTitle(),
+                            e.getUrl()));
+                    events.publishEvent(new SportEventDetectedEvent(
+                            ctrl.getId(),
+                            sub.getUserId(),
+                            sub.getTelegramId(),
+                            sub.getChatId(),
+                            ctx.bookmaker(),
+                            e.getEventExternalId(),
+                            e.getTitle(),
+                            e.getUrl()));
+                }
+            });
+        }
 
         return saved.size();
     }

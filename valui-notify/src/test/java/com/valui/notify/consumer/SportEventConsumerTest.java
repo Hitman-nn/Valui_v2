@@ -73,6 +73,7 @@ class SportEventConsumerTest {
                 CTRL_ID.toString(),
                 USER_ID.toString(),
                 TG_ID,
+                TG_ID,
                 "FONBET",
                 "ext-match-1",
                 "Spartak - CSKA",

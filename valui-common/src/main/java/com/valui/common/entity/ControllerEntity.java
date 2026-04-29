@@ -73,6 +73,15 @@ public class ControllerEntity implements HasUpdatedAt {
     @Column(name = "notification_chat_id")
     private Long notificationChatId;
 
+    /** true когда контроллер приостановлен из-за нехватки токенов. При пополнении восстанавливается. */
+    @Column(name = "paused_by_tokens", nullable = false)
+    @Builder.Default
+    private Boolean pausedByTokens = false;
+
+    /** Дата первой установки filter_rule. Нужна планировщику для пропуска текущего месяца. */
+    @Column(name = "filter_set_at")
+    private OffsetDateTime filterSetAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

@@ -48,10 +48,20 @@ public class UserEntity implements HasUpdatedAt {
     @Builder.Default
     private String languageCode = "ru";
 
-    /** Extra controller slots the user can commit to group chats. Earned via paid plans. */
+    /** Текущий баланс токенов. Не сгорает, переходит на следующий месяц. */
     @Column(name = "token_balance", nullable = false)
     @Builder.Default
     private Integer tokenBalance = 0;
+
+    /** Порог уведомления о низком балансе (100 = не уведомлялся, 20/10/5 = порог %). Сбрасывается ежемесячно. */
+    @Column(name = "token_low_threshold_pct", nullable = false)
+    @Builder.Default
+    private Integer tokenLowThresholdPct = 100;
+
+    /** Ежемесячный грант плана — используется для расчёта порогов. Обновляется при начислении гранта. */
+    @Column(name = "token_monthly_grant_ref", nullable = false)
+    @Builder.Default
+    private Integer tokenMonthlyGrantRef = 0;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

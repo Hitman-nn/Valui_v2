@@ -122,10 +122,13 @@ public class SportEventConsumer {
             eventUrl = event.url();
         }
 
+        // Use chatId (subscription target) for delivery; fall back to telegramId for legacy rows
+        Long targetChatId = event.chatId() != null ? event.chatId() : event.telegramId();
+
         UserNotificationRequestMessage request = new UserNotificationRequestMessage(
                 logEntry.getId().toString(),
                 event.userId(),
-                event.telegramId(),
+                targetChatId,
                 NotificationChannel.TELEGRAM.name(),
                 messageText,
                 event.eventId(),
@@ -141,7 +144,7 @@ public class SportEventConsumer {
                                 logEntry.getId(), ex.getMessage());
                     } else {
                         log.debug("Queued notification [logId={} chatId={} quickAdd={}]",
-                                logEntry.getId(), event.telegramId(), hasQuickAdd);
+                                logEntry.getId(), targetChatId, hasQuickAdd);
                     }
                 });
     }

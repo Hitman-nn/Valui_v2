@@ -6,6 +6,7 @@ import com.valui.monitor.event.ControllerRemovedEvent;
 import com.valui.monitor.event.SubscriptionChangedEvent;
 import com.valui.monitor.scheduler.ControllerTaskExecutor.ControllerScheduleInfo;
 import com.valui.common.domain.BookmakerType;
+import com.valui.user.api.ControllerPortService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,7 @@ class MonitorSchedulerTest {
     @Mock ControllerTaskExecutor taskExecutor;
     @Mock MonitorMetrics metrics;
     @Mock com.valui.monitor.dedup.EventDeduplicationService dedup;
+    @Mock ControllerPortService controllerPort;
 
     MonitorProperties props;
     MonitorScheduler scheduler;
@@ -63,7 +65,7 @@ class MonitorSchedulerTest {
                 .willAnswer(inv -> mock(ScheduledFuture.class));
 
         given(taskExecutor.loadAllActiveForScheduling()).willReturn(List.of());
-        scheduler = new MonitorScheduler(taskExecutor, props, metrics, dedup, stubTriggerPool, stubTaskPool);
+        scheduler = new MonitorScheduler(taskExecutor, props, metrics, dedup, controllerPort, stubTriggerPool, stubTaskPool);
         scheduler.init();
     }
 

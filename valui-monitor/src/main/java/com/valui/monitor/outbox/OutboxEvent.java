@@ -10,7 +10,7 @@ import java.time.OffsetDateTime;
         name = "outbox_events",
         indexes = {
                 @Index(name = "idx_outbox_unsent_created", columnList = "created_at"),
-                @Index(name = "uq_outbox_external_event_id", columnList = "external_event_id", unique = true)
+                @Index(name = "uq_outbox_event_chat", columnList = "external_event_id,chat_id", unique = true)
         }
 )
 @Getter
@@ -41,6 +41,9 @@ public class OutboxEvent {
 
     @Column(name = "telegram_id")
     private Long telegramId;
+
+    @Column(name = "chat_id")
+    private Long chatId;
 
     @Column(nullable = false, length = 32)
     private String bookmaker;

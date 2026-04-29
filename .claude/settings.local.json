@@ -16,7 +16,9 @@
       "Bash(perl -i -pe 's/\\(new LimitInfoDto\\\\\\([^;]*?OffsetDateTime[^;]*?\\\\\\)\\\\s*\\);/$1;/gs; *)",
       "Bash(sed -i '' 's/List.of\\(\"XBET\", \"FONBET\"\\), 60, \"PRO\",\\\\n            OffsetDateTime.now\\(\\).plusDays\\(30\\)\\)/List.of\\(\"XBET\", \"FONBET\"\\), 60, \"PRO\",\\\\n            OffsetDateTime.now\\(\\).plusDays\\(30\\), 0\\)/g' /Users/danilabogatyrev/Documents/java/Valui_v2/valui-bot/src/test/java/com/valui/bot/keyboard/MenuSnapshotTest.java)",
       "Bash(perl -i -pe 's/controllerService\\\\.addController\\\\\\(any\\\\\\(\\\\\\), eq\\\\\\(CHAT_ID\\\\\\)\\\\\\)/controllerService.addController\\(any\\(\\), anyLong\\(\\), anyLong\\(\\)\\)/g; *)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(grep \"\\\\.java$\")",
+      "Bash(xargs cat *)"
     ]
   }
 }

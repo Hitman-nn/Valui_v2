@@ -26,11 +26,8 @@ public class ControllerDetailCallback implements CallbackHandler {
     private final ControllerService controllerService;
     private final BotMessageSource messageSource;
 
-    @Override
-    public String callbackPrefix() { return PREFIX; }
-
-    @Override
-    public int order() { return 50; }
+    @Override public String callbackPrefix() { return PREFIX; }
+    @Override public int order() { return 50; }
 
     @Override
     public void handle(BotUpdateContext ctx) {
@@ -41,45 +38,43 @@ public class ControllerDetailCallback implements CallbackHandler {
         UUID controllerId;
         try {
             controllerId = UUID.fromString(ctx.update().getCallbackQuery().getData().substring(PREFIX.length()));
-        } catch (Exception e) {
-            return;
-        }
+        } catch (Exception e) { return; }
 
         ControllerDto c;
         try {
-            c = controllerService.getController(controllerId);
+            c = controllerService.getControllerForChat(controllerId, ctx.chatId());
         } catch (Exception e) {
             log.warn("Controller not found: {}", controllerId);
             return;
         }
 
-        String text = buildDetailText(c, ctx.chatId());
-        InlineKeyboardMarkup keyboard = buildDetailKeyboard(c, ctx.chatId());
-        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, text, keyboard);
+        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+            buildDetailText(c, ctx.chatId()),
+            buildDetailKeyboard(c, ctx.chatId()));
     }
 
     public static String buildDetailText(ControllerDto c, Long chatId) {
-        String status = !c.isActive() ? "🔴 Остановлен"
-                : c.isMuted()         ? "🔕 Замьючен"
-                :                       "🟢 Активен";
+        String status;
+        if (!c.isActive()) {
+            status = "🔴 Остановлен";
+        } else if (c.isMuted()) {
+            status = "🔕 Замьючен";
+        } else {
+            status = "🟢 Активен";
+        }
         String typeLabel = c.type() == ControllerType.SPORT ? "Все турниры" : "Турнир";
 
         StringBuilder sb = new StringBuilder();
         sb.append("📡 *").append(c.bookmaker()).append("*");
-        if (c.title() != null && !c.title().isBlank()) {
-            sb.append(" — ").append(c.title());
-        }
+        if (c.title() != null && !c.title().isBlank()) sb.append(" — ").append(c.title());
         sb.append("\n");
         sb.append("Тип: ").append(typeLabel).append("\n");
         sb.append("Статус: ").append(status).append("\n");
         sb.append("📊 Событий: ").append(c.detectedEventsCount());
         if (c.type() == ControllerType.SPORT) {
             sb.append("\n🔍 Фильтр: ");
-            if (c.filterRule() != null && !c.filterRule().isBlank()) {
-                sb.append("`").append(c.filterRule()).append("`");
-            } else {
-                sb.append("не задан");
-            }
+            sb.append(c.filterRule() != null && !c.filterRule().isBlank()
+                ? "`" + c.filterRule() + "`" : "не задан");
         }
         return sb.toString();
     }
@@ -103,8 +98,6 @@ public class ControllerDetailCallback implements CallbackHandler {
         }
 
         builder.button("← К списку", CallbackData.ctrlByBookmaker(c.bookmaker()));
-        builder.row();
-
         return builder.build();
     }
 }

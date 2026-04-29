@@ -1,8 +1,10 @@
 package com.valui.user.service;
 
+import com.valui.common.domain.BookmakerType;
 import com.valui.common.domain.SubscriptionStatus;
+import com.valui.common.domain.TokenReasonCode;
+import com.valui.common.entity.UserBkSlotEntity;
 import com.valui.common.entity.UserEntity;
-import com.valui.common.exception.SubscriptionLimitExceededException;
 import com.valui.common.exception.UserNotFoundException;
 import com.valui.user.api.PlanLimitFacade;
 import com.valui.user.dto.LimitInfoDto;
@@ -10,6 +12,7 @@ import com.valui.user.dto.SubscriptionPlanDto;
 import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.GlobalFilterRepository;
 import com.valui.user.repository.SubscriptionRepository;
+import com.valui.user.repository.UserBkSlotRepository;
 import com.valui.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -19,66 +22,57 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PlanLimitChecker implements PlanLimitFacade {
 
-    private final SubscriptionService subscriptionService;
-    private final UserRepository userRepository;
+    private final SubscriptionService    subscriptionService;
+    private final UserRepository         userRepository;
     private final SubscriptionRepository subscriptionRepository;
-    private final ControllerRepository controllerRepository;
+    private final ControllerRepository   controllerRepository;
     private final GlobalFilterRepository globalFilterRepository;
-    private final GroupQuotaService groupQuotaService;
+    private final TokenLedgerService     tokenLedgerService;
+    private final UserBkSlotRepository   userBkSlotRepository;
 
     /**
-     * Throws {@link SubscriptionLimitExceededException} if the user's active controller
-     * count has reached the plan maximum.
+     * Списывает токены за первый контроллер данной БК.
+     * Второй и последующие контроллеры той же БК — бесплатны.
+     * Сохраняет UserBkSlotEntity с датой первого списания — планировщик
+     * использует её, чтобы не списывать повторно в том же календарном месяце.
      */
     @Override
-    public void checkControllerLimit(Long telegramId) {
-        if (!subscriptionService.canAddController(telegramId)) {
-            SubscriptionPlanDto plan = subscriptionService.getUserPlan(telegramId);
-            throw new SubscriptionLimitExceededException("controllers", plan.maxControllers());
+    @Transactional
+    public void debitForBkSlotIfNew(Long telegramId, String bookmaker) {
+        UserEntity user = requireUser(telegramId);
+        BookmakerType bk = BookmakerType.valueOf(bookmaker.toUpperCase());
+
+        int existingCount = controllerRepository.countByUserIdAndBookmakerAndIsActiveTrue(user.getId(), bk);
+        if (existingCount == 0) {
+            int cost = tokenLedgerService.getCost("CONTROLLER_BK_MONTHLY");
+            tokenLedgerService.debit(user.getId(), cost, TokenReasonCode.CONTROLLER_BK_CHARGE, null);
+
+            // Фиксируем дату первого списания для планировщика
+            userBkSlotRepository.findByUserIdAndBookmaker(user.getId(), bookmaker)
+                .orElseGet(() -> userBkSlotRepository.save(
+                    UserBkSlotEntity.builder()
+                        .user(user)
+                        .bookmaker(bookmaker)
+                        .build()
+                ));
         }
     }
 
     /**
-     * Throws {@link SubscriptionLimitExceededException} if the group is at its controller capacity.
-     * Only call when notificationChatId is a group (negative value).
+     * Списывает токены за добавление фильтра на контроллер.
      */
     @Override
-    public void checkGroupCapacity(Long notificationChatId) {
-        groupQuotaService.checkGroupCapacity(notificationChatId);
+    @Transactional
+    public void debitForControllerFilter(Long telegramId) {
+        UserEntity user = requireUser(telegramId);
+        int cost = tokenLedgerService.getCost("CONTROLLER_FILTER_MONTHLY");
+        tokenLedgerService.debit(user.getId(), cost, TokenReasonCode.CONTROLLER_FILTER_CHARGE, null);
     }
 
-    /**
-     * Throws {@link SubscriptionLimitExceededException} if the bookmaker is not in
-     * the user's plan's allowed bookmakers list.
-     */
-    @Override
-    public void checkBookmakerAccess(Long telegramId, String bookmaker) {
-        if (!subscriptionService.canUseBookmaker(telegramId, bookmaker)) {
-            SubscriptionPlanDto plan = subscriptionService.getUserPlan(telegramId);
-            throw new SubscriptionLimitExceededException(
-                "Bookmaker '" + bookmaker + "' is not available on plan '" + plan.code() + "'");
-        }
-    }
-
-    /**
-     * Throws {@link SubscriptionLimitExceededException} if the user's active filter count
-     * (controllers with a non-null filter_rule) has reached the plan maximum.
-     */
-    @Override
-    public void checkFilterLimit(Long telegramId) {
-        LimitInfoDto info = getLimitInfo(telegramId);
-        if (info.filtersUsed() >= info.filtersMax()) {
-            throw new SubscriptionLimitExceededException("filters", info.filtersMax());
-        }
-    }
-
-    /** Returns full limit snapshot for the user's current plan and usage. */
     @Override
     @Transactional(readOnly = true)
     public LimitInfoDto getLimitInfo(Long telegramId) {
-        UserEntity user = userRepository.findByTelegramId(telegramId)
-            .orElseThrow(() -> new UserNotFoundException(telegramId));
-
+        UserEntity user = requireUser(telegramId);
         SubscriptionPlanDto plan = subscriptionService.getUserPlan(telegramId);
 
         int controllersUsed = controllerRepository.countByUserIdAndIsActiveTrue(user.getId());
@@ -91,14 +85,21 @@ public class PlanLimitChecker implements PlanLimitFacade {
 
         return new LimitInfoDto(
             controllersUsed,
-            plan.maxControllers(),
+            Integer.MAX_VALUE,
             filtersUsed,
-            plan.maxFilters(),
+            Integer.MAX_VALUE,
             plan.allowedBookmakers(),
             plan.pollIntervalSec(),
             plan.name(),
             expiresAt,
-            user.getTokenBalance() != null ? user.getTokenBalance() : 0
+            user.getTokenBalance() != null ? user.getTokenBalance() : 0,
+            plan.monthlyTokenGrant(),
+            plan.topupDiscountPct()
         );
+    }
+
+    private UserEntity requireUser(Long telegramId) {
+        return userRepository.findByTelegramId(telegramId)
+            .orElseThrow(() -> new UserNotFoundException(telegramId));
     }
 }

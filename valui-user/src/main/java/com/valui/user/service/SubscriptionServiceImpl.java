@@ -2,13 +2,13 @@ package com.valui.user.service;
 
 import com.valui.common.annotation.Audit;
 import com.valui.common.domain.SubscriptionStatus;
+import com.valui.common.domain.TokenReasonCode;
 import com.valui.common.entity.SubscriptionEntity;
 import com.valui.common.entity.SubscriptionPlanEntity;
 import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.UserNotFoundException;
 import com.valui.user.dto.SubscriptionPlanDto;
 import com.valui.user.event.SubscriptionExpiredEvent;
-import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.SubscriptionPlanRepository;
 import com.valui.user.repository.SubscriptionRepository;
 import com.valui.user.repository.UserRepository;
@@ -32,17 +32,15 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SubscriptionServiceImpl implements SubscriptionService {
 
-    private static final String FREE_PLAN      = "FREE";
-    private static final String PLANS_CACHE    = "plans";
-    private static final int    DEFAULT_POLL_S = 120;
-    private static final int    PAID_DAYS      = 30;
+    private static final String FREE_PLAN   = "FREE";
+    private static final String PLANS_CACHE = "plans";
+    private static final int    PAID_DAYS   = 30;
 
-    private final UserRepository userRepository;
-    private final SubscriptionRepository subscriptionRepository;
+    private final UserRepository             userRepository;
+    private final SubscriptionRepository     subscriptionRepository;
     private final SubscriptionPlanRepository subscriptionPlanRepository;
-    private final ControllerRepository controllerRepository;
-    private final ApplicationEventPublisher eventPublisher;
-    private final GroupQuotaService groupQuotaService;
+    private final ApplicationEventPublisher  eventPublisher;
+    private final TokenLedgerService         tokenLedgerService;
 
     @Override
     @Cacheable(value = PLANS_CACHE, key = "#telegramId", unless = "#result == null")
@@ -53,34 +51,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     @Override
-    public boolean canAddController(Long telegramId) {
-        try {
-            SubscriptionPlanDto plan = getUserPlan(telegramId);
-            int used = controllerRepository.countByUserIdAndIsActiveTrue(requireUser(telegramId).getId());
-            return used < plan.maxControllers();
-        } catch (Exception e) {
-            log.warn("canAddController check failed for telegramId={}: {}", telegramId, e.getMessage());
-            return false;
-        }
-    }
-
-    @Override
-    public boolean canUseBookmaker(Long telegramId, String bookmaker) {
-        try {
-            return getUserPlan(telegramId).allowedBookmakers().stream()
-                .anyMatch(b -> b.equalsIgnoreCase(bookmaker));
-        } catch (Exception e) {
-            log.warn("canUseBookmaker check failed for telegramId={}: {}", telegramId, e.getMessage());
-            return false;
-        }
-    }
-
-    @Override
     public int getPollInterval(Long telegramId) {
         try {
             return getUserPlan(telegramId).pollIntervalSec();
         } catch (Exception e) {
-            return DEFAULT_POLL_S;
+            return 120;
         }
     }
 
@@ -90,7 +65,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         return subscriptionPlanRepository.findAllByIsActiveTrue()
             .stream()
             .map(SubscriptionPlanDto::from)
-            .sorted(Comparator.comparing(p -> p.priceRub() == null ? java.math.BigDecimal.ZERO : p.priceRub()))
+            .sorted(Comparator.comparing(p -> p.priceRub() == null ? BigDecimal.ZERO : p.priceRub()))
             .toList();
     }
 
@@ -105,7 +80,6 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         SubscriptionPlanEntity plan = subscriptionPlanRepository.findByCode(planCode)
             .orElseThrow(() -> new IllegalArgumentException("Plan not found: " + planCode));
 
-        // Cancel current active subscription
         subscriptionRepository
             .findTopByUserIdAndStatusOrderByStartedAtDesc(userId, SubscriptionStatus.ACTIVE)
             .ifPresent(old -> {
@@ -116,13 +90,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         boolean isPaid = plan.getPriceRub() != null && plan.getPriceRub().compareTo(BigDecimal.ZERO) > 0;
         OffsetDateTime expiresAt = isPaid ? OffsetDateTime.now().plusDays(PAID_DAYS) : null;
 
-        // Grant tokens for this plan (one-time, additive to existing balance)
+        // Разовый token_reward при активации плана
         int reward = plan.getTokenReward() != null ? plan.getTokenReward() : 0;
         if (reward > 0) {
-            user.setTokenBalance((user.getTokenBalance() != null ? user.getTokenBalance() : 0) + reward);
-            userRepository.save(user);
-            log.info("🪙 Токены начислены: userId={} план={} reward={} newBalance={}",
-                    userId, planCode, reward, user.getTokenBalance());
+            tokenLedgerService.credit(userId, reward, TokenReasonCode.PLAN_GRANT, null);
+            log.info("[PLAN] Разовый грант: userId={} план={} +{} токенов", userId, planCode, reward);
         }
 
         SubscriptionEntity newSub = SubscriptionEntity.builder()
@@ -134,7 +106,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             .build();
         SubscriptionEntity saved = subscriptionRepository.save(newSub);
 
-        log.info("✅ Подписка активирована: userId={} план={} до={}", userId, planCode, expiresAt);
+        log.info("[PLAN] Подписка активирована: userId={} план={} до={}", userId, planCode, expiresAt);
         return saved;
     }
 
@@ -146,13 +118,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             .orElseThrow(() -> new IllegalArgumentException("Subscription not found: " + subscriptionId));
 
         String oldPlanCode = sub.getPlan().getCode();
-        UserEntity user    = sub.getUser();
+        UserEntity user = sub.getUser();
 
         sub.setStatus(SubscriptionStatus.EXPIRED);
         subscriptionRepository.save(sub);
 
         SubscriptionPlanEntity freePlan = subscriptionPlanRepository.findByCode(FREE_PLAN)
-            .orElseThrow(() -> new IllegalStateException("FREE plan not found — check V2__seed_plans.sql"));
+            .orElseThrow(() -> new IllegalStateException("FREE plan not found"));
 
         SubscriptionEntity freeSub = SubscriptionEntity.builder()
             .user(user)
@@ -161,13 +133,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             .build();
         subscriptionRepository.save(freeSub);
 
-        // Revoke any group token contributions — shrinks group quotas and deactivates overflow
-        groupQuotaService.revokeAllContributions(user.getId());
-
         eventPublisher.publishEvent(
             new SubscriptionExpiredEvent(user.getId(), user.getTelegramId(), oldPlanCode));
 
-        log.info("⏰ Подписка истекла: subscriptionId={} userId={} план={} → FREE",
+        log.info("[PLAN] Подписка истекла: subscriptionId={} userId={} план={} → FREE",
             subscriptionId, user.getId(), oldPlanCode);
     }
 

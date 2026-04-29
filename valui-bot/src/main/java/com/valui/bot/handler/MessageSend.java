@@ -134,6 +134,39 @@ public final class MessageSend {
         }
     }
 
+    /**
+     * Tries to edit the existing message in-place with Markdown.
+     * Falls back to send-new + delete-old if the message can no longer be edited.
+     */
+    public static void editMarkdownWithKeyboard(AbsSender sender, long chatId, int messageId,
+                                                String text, InlineKeyboardMarkup keyboard) {
+        try {
+            sender.execute(EditMessageText.builder()
+                .chatId(chatId)
+                .messageId(messageId)
+                .text(text)
+                .parseMode("Markdown")
+                .replyMarkup(keyboard)
+                .build());
+        } catch (TelegramApiException e) {
+            String reason = e.getMessage() != null ? e.getMessage() : "";
+            if (reason.contains("message is not modified")) return;
+            log.debug("Edit not possible chatId={} msgId={} ({}), falling back to replace", chatId, messageId, reason);
+            try {
+                sender.execute(SendMessage.builder()
+                    .chatId(chatId)
+                    .text(text)
+                    .parseMode("Markdown")
+                    .replyMarkup(keyboard)
+                    .build());
+            } catch (TelegramApiException ex) {
+                log.error("Send failed chatId={}: {}", chatId, ex.getMessage());
+                return;
+            }
+            tryDelete(sender, chatId, messageId);
+        }
+    }
+
     public static void answerCallback(AbsSender sender, String callbackQueryId) {
         try {
             sender.execute(AnswerCallbackQuery.builder()

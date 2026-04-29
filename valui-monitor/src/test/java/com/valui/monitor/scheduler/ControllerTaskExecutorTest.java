@@ -5,6 +5,7 @@ import com.valui.common.domain.ControllerType;
 import com.valui.common.domain.UserRole;
 import com.valui.common.domain.UserStatus;
 import com.valui.common.entity.ControllerEntity;
+import com.valui.common.entity.ControllerSubscriptionEntity;
 import com.valui.common.entity.DetectedEventEntity;
 import com.valui.common.entity.UserEntity;
 import com.valui.common.parser.dto.ParsedMatchDto;
@@ -82,14 +83,25 @@ class ControllerTaskExecutorTest {
                 .bookmaker(BookmakerType.XBET).url(XBET_URL)
                 .type(ControllerType.TOURNAMENT)
                 .isActive(true).isMuted(false)
+                // lastCheckedAt != null → not a warmup run → events will be published
+                .lastCheckedAt(OffsetDateTime.now().minusMinutes(1))
                 .createdAt(OffsetDateTime.now()).updatedAt(OffsetDateTime.now())
                 .build();
         ctx = new TaskContext(CTRL_ID, USER_ID, TG_ID,
                 BookmakerType.XBET, XBET_URL, TOURNAMENT_ID, null,
                 ControllerType.TOURNAMENT);
 
+        // Default: one active subscription for the controller
+        ControllerSubscriptionEntity sub = ControllerSubscriptionEntity.builder()
+                .controllerId(CTRL_ID)
+                .chatId(TG_ID)
+                .userId(USER_ID)
+                .telegramId(TG_ID)
+                .build();
+        given(controllerPort.findActiveSubscriptions(CTRL_ID)).willReturn(List.of(sub));
+
         given(props.getDefaultPollIntervalSec()).willReturn(60);
-        given(outboxSenderService.buildOutboxEvent(any(), any(), any(), any(), any(), any(), any()))
+        given(outboxSenderService.buildOutboxEvent(any(), any(), any(), any(), any(), any(), any(), any()))
                 .willReturn(OutboxEvent.builder().externalEventId("stub").build());
         given(outboxRepo.save(any())).willAnswer(inv -> inv.getArgument(0));
     }

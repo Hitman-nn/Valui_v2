@@ -2,6 +2,7 @@ package com.valui.user.api;
 
 import com.valui.common.domain.BookmakerType;
 import com.valui.common.entity.ControllerEntity;
+import com.valui.common.entity.ControllerSubscriptionEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -35,4 +36,15 @@ public interface ControllerPortService {
     Page<ControllerEntity> findByUserIdPageable(UUID userId, Pageable pageable);
 
     List<ControllerEntity> findAllActiveByNotificationChatId(Long chatId);
+
+    // Subscription methods
+    void createSubscription(UUID controllerId, Long chatId, UUID userId, Long telegramId);
+    void removeSubscription(UUID controllerId, Long chatId);
+    void muteSubscription(UUID controllerId, Long chatId);
+    void unmuteSubscription(UUID controllerId, Long chatId);
+    /** Returns subscriptions that are NOT muted and NOT paused by tokens. */
+    List<ControllerSubscriptionEntity> findActiveSubscriptions(UUID controllerId);
+    /** True if at least one subscription is active (not muted, not paused by tokens). */
+    boolean hasActiveSubscriptions(UUID controllerId);
+    Optional<ControllerSubscriptionEntity> findSubscription(UUID controllerId, Long chatId);
 }

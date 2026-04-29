@@ -18,7 +18,9 @@ public record SubscriptionPlanDto(
     List<String> allowedBookmakers,
     List<String> notifyChannels,
     BigDecimal priceRub,
-    int tokenReward
+    int tokenReward,
+    int monthlyTokenGrant,
+    int topupDiscountPct
 ) {
     public static SubscriptionPlanDto from(SubscriptionPlanEntity e) {
         return new SubscriptionPlanDto(
@@ -31,13 +33,13 @@ public record SubscriptionPlanDto(
             toList(e.getAllowedBookmakers()),
             toList(e.getNotifyChannels()),
             e.getPriceRub(),
-            e.getTokenReward() != null ? e.getTokenReward() : 0
+            e.getTokenReward() != null ? e.getTokenReward() : 0,
+            e.getMonthlyTokenGrant() != null ? e.getMonthlyTokenGrant() : 0,
+            e.getTopupDiscountPct() != null ? e.getTopupDiscountPct() : 0
         );
     }
 
     private static List<String> toList(String[] arr) {
-        // ArrayList: Jackson can reconstruct this via @class; List.copyOf / List.of return
-        // package-private JDK internal types (ImmutableCollections$*) that Jackson cannot instantiate.
         return arr != null ? new ArrayList<>(Arrays.asList(arr)) : new ArrayList<>();
     }
 }

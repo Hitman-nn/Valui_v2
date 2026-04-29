@@ -8,30 +8,24 @@ import java.util.UUID;
 
 public interface SubscriptionService {
 
-    /** Returns the active plan for the user. Result is cached for 10 minutes. */
+    /** Возвращает активный план пользователя. Результат кешируется. */
     SubscriptionPlanDto getUserPlan(Long telegramId);
 
-    /** true if the user has not yet reached their plan's controller limit. */
-    boolean canAddController(Long telegramId);
-
-    /** true if the bookmaker code is included in the user's plan allowedBookmakers. */
-    boolean canUseBookmaker(Long telegramId, String bookmaker);
-
-    /** Returns the plan's polling interval in seconds (default 120 for FREE). */
+    /** Интервал опроса в секундах (из плана). */
     int getPollInterval(Long telegramId);
 
-    /** Returns all active subscription plans sorted by price ascending. Cached. */
+    /** Все активные планы, отсортированные по цене. Кешируется. */
     List<SubscriptionPlanDto> getAllActivePlans();
 
     /**
-     * Activates a new plan for the user.
-     * Cancels any existing active subscription and creates a new ACTIVE one.
+     * Активирует новый план для пользователя.
+     * Отменяет текущий, создаёт новый ACTIVE, начисляет разовый token_reward.
      */
     SubscriptionEntity activatePlan(UUID userId, String planCode, String paymentRef);
 
     /**
-     * Marks a subscription as EXPIRED and downgrades the user to FREE.
-     * Publishes {@link com.valui.user.event.SubscriptionExpiredEvent}.
+     * Истекает подписку и понижает пользователя до FREE.
+     * Публикует {@link com.valui.user.event.SubscriptionExpiredEvent}.
      */
     void expireSubscription(UUID subscriptionId);
 }

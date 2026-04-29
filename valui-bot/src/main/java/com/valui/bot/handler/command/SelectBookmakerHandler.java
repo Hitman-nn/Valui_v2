@@ -1,10 +1,9 @@
 package com.valui.bot.handler.command;
 
-import com.valui.bot.guard.BotAccessGuard;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CommandHandler;
+import com.valui.bot.handler.MessageSend;
 import com.valui.bot.i18n.BotMessageSource;
-import com.valui.common.exception.SubscriptionLimitExceededException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -12,7 +11,6 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class SelectBookmakerHandler implements CommandHandler {
 
-    private final BotAccessGuard guard;
     private final BotMessageSource messageSource;
 
     @Override
@@ -31,13 +29,6 @@ public class SelectBookmakerHandler implements CommandHandler {
             return;
         }
         String bookmaker = parts[1].trim().toUpperCase();
-
-        try {
-            guard.guardBookmakerAccess(ctx.fromId(), ctx.chatId(), bookmaker, ctx.sender());
-        } catch (SubscriptionLimitExceededException e) {
-            return;
-        }
-
         MessageSend.text(ctx.sender(), ctx.chatId(),
             messageSource.getMessage("bot.bookmaker_available", ctx.fromId(), bookmaker));
     }

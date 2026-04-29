@@ -52,10 +52,20 @@ public class SubscriptionPlanEntity implements HasCreatedAt {
     @Builder.Default
     private BigDecimal priceRub = BigDecimal.ZERO;
 
-    /** Tokens credited to the user's balance when this plan is activated. One-time grant. */
+    /** Токены, начисляемые пользователю при первой активации плана (разово). */
     @Column(name = "token_reward", nullable = false)
     @Builder.Default
     private Integer tokenReward = 0;
+
+    /** Токены, начисляемые пользователю ежемесячно при наличии активного плана. */
+    @Column(name = "monthly_token_grant", nullable = false)
+    @Builder.Default
+    private Integer monthlyTokenGrant = 0;
+
+    /** Скидка (%) на докупку токенов из пакетов для пользователей данного плана. */
+    @Column(name = "topup_discount_pct", nullable = false)
+    @Builder.Default
+    private Integer topupDiscountPct = 0;
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default

@@ -1,7 +1,7 @@
 package com.valui.bot.guard;
 
 import com.valui.bot.keyboard.CallbackData;
-import com.valui.common.exception.SubscriptionLimitExceededException;
+import com.valui.common.exception.InsufficientTokensException;
 import com.valui.user.dto.LimitInfoDto;
 import com.valui.user.api.PlanLimitFacade;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,20 +14,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.then;
-import static org.mockito.BDDMockito.willThrow;
-import static org.mockito.Mockito.never;
+import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -49,55 +44,23 @@ class BotAccessGuardTest {
     // ─── guardAddController ───────────────────────────────────────────────────
 
     @Test
-    @DisplayName("guardAddController: within limit → no exception, no message sent")
-    void guardAddController_withinLimit_silent() throws TelegramApiException {
-        // checkControllerLimit does not throw — within limit
-
-        assertThatCode(() -> guard.guardAddController(CHAT_ID, CHAT_ID, sender))
+    @DisplayName("guardAddController: sufficient tokens → no exception, no message sent")
+    void guardAddController_sufficientTokens_silent() throws TelegramApiException {
+        assertThatCode(() -> guard.guardAddController(CHAT_ID, CHAT_ID, "XBET", sender))
             .doesNotThrowAnyException();
 
         then(sender).should(never()).execute(any(SendMessage.class));
     }
 
     @Test
-    @DisplayName("guardAddController: limit exceeded → throws and sends upgrade prompt")
-    void guardAddController_exceeded_throwsAndSendsMessage() throws TelegramApiException {
-        willThrow(new SubscriptionLimitExceededException("controllers", 3))
-            .given(planLimitFacade).checkControllerLimit(CHAT_ID);
-        given(planLimitFacade.getLimitInfo(CHAT_ID)).willReturn(freeLimits(3, 3));
+    @DisplayName("guardAddController: insufficient tokens → throws and sends upgrade prompt")
+    void guardAddController_insufficientTokens_throwsAndSendsMessage() throws TelegramApiException {
+        willThrow(new InsufficientTokensException(5, 0))
+            .given(planLimitFacade).debitForBkSlotIfNew(CHAT_ID, "XBET");
+        given(planLimitFacade.getLimitInfo(CHAT_ID)).willReturn(limits(0, 200, 0));
 
-        assertThatThrownBy(() -> guard.guardAddController(CHAT_ID, CHAT_ID, sender))
-            .isInstanceOf(SubscriptionLimitExceededException.class);
-
-        ArgumentCaptor<SendMessage> captor = ArgumentCaptor.forClass(SendMessage.class);
-        then(sender).should().execute(captor.capture());
-        assertThat(captor.getValue().getText()).contains("FREE", "3/3");
-        assertThat(((InlineKeyboardMarkup) captor.getValue().getReplyMarkup())
-            .getKeyboard().get(0).get(0).getCallbackData())
-            .isEqualTo(CallbackData.PLANS_VIEW);
-    }
-
-    // ─── guardBookmakerAccess ─────────────────────────────────────────────────
-
-    @Test
-    @DisplayName("guardBookmakerAccess: bookmaker allowed → no exception")
-    void guardBookmakerAccess_allowed_silent() throws TelegramApiException {
-        assertThatCode(() -> guard.guardBookmakerAccess(CHAT_ID, CHAT_ID, "XBET", sender))
-            .doesNotThrowAnyException();
-
-        then(sender).should(never()).execute(any(SendMessage.class));
-    }
-
-    @Test
-    @DisplayName("guardBookmakerAccess: bookmaker blocked → throws and sends prompt")
-    void guardBookmakerAccess_blocked_throwsAndSendsMessage() throws TelegramApiException {
-        willThrow(new SubscriptionLimitExceededException("Bookmaker 'OLIMP' not available on plan 'FREE'"))
-            .given(planLimitFacade).checkBookmakerAccess(CHAT_ID, "OLIMP");
-        given(planLimitFacade.getLimitInfo(CHAT_ID))
-            .willReturn(freeLimits(1, 3));
-
-        assertThatThrownBy(() -> guard.guardBookmakerAccess(CHAT_ID, CHAT_ID, "OLIMP", sender))
-            .isInstanceOf(SubscriptionLimitExceededException.class);
+        assertThatThrownBy(() -> guard.guardAddController(CHAT_ID, CHAT_ID, "XBET", sender))
+            .isInstanceOf(InsufficientTokensException.class);
 
         then(sender).should().execute(any(SendMessage.class));
     }
@@ -105,8 +68,8 @@ class BotAccessGuardTest {
     // ─── guardAddFilter ───────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("guardAddFilter: within filter limit → no exception")
-    void guardAddFilter_withinLimit_silent() throws TelegramApiException {
+    @DisplayName("guardAddFilter: sufficient tokens → no exception")
+    void guardAddFilter_sufficientTokens_silent() throws TelegramApiException {
         assertThatCode(() -> guard.guardAddFilter(CHAT_ID, CHAT_ID, sender))
             .doesNotThrowAnyException();
 
@@ -114,43 +77,37 @@ class BotAccessGuardTest {
     }
 
     @Test
-    @DisplayName("guardAddFilter: filter limit exceeded → throws and sends prompt")
-    void guardAddFilter_exceeded_throwsAndSendsMessage() throws TelegramApiException {
-        willThrow(new SubscriptionLimitExceededException("filters", 1))
-            .given(planLimitFacade).checkFilterLimit(CHAT_ID);
-        given(planLimitFacade.getLimitInfo(CHAT_ID))
-            .willReturn(freeLimitsWithFilter(0, 3, 1, 1));
+    @DisplayName("guardAddFilter: insufficient tokens → throws and sends prompt")
+    void guardAddFilter_insufficientTokens_throwsAndSendsMessage() throws TelegramApiException {
+        willThrow(new InsufficientTokensException(2, 0))
+            .given(planLimitFacade).debitForControllerFilter(CHAT_ID);
+        given(planLimitFacade.getLimitInfo(CHAT_ID)).willReturn(limits(0, 200, 0));
 
         assertThatThrownBy(() -> guard.guardAddFilter(CHAT_ID, CHAT_ID, sender))
-            .isInstanceOf(SubscriptionLimitExceededException.class);
+            .isInstanceOf(InsufficientTokensException.class);
 
         then(sender).should().execute(any(SendMessage.class));
     }
 
-    // ─── TelegramApiException resilience ─────────────────────────────────────
+    // ─── resilience ──────────────────────────────────────────────────────────
 
     @Test
     @DisplayName("guard: if sending the prompt fails, original exception still propagates")
     void guard_sendFails_exceptionStillPropagates() throws TelegramApiException {
-        willThrow(new SubscriptionLimitExceededException("controllers", 3))
-            .given(planLimitFacade).checkControllerLimit(CHAT_ID);
-        given(planLimitFacade.getLimitInfo(CHAT_ID)).willReturn(freeLimits(3, 3));
+        willThrow(new InsufficientTokensException(5, 0))
+            .given(planLimitFacade).debitForBkSlotIfNew(CHAT_ID, "XBET");
+        given(planLimitFacade.getLimitInfo(CHAT_ID)).willReturn(limits(0, 200, 0));
         given(sender.execute(any(SendMessage.class)))
             .willThrow(new TelegramApiException("network error"));
 
-        assertThatThrownBy(() -> guard.guardAddController(CHAT_ID, CHAT_ID, sender))
-            .isInstanceOf(SubscriptionLimitExceededException.class);
+        assertThatThrownBy(() -> guard.guardAddController(CHAT_ID, CHAT_ID, "XBET", sender))
+            .isInstanceOf(InsufficientTokensException.class);
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────────
 
-    private static LimitInfoDto freeLimits(int used, int max) {
-        return new LimitInfoDto(used, max, 0, 1, List.of("XBET"), 120, "FREE", null, 0);
-    }
-
-    private static LimitInfoDto freeLimitsWithFilter(int ctrlUsed, int ctrlMax,
-                                                      int filterUsed, int filterMax) {
-        return new LimitInfoDto(ctrlUsed, ctrlMax, filterUsed, filterMax,
-            List.of("XBET"), 120, "FREE", null, 0);
+    private static LimitInfoDto limits(int controllersUsed, int monthlyGrant, int tokenBalance) {
+        return new LimitInfoDto(controllersUsed, Integer.MAX_VALUE, 0, Integer.MAX_VALUE,
+            List.of("XBET"), 120, "FREE", null, tokenBalance, monthlyGrant, 0);
     }
 }

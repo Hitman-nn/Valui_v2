@@ -104,7 +104,7 @@ class QuickAddControllerCallbackTest {
 
         ArgumentCaptor<AnswerCallbackQuery> toastCaptor = ArgumentCaptor.forClass(AnswerCallbackQuery.class);
         verify(sender, atLeastOnce()).execute(toastCaptor.capture());
-        assertThat(toastCaptor.getValue().getText()).contains("Лимит");
+        assertThat(toastCaptor.getValue().getText()).contains("токенов");
 
         // Button must NOT be replaced — user may upgrade and return to this notification
         verify(sender, never()).execute(any(EditMessageReplyMarkup.class));

@@ -149,6 +149,7 @@ class KafkaIntegrationTest {
                 UUID.randomUUID().toString(),
                 UUID.randomUUID().toString(),
                 123456789L,
+                123456789L,
                 "FONBET",
                 "ext-match-1234",
                 "FK Spartak - FK CSKA",
@@ -180,10 +181,10 @@ class KafkaIntegrationTest {
         String fixedKey = "stable-key-" + UUID.randomUUID();
         SportEventDetectedMessage msg1 = new SportEventDetectedMessage(
                 fixedKey, UUID.randomUUID().toString(), UUID.randomUUID().toString(),
-                null, "OLIMP", "ext-match-a", "Match A", "https://olimp.bet/1", Instant.now());
+                null, null, "OLIMP", "ext-match-a", "Match A", "https://olimp.bet/1", Instant.now());
         SportEventDetectedMessage msg2 = new SportEventDetectedMessage(
                 fixedKey, UUID.randomUUID().toString(), UUID.randomUUID().toString(),
-                null, "OLIMP", "ext-match-b", "Match B", "https://olimp.bet/2", Instant.now());
+                null, null, "OLIMP", "ext-match-b", "Match B", "https://olimp.bet/2", Instant.now());
 
         SendResult<String, Object> result1 =
                 testKafkaTemplate.send(KafkaTopics.SPORT_EVENTS_DETECTED, fixedKey, msg1).join();
@@ -201,7 +202,7 @@ class KafkaIntegrationTest {
     void notificationsDlqTopic_shouldAcceptMessages() {
         SportEventDetectedMessage failed = new SportEventDetectedMessage(
                 UUID.randomUUID().toString(), UUID.randomUUID().toString(),
-                UUID.randomUUID().toString(), null, "BETBOOM",
+                UUID.randomUUID().toString(), null, null, "BETBOOM",
                 "ext-failed-0", "Failed Match", "https://betboom.ru/0", Instant.now());
 
         Map<String, Object> dlqConsumerProps =

@@ -30,6 +30,10 @@ public class PlansViewHandler implements CallbackHandler {
 
     @Override
     public void handle(BotUpdateContext ctx) {
+        var cq = ctx.update().getCallbackQuery();
+        int messageId = cq.getMessage().getMessageId();
+        MessageSend.answerCallback(ctx.sender(), cq.getId());
+
         List<SubscriptionPlanDto> plans = subscriptionService.getAllActivePlans();
 
         var builder = InlineKeyboardBuilder.create();
@@ -44,7 +48,7 @@ public class PlansViewHandler implements CallbackHandler {
         }
         builder.backButton(CallbackData.MENU_MAIN);
 
-        MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(),
+        MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             PlanComparisonMessage.build(plans),
             builder.build());
     }

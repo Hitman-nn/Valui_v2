@@ -1,6 +1,5 @@
 package com.valui.bot.handler.callback;
 
-import com.valui.bot.guard.BotAccessGuard;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
@@ -10,7 +9,6 @@ import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
-import com.valui.common.exception.SubscriptionLimitExceededException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -20,9 +18,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class GlobalFilterAddCallback implements CallbackHandler {
 
-    private final BotAccessGuard guard;
     private final BotSessionService sessionService;
-    private final BotMessageSource messageSource;
+    private final BotMessageSource  messageSource;
 
     @Override
     public String callbackPrefix() { return CallbackData.FILTER_ADD; }
@@ -36,23 +33,18 @@ public class GlobalFilterAddCallback implements CallbackHandler {
         int messageId = ctx.update().getCallbackQuery().getMessage().getMessageId();
         MessageSend.answerCallback(ctx.sender(), callbackId);
 
-        try {
-            guard.guardAddFilter(ctx.fromId(), ctx.chatId(), ctx.sender());
-        } catch (SubscriptionLimitExceededException e) {
-            return;
-        }
-
+        // Токены проверяются и списываются в GlobalFilterService при отправке правила
         sessionService.setStateAndMergeContext(ctx.fromId(), BotState.WAITING_FILTER_RULE, Map.of(
-                UserBotSession.CTX_WIZARD_MSG_ID, String.valueOf(messageId),
-                UserBotSession.CTX_FILTER_MODE,   "GLOBAL"
+            UserBotSession.CTX_WIZARD_MSG_ID, String.valueOf(messageId),
+            UserBotSession.CTX_FILTER_MODE,   "GLOBAL"
         ));
 
         var keyboard = InlineKeyboardBuilder.create()
-                .cancelButton()
-                .build();
+            .cancelButton()
+            .build();
 
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-                messageSource.getMessage("filter.enter_rule", ctx.fromId()),
-                keyboard);
+            messageSource.getMessage("filter.enter_rule", ctx.fromId()),
+            keyboard);
     }
 }

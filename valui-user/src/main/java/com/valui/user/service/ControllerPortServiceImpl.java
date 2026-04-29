@@ -2,8 +2,10 @@ package com.valui.user.service;
 
 import com.valui.common.domain.BookmakerType;
 import com.valui.common.entity.ControllerEntity;
+import com.valui.common.entity.ControllerSubscriptionEntity;
 import com.valui.user.api.ControllerPortService;
 import com.valui.user.repository.ControllerRepository;
+import com.valui.user.repository.ControllerSubscriptionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,48 +23,25 @@ import java.util.UUID;
 public class ControllerPortServiceImpl implements ControllerPortService {
 
     private final ControllerRepository repository;
+    private final ControllerSubscriptionRepository subscriptionRepository;
+
+    @Override public List<ControllerEntity> findAllActive() { return repository.findAllByIsActiveTrue(); }
+    @Override public List<ControllerEntity> findAllActiveByUserId(UUID userId) { return repository.findAllByUserIdAndIsActiveTrue(userId); }
+    @Override public Optional<ControllerEntity> findById(UUID id) { return repository.findById(id); }
+    @Override public Optional<ControllerEntity> findByIdAndUserId(UUID id, UUID userId) { return repository.findByIdAndUserId(id, userId); }
+
+    @Override @Transactional
+    public ControllerEntity save(ControllerEntity e) { return repository.save(e); }
+
+    @Override @Transactional
+    public void updateLastCheckedAt(UUID id, OffsetDateTime at) { repository.updateLastCheckedAt(id, at); }
+
+    @Override @Transactional
+    public void updateIsActive(UUID id, boolean active) { repository.updateIsActive(id, active); }
 
     @Override
-    public List<ControllerEntity> findAllActive() {
-        return repository.findAllByIsActiveTrue();
-    }
-
-    @Override
-    public List<ControllerEntity> findAllActiveByUserId(UUID userId) {
-        return repository.findAllByUserIdAndIsActiveTrue(userId);
-    }
-
-    @Override
-    public Optional<ControllerEntity> findById(UUID controllerId) {
-        return repository.findById(controllerId);
-    }
-
-    @Override
-    public Optional<ControllerEntity> findByIdAndUserId(UUID controllerId, UUID userId) {
-        return repository.findByIdAndUserId(controllerId, userId);
-    }
-
-    @Override
-    @Transactional
-    public ControllerEntity save(ControllerEntity entity) {
-        return repository.save(entity);
-    }
-
-    @Override
-    @Transactional
-    public void updateLastCheckedAt(UUID controllerId, OffsetDateTime checkedAt) {
-        repository.updateLastCheckedAt(controllerId, checkedAt);
-    }
-
-    @Override
-    @Transactional
-    public void updateIsActive(UUID controllerId, boolean active) {
-        repository.updateIsActive(controllerId, active);
-    }
-
-    @Override
-    public boolean existsByUserAndBookmakerAndUrl(UUID userId, BookmakerType bookmaker, String url) {
-        return repository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(userId, bookmaker, url);
+    public boolean existsByUserAndBookmakerAndUrl(UUID userId, BookmakerType bk, String url) {
+        return repository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(userId, bk, url);
     }
 
     @Override
@@ -73,5 +52,44 @@ public class ControllerPortServiceImpl implements ControllerPortService {
     @Override
     public List<ControllerEntity> findAllActiveByNotificationChatId(Long chatId) {
         return repository.findAllByNotificationChatIdAndIsActiveTrue(chatId);
+    }
+
+    // ── Subscription methods ──────────────────────────────────────────────────
+
+    @Override @Transactional
+    public void createSubscription(UUID controllerId, Long chatId, UUID userId, Long telegramId) {
+        if (subscriptionRepository.findByControllerIdAndChatId(controllerId, chatId).isPresent()) return;
+        subscriptionRepository.save(ControllerSubscriptionEntity.builder()
+            .controllerId(controllerId).chatId(chatId).userId(userId).telegramId(telegramId).build());
+    }
+
+    @Override @Transactional
+    public void removeSubscription(UUID controllerId, Long chatId) {
+        subscriptionRepository.deleteByControllerIdAndChatId(controllerId, chatId);
+    }
+
+    @Override @Transactional
+    public void muteSubscription(UUID controllerId, Long chatId) {
+        subscriptionRepository.updateMuted(controllerId, chatId, true);
+    }
+
+    @Override @Transactional
+    public void unmuteSubscription(UUID controllerId, Long chatId) {
+        subscriptionRepository.updateMuted(controllerId, chatId, false);
+    }
+
+    @Override
+    public List<ControllerSubscriptionEntity> findActiveSubscriptions(UUID controllerId) {
+        return subscriptionRepository.findAllByControllerIdAndIsMutedFalseAndPausedByTokensFalse(controllerId);
+    }
+
+    @Override
+    public boolean hasActiveSubscriptions(UUID controllerId) {
+        return subscriptionRepository.existsByControllerIdAndIsMutedFalseAndPausedByTokensFalse(controllerId);
+    }
+
+    @Override
+    public Optional<ControllerSubscriptionEntity> findSubscription(UUID controllerId, Long chatId) {
+        return subscriptionRepository.findByControllerIdAndChatId(controllerId, chatId);
     }
 }

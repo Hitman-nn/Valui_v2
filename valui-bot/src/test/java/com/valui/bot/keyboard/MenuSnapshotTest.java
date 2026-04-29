@@ -33,7 +33,7 @@ class MenuSnapshotTest {
     void mainMenu_structure() {
         var limits = new LimitInfoDto(2, 5, 1, 3,
             List.of("XBET", "FONBET"), 60, "PRO",
-            OffsetDateTime.now().plusDays(30), 0);
+            OffsetDateTime.now().plusDays(30), 0, 200, 10);
 
         MenuMessage menu = MainMenuBuilder.build(limits);
 
@@ -50,7 +50,7 @@ class MenuSnapshotTest {
     @DisplayName("MainMenuBuilder: FREE plan (no expiry) — no expiry line in text")
     void mainMenu_freePlan_noExpiryLine() {
         var limits = new LimitInfoDto(0, 1, 0, 1,
-            List.of("XBET"), 120, "FREE", null, 0);
+            List.of("XBET"), 120, "FREE", null, 0, 0, 0);
         assertThat(MainMenuBuilder.build(limits).text()).doesNotContain("Действует до");
     }
 
@@ -59,7 +59,7 @@ class MenuSnapshotTest {
     void mainMenu_withExpiry_containsDate() {
         var limits = new LimitInfoDto(1, 5, 0, 3,
             List.of(), 60, "PRO",
-            OffsetDateTime.parse("2026-12-31T00:00:00+03:00"), 0);
+            OffsetDateTime.parse("2026-12-31T00:00:00+03:00"), 0, 200, 10);
         assertThat(MainMenuBuilder.build(limits).text()).contains("31.12.2026");
     }
 

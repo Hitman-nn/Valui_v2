@@ -6,6 +6,9 @@ import com.valui.monitor.event.ControllerAddedEvent;
 import com.valui.monitor.event.ControllerRemovedEvent;
 import com.valui.monitor.event.SubscriptionChangedEvent;
 import com.valui.monitor.scheduler.ControllerTaskExecutor.ControllerScheduleInfo;
+import com.valui.user.api.ControllerPortService;
+import com.valui.user.event.ControllerResumedEvent;
+import com.valui.user.event.ControllerSuspendedEvent;
 import com.valui.user.event.SubscriptionExpiredEvent;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -43,6 +46,7 @@ public class MonitorScheduler {
     private final MonitorProperties props;
     private final MonitorMetrics metrics;
     private final EventDeduplicationService dedup;
+    private final ControllerPortService controllerPort;
 
     private final ScheduledExecutorService triggerPool;
     private final ExecutorService taskPool;
@@ -57,8 +61,9 @@ public class MonitorScheduler {
     public MonitorScheduler(ControllerTaskExecutor taskExecutor,
                             MonitorProperties props,
                             MonitorMetrics metrics,
-                            EventDeduplicationService dedup) {
-        this(taskExecutor, props, metrics, dedup,
+                            EventDeduplicationService dedup,
+                            ControllerPortService controllerPort) {
+        this(taskExecutor, props, metrics, dedup, controllerPort,
                 Executors.newScheduledThreadPool(
                         Math.max(2, Runtime.getRuntime().availableProcessors() / 2),
                         Thread.ofPlatform().name("monitor-trigger-", 0).factory()),
@@ -71,12 +76,14 @@ public class MonitorScheduler {
                      MonitorProperties props,
                      MonitorMetrics metrics,
                      EventDeduplicationService dedup,
+                     ControllerPortService controllerPort,
                      ScheduledExecutorService triggerPool,
                      ExecutorService taskPool) {
         this.taskExecutor    = taskExecutor;
         this.props           = props;
         this.metrics         = metrics;
         this.dedup           = dedup;
+        this.controllerPort  = controllerPort;
         this.triggerPool     = triggerPool;
         this.taskPool        = taskPool;
         this.globalSemaphore = new Semaphore(props.getMaxConcurrentTasks());
@@ -87,9 +94,10 @@ public class MonitorScheduler {
     @PostConstruct
     void init() {
         List<ControllerScheduleInfo> controllers = taskExecutor.loadAllActiveForScheduling();
-        controllers.forEach(info ->
-                doSchedule(info.controllerId(), info.userId(), info.pollIntervalSec()));
-        log.info("🚀 Монитор запущен: {} контроллеров поставлено в очередь", controllers.size());
+        controllers.stream()
+                .filter(info -> controllerPort.hasActiveSubscriptions(info.controllerId()))
+                .forEach(info -> doSchedule(info.controllerId(), info.userId(), info.pollIntervalSec()));
+        log.info("Монитор запущен: {} контроллеров поставлено в очередь", controllers.size());
     }
 
     @PreDestroy
@@ -160,8 +168,24 @@ public class MonitorScheduler {
 
     @EventListener
     public void on(SubscriptionExpiredEvent e) {
-        log.info("⏰ Подписка истекла: перепланируем контроллеры userId={}", e.userId());
+        log.info("Подписка истекла: перепланируем контроллеры userId={}", e.userId());
         rescheduleUser(e.userId());
+    }
+
+    @EventListener
+    public void on(ControllerSuspendedEvent e) {
+        dedup.clearController(e.controllerId());
+        controllerPort.updateLastCheckedAt(e.controllerId(), null);
+        unscheduleController(e.controllerId());
+        log.info("Контроллер {} приостановлен (токены)", e.controllerId());
+    }
+
+    @EventListener
+    public void on(ControllerResumedEvent e) {
+        if (!scheduled.containsKey(e.controllerId())) {
+            doSchedule(e.controllerId(), e.userId(), e.pollIntervalSec());
+            log.info("Контроллер {} возобновлён (токены)", e.controllerId());
+        }
     }
 
     // ── internals ─────────────────────────────────────────────────────────────

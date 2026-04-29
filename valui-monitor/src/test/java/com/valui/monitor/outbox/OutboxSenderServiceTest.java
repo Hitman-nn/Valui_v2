@@ -18,7 +18,6 @@ import org.springframework.kafka.support.SendResult;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -60,7 +59,7 @@ class OutboxSenderServiceTest {
         message = new SportEventDetectedMessage(
                 UUID.randomUUID().toString(),
                 outbox.getControllerId(), outbox.getUserId(),
-                outbox.getTelegramId(), outbox.getBookmaker(),
+                outbox.getTelegramId(), outbox.getChatId(), outbox.getBookmaker(),
                 outbox.getExternalEventId(), outbox.getTitle(), outbox.getUrl(),
                 Instant.now());
     }
@@ -70,7 +69,7 @@ class OutboxSenderServiceTest {
     @Test
     @DisplayName("publishImmediate: found unsent row → sends to Kafka and marks sent on success")
     void publishImmediate_found_sendsAndMarks() {
-        given(outboxRepo.findByExternalEventIdAndSentAtIsNull("ext-1")).willReturn(Optional.of(outbox));
+        given(outboxRepo.findAllByExternalEventIdAndSentAtIsNull("ext-1")).willReturn(List.of(outbox));
         given(mapper.fromOutbox(outbox)).willReturn(message);
         CompletableFuture<SendResult<String, Object>> future = CompletableFuture.completedFuture(null);
         given(kafkaTemplate.send(any(ProducerRecord.class))).willReturn(future);
@@ -85,7 +84,7 @@ class OutboxSenderServiceTest {
     @Test
     @DisplayName("publishImmediate: no unsent row → no Kafka send")
     void publishImmediate_notFound_noSend() {
-        given(outboxRepo.findByExternalEventIdAndSentAtIsNull("ext-1")).willReturn(Optional.empty());
+        given(outboxRepo.findAllByExternalEventIdAndSentAtIsNull("ext-1")).willReturn(List.of());
 
         service.publishImmediate("ext-1");
 
@@ -142,7 +141,7 @@ class OutboxSenderServiceTest {
         String userId = UUID.randomUUID().toString();
 
         OutboxEvent built = service.buildOutboxEvent(
-                extId, ctrlId, userId, 55L, "OLIMP", "A - B", "https://olimp.bet/1");
+                extId, ctrlId, userId, 55L, 55L, "OLIMP", "A - B", "https://olimp.bet/1");
 
         assertThat(built.getTopic()).isEqualTo(KafkaTopics.SPORT_EVENTS_DETECTED);
         assertThat(built.getMessageKey()).isEqualTo(ctrlId);

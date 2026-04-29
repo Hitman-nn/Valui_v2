@@ -6,6 +6,7 @@ import com.valui.bot.handler.MessageSend;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.common.domain.ControllerType;
+import com.valui.common.exception.InsufficientTokensException;
 import com.valui.common.exception.SubscriptionLimitExceededException;
 import com.valui.common.exception.ValuiException;
 import com.valui.monitor.dto.CreateControllerRequest;
@@ -76,9 +77,12 @@ public class QuickAddControllerCallback implements CallbackHandler {
             MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId, "✅ Контроллер добавлен!");
             replaceWithDone(ctx.sender(), ctx.chatId(), messageId);
 
+        } catch (InsufficientTokensException e) {
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                    "⚠️ Недостаточно токенов. Пополните баланс: /plans");
         } catch (SubscriptionLimitExceededException e) {
             MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
-                    "⚠️ Лимит контроллеров исчерпан. Обновите тариф: /plans");
+                    "⚠️ Недостаточно токенов. Обновите тариф: /plans");
             // Button stays — user may upgrade and come back to this message
 
         } catch (ValuiException e) {

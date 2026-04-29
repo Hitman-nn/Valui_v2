@@ -3,19 +3,24 @@ package com.valui.user.api;
 import com.valui.user.dto.LimitInfoDto;
 
 /**
- * Public API of valui-user for subscription-plan limit checks.
- * External modules (valui-bot, valui-monitor) must depend on this interface,
- * not on the internal {@code PlanLimitChecker} component.
+ * Публичный API valui-user для проверок лимитов и токенного биллинга.
+ * Внешние модули (valui-monitor) должны использовать этот интерфейс.
  */
 public interface PlanLimitFacade {
 
-    void checkControllerLimit(Long telegramId);
+    /**
+     * Списывает токены за первый контроллер данной БК у пользователя.
+     * Если у пользователя уже есть активный контроллер этой БК — ничего не списывает (второй+ бесплатен).
+     * Бросает {@link com.valui.common.exception.InsufficientTokensException} при нехватке токенов.
+     */
+    void debitForBkSlotIfNew(Long telegramId, String bookmaker);
 
-    void checkGroupCapacity(Long notificationChatId);
+    /**
+     * Списывает токены за добавление фильтра на контроллер.
+     * Бросает {@link com.valui.common.exception.InsufficientTokensException} при нехватке токенов.
+     */
+    void debitForControllerFilter(Long telegramId);
 
-    void checkBookmakerAccess(Long telegramId, String bookmaker);
-
-    void checkFilterLimit(Long telegramId);
-
+    /** Возвращает снимок баланса и параметров плана пользователя. */
     LimitInfoDto getLimitInfo(Long telegramId);
 }

@@ -29,7 +29,7 @@ class SportEventKafkaProducerTest {
     void onSportEventDetected_delegatesToOutboxSender() {
         String externalEventId = "ext-match-42";
         SportEventDetectedEvent event = new SportEventDetectedEvent(
-                CTRL_ID, USER_ID, 99L, BookmakerType.FONBET,
+                CTRL_ID, USER_ID, 99L, 99L, BookmakerType.FONBET,
                 externalEventId, "Spartak - CSKA", "https://fonbet.ru/1");
 
         producer.onSportEventDetected(event);
@@ -41,7 +41,7 @@ class SportEventKafkaProducerTest {
     @DisplayName("AFTER_COMMIT: works when telegramId is null")
     void onSportEventDetected_nullTelegramId_noException() {
         SportEventDetectedEvent event = new SportEventDetectedEvent(
-                CTRL_ID, USER_ID, null, BookmakerType.OLIMP,
+                CTRL_ID, USER_ID, null, null, BookmakerType.OLIMP,
                 "ext-99", "Match X", null);
 
         producer.onSportEventDetected(event);

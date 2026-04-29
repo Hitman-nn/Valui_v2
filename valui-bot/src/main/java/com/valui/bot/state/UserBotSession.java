@@ -45,5 +45,4 @@ public class UserBotSession {
     public static final String CTX_EDIT_FILTER_ID      = "editFilterId";
     public static final String CTX_EDIT_CONTROLLER_ID  = "editControllerId";
     public static final String CTX_WIZARD_MSG_ID       = "wizardMsgId";
-    public static final String CTX_BOOST_CHAT_ID       = "boostChatId";
 }

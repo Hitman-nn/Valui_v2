@@ -40,4 +40,25 @@ public interface ControllerService {
 
     /** Admin / system use: deactivates the controller without ownership check. */
     void deactivateController(UUID controllerId);
+
+    /**
+     * Mutes notifications for chatId (reversible — unmute restores them).
+     * If no active subscriptions remain, the controller is unscheduled and reset for warmup.
+     */
+    void muteForChat(UUID controllerId, Long telegramId, Long chatId);
+
+    /**
+     * Unmutes notifications for chatId.
+     * If the controller was suspended (unscheduled), it is rescheduled with warmup.
+     */
+    void unmuteForChat(UUID controllerId, Long telegramId, Long chatId);
+
+    /**
+     * Permanently removes the subscription for chatId (irreversible — user must re-add).
+     * If no subscriptions remain, the controller is fully deactivated.
+     */
+    void stopForChat(UUID controllerId, Long telegramId, Long chatId);
+
+    /** Returns the controller DTO with isMuted reflecting the subscription state for chatId. */
+    ControllerDto getControllerForChat(UUID controllerId, Long chatId);
 }

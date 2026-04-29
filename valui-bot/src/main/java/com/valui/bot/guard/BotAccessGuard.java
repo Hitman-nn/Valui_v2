@@ -2,7 +2,7 @@ package com.valui.bot.guard;
 
 import com.valui.bot.keyboard.MenuMessage;
 import com.valui.bot.keyboard.menu.UpgradePromptBuilder;
-import com.valui.common.exception.SubscriptionLimitExceededException;
+import com.valui.common.exception.InsufficientTokensException;
 import com.valui.user.dto.LimitInfoDto;
 import com.valui.user.api.PlanLimitFacade;
 import lombok.RequiredArgsConstructor;
@@ -13,8 +13,8 @@ import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 /**
- * Checks subscription limits before bot operations.
- * On limit violation, sends an upgrade prompt to the user and re-throws so the caller can abort.
+ * Проверяет токенный баланс перед операциями бота.
+ * При нехватке токенов — отправляет подсказку пользователю.
  */
 @Slf4j
 @Component
@@ -24,25 +24,20 @@ public class BotAccessGuard {
     private final PlanLimitFacade planLimitFacade;
 
     /**
-     * Checks controller limit. Sends upgrade prompt and throws if exceeded.
-     * Callers should catch {@link SubscriptionLimitExceededException} and return early.
-     *
-     * @param fromId  personal Telegram ID of the user (for plan lookup)
-     * @param chatId  destination chat ID (where to send the upgrade prompt — may be a group)
+     * Проверяет наличие токенов для нового BK-слота.
+     * При нехватке отправляет сообщение и бросает {@link InsufficientTokensException}.
      */
-    public void guardAddController(Long fromId, Long chatId, AbsSender sender) {
-        guard(fromId, chatId, sender, () -> planLimitFacade.checkControllerLimit(fromId), "controllers");
-    }
-
-    /** Checks whether the bookmaker is included in the user's plan. */
-    public void guardBookmakerAccess(Long fromId, Long chatId, String bookmaker, AbsSender sender) {
+    public void guardAddController(Long fromId, Long chatId, String bookmaker, AbsSender sender) {
         guard(fromId, chatId, sender,
-            () -> planLimitFacade.checkBookmakerAccess(fromId, bookmaker), "bookmaker");
+            () -> planLimitFacade.debitForBkSlotIfNew(fromId, bookmaker),
+            "tokens");
     }
 
-    /** Checks filter limit. */
+    /** Проверяет наличие токенов для добавления фильтра на контроллер. */
     public void guardAddFilter(Long fromId, Long chatId, AbsSender sender) {
-        guard(fromId, chatId, sender, () -> planLimitFacade.checkFilterLimit(fromId), "filters");
+        guard(fromId, chatId, sender,
+            () -> planLimitFacade.debitForControllerFilter(fromId),
+            "tokens");
     }
 
     // ─── private ─────────────────────────────────────────────────────────────
@@ -50,8 +45,8 @@ public class BotAccessGuard {
     private void guard(Long fromId, Long chatId, AbsSender sender, Runnable check, String limitType) {
         try {
             check.run();
-        } catch (SubscriptionLimitExceededException e) {
-            log.info("Limit exceeded: fromId={} chatId={} limitType={}", fromId, chatId, limitType);
+        } catch (InsufficientTokensException e) {
+            log.info("[GUARD] Нехватка токенов: fromId={} chatId={}", fromId, chatId);
             sendUpgradePrompt(fromId, chatId, sender, limitType);
             throw e;
         }

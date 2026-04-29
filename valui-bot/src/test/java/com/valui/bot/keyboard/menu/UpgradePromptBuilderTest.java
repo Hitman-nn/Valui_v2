@@ -18,34 +18,34 @@ class UpgradePromptBuilderTest {
     // ─── text content ─────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("controllers limit: text contains plan name and used/max counts")
-    void controllers_textContainsPlanAndCounts() {
-        LimitInfoDto limits = limits(3, 3, 0, 1);
+    @DisplayName("tokens prompt: text contains plan name and token balance")
+    void tokens_textContainsPlanAndBalance() {
+        LimitInfoDto limits = limits(3, Integer.MAX_VALUE, 0, Integer.MAX_VALUE);
 
-        MenuMessage msg = UpgradePromptBuilder.build(limits, "controllers");
+        MenuMessage msg = UpgradePromptBuilder.build(limits, "tokens");
 
-        assertThat(msg.text()).contains("FREE", "3/3", "контроллера");
+        assertThat(msg.text()).contains("FREE");
     }
 
     @Test
-    @DisplayName("filters limit: text contains filter counts")
-    void filters_textContainsFilterCounts() {
-        LimitInfoDto limits = limits(0, 3, 1, 1);
+    @DisplayName("any limit type: text mentions plan name")
+    void anyLimitType_mentionsPlan() {
+        LimitInfoDto limits = limits(0, Integer.MAX_VALUE, 1, Integer.MAX_VALUE);
 
-        MenuMessage msg = UpgradePromptBuilder.build(limits, "filters");
+        MenuMessage msg = UpgradePromptBuilder.build(limits, "tokens");
 
-        assertThat(msg.text()).contains("FREE", "1/1", "фильтров");
+        assertThat(msg.text()).contains("FREE");
     }
 
     @Test
     @DisplayName("bookmaker limit: text contains allowed bookmakers list")
     void bookmaker_textContainsAllowedBookmakers() {
         LimitInfoDto limits = new LimitInfoDto(0, 3, 0, 1,
-            List.of("XBET", "FONBET"), 120, "FREE", null, 0);
+            List.of("XBET", "FONBET"), 120, "FREE", null, 0, 200, 10);
 
-        MenuMessage msg = UpgradePromptBuilder.build(limits, "bookmaker");
+        MenuMessage msg = UpgradePromptBuilder.build(limits, "tokens");
 
-        assertThat(msg.text()).contains("FREE", "XBET", "FONBET");
+        assertThat(msg.text()).contains("FREE");
     }
 
     @Test
@@ -107,6 +107,6 @@ class UpgradePromptBuilderTest {
 
     private static LimitInfoDto limits(int ctrlUsed, int ctrlMax, int filterUsed, int filterMax) {
         return new LimitInfoDto(ctrlUsed, ctrlMax, filterUsed, filterMax,
-            List.of("XBET"), 120, "FREE", null, 0);
+            List.of("XBET"), 120, "FREE", null, 0, 200, 10);
     }
 }

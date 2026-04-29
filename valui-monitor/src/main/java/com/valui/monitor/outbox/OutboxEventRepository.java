@@ -14,7 +14,7 @@ import java.util.Optional;
 @Repository
 public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> {
 
-    Optional<OutboxEvent> findByExternalEventIdAndSentAtIsNull(String externalEventId);
+    List<OutboxEvent> findAllByExternalEventIdAndSentAtIsNull(String externalEventId);
 
     @Query("SELECT o FROM OutboxEvent o WHERE o.sentAt IS NULL AND o.createdAt < :cutoff ORDER BY o.createdAt ASC")
     List<OutboxEvent> findUnsentBefore(@Param("cutoff") OffsetDateTime cutoff);

@@ -30,17 +30,8 @@ public final class UpgradePromptBuilder {
     }
 
     private static String describeLimit(LimitInfoDto limits, String limitType) {
-        return switch (limitType) {
-            case "controllers" -> String.format(
-                "Достигнут лимит плана %s (%d/%d контроллера)",
-                limits.planName(), limits.controllersUsed(), limits.controllersMax());
-            case "filters" -> String.format(
-                "Достигнут лимит фильтров плана %s (%d/%d фильтров)",
-                limits.planName(), limits.filtersUsed(), limits.filtersMax());
-            case "bookmaker" -> String.format(
-                "Букмекер недоступен в плане %s. Доступные: %s",
-                limits.planName(), String.join(", ", limits.allowedBookmakers()));
-            default -> "Достигнут лимит плана " + limits.planName();
-        };
+        return String.format(
+            "Недостаточно токенов для операции в плане %s. Баланс: %d токенов.",
+            limits.planName(), limits.tokenBalance());
     }
 }

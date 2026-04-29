@@ -36,8 +36,8 @@ public class OutboxSenderService {
     private final OutboxMarkingService markingService;
 
     public void publishImmediate(String externalEventId) {
-        outboxRepo.findByExternalEventIdAndSentAtIsNull(externalEventId)
-                .ifPresent(this::doPublish);
+        outboxRepo.findAllByExternalEventIdAndSentAtIsNull(externalEventId)
+                .forEach(this::doPublish);
     }
 
     @Scheduled(fixedDelayString = "${valui.monitor.outbox.scan-interval-ms:5000}")
@@ -78,7 +78,7 @@ public class OutboxSenderService {
 
     /** Builds an unsent {@link OutboxEvent} row for use inside the caller's transaction. */
     public OutboxEvent buildOutboxEvent(
-            String externalEventId, String controllerId, String userId, Long telegramId,
+            String externalEventId, String controllerId, String userId, Long telegramId, Long chatId,
             String bookmaker, String title, String url) {
         return OutboxEvent.builder()
                 .topic(KafkaTopics.SPORT_EVENTS_DETECTED)
@@ -87,6 +87,7 @@ public class OutboxSenderService {
                 .controllerId(controllerId)
                 .userId(userId)
                 .telegramId(telegramId)
+                .chatId(chatId)
                 .bookmaker(bookmaker)
                 .title(title)
                 .url(url)

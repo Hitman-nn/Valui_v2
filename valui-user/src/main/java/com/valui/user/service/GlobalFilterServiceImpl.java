@@ -1,5 +1,6 @@
 package com.valui.user.service;
 
+import com.valui.common.domain.TokenReasonCode;
 import com.valui.common.entity.GlobalFilterEntity;
 import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.UserNotFoundException;
@@ -19,8 +20,8 @@ import java.util.UUID;
 public class GlobalFilterServiceImpl implements GlobalFilterService {
 
     private final GlobalFilterRepository globalFilterRepository;
-    private final UserRepository userRepository;
-    private final PlanLimitChecker planLimitChecker;
+    private final UserRepository         userRepository;
+    private final TokenLedgerService     tokenLedgerService;
 
     @Override
     public List<GlobalFilterEntity> getFilters(Long telegramId) {
@@ -31,13 +32,16 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
     @Override
     @Transactional
     public void addFilter(Long telegramId, String rule) {
-        planLimitChecker.checkFilterLimit(telegramId);
         UserEntity user = requireUser(telegramId);
+        int cost = tokenLedgerService.getCost("FILTER_MONTHLY");
+        // Бросает InsufficientTokensException если токенов нет
+        tokenLedgerService.debit(user.getId(), cost, TokenReasonCode.FILTER_CHARGE, null);
+
         globalFilterRepository.save(GlobalFilterEntity.builder()
-                .user(user)
-                .filterRule(rule)
-                .createdAt(OffsetDateTime.now())
-                .build());
+            .user(user)
+            .filterRule(rule)
+            .createdAt(OffsetDateTime.now())
+            .build());
     }
 
     @Override
@@ -59,6 +63,6 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
 
     private UserEntity requireUser(Long telegramId) {
         return userRepository.findByTelegramId(telegramId)
-                .orElseThrow(() -> new UserNotFoundException(telegramId));
+            .orElseThrow(() -> new UserNotFoundException(telegramId));
     }
 }
