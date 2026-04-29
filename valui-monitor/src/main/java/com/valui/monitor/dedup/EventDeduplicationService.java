@@ -2,7 +2,7 @@ package com.valui.monitor.dedup;
 
 import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.scheduler.MonitorMetrics;
-import com.valui.user.repository.DetectedEventRepository;
+import com.valui.user.api.DetectedEventPortService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -31,18 +31,18 @@ public class EventDeduplicationService {
     static final String KEY_PREFIX = "dedup:ctrl:";
 
     private final StringRedisTemplate redis;
-    private final DetectedEventRepository detectedRepo;
+    private final DetectedEventPortService detectedEventPort;
     private final MonitorProperties props;
     private final MonitorMetrics metrics;
 
     public EventDeduplicationService(StringRedisTemplate redis,
-                                     DetectedEventRepository detectedRepo,
+                                     DetectedEventPortService detectedEventPort,
                                      MonitorProperties props,
                                      MonitorMetrics metrics) {
-        this.redis       = redis;
-        this.detectedRepo = detectedRepo;
-        this.props       = props;
-        this.metrics     = metrics;
+        this.redis             = redis;
+        this.detectedEventPort = detectedEventPort;
+        this.props             = props;
+        this.metrics           = metrics;
     }
 
     // ── Core dedup API ────────────────────────────────────────────────────────
@@ -119,7 +119,7 @@ public class EventDeduplicationService {
             return;
         }
         OffsetDateTime cutoff = OffsetDateTime.now().minusDays(props.getDedupTtlDays());
-        List<String> ids = detectedRepo.findExternalIdsByControllerIdAndDetectedAtAfter(controllerId, cutoff);
+        List<String> ids = detectedEventPort.findExternalIdsByControllerIdSince(controllerId, cutoff);
         if (!ids.isEmpty()) {
             redis.opsForSet().add(redisKey, ids.toArray(String[]::new));
             refreshTtl(controllerId);

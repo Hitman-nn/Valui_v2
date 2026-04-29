@@ -1,33 +1,104 @@
-# Load .env so variables are available to all targets (psql, redis-cli, etc.)
+# ══════════════════════════════════════════════════════════════════════════════
+# Valui v2 — управление окружениями
+#
+#   make help           — список команд
+#   make test-up        — поднять тест-инфраструктуру
+#   make prod-up        — поднять прод
+#   make prod-deploy    — скачать новый образ app и перезапустить
+# ══════════════════════════════════════════════════════════════════════════════
+
 -include .env
 export
 
-COMPOSE := docker compose
+PROD  = docker compose -f docker-compose.prod.yml --env-file .env
+TEST  = docker compose -f docker-compose.test.yml --env-file .env.test
 
-.PHONY: up down reset logs psql redis-cli
+.PHONY: help \
+        up down reset logs psql redis-cli \
+        test-up test-down test-restart test-logs test-status test-psql test-redis \
+        prod-up prod-down prod-restart prod-logs prod-status prod-deploy
 
-## Start all services in detached mode
+# ── Помощь ────────────────────────────────────────────────────────────────────
+help:
+	@echo ""
+	@echo "  TEST (инфраструктура, app запускается отдельно):"
+	@echo "    make test-up        — запустить postgres / redis / kafka / kafka-ui"
+	@echo "    make test-down      — остановить контейнеры"
+	@echo "    make test-restart   — пересоздать контейнеры"
+	@echo "    make test-logs      — хвост логов (Ctrl+C для выхода)"
+	@echo "    make test-status    — статус контейнеров"
+	@echo "    make test-psql      — psql внутри тест-postgres"
+	@echo "    make test-redis     — redis-cli внутри тест-redis"
+	@echo ""
+	@echo "  PROD:"
+	@echo "    make prod-up        — запустить все сервисы"
+	@echo "    make prod-down      — остановить контейнеры"
+	@echo "    make prod-restart   — пересоздать контейнеры"
+	@echo "    make prod-logs      — хвост логов (Ctrl+C для выхода)"
+	@echo "    make prod-status    — статус контейнеров"
+	@echo "    make prod-deploy    — скачать новый образ app и перезапустить"
+	@echo ""
+
+# ── Обратная совместимость (старые цели без префикса = prod) ──────────────────
 up:
-	$(COMPOSE) up -d
+	$(PROD) up -d
 
-## Stop all services (keep volumes)
 down:
-	$(COMPOSE) down
+	$(PROD) down
 
-## Full reset: stop + wipe volumes + restart fresh
 reset:
-	$(COMPOSE) down -v --remove-orphans
-	$(COMPOSE) up -d
+	$(PROD) down -v --remove-orphans
+	$(PROD) up -d
 
-## Stream logs from all services (Ctrl-C to stop).
-## Optionally filter by service name: make logs s=kafka
 logs:
-	$(COMPOSE) logs -f $(s)
+	$(PROD) logs -f $(s)
 
-## Open a psql shell inside the Postgres container
 psql:
 	docker exec -it valui-postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
 
-## Open a redis-cli shell inside the Redis container
 redis-cli:
 	docker exec -it valui-redis redis-cli -a $(REDIS_PASSWORD)
+
+# ── TEST ──────────────────────────────────────────────────────────────────────
+test-up:
+	$(TEST) up -d
+
+test-down:
+	$(TEST) down
+
+test-restart:
+	$(TEST) down
+	$(TEST) up -d
+
+test-logs:
+	$(TEST) logs -f --tail=100 $(s)
+
+test-status:
+	$(TEST) ps
+
+test-psql:
+	docker exec -it valui-test-postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
+
+test-redis:
+	docker exec -it valui-test-redis redis-cli -a $(REDIS_PASSWORD)
+
+# ── PROD ──────────────────────────────────────────────────────────────────────
+prod-up:
+	$(PROD) up -d
+
+prod-down:
+	$(PROD) down
+
+prod-restart:
+	$(PROD) down
+	$(PROD) up -d
+
+prod-logs:
+	$(PROD) logs -f --tail=100 $(s)
+
+prod-status:
+	$(PROD) ps
+
+prod-deploy:
+	$(PROD) pull app
+	$(PROD) up -d --no-deps app

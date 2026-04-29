@@ -19,7 +19,7 @@ import com.valui.monitor.service.ControllerService;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
-import com.valui.user.service.PlanLimitChecker;
+import com.valui.user.api.PlanLimitFacade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -42,7 +42,7 @@ public class SportSelectCallback implements CallbackHandler {
     private final BotMessageSource messageSource;
     private final ParserFactory parserFactory;
     private final ControllerService controllerService;
-    private final PlanLimitChecker planLimitChecker;
+    private final PlanLimitFacade planLimitFacade;
 
     @Override
     public String callbackPrefix() { return "SPORT:"; }
@@ -70,7 +70,7 @@ public class SportSelectCallback implements CallbackHandler {
     // "← Назад" from sport list → re-show bookmaker selection (no cancel button on BK screen)
     private void handleBackToBookmakers(BotUpdateContext ctx, int messageId) {
         sessionService.setStateWithContext(ctx.fromId(), BotState.SELECTING_BOOKMAKER, new HashMap<>());
-        List<String> allowed = planLimitChecker.getLimitInfo(ctx.fromId()).allowedBookmakers();
+        List<String> allowed = planLimitFacade.getLimitInfo(ctx.fromId()).allowedBookmakers();
         var kb = InlineKeyboardBuilder.create().columns(2);
         for (String bm : allowed) {
             kb.button(bm, CallbackData.bookmakerSelect(bm));

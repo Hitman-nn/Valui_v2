@@ -10,7 +10,7 @@ import com.valui.bot.service.BotSessionService;
 import com.valui.bot.service.WizardMessageTracker;
 import com.valui.bot.state.BotState;
 import com.valui.common.exception.SubscriptionLimitExceededException;
-import com.valui.user.service.PlanLimitChecker;
+import com.valui.user.api.PlanLimitFacade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -29,7 +29,7 @@ public class AddControllerHandler implements CommandHandler {
     private final BotAccessGuard guard;
     private final BotSessionService sessionService;
     private final BotMessageSource messageSource;
-    private final PlanLimitChecker planLimitChecker;
+    private final PlanLimitFacade planLimitFacade;
     private final WizardMessageTracker wizardMessageTracker;
 
     @Override
@@ -49,7 +49,7 @@ public class AddControllerHandler implements CommandHandler {
         // Delete the previous wizard message for this user (if any) before opening a new one.
         wizardMessageTracker.deleteStale(ctx.chatId(), ctx.sender());
 
-        List<String> allowed = planLimitChecker.getLimitInfo(ctx.fromId()).allowedBookmakers();
+        List<String> allowed = planLimitFacade.getLimitInfo(ctx.fromId()).allowedBookmakers();
 
         var kb = InlineKeyboardBuilder.create().columns(2);
         for (String bm : allowed) {

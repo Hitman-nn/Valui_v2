@@ -4,6 +4,8 @@ import com.valui.common.entity.audit.AuditEntityListener;
 import com.valui.common.entity.audit.HasCreatedAt;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -42,9 +44,11 @@ public class AuditFallbackEntity implements HasCreatedAt {
     @Column(name = "entity_id")
     private UUID entityId;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "details", columnDefinition = "jsonb")
     private String details;
 
+    @JdbcTypeCode(SqlTypes.OTHER)
     @Column(name = "ip_address", columnDefinition = "inet")
     private String ipAddress;
 

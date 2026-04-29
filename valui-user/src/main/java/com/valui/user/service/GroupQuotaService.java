@@ -6,6 +6,7 @@ import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.SubscriptionLimitExceededException;
 import com.valui.common.exception.UserNotFoundException;
 import com.valui.common.exception.ValuiException;
+import com.valui.user.api.GroupQuotaFacade;
 import com.valui.user.dto.GroupStatusDto;
 import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.GroupChatQuotaRepository;
@@ -31,7 +32,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class GroupQuotaService {
+public class GroupQuotaService implements GroupQuotaFacade {
 
     static final int FREE_GROUP_SLOTS = 3;
 
@@ -41,6 +42,7 @@ public class GroupQuotaService {
     private final UserRepository userRepository;
 
     /** Returns max allowed controllers in the group (free baseline + committed tokens). */
+    @Override
     @Transactional(readOnly = true)
     public int getMaxControllers(Long chatId) {
         return quotaRepository.findById(chatId)
@@ -49,12 +51,14 @@ public class GroupQuotaService {
     }
 
     /** Returns the current active controller count for this group. */
+    @Override
     @Transactional(readOnly = true)
     public int getActiveControllerCount(Long chatId) {
         return controllerRepository.countByNotificationChatIdAndIsActiveTrue(chatId);
     }
 
     /** Returns true if the group can accept one more controller. */
+    @Override
     @Transactional(readOnly = true)
     public boolean hasCapacity(Long chatId) {
         return getActiveControllerCount(chatId) < getMaxControllers(chatId);
@@ -64,6 +68,7 @@ public class GroupQuotaService {
      * Throws {@link SubscriptionLimitExceededException} if the group is at capacity.
      * Call this only when the notification target is a group (chatId < 0).
      */
+    @Override
     @Transactional(readOnly = true)
     public void checkGroupCapacity(Long chatId) {
         if (!hasCapacity(chatId)) {
@@ -74,6 +79,7 @@ public class GroupQuotaService {
     /**
      * Returns a status snapshot for the given group chat: quota, active count, contributor list.
      */
+    @Override
     @Transactional(readOnly = true)
     public GroupStatusDto getGroupStatus(Long chatId) {
         int active = getActiveControllerCount(chatId);
@@ -97,6 +103,7 @@ public class GroupQuotaService {
      *
      * @throws ValuiException 402 if the user doesn't have enough token balance
      */
+    @Override
     @Transactional
     public void contributeTokens(Long telegramId, Long chatId, int tokens) {
         if (tokens <= 0) throw new ValuiException("Tokens must be positive", 400);
@@ -139,6 +146,7 @@ public class GroupQuotaService {
      * shrinks those groups' quotas, and deactivates controllers that exceed the new limit.
      * Returns the user's token balance to 0.
      */
+    @Override
     @Transactional
     public void revokeAllContributions(UUID userId) {
         UserEntity user = userRepository.findById(userId)

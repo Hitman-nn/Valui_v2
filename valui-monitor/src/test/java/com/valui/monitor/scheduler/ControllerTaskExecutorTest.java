@@ -19,8 +19,8 @@ import com.valui.monitor.scheduler.ControllerTaskExecutor.TaskContext;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
-import com.valui.user.repository.ControllerRepository;
-import com.valui.user.repository.DetectedEventRepository;
+import com.valui.user.api.ControllerPortService;
+import com.valui.user.api.DetectedEventPortService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,8 +49,8 @@ import static org.mockito.BDDMockito.*;
 @DisplayName("ControllerTaskExecutor — unit tests")
 class ControllerTaskExecutorTest {
 
-    @Mock ControllerRepository controllerRepo;
-    @Mock DetectedEventRepository detectedRepo;
+    @Mock ControllerPortService controllerPort;
+    @Mock DetectedEventPortService detectedEventPort;
     @Mock ParserFactory parserFactory;
     @Mock ApplicationEventPublisher events;
     @Mock MonitorProperties props;
@@ -100,14 +100,14 @@ class ControllerTaskExecutorTest {
     @DisplayName("persistNewEvents: new match is saved and SportEventDetectedEvent published")
     void persistNewEvents_newMatch_savesAndPublishes() {
         ParsedItem item = new ParsedItem("evt1", "Zenit - CSKA", "https://1xstavka.ru/evt1");
-        given(controllerRepo.findById(CTRL_ID)).willReturn(Optional.of(controller));
+        given(controllerPort.findById(CTRL_ID)).willReturn(Optional.of(controller));
         given(dedup.claimIfNew(CTRL_ID, "evt1")).willReturn(true);
-        given(detectedRepo.save(any())).willAnswer(inv -> {
+        given(detectedEventPort.save(any())).willAnswer(inv -> {
             DetectedEventEntity e = inv.getArgument(0);
             e.setDetectedAt(OffsetDateTime.now());
             return e;
         });
-        given(controllerRepo.save(any())).willReturn(controller);
+        given(controllerPort.save(any())).willReturn(controller);
 
         int count = executor.persistNewEvents(ctx, List.of(item));
 
@@ -121,22 +121,22 @@ class ControllerTaskExecutorTest {
         assertThat(published.bookmaker()).isEqualTo(BookmakerType.XBET);
         assertThat(published.userId()).isEqualTo(USER_ID);
 
-        verify(controllerRepo).save(argThat(c -> c.getLastCheckedAt() != null));
+        verify(controllerPort).save(argThat((ControllerEntity c) -> c.getLastCheckedAt() != null));
     }
 
     @Test
     @DisplayName("persistNewEvents: duplicate match is skipped, no event published")
     void persistNewEvents_duplicateMatch_noEvent() {
         ParsedItem item = new ParsedItem("evt1", "Zenit - CSKA", null);
-        given(controllerRepo.findById(CTRL_ID)).willReturn(Optional.of(controller));
+        given(controllerPort.findById(CTRL_ID)).willReturn(Optional.of(controller));
         given(dedup.claimIfNew(CTRL_ID, "evt1")).willReturn(false);
-        given(controllerRepo.save(any())).willReturn(controller);
+        given(controllerPort.save(any())).willReturn(controller);
 
         int count = executor.persistNewEvents(ctx, List.of(item));
 
         assertThat(count).isZero();
         verify(events, never()).publishEvent(any());
-        verify(detectedRepo, never()).save(any());
+        verify(detectedEventPort, never()).save(any());
     }
 
     @Test
@@ -144,13 +144,13 @@ class ControllerTaskExecutorTest {
     void persistNewEvents_mixed_persistsOnlyNew() {
         ParsedItem old = new ParsedItem("evtOld", "A - B", null);
         ParsedItem fresh = new ParsedItem("evtNew", "C - D", null);
-        given(controllerRepo.findById(CTRL_ID)).willReturn(Optional.of(controller));
+        given(controllerPort.findById(CTRL_ID)).willReturn(Optional.of(controller));
         given(dedup.claimIfNew(CTRL_ID, "evtOld")).willReturn(false);
         given(dedup.claimIfNew(CTRL_ID, "evtNew")).willReturn(true);
-        given(detectedRepo.save(any())).willAnswer(inv -> {
+        given(detectedEventPort.save(any())).willAnswer(inv -> {
             DetectedEventEntity e = inv.getArgument(0); e.setDetectedAt(OffsetDateTime.now()); return e;
         });
-        given(controllerRepo.save(any())).willReturn(controller);
+        given(controllerPort.save(any())).willReturn(controller);
 
         int count = executor.persistNewEvents(ctx, List.of(old, fresh));
 
@@ -163,7 +163,7 @@ class ControllerTaskExecutorTest {
     void persistNewEvents_emptyList_updatesTimestamp() {
         executor.persistNewEvents(ctx, List.of());
 
-        verify(controllerRepo).updateLastCheckedAt(eq(CTRL_ID), any());
+        verify(controllerPort).updateLastCheckedAt(eq(CTRL_ID), any());
         verify(events, never()).publishEvent(any());
     }
 

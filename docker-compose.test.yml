@@ -1,0 +1,168 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# TEST окружение — только инфраструктура, приложение запускается отдельно
+# (локально с профилем `server-test`, или как контейнер)
+#
+# Запуск:  docker compose -f docker-compose.test.yml --env-file .env.test up -d
+# ══════════════════════════════════════════════════════════════════════════════
+
+networks:
+  valui-test-network:
+    driver: bridge
+
+volumes:
+  postgres_test_data:
+  redis_test_data:
+  kafka_test_data:
+
+services:
+
+  # ── PostgreSQL 16 ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: valui-test-postgres
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB}
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5433:5432"   # тест на 5433, прод на 5432
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    networks:
+      - valui-test-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # ── Redis 7 ───────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: valui-test-redis
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --appendfsync everysec
+    ports:
+      - "127.0.0.1:6380:6379"   # тест на 6380, прод на 6379
+    volumes:
+      - redis_test_data:/data
+    networks:
+      - valui-test-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── Kafka 3.7 (KRaft) ─────────────────────────────────────────
+  kafka:
+    image: apache/kafka:3.7.2
+    container_name: valui-test-kafka
+    hostname: kafka-test
+    environment:
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-TestClusterId1234}
+
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-test:9093
+
+      # EXTERNAL нужен для подключения локального приложения к серверному Kafka
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:29093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-test:9092,EXTERNAL://${SERVER_IP}:29093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+    ports:
+      - "127.0.0.1:9095:9092"      # internal (для контейнеров в сети)
+      - "0.0.0.0:29093:29093"       # EXTERNAL — для локального приложения с ноутбука
+    volumes:
+      - kafka_test_data:/var/lib/kafka/data
+    networks:
+      - valui-test-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 60s
+    restart: unless-stopped
+
+  # ── Kafka UI ──────────────────────────────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: valui-test-kafka-ui
+    environment:
+      KAFKA_CLUSTERS_0_NAME: test
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-test:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    ports:
+      - "127.0.0.1:8092:8080"    # доступен через SSH-туннель или Nginx с паролем
+    networks:
+      - valui-test-network
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Spring Boot приложение (опционально — раскомментировать если запускать на сервере) ──
+  # Если запускаешь локально с профилем server-test — этот блок НЕ нужен.
+  # app:
+  #   image: ghcr.io/bogatyrevdl/valui:latest
+  #   container_name: valui-test-app
+  #   environment:
+  #     SPRING_PROFILES_ACTIVE: docker
+  #     POSTGRES_DB:            ${POSTGRES_DB}
+  #     POSTGRES_USER:          ${POSTGRES_USER}
+  #     POSTGRES_PASSWORD:      ${POSTGRES_PASSWORD}
+  #     REDIS_PASSWORD:         ${REDIS_PASSWORD}
+  #     TELEGRAM_BOT_TOKEN:     ${TELEGRAM_BOT_TOKEN}
+  #     TELEGRAM_BOT_USERNAME:  ${TELEGRAM_BOT_USERNAME}
+  #     TELEGRAM_ADMIN_CHAT_ID: ${TELEGRAM_ADMIN_CHAT_ID:-0}
+  #     JWT_SECRET:             ${JWT_SECRET}
+  #     ADMIN_API_KEY:          ${ADMIN_API_KEY}
+  #     BOT_AUTH_SECRET:        ${BOT_AUTH_SECRET}
+  #     BOT_PROXY_ENABLED:      ${BOT_PROXY_ENABLED:-false}
+  #     BOT_PROXY_TYPE:         ${BOT_PROXY_TYPE:-SOCKS5}
+  #     BOT_PROXY_HOST:         ${BOT_PROXY_HOST:-}
+  #     BOT_PROXY_PORT:         ${BOT_PROXY_PORT:-}
+  #     BOT_PROXY_USER:         ${BOT_PROXY_USER:-}
+  #     BOT_PROXY_PASS:         ${BOT_PROXY_PASS:-}
+  #     PROXY_ENABLED:          ${PROXY_ENABLED:-false}
+  #     PROXY_HOST:             ${PROXY_HOST:-}
+  #     PROXY_PORT:             ${PROXY_PORT:-}
+  #     PROXY_USERNAME:         ${PROXY_USERNAME:-}
+  #     PROXY_PASSWORD:         ${PROXY_PASSWORD:-}
+  #   ports:
+  #     - "127.0.0.1:8081:8080"   # тест на 8081, прод на 8080
+  #   networks:
+  #     - valui-test-network
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 60s

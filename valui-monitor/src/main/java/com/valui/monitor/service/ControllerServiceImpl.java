@@ -15,10 +15,10 @@ import com.valui.monitor.event.ControllerAddedEvent;
 import com.valui.monitor.event.ControllerRemovedEvent;
 import com.valui.parser.util.ParsedUrlIds;
 import com.valui.parser.util.UrlParser;
-import com.valui.user.repository.ControllerRepository;
-import com.valui.user.repository.DetectedEventRepository;
-import com.valui.user.repository.UserRepository;
-import com.valui.user.service.PlanLimitChecker;
+import com.valui.user.api.ControllerPortService;
+import com.valui.user.api.DetectedEventPortService;
+import com.valui.user.api.PlanLimitFacade;
+import com.valui.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -37,10 +37,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ControllerServiceImpl implements ControllerService {
 
-    private final ControllerRepository controllerRepository;
-    private final DetectedEventRepository detectedEventRepository;
-    private final UserRepository userRepository;
-    private final PlanLimitChecker planLimitChecker;
+    private final ControllerPortService controllerPort;
+    private final DetectedEventPortService detectedEventPort;
+    private final UserService userService;
+    private final PlanLimitFacade planLimitFacade;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
@@ -49,24 +49,24 @@ public class ControllerServiceImpl implements ControllerService {
     public ControllerDto addController(CreateControllerRequest req, Long telegramId, Long notificationChatId) {
         UserEntity user = requireUser(telegramId);
 
-        planLimitChecker.checkControllerLimit(telegramId);
+        planLimitFacade.checkControllerLimit(telegramId);
 
         // Group chat: also check that the group hasn't hit its own ceiling
         if (notificationChatId != null && notificationChatId < 0) {
-            planLimitChecker.checkGroupCapacity(notificationChatId);
+            planLimitFacade.checkGroupCapacity(notificationChatId);
         }
 
         BookmakerType bookmaker = resolveBookmaker(req);
-        planLimitChecker.checkBookmakerAccess(telegramId, bookmaker.name());
+        planLimitFacade.checkBookmakerAccess(telegramId, bookmaker.name());
 
-        if (controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(user.getId(), bookmaker, req.url())) {
+        if (controllerPort.existsByUserAndBookmakerAndUrl(user.getId(), bookmaker, req.url())) {
             throw new ValuiException("Controller already exists for this URL", 409);
         }
 
         ControllerType type = (req.typeHint() != null) ? req.typeHint() : resolveType(req.url(), bookmaker);
-        int pollIntervalSec = planLimitChecker.getLimitInfo(telegramId).pollIntervalSec();
+        int pollIntervalSec = planLimitFacade.getLimitInfo(telegramId).pollIntervalSec();
 
-        ControllerEntity saved = controllerRepository.save(
+        ControllerEntity saved = controllerPort.save(
                 ControllerEntity.builder()
                         .user(user)
                         .bookmaker(bookmaker)
@@ -93,34 +93,34 @@ public class ControllerServiceImpl implements ControllerService {
         UserEntity user = requireUser(telegramId);
         ControllerEntity entity = requireOwned(controllerId, user.getId());
         entity.setIsActive(false);
-        controllerRepository.save(entity);
+        controllerPort.save(entity);
         log.info("🗑  Контроллер удалён: id={} telegramId={}", controllerId, telegramId);
         eventPublisher.publishEvent(new ControllerRemovedEvent(controllerId, user.getId()));
     }
 
     @Override
     public ControllerDto getController(UUID controllerId) {
-        return toDto(controllerRepository.findById(controllerId)
+        return toDto(controllerPort.findById(controllerId)
                 .orElseThrow(() -> new ControllerNotFoundException(controllerId)));
     }
 
     @Override
     public List<ControllerDto> getUserControllers(Long telegramId) {
         UserEntity user = requireUser(telegramId);
-        return controllerRepository.findAllByUserIdAndIsActiveTrue(user.getId())
+        return controllerPort.findAllActiveByUserId(user.getId())
                 .stream().map(this::toDto).toList();
     }
 
     @Override
     public List<ControllerDto> getGroupControllers(Long notificationChatId) {
-        return controllerRepository.findAllByNotificationChatIdAndIsActiveTrue(notificationChatId)
+        return controllerPort.findAllActiveByNotificationChatId(notificationChatId)
                 .stream().map(this::toDto).toList();
     }
 
     @Override
     public Page<ControllerDto> getUserControllers(Long telegramId, Pageable pageable) {
         UserEntity user = requireUser(telegramId);
-        return controllerRepository.findByUserIdOrderByCreatedAtDesc(user.getId(), pageable)
+        return controllerPort.findByUserIdPageable(user.getId(), pageable)
                 .map(this::toDto);
     }
 
@@ -130,7 +130,7 @@ public class ControllerServiceImpl implements ControllerService {
         UserEntity user = requireUser(telegramId);
         ControllerEntity entity = requireOwned(controllerId, user.getId());
         entity.setIsMuted(true);
-        controllerRepository.save(entity);
+        controllerPort.save(entity);
     }
 
     @Override
@@ -139,7 +139,7 @@ public class ControllerServiceImpl implements ControllerService {
         UserEntity user = requireUser(telegramId);
         ControllerEntity entity = requireOwned(controllerId, user.getId());
         entity.setIsMuted(false);
-        controllerRepository.save(entity);
+        controllerPort.save(entity);
     }
 
     @Override
@@ -151,20 +151,20 @@ public class ControllerServiceImpl implements ControllerService {
 
         // Count against limit only when a new filter is being added (was null before)
         if (entity.getFilterRule() == null && rule != null && !rule.isBlank()) {
-            planLimitChecker.checkFilterLimit(telegramId);
+            planLimitFacade.checkFilterLimit(telegramId);
         }
 
         entity.setFilterRule(rule != null && rule.isBlank() ? null : rule);
-        ControllerEntity saved = controllerRepository.save(entity);
+        ControllerEntity saved = controllerPort.save(entity);
         return toDto(saved);
     }
 
     @Override
     @Transactional
     public void deactivateController(UUID controllerId) {
-        controllerRepository.findById(controllerId)
+        controllerPort.findById(controllerId)
                 .orElseThrow(() -> new ControllerNotFoundException(controllerId));
-        controllerRepository.updateIsActive(controllerId, false);
+        controllerPort.updateIsActive(controllerId, false);
         log.info("🔒 Контроллер деактивирован (admin): id={}", controllerId);
         eventPublisher.publishEvent(new ControllerRemovedEvent(controllerId, null));
     }
@@ -172,17 +172,17 @@ public class ControllerServiceImpl implements ControllerService {
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private UserEntity requireUser(Long telegramId) {
-        return userRepository.findByTelegramId(telegramId)
+        return userService.findByTelegramId(telegramId)
                 .orElseThrow(() -> new UserNotFoundException(telegramId));
     }
 
     private ControllerEntity requireOwned(UUID controllerId, UUID userId) {
-        return controllerRepository.findByIdAndUserId(controllerId, userId)
+        return controllerPort.findByIdAndUserId(controllerId, userId)
                 .orElseThrow(() -> new ControllerAccessException(controllerId));
     }
 
     private ControllerDto toDto(ControllerEntity e) {
-        long eventCount = detectedEventRepository.countByControllerId(e.getId());
+        long eventCount = detectedEventPort.countByControllerId(e.getId());
         return new ControllerDto(
                 e.getId(),
                 e.getBookmaker().name(),

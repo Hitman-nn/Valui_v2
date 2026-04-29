@@ -16,7 +16,7 @@ import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
-import com.valui.user.service.PlanLimitChecker;
+import com.valui.user.api.PlanLimitFacade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -57,7 +57,7 @@ public class MenuButtonHandler implements BotUpdateHandler {
 
     private final BotMessageSource messageSource;
     private final BotSessionService sessionService;
-    private final PlanLimitChecker planLimitChecker;
+    private final PlanLimitFacade planLimitFacade;
 
     // Delegate to the real command handlers — no logic duplication
     private final AddControllerHandler     addControllerHandler;
@@ -108,7 +108,7 @@ public class MenuButtonHandler implements BotUpdateHandler {
 
         int tokenBalance;
         try {
-            tokenBalance = planLimitChecker.getLimitInfo(ctx.fromId()).tokenBalance();
+            tokenBalance = planLimitFacade.getLimitInfo(ctx.fromId()).tokenBalance();
         } catch (Exception e) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
                 messageSource.getMessage("error.general", ctx.fromId()));

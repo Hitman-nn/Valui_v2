@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.HttpProtocol;
 import reactor.netty.http.client.HttpClient;
@@ -17,7 +16,6 @@ import reactor.netty.transport.ProxyProvider;
 import java.time.Duration;
 
 @Configuration
-@EnableScheduling
 public class HttpClientConfig {
 
     private static final int CONNECT_TIMEOUT_MS = 8_000;

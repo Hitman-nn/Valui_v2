@@ -3,7 +3,7 @@ package com.valui.bot.guard;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.common.exception.SubscriptionLimitExceededException;
 import com.valui.user.dto.LimitInfoDto;
-import com.valui.user.service.PlanLimitChecker;
+import com.valui.user.api.PlanLimitFacade;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,7 +34,7 @@ import static org.mockito.Mockito.never;
 @DisplayName("BotAccessGuard — unit tests")
 class BotAccessGuardTest {
 
-    @Mock private PlanLimitChecker planLimitChecker;
+    @Mock private PlanLimitFacade planLimitFacade;
     @Mock private AbsSender sender;
 
     private static final Long CHAT_ID = 42L;
@@ -43,7 +43,7 @@ class BotAccessGuardTest {
 
     @BeforeEach
     void setUp() {
-        guard = new BotAccessGuard(planLimitChecker);
+        guard = new BotAccessGuard(planLimitFacade);
     }
 
     // ─── guardAddController ───────────────────────────────────────────────────
@@ -63,8 +63,8 @@ class BotAccessGuardTest {
     @DisplayName("guardAddController: limit exceeded → throws and sends upgrade prompt")
     void guardAddController_exceeded_throwsAndSendsMessage() throws TelegramApiException {
         willThrow(new SubscriptionLimitExceededException("controllers", 3))
-            .given(planLimitChecker).checkControllerLimit(CHAT_ID);
-        given(planLimitChecker.getLimitInfo(CHAT_ID)).willReturn(freeLimits(3, 3));
+            .given(planLimitFacade).checkControllerLimit(CHAT_ID);
+        given(planLimitFacade.getLimitInfo(CHAT_ID)).willReturn(freeLimits(3, 3));
 
         assertThatThrownBy(() -> guard.guardAddController(CHAT_ID, CHAT_ID, sender))
             .isInstanceOf(SubscriptionLimitExceededException.class);
@@ -92,8 +92,8 @@ class BotAccessGuardTest {
     @DisplayName("guardBookmakerAccess: bookmaker blocked → throws and sends prompt")
     void guardBookmakerAccess_blocked_throwsAndSendsMessage() throws TelegramApiException {
         willThrow(new SubscriptionLimitExceededException("Bookmaker 'OLIMP' not available on plan 'FREE'"))
-            .given(planLimitChecker).checkBookmakerAccess(CHAT_ID, "OLIMP");
-        given(planLimitChecker.getLimitInfo(CHAT_ID))
+            .given(planLimitFacade).checkBookmakerAccess(CHAT_ID, "OLIMP");
+        given(planLimitFacade.getLimitInfo(CHAT_ID))
             .willReturn(freeLimits(1, 3));
 
         assertThatThrownBy(() -> guard.guardBookmakerAccess(CHAT_ID, CHAT_ID, "OLIMP", sender))
@@ -117,8 +117,8 @@ class BotAccessGuardTest {
     @DisplayName("guardAddFilter: filter limit exceeded → throws and sends prompt")
     void guardAddFilter_exceeded_throwsAndSendsMessage() throws TelegramApiException {
         willThrow(new SubscriptionLimitExceededException("filters", 1))
-            .given(planLimitChecker).checkFilterLimit(CHAT_ID);
-        given(planLimitChecker.getLimitInfo(CHAT_ID))
+            .given(planLimitFacade).checkFilterLimit(CHAT_ID);
+        given(planLimitFacade.getLimitInfo(CHAT_ID))
             .willReturn(freeLimitsWithFilter(0, 3, 1, 1));
 
         assertThatThrownBy(() -> guard.guardAddFilter(CHAT_ID, CHAT_ID, sender))
@@ -133,8 +133,8 @@ class BotAccessGuardTest {
     @DisplayName("guard: if sending the prompt fails, original exception still propagates")
     void guard_sendFails_exceptionStillPropagates() throws TelegramApiException {
         willThrow(new SubscriptionLimitExceededException("controllers", 3))
-            .given(planLimitChecker).checkControllerLimit(CHAT_ID);
-        given(planLimitChecker.getLimitInfo(CHAT_ID)).willReturn(freeLimits(3, 3));
+            .given(planLimitFacade).checkControllerLimit(CHAT_ID);
+        given(planLimitFacade.getLimitInfo(CHAT_ID)).willReturn(freeLimits(3, 3));
         given(sender.execute(any(SendMessage.class)))
             .willThrow(new TelegramApiException("network error"));
 

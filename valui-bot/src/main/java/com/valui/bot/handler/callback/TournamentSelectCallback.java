@@ -18,7 +18,7 @@ import com.valui.monitor.service.ControllerService;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
-import com.valui.user.service.PlanLimitChecker;
+import com.valui.user.api.PlanLimitFacade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -39,7 +39,7 @@ public class TournamentSelectCallback implements CallbackHandler {
     private final BotMessageSource messageSource;
     private final ParserFactory parserFactory;
     private final ControllerService controllerService;
-    private final PlanLimitChecker planLimitChecker;
+    private final PlanLimitFacade planLimitFacade;
     private final WizardBackNavigator backNavigator;
 
     @Override

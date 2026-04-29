@@ -8,8 +8,8 @@ import com.valui.common.entity.ControllerEntity;
 import com.valui.common.entity.UserEntity;
 import com.valui.parser.util.ParsedUrlIds;
 import com.valui.parser.util.UrlParser;
-import com.valui.user.repository.ControllerRepository;
-import com.valui.user.repository.UserRepository;
+import com.valui.user.api.ControllerPortService;
+import com.valui.user.service.UserService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,8 +36,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ControllersJsonMigrator {
 
-    private final ControllerRepository controllerRepository;
-    private final UserRepository userRepository;
+    private final ControllerPortService controllerPort;
+    private final UserService userService;
     private final ObjectMapper objectMapper;
 
     @Value("${valui.migration.controllers-json-path:./controllers.json}")
@@ -108,7 +108,7 @@ public class ControllersJsonMigrator {
             return MigrateResult.SKIPPED;
         }
 
-        UserEntity user = userRepository.findByTelegramId(telegramId).orElse(null);
+        UserEntity user = userService.findByTelegramId(telegramId).orElse(null);
         if (user == null) {
             log.warn("User not found for telegramId={}, skipping link={}", telegramId, lc.link);
             return MigrateResult.SKIPPED;
@@ -122,7 +122,7 @@ public class ControllersJsonMigrator {
             return MigrateResult.SKIPPED;
         }
 
-        if (controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(user.getId(), bookmaker, lc.link)) {
+        if (controllerPort.existsByUserAndBookmakerAndUrl(user.getId(), bookmaker, lc.link)) {
             log.debug("Controller already exists: userId={} bookmaker={} link={}", user.getId(), bookmaker, lc.link);
             return MigrateResult.SKIPPED;
         }
@@ -130,7 +130,7 @@ public class ControllersJsonMigrator {
         ControllerType type = resolveType(lc.link, bookmaker);
         String filterRule = (lc.ruleFilter != null && !lc.ruleFilter.isBlank()) ? lc.ruleFilter : null;
 
-        controllerRepository.save(
+        controllerPort.save(
                 ControllerEntity.builder()
                         .user(user)
                         .bookmaker(bookmaker)

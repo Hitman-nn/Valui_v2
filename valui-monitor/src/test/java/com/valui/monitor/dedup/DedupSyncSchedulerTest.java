@@ -7,8 +7,8 @@ import com.valui.common.domain.UserStatus;
 import com.valui.common.entity.ControllerEntity;
 import com.valui.common.entity.UserEntity;
 import com.valui.monitor.config.MonitorProperties;
-import com.valui.user.repository.ControllerRepository;
-import com.valui.user.repository.DetectedEventRepository;
+import com.valui.user.api.ControllerPortService;
+import com.valui.user.api.DetectedEventPortService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,8 +31,8 @@ import static org.mockito.Mockito.verify;
 class DedupSyncSchedulerTest {
 
     @Mock EventDeduplicationService dedup;
-    @Mock ControllerRepository controllerRepo;
-    @Mock DetectedEventRepository detectedRepo;
+    @Mock ControllerPortService controllerPort;
+    @Mock DetectedEventPortService detectedEventPort;
     @Mock MonitorProperties props;
 
     @InjectMocks DedupSyncScheduler scheduler;
@@ -48,8 +48,8 @@ class DedupSyncSchedulerTest {
     @DisplayName("sync: for each active controller calls syncSeenEvents with DB event IDs")
     void sync_callsSyncSeenEventsPerController() {
         ControllerEntity ctrl = controllerEntity(CTRL_ID);
-        given(controllerRepo.findAllByIsActiveTrue()).willReturn(List.of(ctrl));
-        given(detectedRepo.findExternalIdsByControllerIdAndDetectedAtAfter(eq(CTRL_ID), any()))
+        given(controllerPort.findAllActive()).willReturn(List.of(ctrl));
+        given(detectedEventPort.findExternalIdsByControllerIdSince(eq(CTRL_ID), any()))
                 .willReturn(List.of("e1", "e2", "e3"));
 
         scheduler.sync();
@@ -60,7 +60,7 @@ class DedupSyncSchedulerTest {
     @Test
     @DisplayName("sync: no active controllers → no dedup calls")
     void sync_noActiveControllers_noOp() {
-        given(controllerRepo.findAllByIsActiveTrue()).willReturn(List.of());
+        given(controllerPort.findAllActive()).willReturn(List.of());
 
         scheduler.sync();
 
@@ -72,11 +72,11 @@ class DedupSyncSchedulerTest {
     void sync_singleControllerError_continuesOthers() {
         UUID ctrl1 = UUID.randomUUID();
         UUID ctrl2 = UUID.randomUUID();
-        given(controllerRepo.findAllByIsActiveTrue())
+        given(controllerPort.findAllActive())
                 .willReturn(List.of(controllerEntity(ctrl1), controllerEntity(ctrl2)));
-        given(detectedRepo.findExternalIdsByControllerIdAndDetectedAtAfter(eq(ctrl1), any()))
+        given(detectedEventPort.findExternalIdsByControllerIdSince(eq(ctrl1), any()))
                 .willThrow(new RuntimeException("DB error"));
-        given(detectedRepo.findExternalIdsByControllerIdAndDetectedAtAfter(eq(ctrl2), any()))
+        given(detectedEventPort.findExternalIdsByControllerIdSince(eq(ctrl2), any()))
                 .willReturn(List.of("good-event"));
 
         scheduler.sync(); // must not throw

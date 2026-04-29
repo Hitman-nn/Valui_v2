@@ -42,6 +42,7 @@ public class AuditLogEntity implements HasCreatedAt {
     @Column(name = "details", columnDefinition = "jsonb")
     private String details;
 
+    @JdbcTypeCode(SqlTypes.OTHER)
     @Column(name = "ip_address", columnDefinition = "inet")
     private String ipAddress;
 

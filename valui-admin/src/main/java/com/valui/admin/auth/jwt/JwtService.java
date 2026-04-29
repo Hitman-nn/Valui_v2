@@ -20,9 +20,14 @@ public class JwtService {
     private final SecretKey signingKey;
     private final long accessTtlMs;
 
+    private static final String DEV_SECRET_PREFIX = "dmFsdWktdjIt";
+
     public JwtService(JwtProperties props) {
         this.signingKey  = Keys.hmacShaKeyFor(Decoders.BASE64.decode(props.secret()));
         this.accessTtlMs = props.accessTokenTtlSeconds() * 1_000L;
+        if (props.secret().startsWith(DEV_SECRET_PREFIX)) {
+            log.warn("⚠️  JWT_SECRET использует DEV-дефолт! Установи переменную JWT_SECRET в продакшн окружении.");
+        }
     }
 
     /**

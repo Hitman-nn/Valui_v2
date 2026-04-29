@@ -16,7 +16,7 @@ import com.valui.monitor.service.ControllerService;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
-import com.valui.user.service.PlanLimitChecker;
+import com.valui.user.api.PlanLimitFacade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -39,11 +39,11 @@ public class WizardBackNavigator {
     private final BotMessageSource messageSource;
     private final ControllerService controllerService;
     private final ParserFactory parserFactory;
-    private final PlanLimitChecker planLimitChecker;
+    private final PlanLimitFacade planLimitFacade;
 
     public void returnToBookmakerSelection(AbsSender sender, long chatId, int messageId) {
         sessionService.setStateWithContext(chatId, BotState.SELECTING_BOOKMAKER, new HashMap<>());
-        List<String> allowed = planLimitChecker.getLimitInfo(chatId).allowedBookmakers();
+        List<String> allowed = planLimitFacade.getLimitInfo(chatId).allowedBookmakers();
         var kb = InlineKeyboardBuilder.create().columns(2);
         for (String bm : allowed) {
             kb.button(bm, CallbackData.bookmakerSelect(bm));

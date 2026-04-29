@@ -12,10 +12,10 @@ import com.valui.common.exception.ValuiException;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.dto.CreateControllerRequest;
 import com.valui.user.dto.LimitInfoDto;
-import com.valui.user.repository.ControllerRepository;
-import com.valui.user.repository.DetectedEventRepository;
-import com.valui.user.repository.UserRepository;
-import com.valui.user.service.PlanLimitChecker;
+import com.valui.user.api.ControllerPortService;
+import com.valui.user.api.DetectedEventPortService;
+import com.valui.user.api.PlanLimitFacade;
+import com.valui.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,10 +40,10 @@ import static org.mockito.BDDMockito.*;
 @DisplayName("ControllerService — unit tests")
 class ControllerServiceTest {
 
-    @Mock ControllerRepository controllerRepository;
-    @Mock DetectedEventRepository detectedEventRepository;
-    @Mock UserRepository userRepository;
-    @Mock PlanLimitChecker planLimitChecker;
+    @Mock ControllerPortService controllerPort;
+    @Mock DetectedEventPortService detectedEventPort;
+    @Mock UserService userService;
+    @Mock PlanLimitFacade planLimitFacade;
     @Mock ApplicationEventPublisher eventPublisher;
 
     @InjectMocks ControllerServiceImpl service;
@@ -67,11 +67,11 @@ class ControllerServiceTest {
     @Test
     @DisplayName("addController: happy path — saves entity and returns ControllerDto")
     void addController_happyPath_returnsDto() {
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(planLimitChecker.getLimitInfo(TG_ID)).willReturn(limitInfo(5, 120));
-        given(controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(any(), any(), any())).willReturn(false);
-        given(detectedEventRepository.countByControllerId(any())).willReturn(0L);
-        given(controllerRepository.save(any())).willAnswer(inv -> {
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(planLimitFacade.getLimitInfo(TG_ID)).willReturn(limitInfo(5, 120));
+        given(controllerPort.existsByUserAndBookmakerAndUrl(any(), any(), any())).willReturn(false);
+        given(detectedEventPort.countByControllerId(any())).willReturn(0L);
+        given(controllerPort.save(any())).willAnswer(inv -> {
             ControllerEntity e = inv.getArgument(0);
             e.setId(UUID.randomUUID());
             return e;
@@ -85,20 +85,20 @@ class ControllerServiceTest {
         assertThat(dto.title()).isEqualTo("Premier League");
         assertThat(dto.isActive()).isTrue();
         assertThat(dto.detectedEventsCount()).isZero();
-        verify(planLimitChecker).checkControllerLimit(TG_ID);
-        verify(planLimitChecker).checkBookmakerAccess(TG_ID, "XBET");
-        verify(controllerRepository).save(any(ControllerEntity.class));
+        verify(planLimitFacade).checkControllerLimit(TG_ID);
+        verify(planLimitFacade).checkBookmakerAccess(TG_ID, "XBET");
+        verify(controllerPort).save(any(ControllerEntity.class));
     }
 
     @Test
     @DisplayName("addController: explicit bookmaker in request overrides URL detection")
     void addController_explicitBookmaker_usesIt() {
         String olimpUrl = "https://olimp.bet/line/football/999";
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(planLimitChecker.getLimitInfo(TG_ID)).willReturn(limitInfo(5, 60));
-        given(controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(any(), any(), any())).willReturn(false);
-        given(detectedEventRepository.countByControllerId(any())).willReturn(0L);
-        given(controllerRepository.save(any())).willAnswer(inv -> {
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(planLimitFacade.getLimitInfo(TG_ID)).willReturn(limitInfo(5, 60));
+        given(controllerPort.existsByUserAndBookmakerAndUrl(any(), any(), any())).willReturn(false);
+        given(detectedEventPort.countByControllerId(any())).willReturn(0L);
+        given(controllerPort.save(any())).willAnswer(inv -> {
             ControllerEntity e = inv.getArgument(0);
             e.setId(UUID.randomUUID()); return e;
         });
@@ -112,34 +112,34 @@ class ControllerServiceTest {
     @Test
     @DisplayName("addController: controller limit exceeded — throws and never saves")
     void addController_limitExceeded_throwsAndNeverSaves() {
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
         willThrow(new SubscriptionLimitExceededException("controllers", 3))
-                .given(planLimitChecker).checkControllerLimit(TG_ID);
+                .given(planLimitFacade).checkControllerLimit(TG_ID);
 
         assertThatThrownBy(() ->
                 service.addController(new CreateControllerRequest(XBET_URL, null, null, false), TG_ID))
                 .isInstanceOf(SubscriptionLimitExceededException.class);
-        verify(controllerRepository, never()).save(any());
+        verify(controllerPort, never()).save(any());
     }
 
     @Test
     @DisplayName("addController: duplicate URL — throws 409 and never saves")
     void addController_duplicateUrl_throws409() {
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(controllerPort.existsByUserAndBookmakerAndUrl(
                 eq(USER_ID), eq(BookmakerType.XBET), eq(XBET_URL))).willReturn(true);
 
         assertThatThrownBy(() ->
                 service.addController(new CreateControllerRequest(XBET_URL, null, null, false), TG_ID))
                 .isInstanceOf(ValuiException.class)
                 .extracting("httpStatus").isEqualTo(409);
-        verify(controllerRepository, never()).save(any());
+        verify(controllerPort, never()).save(any());
     }
 
     @Test
     @DisplayName("addController: unknown bookmaker URL — throws 400")
     void addController_unknownBookmaker_throws400() {
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
 
         assertThatThrownBy(() ->
                 service.addController(new CreateControllerRequest("https://unknown-bk.com/line/1", null, null, false), TG_ID))
@@ -154,13 +154,13 @@ class ControllerServiceTest {
     void removeController_success_deactivates() {
         UUID cid = UUID.randomUUID();
         ControllerEntity entity = controllerEntity(cid, XBET_URL, true);
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerRepository.findByIdAndUserId(cid, USER_ID)).willReturn(Optional.of(entity));
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(controllerPort.findByIdAndUserId(cid, USER_ID)).willReturn(Optional.of(entity));
 
         service.removeController(cid, TG_ID);
 
         ArgumentCaptor<ControllerEntity> captor = ArgumentCaptor.forClass(ControllerEntity.class);
-        verify(controllerRepository).save(captor.capture());
+        verify(controllerPort).save(captor.capture());
         assertThat(captor.getValue().getIsActive()).isFalse();
     }
 
@@ -168,12 +168,12 @@ class ControllerServiceTest {
     @DisplayName("removeController: wrong owner — throws ControllerAccessException")
     void removeController_wrongOwner_throws() {
         UUID cid = UUID.randomUUID();
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerRepository.findByIdAndUserId(cid, USER_ID)).willReturn(Optional.empty());
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(controllerPort.findByIdAndUserId(cid, USER_ID)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.removeController(cid, TG_ID))
                 .isInstanceOf(ControllerAccessException.class);
-        verify(controllerRepository, never()).save(any());
+        verify(controllerPort, never()).save(any());
     }
 
     // ── muteController / unmuteController ─────────────────────────────────────
@@ -183,9 +183,9 @@ class ControllerServiceTest {
     void muteController_setsFlag() {
         UUID cid = UUID.randomUUID();
         ControllerEntity entity = controllerEntity(cid, XBET_URL, true);
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerRepository.findByIdAndUserId(cid, USER_ID)).willReturn(Optional.of(entity));
-        given(controllerRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(controllerPort.findByIdAndUserId(cid, USER_ID)).willReturn(Optional.of(entity));
+        given(controllerPort.save(any())).willAnswer(inv -> inv.getArgument(0));
 
         service.muteController(cid, TG_ID);
 
@@ -198,9 +198,9 @@ class ControllerServiceTest {
         UUID cid = UUID.randomUUID();
         ControllerEntity entity = controllerEntity(cid, XBET_URL, true);
         entity.setIsMuted(true);
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerRepository.findByIdAndUserId(cid, USER_ID)).willReturn(Optional.of(entity));
-        given(controllerRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(controllerPort.findByIdAndUserId(cid, USER_ID)).willReturn(Optional.of(entity));
+        given(controllerPort.save(any())).willAnswer(inv -> inv.getArgument(0));
 
         service.unmuteController(cid, TG_ID);
 
@@ -214,14 +214,14 @@ class ControllerServiceTest {
     void updateFilterRule_newFilter_checksLimit() {
         UUID cid = UUID.randomUUID();
         ControllerEntity entity = controllerEntity(cid, XBET_URL, true); // filterRule = null
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerRepository.findByIdAndUserId(cid, USER_ID)).willReturn(Optional.of(entity));
-        given(controllerRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
-        given(detectedEventRepository.countByControllerId(cid)).willReturn(0L);
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(controllerPort.findByIdAndUserId(cid, USER_ID)).willReturn(Optional.of(entity));
+        given(controllerPort.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(detectedEventPort.countByControllerId(cid)).willReturn(0L);
 
         service.updateFilterRule(cid, TG_ID, ".*Liverpool.*");
 
-        verify(planLimitChecker).checkFilterLimit(TG_ID);
+        verify(planLimitFacade).checkFilterLimit(TG_ID);
         assertThat(entity.getFilterRule()).isEqualTo(".*Liverpool.*");
     }
 
@@ -231,14 +231,14 @@ class ControllerServiceTest {
         UUID cid = UUID.randomUUID();
         ControllerEntity entity = controllerEntity(cid, XBET_URL, true);
         entity.setFilterRule(".*old.*");
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerRepository.findByIdAndUserId(cid, USER_ID)).willReturn(Optional.of(entity));
-        given(controllerRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
-        given(detectedEventRepository.countByControllerId(cid)).willReturn(0L);
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(controllerPort.findByIdAndUserId(cid, USER_ID)).willReturn(Optional.of(entity));
+        given(controllerPort.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(detectedEventPort.countByControllerId(cid)).willReturn(0L);
 
         service.updateFilterRule(cid, TG_ID, ".*new.*");
 
-        verify(planLimitChecker, never()).checkFilterLimit(TG_ID);
+        verify(planLimitFacade, never()).checkFilterLimit(TG_ID);
     }
 
     // ── getUserControllers ────────────────────────────────────────────────────
@@ -249,9 +249,9 @@ class ControllerServiceTest {
         ControllerEntity c1 = controllerEntity(UUID.randomUUID(), XBET_URL, true);
         ControllerEntity c2 = controllerEntity(UUID.randomUUID(), "https://olimp.bet/line/1", true);
         c2.setBookmaker(BookmakerType.OLIMP);
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerRepository.findAllByUserIdAndIsActiveTrue(USER_ID)).willReturn(List.of(c1, c2));
-        given(detectedEventRepository.countByControllerId(any())).willReturn(0L);
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(controllerPort.findAllActiveByUserId(USER_ID)).willReturn(List.of(c1, c2));
+        given(detectedEventPort.countByControllerId(any())).willReturn(0L);
 
         List<ControllerDto> result = service.getUserControllers(TG_ID);
 

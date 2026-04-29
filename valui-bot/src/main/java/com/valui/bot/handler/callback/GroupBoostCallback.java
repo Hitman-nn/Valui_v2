@@ -5,7 +5,7 @@ import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.common.exception.ValuiException;
-import com.valui.user.service.GroupQuotaService;
+import com.valui.user.api.GroupQuotaFacade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -23,7 +23,7 @@ import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 @RequiredArgsConstructor
 public class GroupBoostCallback implements CallbackHandler {
 
-    private final GroupQuotaService groupQuotaService;
+    private final GroupQuotaFacade groupQuotaFacade;
 
     @Override
     public String callbackPrefix() { return CallbackData.BOOST_PREFIX; }
@@ -54,7 +54,7 @@ public class GroupBoostCallback implements CallbackHandler {
         }
 
         try {
-            groupQuotaService.contributeTokens(ctx.fromId(), groupChatId, tokens);
+            groupQuotaFacade.contributeTokens(ctx.fromId(), groupChatId, tokens);
             MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
                     "✅ Квота группы расширена на " + tokens + " слот(ов)");
             log.info("[BOOST] fromId={} contributed {} tokens to groupChatId={}", ctx.fromId(), tokens, groupChatId);

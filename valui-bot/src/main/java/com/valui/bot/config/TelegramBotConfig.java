@@ -3,6 +3,8 @@ package com.valui.bot.config;
 import com.valui.bot.ValuiTelegramBot;
 import com.valui.bot.handler.CommandRouter;
 import com.valui.bot.webhook.ValuiWebhookBot;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -23,14 +25,25 @@ import java.util.List;
 
 @Slf4j
 @Configuration
+@RequiredArgsConstructor
 @EnableConfigurationProperties(BotProperties.class)
 public class TelegramBotConfig {
+
+    private final BotProperties botProperties;
+
+    @PostConstruct
+    public void validateBotToken() {
+        if ("change-me".equals(botProperties.token())) {
+            throw new IllegalStateException(
+                "TELEGRAM_BOT_TOKEN не задан! Установи переменную окружения TELEGRAM_BOT_TOKEN.");
+        }
+    }
 
     // ─── Long-polling mode ────────────────────────────────────────────────────
 
     @Bean
     @ConditionalOnProperty(name = "valui.bot.mode", havingValue = "long_polling", matchIfMissing = true)
-    public ValuiTelegramBot valuiTelegramBot(CommandRouter commandRouter, BotProperties botProperties) {
+    public ValuiTelegramBot valuiTelegramBot(CommandRouter commandRouter) {
         return new ValuiTelegramBot(commandRouter, botProperties, buildBotOptions(botProperties));
     }
 
@@ -52,7 +65,7 @@ public class TelegramBotConfig {
 
     @Bean
     @ConditionalOnProperty(name = "valui.bot.mode", havingValue = "webhook")
-    public ValuiWebhookBot valuiWebhookBot(CommandRouter commandRouter, BotProperties botProperties) {
+    public ValuiWebhookBot valuiWebhookBot(CommandRouter commandRouter) {
         return new ValuiWebhookBot(commandRouter, botProperties);
     }
 

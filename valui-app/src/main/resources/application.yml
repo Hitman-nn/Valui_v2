@@ -117,15 +117,15 @@ management:
   endpoint:
     health:
       show-details: when-authorized
-  metrics:
-    export:
-      prometheus:
+  prometheus:
+    metrics:
+      export:
         enabled: true
 
 # Valui custom config
 valui:
   bot:
-    token: ${TELEGRAM_BOT_TOKEN:5993930941:AAFyV88j6Cj30CRdfvBRgsdg-msLgez6T9M}
+    token: ${TELEGRAM_BOT_TOKEN:change-me}
     username: ${TELEGRAM_BOT_USERNAME:ValuiForRelease_bot}
     payment-base-url: ${PAYMENT_BASE_URL:https://pay.valui.com}
     # mode: long_polling (default) | webhook
@@ -219,33 +219,70 @@ spring:
   kafka:
     bootstrap-servers: localhost:29092
 
+  jpa:
+    show-sql: true
+
 kafka:
   schema-registry:
     url: http://localhost:8081
-
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    show-sql: true
 
 # Telegram proxy — needed when running locally with VPN that blocks api.telegram.org
 valui:
   bot:
     proxy:
-      enabled: true
-      type: SOCKS5
-      host: 91.147.122.69
-      port: 14232
-      username: user283146
-      password: 0w3qzb
+      enabled: ${BOT_PROXY_ENABLED:true}
+      type: ${BOT_PROXY_TYPE:SOCKS5}
+      host: ${BOT_PROXY_HOST:91.147.122.69}
+      port: ${BOT_PROXY_PORT:14232}
+      # Credentials are set via env vars — never hardcode in config files
+      username: ${BOT_PROXY_USER:}
+      password: ${BOT_PROXY_PASS:}
 
 parser:
   proxy:
-    enabled: true
-    host: 91.147.122.69
-    port: 4232      # HTTP CONNECT proxy (was 14232 SOCKS5 — xbet uses HTTP CONNECT now)
-    username: user283146
-    password: 0w3qzb
+    enabled: ${PROXY_ENABLED:true}
+    host: ${PROXY_HOST:91.147.122.69}
+    port: ${PROXY_PORT:4232}
+    # Credentials are set via env vars — never hardcode in config files
+    username: ${PROXY_USERNAME:}
+    password: ${PROXY_PASSWORD:}
+
+logging:
+  level:
+    com.valui: DEBUG
+    org.springframework.kafka: INFO
+
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# Profile: server-test — приложение запускается локально, инфраструктура на сервере
+#
+# PostgreSQL и Redis доступны через SSH-туннель:
+#   ssh -L 5433:localhost:5433 -L 6380:localhost:6380 user@SERVER_IP
+# Kafka доступна напрямую через EXTERNAL listener (порт 29093 открыт в docker-compose.test.yml)
+# ═══════════════════════════════════════════════════════════════════════════════
+spring:
+  config:
+    activate:
+      on-profile: server-test
+
+  datasource:
+    url: jdbc:postgresql://localhost:5433/${POSTGRES_DB:valui_test_db}
+    username: ${POSTGRES_USER:valui_test}
+    password: ${POSTGRES_PASSWORD:change_me_test_pg}
+    hikari:
+      maximum-pool-size: 10
+
+  data:
+    redis:
+      host: localhost
+      port: 6380
+      password: ${REDIS_PASSWORD:change_me_test_redis}
+
+  kafka:
+    bootstrap-servers: ${SERVER_IP:1.2.3.4}:29093
+
+  jpa:
+    show-sql: true
 
 logging:
   level:
@@ -262,9 +299,9 @@ spring:
       on-profile: docker
 
   datasource:
-    url: jdbc:postgresql://postgres:5432/valui
+    url: jdbc:postgresql://postgres:5432/${POSTGRES_DB:valui_db}
     username: ${POSTGRES_USER:valui}
-    password: ${POSTGRES_PASSWORD:valui}
+    password: ${POSTGRES_PASSWORD:valui_secret}
     hikari:
       maximum-pool-size: 20
 
@@ -272,7 +309,7 @@ spring:
     redis:
       host: redis
       port: 6379
-      password: ${REDIS_PASSWORD:}
+      password: ${REDIS_PASSWORD:redis_secret}
 
   kafka:
     bootstrap-servers: kafka:9092

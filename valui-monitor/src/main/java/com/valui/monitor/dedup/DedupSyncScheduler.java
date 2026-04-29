@@ -2,8 +2,8 @@ package com.valui.monitor.dedup;
 
 import com.valui.common.entity.ControllerEntity;
 import com.valui.monitor.config.MonitorProperties;
-import com.valui.user.repository.ControllerRepository;
-import com.valui.user.repository.DetectedEventRepository;
+import com.valui.user.api.ControllerPortService;
+import com.valui.user.api.DetectedEventPortService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -29,8 +29,8 @@ import java.util.UUID;
 public class DedupSyncScheduler {
 
     private final EventDeduplicationService dedup;
-    private final ControllerRepository controllerRepo;
-    private final DetectedEventRepository detectedRepo;
+    private final ControllerPortService controllerPort;
+    private final DetectedEventPortService detectedEventPort;
     private final MonitorProperties props;
 
     @Scheduled(cron = "${valui.monitor.dedup-sync-cron:0 0 3 * * *}")
@@ -39,7 +39,7 @@ public class DedupSyncScheduler {
         log.info("Nightly dedup sync started");
         OffsetDateTime cutoff = OffsetDateTime.now().minusDays(props.getDedupTtlDays());
 
-        List<ControllerEntity> active = controllerRepo.findAllByIsActiveTrue();
+        List<ControllerEntity> active = controllerPort.findAllActive();
         int synced = 0, errors = 0;
 
         for (ControllerEntity ctrl : active) {
@@ -55,8 +55,8 @@ public class DedupSyncScheduler {
     }
 
     private void syncOne(UUID controllerId, OffsetDateTime cutoff) {
-        List<String> dbIds = detectedRepo
-                .findExternalIdsByControllerIdAndDetectedAtAfter(controllerId, cutoff);
+        List<String> dbIds = detectedEventPort
+                .findExternalIdsByControllerIdSince(controllerId, cutoff);
         dedup.syncSeenEvents(controllerId, new HashSet<>(dbIds));
     }
 }

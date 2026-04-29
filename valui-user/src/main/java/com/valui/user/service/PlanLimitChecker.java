@@ -4,6 +4,7 @@ import com.valui.common.domain.SubscriptionStatus;
 import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.SubscriptionLimitExceededException;
 import com.valui.common.exception.UserNotFoundException;
+import com.valui.user.api.PlanLimitFacade;
 import com.valui.user.dto.LimitInfoDto;
 import com.valui.user.dto.SubscriptionPlanDto;
 import com.valui.user.repository.ControllerRepository;
@@ -16,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @RequiredArgsConstructor
-public class PlanLimitChecker {
+public class PlanLimitChecker implements PlanLimitFacade {
 
     private final SubscriptionService subscriptionService;
     private final UserRepository userRepository;
@@ -29,6 +30,7 @@ public class PlanLimitChecker {
      * Throws {@link SubscriptionLimitExceededException} if the user's active controller
      * count has reached the plan maximum.
      */
+    @Override
     public void checkControllerLimit(Long telegramId) {
         if (!subscriptionService.canAddController(telegramId)) {
             SubscriptionPlanDto plan = subscriptionService.getUserPlan(telegramId);
@@ -40,6 +42,7 @@ public class PlanLimitChecker {
      * Throws {@link SubscriptionLimitExceededException} if the group is at its controller capacity.
      * Only call when notificationChatId is a group (negative value).
      */
+    @Override
     public void checkGroupCapacity(Long notificationChatId) {
         groupQuotaService.checkGroupCapacity(notificationChatId);
     }
@@ -48,6 +51,7 @@ public class PlanLimitChecker {
      * Throws {@link SubscriptionLimitExceededException} if the bookmaker is not in
      * the user's plan's allowed bookmakers list.
      */
+    @Override
     public void checkBookmakerAccess(Long telegramId, String bookmaker) {
         if (!subscriptionService.canUseBookmaker(telegramId, bookmaker)) {
             SubscriptionPlanDto plan = subscriptionService.getUserPlan(telegramId);
@@ -60,6 +64,7 @@ public class PlanLimitChecker {
      * Throws {@link SubscriptionLimitExceededException} if the user's active filter count
      * (controllers with a non-null filter_rule) has reached the plan maximum.
      */
+    @Override
     public void checkFilterLimit(Long telegramId) {
         LimitInfoDto info = getLimitInfo(telegramId);
         if (info.filtersUsed() >= info.filtersMax()) {
@@ -68,6 +73,7 @@ public class PlanLimitChecker {
     }
 
     /** Returns full limit snapshot for the user's current plan and usage. */
+    @Override
     @Transactional(readOnly = true)
     public LimitInfoDto getLimitInfo(Long telegramId) {
         UserEntity user = userRepository.findByTelegramId(telegramId)

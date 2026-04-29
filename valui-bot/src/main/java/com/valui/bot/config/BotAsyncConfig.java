@@ -1,8 +1,7 @@
 package com.valui.bot.config;
 
 import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.EnableAsync;
 
+/** @EnableAsync is provided by valui-app AsyncConfig — do not duplicate here. */
 @Configuration
-@EnableAsync
 public class BotAsyncConfig {}

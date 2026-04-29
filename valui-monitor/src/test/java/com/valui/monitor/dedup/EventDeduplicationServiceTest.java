@@ -2,7 +2,7 @@ package com.valui.monitor.dedup;
 
 import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.scheduler.MonitorMetrics;
-import com.valui.user.repository.DetectedEventRepository;
+import com.valui.user.api.DetectedEventPortService;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,7 +35,7 @@ class EventDeduplicationServiceTest {
 
     @Mock StringRedisTemplate redis;
     @Mock SetOperations<String, String> setOps;
-    @Mock DetectedEventRepository detectedRepo;
+    @Mock DetectedEventPortService detectedEventPort;
 
     SimpleMeterRegistry registry;
     MonitorMetrics metrics;
@@ -55,7 +55,7 @@ class EventDeduplicationServiceTest {
         given(redis.opsForSet()).willReturn(setOps);
         given(redis.expire(anyString(), any(Duration.class))).willReturn(Boolean.TRUE);
 
-        dedup = new EventDeduplicationService(redis, detectedRepo, props, metrics);
+        dedup = new EventDeduplicationService(redis, detectedEventPort, props, metrics);
     }
 
     // ── isNewEvent ────────────────────────────────────────────────────────────
@@ -162,7 +162,7 @@ class EventDeduplicationServiceTest {
     @DisplayName("seedIfAbsent: key absent → seeds from DB")
     void seedIfAbsent_keyAbsent_seedsFromDB() {
         given(redis.hasKey(KEY_PREFIX + CTRL_ID)).willReturn(false);
-        given(detectedRepo.findExternalIdsByControllerIdAndDetectedAtAfter(
+        given(detectedEventPort.findExternalIdsByControllerIdSince(
                 eq(CTRL_ID), any(OffsetDateTime.class)))
                 .willReturn(List.of("db-evt-1", "db-evt-2"));
         given(setOps.size(anyString())).willReturn(2L);
@@ -180,7 +180,7 @@ class EventDeduplicationServiceTest {
 
         dedup.seedIfAbsent(CTRL_ID);
 
-        verify(detectedRepo, never()).findExternalIdsByControllerIdAndDetectedAtAfter(any(), any());
+        verify(detectedEventPort, never()).findExternalIdsByControllerIdSince(any(), any());
         verify(setOps, never()).add(anyString(), any(String[].class));
     }
 
@@ -188,7 +188,7 @@ class EventDeduplicationServiceTest {
     @DisplayName("seedIfAbsent: no DB events → no Redis write (empty SET not created)")
     void seedIfAbsent_noDbEvents_noRedisWrite() {
         given(redis.hasKey(KEY_PREFIX + CTRL_ID)).willReturn(false);
-        given(detectedRepo.findExternalIdsByControllerIdAndDetectedAtAfter(any(), any()))
+        given(detectedEventPort.findExternalIdsByControllerIdSince(any(), any()))
                 .willReturn(List.of());
 
         dedup.seedIfAbsent(CTRL_ID);

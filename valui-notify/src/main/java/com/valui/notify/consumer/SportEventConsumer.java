@@ -55,8 +55,8 @@ public class SportEventConsumer {
     private final QuickAddCacheService    quickAddCacheService;
 
     @KafkaListener(
-            topics   = KafkaTopics.SPORT_EVENTS_DETECTED,
-            groupId  = "valui-notify-group"
+            topics  = KafkaTopics.SPORT_EVENTS_DETECTED,
+            groupId = "${spring.kafka.consumer.group-id}"
     )
     public void onSportEventDetected(SportEventDetectedMessage event) {
         try {

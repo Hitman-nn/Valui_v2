@@ -16,7 +16,7 @@ import com.valui.common.exception.ValuiException;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
 import com.valui.user.service.GlobalFilterService;
-import com.valui.user.service.GroupQuotaService;
+import com.valui.user.api.GroupQuotaFacade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -38,7 +38,7 @@ public class WizardTextHandler implements BotUpdateHandler {
     private final BotMessageSource messageSource;
     private final GlobalFilterService globalFilterService;
     private final ControllerService controllerService;
-    private final GroupQuotaService groupQuotaService;
+    private final GroupQuotaFacade groupQuotaFacade;
 
     @Override
     public boolean canHandle(Update update) {
@@ -175,9 +175,9 @@ public class WizardTextHandler implements BotUpdateHandler {
 
         long groupChatId = Long.parseLong(chatIdOpt.get());
         try {
-            groupQuotaService.contributeTokens(ctx.fromId(), groupChatId, tokens);
-            int freeSlots = groupQuotaService.getMaxControllers(groupChatId)
-                           - groupQuotaService.getActiveControllerCount(groupChatId);
+            groupQuotaFacade.contributeTokens(ctx.fromId(), groupChatId, tokens);
+            int freeSlots = groupQuotaFacade.getMaxControllers(groupChatId)
+                           - groupQuotaFacade.getActiveControllerCount(groupChatId);
             MessageSend.text(ctx.sender(), ctx.chatId(),
                 messageSource.getMessage("boost.success", ctx.fromId(), tokens, freeSlots));
         } catch (ValuiException e) {

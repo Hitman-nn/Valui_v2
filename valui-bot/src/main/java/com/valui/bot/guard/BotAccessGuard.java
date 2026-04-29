@@ -4,7 +4,7 @@ import com.valui.bot.keyboard.MenuMessage;
 import com.valui.bot.keyboard.menu.UpgradePromptBuilder;
 import com.valui.common.exception.SubscriptionLimitExceededException;
 import com.valui.user.dto.LimitInfoDto;
-import com.valui.user.service.PlanLimitChecker;
+import com.valui.user.api.PlanLimitFacade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -21,7 +21,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 @RequiredArgsConstructor
 public class BotAccessGuard {
 
-    private final PlanLimitChecker planLimitChecker;
+    private final PlanLimitFacade planLimitFacade;
 
     /**
      * Checks controller limit. Sends upgrade prompt and throws if exceeded.
@@ -31,18 +31,18 @@ public class BotAccessGuard {
      * @param chatId  destination chat ID (where to send the upgrade prompt — may be a group)
      */
     public void guardAddController(Long fromId, Long chatId, AbsSender sender) {
-        guard(fromId, chatId, sender, () -> planLimitChecker.checkControllerLimit(fromId), "controllers");
+        guard(fromId, chatId, sender, () -> planLimitFacade.checkControllerLimit(fromId), "controllers");
     }
 
     /** Checks whether the bookmaker is included in the user's plan. */
     public void guardBookmakerAccess(Long fromId, Long chatId, String bookmaker, AbsSender sender) {
         guard(fromId, chatId, sender,
-            () -> planLimitChecker.checkBookmakerAccess(fromId, bookmaker), "bookmaker");
+            () -> planLimitFacade.checkBookmakerAccess(fromId, bookmaker), "bookmaker");
     }
 
     /** Checks filter limit. */
     public void guardAddFilter(Long fromId, Long chatId, AbsSender sender) {
-        guard(fromId, chatId, sender, () -> planLimitChecker.checkFilterLimit(fromId), "filters");
+        guard(fromId, chatId, sender, () -> planLimitFacade.checkFilterLimit(fromId), "filters");
     }
 
     // ─── private ─────────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ public class BotAccessGuard {
 
     private void sendUpgradePrompt(Long fromId, Long chatId, AbsSender sender, String limitType) {
         try {
-            LimitInfoDto limits = planLimitChecker.getLimitInfo(fromId);
+            LimitInfoDto limits = planLimitFacade.getLimitInfo(fromId);
             MenuMessage prompt = UpgradePromptBuilder.build(limits, limitType);
             sender.execute(SendMessage.builder()
                 .chatId(chatId)

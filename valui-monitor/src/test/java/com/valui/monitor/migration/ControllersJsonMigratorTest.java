@@ -7,8 +7,8 @@ import com.valui.common.domain.UserRole;
 import com.valui.common.domain.UserStatus;
 import com.valui.common.entity.ControllerEntity;
 import com.valui.common.entity.UserEntity;
-import com.valui.user.repository.ControllerRepository;
-import com.valui.user.repository.UserRepository;
+import com.valui.user.api.ControllerPortService;
+import com.valui.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,8 +38,8 @@ import static org.mockito.Mockito.verify;
 @DisplayName("ControllersJsonMigrator — unit tests")
 class ControllersJsonMigratorTest {
 
-    @Mock ControllerRepository controllerRepository;
-    @Mock UserRepository userRepository;
+    @Mock ControllerPortService controllerPort;
+    @Mock UserService userService;
 
     ControllersJsonMigrator migrator;
 
@@ -51,7 +51,7 @@ class ControllersJsonMigratorTest {
 
     @BeforeEach
     void setUp() {
-        migrator = new ControllersJsonMigrator(controllerRepository, userRepository, mapper);
+        migrator = new ControllersJsonMigrator(controllerPort, userService, mapper);
     }
 
     @Test
@@ -61,7 +61,7 @@ class ControllersJsonMigratorTest {
 
         migrator.migrate();
 
-        verify(controllerRepository, never()).save(any());
+        verify(controllerPort, never()).save(any());
     }
 
     @Test
@@ -75,7 +75,7 @@ class ControllersJsonMigratorTest {
 
         migrator.migrate();
 
-        verify(controllerRepository, never()).save(any());
+        verify(controllerPort, never()).save(any());
     }
 
     @Test
@@ -86,10 +86,10 @@ class ControllersJsonMigratorTest {
         setPath(source.toString());
 
         UserEntity user = user(TG_ID);
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(controllerPort.existsByUserAndBookmakerAndUrl(
                 any(), eq(BookmakerType.XBET), eq(XBET_URL))).willReturn(false);
-        given(controllerRepository.save(any())).willAnswer(inv -> {
+        given(controllerPort.save(any())).willAnswer(inv -> {
             ControllerEntity e = inv.getArgument(0);
             e.setId(UUID.randomUUID()); return e;
         });
@@ -97,7 +97,7 @@ class ControllersJsonMigratorTest {
         migrator.migrate();
 
         ArgumentCaptor<ControllerEntity> captor = ArgumentCaptor.forClass(ControllerEntity.class);
-        verify(controllerRepository).save(captor.capture());
+        verify(controllerPort).save(captor.capture());
         ControllerEntity saved = captor.getValue();
         assertThat(saved.getBookmaker()).isEqualTo(BookmakerType.XBET);
         assertThat(saved.getUrl()).isEqualTo(XBET_URL);
@@ -118,12 +118,12 @@ class ControllersJsonMigratorTest {
         setPath(source.toString());
 
         UserEntity user = user(TG_ID);
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(any(), any(), any())).willReturn(true);
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(controllerPort.existsByUserAndBookmakerAndUrl(any(), any(), any())).willReturn(true);
 
         migrator.migrate();
 
-        verify(controllerRepository, never()).save(any());
+        verify(controllerPort, never()).save(any());
         // file is still renamed even if nothing was imported
         assertThat(Files.exists(source)).isFalse();
     }
@@ -135,11 +135,11 @@ class ControllersJsonMigratorTest {
         Files.writeString(source, buildJson(TG_ID, XBET_URL, null, null));
         setPath(source.toString());
 
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.empty());
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.empty());
 
         migrator.migrate();
 
-        verify(controllerRepository, never()).save(any());
+        verify(controllerPort, never()).save(any());
         assertThat(Files.exists(tempDir.resolve("controllers.json.migrated"))).isTrue();
     }
 
@@ -151,16 +151,16 @@ class ControllersJsonMigratorTest {
         setPath(source.toString());
 
         UserEntity user = user(TG_ID);
-        given(userRepository.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerRepository.existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(any(), any(), any())).willReturn(false);
-        given(controllerRepository.save(any())).willAnswer(inv -> {
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(controllerPort.existsByUserAndBookmakerAndUrl(any(), any(), any())).willReturn(false);
+        given(controllerPort.save(any())).willAnswer(inv -> {
             ControllerEntity e = inv.getArgument(0); e.setId(UUID.randomUUID()); return e;
         });
 
         migrator.migrate();
 
         ArgumentCaptor<ControllerEntity> captor = ArgumentCaptor.forClass(ControllerEntity.class);
-        verify(controllerRepository).save(captor.capture());
+        verify(controllerPort).save(captor.capture());
         assertThat(captor.getValue().getFilterRule()).isEqualTo(".*Liverpool.*");
     }
 

@@ -16,8 +16,8 @@ import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
 import com.valui.parser.util.ParsedUrlIds;
 import com.valui.parser.util.UrlParser;
-import com.valui.user.repository.ControllerRepository;
-import com.valui.user.repository.DetectedEventRepository;
+import com.valui.user.api.ControllerPortService;
+import com.valui.user.api.DetectedEventPortService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -39,8 +39,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ControllerTaskExecutor {
 
-    private final ControllerRepository controllerRepo;
-    private final DetectedEventRepository detectedRepo;
+    private final ControllerPortService controllerPort;
+    private final DetectedEventPortService detectedEventPort;
     private final ParserFactory parserFactory;
     private final ApplicationEventPublisher events;
     private final MonitorProperties props;
@@ -72,7 +72,7 @@ public class ControllerTaskExecutor {
 
     @Transactional(readOnly = true)
     public List<ControllerScheduleInfo> loadAllActiveForScheduling() {
-        return controllerRepo.findAllByIsActiveTrue()
+        return controllerPort.findAllActive()
                 .stream()
                 .map(c -> new ControllerScheduleInfo(
                         c.getId(),
@@ -84,7 +84,7 @@ public class ControllerTaskExecutor {
 
     @Transactional(readOnly = true)
     public List<ControllerScheduleInfo> loadActiveForUser(UUID userId) {
-        return controllerRepo.findAllByUserIdAndIsActiveTrue(userId)
+        return controllerPort.findAllActiveByUserId(userId)
                 .stream()
                 .map(c -> new ControllerScheduleInfo(
                         c.getId(),
@@ -98,7 +98,7 @@ public class ControllerTaskExecutor {
 
     @Transactional(readOnly = true)
     public Optional<TaskContext> loadContext(UUID controllerId) {
-        return controllerRepo.findById(controllerId)
+        return controllerPort.findById(controllerId)
                 .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
                 .flatMap(c -> {
                     try {
@@ -163,11 +163,11 @@ public class ControllerTaskExecutor {
     @Transactional
     public int persistNewEvents(TaskContext ctx, List<ParsedItem> fetched) {
         if (fetched.isEmpty()) {
-            controllerRepo.updateLastCheckedAt(ctx.controllerId(), OffsetDateTime.now());
+            controllerPort.updateLastCheckedAt(ctx.controllerId(), OffsetDateTime.now());
             return 0;
         }
 
-        ControllerEntity ctrl = controllerRepo.findById(ctx.controllerId())
+        ControllerEntity ctrl = controllerPort.findById(ctx.controllerId())
                 .orElseThrow(() -> new IllegalStateException("Controller vanished: " + ctx.controllerId()));
 
         List<DetectedEventEntity> saved = new ArrayList<>();
@@ -182,7 +182,7 @@ public class ControllerTaskExecutor {
                         .title(item.title() != null ? item.title() : item.id())
                         .url(item.url())
                         .build();
-                saved.add(detectedRepo.save(entity));
+                saved.add(detectedEventPort.save(entity));
             } catch (org.springframework.dao.DataIntegrityViolationException ex) {
                 // Redis claimed it as new but DB already has it (TTL expired + race condition).
                 // Treat as duplicate — the nightly sync will reconcile.
@@ -194,7 +194,7 @@ public class ControllerTaskExecutor {
         OffsetDateTime now = OffsetDateTime.now();
         ctrl.setLastCheckedAt(now);
         if (!saved.isEmpty()) ctrl.setLastEventAt(now);
-        controllerRepo.save(ctrl);
+        controllerPort.save(ctrl);
 
         // Save outbox row and publish Spring event in the same transaction.
         // SportEventKafkaProducer fires AFTER_COMMIT for immediate Kafka delivery;

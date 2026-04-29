@@ -8,8 +8,8 @@ import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.user.dto.GroupStatusDto;
 import com.valui.user.dto.LimitInfoDto;
-import com.valui.user.service.GroupQuotaService;
-import com.valui.user.service.PlanLimitChecker;
+import com.valui.user.api.GroupQuotaFacade;
+import com.valui.user.api.PlanLimitFacade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -31,8 +31,8 @@ public class InfoCommandHandler implements CommandHandler {
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
     private final BotMessageSource messageSource;
-    private final PlanLimitChecker planLimitChecker;
-    private final GroupQuotaService groupQuotaService;
+    private final PlanLimitFacade planLimitFacade;
+    private final GroupQuotaFacade groupQuotaFacade;
 
     @Override
     public String command() { return "/info"; }
@@ -58,7 +58,7 @@ public class InfoCommandHandler implements CommandHandler {
     private void showPersonalInfo(BotUpdateContext ctx) {
         LimitInfoDto info;
         try {
-            info = planLimitChecker.getLimitInfo(ctx.fromId());
+            info = planLimitFacade.getLimitInfo(ctx.fromId());
         } catch (Exception e) {
             log.warn("Failed to load limit info for fromId={}: {}", ctx.fromId(), e.getMessage());
             MessageSend.text(ctx.sender(), ctx.chatId(),
@@ -93,7 +93,7 @@ public class InfoCommandHandler implements CommandHandler {
     private void showGroupInfo(BotUpdateContext ctx) {
         GroupStatusDto status;
         try {
-            status = groupQuotaService.getGroupStatus(ctx.chatId());
+            status = groupQuotaFacade.getGroupStatus(ctx.chatId());
         } catch (Exception e) {
             log.warn("Failed to load group status for chatId={}: {}", ctx.chatId(), e.getMessage());
             MessageSend.text(ctx.sender(), ctx.chatId(),

@@ -10,10 +10,10 @@ public class AuditEntityListener {
     @PrePersist
     public void prePersist(Object entity) {
         OffsetDateTime now = OffsetDateTime.now();
-        if (entity instanceof HasCreatedAt e) {
+        if (entity instanceof HasCreatedAt e && e.getCreatedAt() == null) {
             e.setCreatedAt(now);
         }
-        if (entity instanceof HasUpdatedAt e) {
+        if (entity instanceof HasUpdatedAt e && e.getUpdatedAt() == null) {
             e.setUpdatedAt(now);
         }
     }
