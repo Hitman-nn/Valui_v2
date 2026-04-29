@@ -11,8 +11,8 @@ services:
   kafka:
     environment:
       # Shorter retention in local dev (1 h instead of 7 days)
-      KAFKA_CFG_LOG_RETENTION_MS: 3600000
-      KAFKA_CFG_LOG_RETENTION_BYTES: 104857600   # 100 MB cap per partition
+      KAFKA_LOG_RETENTION_MS: 3600000
+      KAFKA_LOG_RETENTION_BYTES: 104857600   # 100 MB cap per partition
 
   mailhog:
     # Persist captured mail across restarts (handy for debugging)

@@ -136,9 +136,9 @@ valui:
     # Proxy for Telegram API (api.telegram.org) — useful when server is behind VPN/firewall
     proxy:
       enabled: ${BOT_PROXY_ENABLED:false}
-      type: ${BOT_PROXY_TYPE:HTTP}       # HTTP | SOCKS4 | SOCKS5
-      host: ${BOT_PROXY_HOST:}
-      port: ${BOT_PROXY_PORT:4232}
+      type: ${BOT_PROXY_TYPE:SOCKS5}     # HTTP | SOCKS4 | SOCKS5
+      host: ${BOT_PROXY_HOST:91.147.122.69}
+      port: ${BOT_PROXY_PORT:14232}
       username: ${BOT_PROXY_USER:}
       password: ${BOT_PROXY_PASS:}
     allowed-ips:
@@ -234,7 +234,6 @@ valui:
       type: ${BOT_PROXY_TYPE:SOCKS5}
       host: ${BOT_PROXY_HOST:91.147.122.69}
       port: ${BOT_PROXY_PORT:14232}
-      # Credentials are set via env vars — never hardcode in config files
       username: ${BOT_PROXY_USER:}
       password: ${BOT_PROXY_PASS:}
 
@@ -243,7 +242,6 @@ parser:
     enabled: ${PROXY_ENABLED:true}
     host: ${PROXY_HOST:91.147.122.69}
     port: ${PROXY_PORT:4232}
-    # Credentials are set via env vars — never hardcode in config files
     username: ${PROXY_USERNAME:}
     password: ${PROXY_PASSWORD:}
 
@@ -279,10 +277,28 @@ spring:
       password: ${REDIS_PASSWORD:change_me_test_redis}
 
   kafka:
-    bootstrap-servers: ${SERVER_IP:1.2.3.4}:29093
+    bootstrap-servers: ${SERVER_IP}:29093
 
   jpa:
     show-sql: true
+
+valui:
+  bot:
+    proxy:
+      enabled: ${BOT_PROXY_ENABLED:true}
+      type: ${BOT_PROXY_TYPE:SOCKS5}
+      host: ${BOT_PROXY_HOST:91.147.122.69}
+      port: ${BOT_PROXY_PORT:14232}
+      username: ${BOT_PROXY_USER:}
+      password: ${BOT_PROXY_PASS:}
+
+parser:
+  proxy:
+    enabled: ${PROXY_ENABLED:true}
+    host: ${PROXY_HOST:91.147.122.69}
+    port: ${PROXY_PORT:4232}
+    username: ${PROXY_USERNAME:}
+    password: ${PROXY_PASSWORD:}
 
 logging:
   level:

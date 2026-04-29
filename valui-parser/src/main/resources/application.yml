@@ -63,11 +63,11 @@ parser:
     tournaments-ttl: 30m
     matches-ttl: 5m
   proxy:
-    enabled: true
-    host: 91.147.122.69
-    port: 14232
-    username: user283146
-    password: 0w3qzb
+    enabled: ${PROXY_ENABLED:true}
+    host: ${PROXY_HOST:91.147.122.69}
+    port: ${PROXY_PORT:4232}
+    username: ${PROXY_USERNAME:}
+    password: ${PROXY_PASSWORD:}
 
 management:
   endpoints:
