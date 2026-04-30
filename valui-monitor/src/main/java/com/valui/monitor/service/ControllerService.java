@@ -68,4 +68,17 @@ public interface ControllerService {
 
     /** Returns the controller DTO with isMuted reflecting the subscription state for chatId. */
     ControllerDto getControllerForChat(UUID controllerId, Long chatId);
+
+    /**
+     * Stops all controllers owned by {@code telegramId} in the given group chat.
+     * Only subscriptions for {@code groupChatId} are removed; other chats are unaffected.
+     * Returns the number of controllers stopped.
+     */
+    int stopAllForUserInChat(Long telegramId, Long groupChatId);
+
+    /**
+     * Stops all controllers owned by {@code telegramId} regardless of which chat they notify.
+     * Returns the number of controllers stopped.
+     */
+    int stopAllForUser(Long telegramId);
 }

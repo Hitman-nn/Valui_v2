@@ -207,6 +207,7 @@ public class ControllerServiceImpl implements ControllerService {
         requireOwned(controllerId, user.getId());
         controllerPort.removeSubscription(controllerId, chatId);
         if (!controllerPort.hasActiveSubscriptions(controllerId)) {
+            controllerPort.updateIsActive(controllerId, false);
             dedup.clearController(controllerId);
             controllerPort.updateLastCheckedAt(controllerId, null);
             monitorScheduler.unscheduleController(controllerId);
@@ -230,6 +231,46 @@ public class ControllerServiceImpl implements ControllerService {
             e.getLastEventAt()   != null ? e.getLastEventAt().toInstant()   : null,
             (int) eventCount, e.getType(), e.getNotificationChatId(), ownerTelegramId
         );
+    }
+
+    @Override
+    @Transactional
+    public int stopAllForUserInChat(Long telegramId, Long groupChatId) {
+        List<ControllerEntity> candidates = controllerPort.findAllActiveByNotificationChatId(groupChatId);
+        UserEntity user = requireUser(telegramId);
+        int count = 0;
+        for (ControllerEntity c : candidates) {
+            if (!user.getId().equals(c.getUser().getId())) continue;
+            controllerPort.removeSubscription(c.getId(), groupChatId);
+            if (!controllerPort.hasActiveSubscriptions(c.getId())) {
+                controllerPort.updateIsActive(c.getId(), false);
+                dedup.clearController(c.getId());
+                controllerPort.updateLastCheckedAt(c.getId(), null);
+                monitorScheduler.unscheduleController(c.getId());
+            }
+            log.info("[CTRL] stopAllForUserInChat: controllerId={} chatId={}", c.getId(), groupChatId);
+            count++;
+        }
+        return count;
+    }
+
+    @Override
+    @Transactional
+    public int stopAllForUser(Long telegramId) {
+        UserEntity user = requireUser(telegramId);
+        List<ControllerEntity> all = controllerPort.findAllActiveByUserId(user.getId());
+        for (ControllerEntity c : all) {
+            Long chatId = c.getNotificationChatId();
+            controllerPort.removeSubscription(c.getId(), chatId);
+            if (!controllerPort.hasActiveSubscriptions(c.getId())) {
+                controllerPort.updateIsActive(c.getId(), false);
+                dedup.clearController(c.getId());
+                controllerPort.updateLastCheckedAt(c.getId(), null);
+                monitorScheduler.unscheduleController(c.getId());
+            }
+            log.info("[CTRL] stopAllForUser: controllerId={} chatId={}", c.getId(), chatId);
+        }
+        return all.size();
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
