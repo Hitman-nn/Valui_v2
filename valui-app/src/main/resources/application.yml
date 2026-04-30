@@ -342,67 +342,87 @@ logging:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Profile: prod — только env vars, никаких дефолтов с паролями
 # ═══════════════════════════════════════════════════════════════════════════════
+---
+# ═══════════════════════════════════════════════════════════════════════════════
+# Profile: prod — приложение запущено на PROD-сервере, инфраструктура в Docker
+#
+# valui-app запускается НА СЕРВЕРЕ, но НЕ в Docker.
+#
+# Docker-инфраструктура:
+#   PostgreSQL -> 127.0.0.1:5432
+#   Redis      -> 127.0.0.1:6379
+#   Kafka      -> 127.0.0.1:9094
+#
+# Важно:
+#   - Redis без SSL
+#   - Kafka без SASL/SSL
+#   - Kafka replication-factor = 1, потому что один broker
+# ═══════════════════════════════════════════════════════════════════════════════
 spring:
   config:
     activate:
       on-profile: prod
 
   datasource:
-    url: ${POSTGRES_URL}
+    url: jdbc:postgresql://${POSTGRES_HOST:127.0.0.1}:${POSTGRES_PORT:5432}/${POSTGRES_DB}
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
     hikari:
-      maximum-pool-size: 30
+      maximum-pool-size: 20
+      minimum-idle: 3
       connection-timeout: 10000
       idle-timeout: 600000
       max-lifetime: 1800000
 
   data:
     redis:
-      host: ${REDIS_HOST}
+      host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD}
       ssl:
-        enabled: true
+        enabled: false
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:127.0.0.1:9094}
     producer:
       properties:
-        security.protocol: SASL_SSL
-        sasl.mechanism: PLAIN
-        sasl.jaas.config: >
-          org.apache.kafka.common.security.plain.PlainLoginModule required
-          username="${KAFKA_USERNAME}"
-          password="${KAFKA_PASSWORD}";
+        security.protocol: PLAINTEXT
     consumer:
       properties:
-        security.protocol: SASL_SSL
-        sasl.mechanism: PLAIN
-        sasl.jaas.config: >
-          org.apache.kafka.common.security.plain.PlainLoginModule required
-          username="${KAFKA_USERNAME}"
-          password="${KAFKA_PASSWORD}";
-    # KafkaAdmin also needs SASL — used by KafkaTopicsConfig to create topics on prod
+        security.protocol: PLAINTEXT
     admin:
       properties:
-        security.protocol: SASL_SSL
-        sasl.mechanism: PLAIN
-        sasl.jaas.config: >
-          org.apache.kafka.common.security.plain.PlainLoginModule required
-          username="${KAFKA_USERNAME}"
-          password="${KAFKA_PASSWORD}";
+        security.protocol: PLAINTEXT
 
 kafka:
   topics:
-    replication-factor: 3   # 3 replicas in production for fault tolerance
+    replication-factor: 1
   schema-registry:
     url: ${SCHEMA_REGISTRY_URL:}
 
 server:
   port: ${SERVER_PORT:8080}
 
+valui:
+  bot:
+    proxy:
+      enabled: ${BOT_PROXY_ENABLED:false}
+      type: ${BOT_PROXY_TYPE:SOCKS5}
+      host: ${BOT_PROXY_HOST:}
+      port: ${BOT_PROXY_PORT:}
+      username: ${BOT_PROXY_USER:}
+      password: ${BOT_PROXY_PASS:}
+
+parser:
+  proxy:
+    enabled: ${PROXY_ENABLED:false}
+    host: ${PROXY_HOST:}
+    port: ${PROXY_PORT:}
+    username: ${PROXY_USERNAME:}
+    password: ${PROXY_PASSWORD:}
+
 logging:
   level:
-    root: WARN
+    root: INFO
     com.valui: INFO
+    org.springframework.kafka: INFO
