@@ -106,6 +106,6 @@ public class CancelCallback implements CallbackHandler {
         sessionService.clearSession(ctx.fromId());
         MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(),
             messageSource.getMessage("menu.main", ctx.fromId()),
-            MainMenuKeyboard.build(ctx.fromId(), messageSource, ctx.isGroupChat()));
+            MainMenuKeyboard.build(ctx.fromId(), messageSource));
     }
 }

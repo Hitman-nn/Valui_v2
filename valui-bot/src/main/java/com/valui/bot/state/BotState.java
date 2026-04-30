@@ -9,7 +9,5 @@ public enum BotState {
     SELECTING_BOOKMAKER,
     SELECTING_SPORT,
     SELECTING_TOURNAMENT,
-    WAITING_WIZARD_SEARCH,
-    @Deprecated // удалён вместе с group-boost системой
-    WAITING_BOOST_AMOUNT
+    WAITING_WIZARD_SEARCH
 }

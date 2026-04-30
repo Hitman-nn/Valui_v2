@@ -45,6 +45,6 @@ public class StartCommandHandler implements CommandHandler {
         String name = ctx.username() != null ? "@" + ctx.username() : "друг";
         com.valui.bot.handler.MessageSend.textMarkdownWithKeyboard(ctx.sender(), ctx.chatId(),
             messageSource.getMessage("bot.welcome", ctx.fromId(), name),
-            MainMenuKeyboard.build(ctx.fromId(), messageSource, ctx.isGroupChat()));
+            MainMenuKeyboard.build(ctx.fromId(), messageSource));
     }
 }

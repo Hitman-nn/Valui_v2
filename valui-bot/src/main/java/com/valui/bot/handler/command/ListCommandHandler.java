@@ -42,7 +42,7 @@ public class ListCommandHandler implements CommandHandler {
         if (controllers.isEmpty()) {
             MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(),
                 messageSource.getMessage("controller.list_empty", ctx.fromId()),
-                MainMenuKeyboard.build(ctx.fromId(), messageSource, ctx.isGroupChat()));
+                MainMenuKeyboard.build(ctx.fromId(), messageSource));
             return;
         }
 

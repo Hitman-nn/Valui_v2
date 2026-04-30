@@ -24,6 +24,6 @@ public class HelpCommandHandler implements CommandHandler {
     public void handle(BotUpdateContext ctx) {
         MessageSend.textMarkdownWithKeyboard(ctx.sender(), ctx.chatId(),
             messageSource.getMessage("bot.help", ctx.fromId()),
-            MainMenuKeyboard.build(ctx.fromId(), messageSource, ctx.isGroupChat()));
+            MainMenuKeyboard.build(ctx.fromId(), messageSource));
     }
 }

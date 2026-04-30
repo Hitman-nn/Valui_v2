@@ -27,6 +27,6 @@ public class MenuCommandHandler implements CommandHandler {
         com.valui.bot.handler.MessageSend.textMarkdownWithKeyboard(
             ctx.sender(), ctx.chatId(),
             messageSource.getMessage("menu.main", ctx.fromId()),
-            MainMenuKeyboard.build(ctx.fromId(), messageSource, ctx.isGroupChat()));
+            MainMenuKeyboard.build(ctx.fromId(), messageSource));
     }
 }
