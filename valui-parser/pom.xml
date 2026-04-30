@@ -91,6 +91,12 @@
             <artifactId>protobuf-java</artifactId>
             <version>${protobuf.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java-util</artifactId>
+            <version>${protobuf.version}</version>
+            <scope>test</scope>
+        </dependency>
 
         <!-- Netty native DNS resolver for Apple Silicon (arm64/aarch64).
              Spring Boot includes osx-x86_64 by default; without osx-aarch_64 Netty
