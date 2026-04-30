@@ -65,14 +65,14 @@ public class SportSelectCallback implements CallbackHandler {
             return;
         }
 
-        MessageSend.answerCallback(ctx.sender(), callbackId);
-
         if (data.equals(CallbackData.SPORT_BACK)) {
+            MessageSend.answerCallback(ctx.sender(), callbackId);
             handleBackToBookmakers(ctx, messageId);
         } else if (data.startsWith("SPORT:PAGE:")) {
+            MessageSend.answerCallback(ctx.sender(), callbackId);
             handleSportPage(ctx, data, messageId);
         } else if (data.startsWith(CallbackData.SPORT_SEL_PREFIX)) {
-            handleSportSelect(ctx, data, messageId);
+            handleSportSelect(ctx, data, messageId, callbackId);
         }
     }
 
@@ -115,15 +115,15 @@ public class SportSelectCallback implements CallbackHandler {
             messageSource.getMessage("wizard.select_sport", ctx.fromId(), bm.get()), keyboard);
     }
 
-    private void handleSportSelect(BotUpdateContext ctx, String data, int messageId) {
+    private void handleSportSelect(BotUpdateContext ctx, String data, int messageId, String callbackId) {
         String sportId = data.substring(CallbackData.SPORT_SEL_PREFIX.length());
         Optional<String> bm = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
         if (bm.isEmpty()) return;
 
         BookmakerParser parser = getParser(bm.get());
         if (parser == null) {
-            MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("wizard.parser_error", ctx.fromId(), bm.get()));
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                "❌ Не удалось загрузить данные. Попробуйте ещё раз.");
             return;
         }
 
@@ -151,10 +151,12 @@ public class SportSelectCallback implements CallbackHandler {
 
         ParseResult<List<TournamentDto>> tournsResult = parser.fetchTournaments(sportId);
         if (!tournsResult.success() || tournsResult.data() == null) {
-            MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("wizard.parser_error", ctx.fromId(), bm.get()));
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                "❌ Не удалось загрузить данные. Попробуйте ещё раз.");
             return;
         }
+
+        MessageSend.answerCallback(ctx.sender(), callbackId);
 
         // Cache tournaments for this sport; clear any stale previous cache
         wizardCache.cacheTournaments(ctx.fromId(), tournsResult.data());

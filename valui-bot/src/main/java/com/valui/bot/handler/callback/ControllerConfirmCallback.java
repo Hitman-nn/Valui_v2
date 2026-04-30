@@ -47,16 +47,15 @@ public class ControllerConfirmCallback implements CallbackHandler {
             return;
         }
 
-        MessageSend.answerCallback(ctx.sender(), callbackId);
-
         if (CallbackData.CTRL_CONFIRM_YES.equals(data)) {
-            handleConfirm(ctx, messageId);
+            handleConfirm(ctx, messageId, callbackId);
         } else {
+            MessageSend.answerCallback(ctx.sender(), callbackId);
             handleBack(ctx, messageId);
         }
     }
 
-    private void handleConfirm(BotUpdateContext ctx, int messageId) {
+    private void handleConfirm(BotUpdateContext ctx, int messageId, String callbackId) {
         Optional<String> bmOpt    = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
         Optional<String> urlOpt   = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_TOURNAMENT_URL);
         Optional<String> titleOpt = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_TOURNAMENT_TITLE);
@@ -66,8 +65,8 @@ public class ControllerConfirmCallback implements CallbackHandler {
         if (bmOpt.isEmpty() || urlOpt.isEmpty()) {
             log.warn("⚠️  Подтверждение контроллера: отсутствует контекст для fromId={}", ctx.fromId());
             sessionService.clearSession(ctx.fromId());
-            MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("error.general", ctx.fromId()));
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                "❌ Произошла ошибка. Попробуйте ещё раз.");
             return;
         }
 
@@ -87,6 +86,7 @@ public class ControllerConfirmCallback implements CallbackHandler {
 
             log.info("✅ Контроллер создан: fromId={} chatId={} бук={} url={}",
                     ctx.fromId(), ctx.chatId(), bmOpt.get(), urlOpt.get());
+            MessageSend.answerCallback(ctx.sender(), callbackId);
             if (ControllerType.SPORT.equals(typeHint)) {
                 backNavigator.returnToSportList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
             } else {
@@ -95,14 +95,12 @@ public class ControllerConfirmCallback implements CallbackHandler {
 
         } catch (InsufficientTokensException e) {
             log.info("⚠️ Нехватка токенов для контроллера fromId={}: {}", ctx.fromId(), e.getMessage());
-            sessionService.clearSession(ctx.fromId());
-            MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("error.insufficient_tokens", ctx.fromId()));
+            MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, e.toAlertText());
         } catch (Exception e) {
             log.error("❌ Ошибка создания контроллера fromId={}: {}", ctx.fromId(), e.getMessage());
             sessionService.clearSession(ctx.fromId());
-            MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("error.general", ctx.fromId()));
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                "❌ Произошла ошибка. Попробуйте ещё раз.");
         }
     }
 

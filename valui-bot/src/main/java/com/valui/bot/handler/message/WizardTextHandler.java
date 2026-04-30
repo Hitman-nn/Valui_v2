@@ -111,8 +111,6 @@ public class WizardTextHandler implements BotUpdateHandler {
             globalFilterService.addFilter(ctx.fromId(), filterText);
         } catch (InsufficientTokensException e) {
             sessionService.setState(ctx.fromId(), BotState.IDLE);
-            MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("error.insufficient_tokens", ctx.fromId()));
             return;
         }
         sessionService.setState(ctx.fromId(), BotState.IDLE);
@@ -159,8 +157,7 @@ public class WizardTextHandler implements BotUpdateHandler {
                 ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
 
         } catch (InsufficientTokensException e) {
-            MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("error.insufficient_tokens", ctx.fromId()));
+            // tokens exhausted — silently clear state, no message
         } catch (Exception e) {
             log.warn("Failed to update controller filter: {}", e.getMessage());
         }

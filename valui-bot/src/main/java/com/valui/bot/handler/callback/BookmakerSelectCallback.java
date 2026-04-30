@@ -58,16 +58,16 @@ public class BookmakerSelectCallback implements CallbackHandler {
             return;
         }
 
-        MessageSend.answerCallback(ctx.sender(), callbackId);
-
         BookmakerParser parser;
         try {
             parser = parserFactory.getParser(BookmakerType.valueOf(bookmakerCode.toUpperCase()));
         } catch (Exception e) {
-            MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("wizard.parser_error", ctx.fromId(), bookmakerCode));
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                "❌ Не удалось загрузить данные. Попробуйте ещё раз.");
             return;
         }
+
+        MessageSend.answerCallback(ctx.sender(), callbackId);
 
         MessageSend.editTextWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.loading", ctx.fromId(), bookmakerCode),

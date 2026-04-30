@@ -78,10 +78,9 @@ public class QuickAddControllerCallback implements CallbackHandler {
             replaceWithDone(ctx.sender(), ctx.chatId(), messageId);
 
         } catch (InsufficientTokensException e) {
-            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
-                    "⚠️ Недостаточно токенов. Пополните баланс: /plans");
+            MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, e.toAlertText());
         } catch (SubscriptionLimitExceededException e) {
-            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+            MessageSend.answerCallbackWithModal(ctx.sender(), callbackId,
                     "⚠️ Недостаточно токенов. Обновите тариф: /plans");
             // Button stays — user may upgrade and come back to this message
 

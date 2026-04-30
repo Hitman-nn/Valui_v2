@@ -39,7 +39,8 @@ public class HttpClientConfig {
         // Fonbet CDN mirrors (bk6bba-resources.com) resolve correctly via JVM InetAddress
         // (DefaultAddressResolverGroup, set when proxy=null). Routing through an HTTP proxy
         // adds a single point of failure and these domains don't require proxy access.
-        return new BookmakerHttpClient(buildWebClient(null));
+        // 50 MB buffer — Fonbet's CDN response regularly exceeds the default 10 MB limit.
+        return new BookmakerHttpClient(buildWebClient(null, 50 * 1024 * 1024));
     }
 
     @Bean @Qualifier("olimpHttpClient")
@@ -61,6 +62,10 @@ public class HttpClientConfig {
     // ── builder ───────────────────────────────────────────────────────────────
 
     static WebClient buildWebClient(ProxyProperties proxy) {
+        return buildWebClient(proxy, 10 * 1024 * 1024);
+    }
+
+    static WebClient buildWebClient(ProxyProperties proxy, int maxInMemorySize) {
         boolean usingProxy = proxy != null && proxy.isEnabled();
 
         HttpClient httpClient = HttpClient.create()
@@ -93,7 +98,7 @@ public class HttpClientConfig {
 
         return WebClient.builder()
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .codecs(c -> c.defaultCodecs().maxInMemorySize(10 * 1024 * 1024))
+                .codecs(c -> c.defaultCodecs().maxInMemorySize(maxInMemorySize))
                 .build();
     }
 }

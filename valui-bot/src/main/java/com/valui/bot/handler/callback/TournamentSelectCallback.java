@@ -20,6 +20,7 @@ import com.valui.monitor.service.ControllerService;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
+import com.valui.common.exception.InsufficientTokensException;
 import com.valui.user.api.PlanLimitFacade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -75,14 +76,14 @@ public class TournamentSelectCallback implements CallbackHandler {
             return;
         }
 
-        MessageSend.answerCallback(ctx.sender(), callbackId);
-
         if (data.startsWith("TOURN:PAGE:")) {
+            MessageSend.answerCallback(ctx.sender(), callbackId);
             handleTournamentPage(ctx, data, messageId);
         } else if (data.equals(CallbackData.TOURN_ALL)) {
+            MessageSend.answerCallback(ctx.sender(), callbackId);
             handleMonitorAll(ctx, messageId);
         } else if (data.startsWith(CallbackData.TOURN_SEL_PREFIX)) {
-            handleTournamentSelect(ctx, data, messageId);
+            handleTournamentSelect(ctx, data, messageId, callbackId);
         }
     }
 
@@ -153,7 +154,7 @@ public class TournamentSelectCallback implements CallbackHandler {
      * After creation the user is returned to the tournament list, which now shows
      * the new entry marked with ✅.
      */
-    private void handleTournamentSelect(BotUpdateContext ctx, String data, int messageId) {
+    private void handleTournamentSelect(BotUpdateContext ctx, String data, int messageId, String callbackId) {
         String tournamentId = data.substring(CallbackData.TOURN_SEL_PREFIX.length());
         Optional<String> bm      = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
         Optional<String> sportId = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_ID);
@@ -168,14 +169,14 @@ public class TournamentSelectCallback implements CallbackHandler {
         if (tournament == null) {
             BookmakerParser parser = getParser(bm.get());
             if (parser == null) {
-                MessageSend.text(ctx.sender(), ctx.chatId(),
-                    messageSource.getMessage("wizard.parser_error", ctx.fromId(), bm.get()));
+                MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                    "❌ Не удалось загрузить данные. Попробуйте ещё раз.");
                 return;
             }
             ParseResult<List<TournamentDto>> result = parser.fetchTournaments(sportId.get());
             if (!result.success() || result.data() == null) {
-                MessageSend.text(ctx.sender(), ctx.chatId(),
-                    messageSource.getMessage("wizard.parser_error", ctx.fromId(), bm.get()));
+                MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                    "❌ Не удалось загрузить данные. Попробуйте ещё раз.");
                 return;
             }
             wizardCache.cacheTournaments(ctx.fromId(), result.data());
@@ -186,8 +187,8 @@ public class TournamentSelectCallback implements CallbackHandler {
         }
 
         if (tournament == null) {
-            MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("wizard.parser_error", ctx.fromId(), bm.get()));
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                "❌ Не удалось загрузить данные. Попробуйте ещё раз.");
             return;
         }
 
@@ -196,15 +197,19 @@ public class TournamentSelectCallback implements CallbackHandler {
                 new CreateControllerRequest(tournament.url(), bm.get(), tournament.title(), false, null),
                 ctx.fromId(), ctx.chatId());
             log.info("✅ Контроллер создан: fromId={} chatId={} bm={} url={}", ctx.fromId(), ctx.chatId(), bm.get(), tournament.url());
+        } catch (InsufficientTokensException e) {
+            MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, e.toAlertText());
+            return;
         } catch (Exception e) {
             log.error("❌ Ошибка создания контроллера chatId={}: {}", ctx.chatId(), e.getMessage());
             sessionService.clearSession(ctx.fromId());
-            MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("error.general", ctx.fromId()));
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                "❌ Произошла ошибка. Попробуйте ещё раз.");
             return;
         }
 
         // Return to tournament list — the created entry will now appear marked with ✅
+        MessageSend.answerCallback(ctx.sender(), callbackId);
         backNavigator.returnToTournamentList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
     }
 

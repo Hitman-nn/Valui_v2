@@ -188,4 +188,16 @@ public final class MessageSend {
             log.error("AnswerCallback failed: {}", e.getMessage());
         }
     }
+
+    public static void answerCallbackWithModal(AbsSender sender, String callbackQueryId, String text) {
+        try {
+            sender.execute(AnswerCallbackQuery.builder()
+                .callbackQueryId(callbackQueryId)
+                .text(text)
+                .showAlert(true)
+                .build());
+        } catch (TelegramApiException e) {
+            log.error("AnswerCallback failed: {}", e.getMessage());
+        }
+    }
 }

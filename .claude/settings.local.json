@@ -24,7 +24,14 @@
       "PowerShell($mvn = Get-ChildItem \"C:\\\\Users\\\\User\\\\.m2\\\\wrapper\\\\dists\\\\apache-maven-3.9.11-bin\" -Recurse -Filter \"mvn.cmd\" | Select-Object -First 1; $mvn.FullName)",
       "PowerShell($mvn = \"C:\\\\Users\\\\User\\\\.m2\\\\wrapper\\\\dists\\\\apache-maven-3.9.11-bin\\\\6mqf5t809d9geo83kj4ttckcbc\\\\apache-maven-3.9.11\\\\bin\\\\mvn.cmd\"; cd \"C:\\\\Users\\\\User\\\\IdeaProjects\\\\Valui_v2\"; & $mvn -pl valui-bot -am compile -q 2>&1 | Select-Object -Last 30)",
       "PowerShell($mvn = \"C:\\\\Users\\\\User\\\\.m2\\\\wrapper\\\\dists\\\\apache-maven-3.9.11-bin\\\\6mqf5t809d9geo83kj4ttckcbc\\\\apache-maven-3.9.11\\\\bin\\\\mvn.cmd\"; cd \"C:\\\\Users\\\\User\\\\IdeaProjects\\\\Valui_v2\"; & $mvn -pl valui-bot -am test -q 2>&1 | Select-Object -Last 40)",
-      "PowerShell($mvn = \"C:\\\\Users\\\\User\\\\.m2\\\\wrapper\\\\dists\\\\apache-maven-3.9.11-bin\\\\6mqf5t809d9geo83kj4ttckcbc\\\\apache-maven-3.9.11\\\\bin\\\\mvn.cmd\"; cd \"C:\\\\Users\\\\User\\\\IdeaProjects\\\\Valui_v2\"; & $mvn -pl valui-bot -am test 2>&1 | Select-String -Pattern \"\\(Tests run|BUILD|FAILED|ERROR|PASSED\\)\" | Select-Object -Last 20)"
+      "PowerShell($mvn = \"C:\\\\Users\\\\User\\\\.m2\\\\wrapper\\\\dists\\\\apache-maven-3.9.11-bin\\\\6mqf5t809d9geo83kj4ttckcbc\\\\apache-maven-3.9.11\\\\bin\\\\mvn.cmd\"; cd \"C:\\\\Users\\\\User\\\\IdeaProjects\\\\Valui_v2\"; & $mvn -pl valui-bot -am test 2>&1 | Select-String -Pattern \"\\(Tests run|BUILD|FAILED|ERROR|PASSED\\)\" | Select-Object -Last 20)",
+      "Bash(sed -n '63,70p' /Users/danilabogatyrev/Documents/java/Valui_v2/valui-bot/src/main/java/com/valui/bot/handler/callback/BookmakerSelectCallback.java)",
+      "Bash(sed -n '123,127p' /Users/danilabogatyrev/Documents/java/Valui_v2/valui-bot/src/main/java/com/valui/bot/handler/callback/SportSelectCallback.java)",
+      "Bash(sed -n '152,156p' /Users/danilabogatyrev/Documents/java/Valui_v2/valui-bot/src/main/java/com/valui/bot/handler/callback/SportSelectCallback.java)",
+      "Bash(sed -n '168,174p' /Users/danilabogatyrev/Documents/java/Valui_v2/valui-bot/src/main/java/com/valui/bot/handler/callback/TournamentSelectCallback.java)",
+      "Bash(sed -n '175,180p' /Users/danilabogatyrev/Documents/java/Valui_v2/valui-bot/src/main/java/com/valui/bot/handler/callback/TournamentSelectCallback.java)",
+      "Bash(sed -n '105,120p' /Users/danilabogatyrev/Documents/java/Valui_v2/valui_v2/valui-bot/src/main/java/com/valui/bot/handler/callback/WizardBackNavigator.java)",
+      "Bash(sed -n '105,120p' /Users/danilabogatyrev/Documents/java/Valui_v2/valui-bot/src/main/java/com/valui/bot/handler/callback/WizardBackNavigator.java)"
     ]
   }
 }
