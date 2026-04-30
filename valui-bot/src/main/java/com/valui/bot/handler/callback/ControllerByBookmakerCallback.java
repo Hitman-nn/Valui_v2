@@ -1,5 +1,6 @@
 package com.valui.bot.handler.callback;
 
+import com.valui.bot.config.BotWizardProperties;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
@@ -16,9 +17,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ControllerByBookmakerCallback implements CallbackHandler {
 
-    private static final String PREFIX = "CTRL:BK:";
+    private final ControllerService   controllerService;
+    private final BotWizardProperties wizardProps;
 
-    private final ControllerService controllerService;
+    private static final String PREFIX = "CTRL:BK:";
 
     @Override
     public String callbackPrefix() { return PREFIX; }
@@ -35,7 +37,9 @@ public class ControllerByBookmakerCallback implements CallbackHandler {
 
         String remainder = data.substring(PREFIX.length()); // "LIST" | "XBET" | "XBET:PAGE:1"
 
-        List<ControllerDto> all = controllerService.getUserControllers(ctx.fromId());
+        List<ControllerDto> all = ctx.isGroupChat()
+            ? controllerService.getGroupControllers(ctx.chatId())
+            : controllerService.getUserControllersForChat(ctx.fromId(), ctx.chatId());
 
         if (CallbackData.CTRL_BK_LIST.equals(data)) {
             var menu = BookmakerMenuBuilder.buildSelection(all);
@@ -59,7 +63,7 @@ public class ControllerByBookmakerCallback implements CallbackHandler {
             .filter(c -> bm.equalsIgnoreCase(c.bookmaker()))
             .toList();
 
-        var menu = BookmakerMenuBuilder.buildControllerList(bm, filtered, page);
+        var menu = BookmakerMenuBuilder.buildControllerList(bm, filtered, page, wizardProps.getStaleThresholdDays());
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             menu.text(), menu.keyboard());
     }

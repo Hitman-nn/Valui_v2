@@ -168,7 +168,9 @@ class ControllerServiceTest {
     @DisplayName("muteController: delegates to muteSubscription for the user's personal chat")
     void muteController_setsFlag() {
         UUID cid = UUID.randomUUID();
+        ControllerEntity entity = controllerEntity(cid, XBET_URL, true);
         given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(controllerPort.findByIdAndUserId(cid, USER_ID)).willReturn(Optional.of(entity));
         given(controllerPort.hasActiveSubscriptions(cid)).willReturn(true);
 
         service.muteController(cid, TG_ID);
@@ -180,7 +182,9 @@ class ControllerServiceTest {
     @DisplayName("unmuteController: delegates to unmuteSubscription for the user's personal chat")
     void unmuteController_clearsFlag() {
         UUID cid = UUID.randomUUID();
+        ControllerEntity entity = controllerEntity(cid, XBET_URL, true);
         given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(controllerPort.findByIdAndUserId(cid, USER_ID)).willReturn(Optional.of(entity));
         given(monitorScheduler.getScheduledControllerIds()).willReturn(Set.of(cid));
 
         service.unmuteController(cid, TG_ID);

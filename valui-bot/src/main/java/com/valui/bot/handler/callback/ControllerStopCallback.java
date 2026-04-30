@@ -1,5 +1,6 @@
 package com.valui.bot.handler.callback;
 
+import com.valui.bot.config.BotWizardProperties;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
@@ -20,7 +21,8 @@ public class ControllerStopCallback implements CallbackHandler {
 
     private static final String PREFIX = "CTRL:STOP:";
 
-    private final ControllerService controllerService;
+    private final ControllerService   controllerService;
+    private final BotWizardProperties wizardProps;
 
     @Override public String callbackPrefix() { return PREFIX; }
     @Override public int order() { return 50; }
@@ -31,25 +33,35 @@ public class ControllerStopCallback implements CallbackHandler {
         int messageId = ctx.update().getCallbackQuery().getMessage().getMessageId();
         MessageSend.answerCallback(ctx.sender(), callbackId);
 
+        UUID stoppedId = null;
         String stoppedBookmaker = null;
         try {
-            UUID controllerId = UUID.fromString(
+            stoppedId = UUID.fromString(
                 ctx.update().getCallbackQuery().getData().substring(PREFIX.length()));
-            ControllerDto c = controllerService.getController(controllerId);
+            ControllerDto c = controllerService.getController(stoppedId);
             stoppedBookmaker = c.bookmaker();
-            controllerService.stopForChat(controllerId, ctx.fromId(), ctx.chatId());
+            controllerService.stopForChat(stoppedId, ctx.fromId(), ctx.chatId());
         } catch (Exception e) {
             log.warn("stopForChat failed chatId={}: {}", ctx.chatId(), e.getMessage());
+            stoppedId = null; // stop didn't complete — don't exclude from list
         }
 
         final String bookmaker = stoppedBookmaker;
+        final UUID removedId = stoppedId;
         if (bookmaker != null) {
-            List<ControllerDto> remaining = controllerService.getUserControllers(ctx.fromId()).stream()
-                .filter(c -> bookmaker.equalsIgnoreCase(c.bookmaker())).toList();
-            var menu = BookmakerMenuBuilder.buildControllerList(bookmaker, remaining, 0);
+            List<ControllerDto> all = ctx.isGroupChat()
+                ? controllerService.getGroupControllers(ctx.chatId())
+                : controllerService.getUserControllersForChat(ctx.fromId(), ctx.chatId());
+            List<ControllerDto> remaining = all.stream()
+                .filter(c -> bookmaker.equalsIgnoreCase(c.bookmaker()))
+                .filter(c -> removedId == null || !c.id().equals(removedId))
+                .toList();
+            var menu = BookmakerMenuBuilder.buildControllerList(bookmaker, remaining, 0, wizardProps.getStaleThresholdDays());
             MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
         } else {
-            List<ControllerDto> all = controllerService.getUserControllers(ctx.fromId());
+            List<ControllerDto> all = ctx.isGroupChat()
+                ? controllerService.getGroupControllers(ctx.chatId())
+                : controllerService.getUserControllersForChat(ctx.fromId(), ctx.chatId());
             var menu = BookmakerMenuBuilder.buildSelection(all);
             MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
         }

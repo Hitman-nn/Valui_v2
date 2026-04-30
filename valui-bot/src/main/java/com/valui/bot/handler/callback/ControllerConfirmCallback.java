@@ -42,6 +42,11 @@ public class ControllerConfirmCallback implements CallbackHandler {
         String data = ctx.update().getCallbackQuery().getData();
         String callbackId = ctx.update().getCallbackQuery().getId();
         int messageId = ctx.update().getCallbackQuery().getMessage().getMessageId();
+        if (ctx.session().getState() != BotState.WAITING_CONFIRM_CREATE) {
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId, "⚠️ Это не ваше меню");
+            return;
+        }
+
         MessageSend.answerCallback(ctx.sender(), callbackId);
 
         if (CallbackData.CTRL_CONFIRM_YES.equals(data)) {
@@ -83,9 +88,9 @@ public class ControllerConfirmCallback implements CallbackHandler {
             log.info("✅ Контроллер создан: fromId={} chatId={} бук={} url={}",
                     ctx.fromId(), ctx.chatId(), bmOpt.get(), urlOpt.get());
             if (ControllerType.SPORT.equals(typeHint)) {
-                backNavigator.returnToSportList(ctx.sender(), ctx.chatId(), messageId);
+                backNavigator.returnToSportList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
             } else {
-                backNavigator.returnToTournamentList(ctx.sender(), ctx.chatId(), messageId);
+                backNavigator.returnToTournamentList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
             }
 
         } catch (InsufficientTokensException e) {
@@ -120,7 +125,7 @@ public class ControllerConfirmCallback implements CallbackHandler {
             MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                 messageSource.getMessage("wizard.enter_filter", ctx.fromId()), keyboard);
         } else {
-            backNavigator.returnToTournamentList(ctx.sender(), ctx.chatId(), messageId);
+            backNavigator.returnToTournamentList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
         }
     }
 

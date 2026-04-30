@@ -25,8 +25,15 @@ public class FilterSkipCallback implements CallbackHandler {
 
     @Override
     public void handle(BotUpdateContext ctx) {
-        MessageSend.answerCallback(ctx.sender(), ctx.update().getCallbackQuery().getId());
+        String callbackId = ctx.update().getCallbackQuery().getId();
         int messageId = ctx.update().getCallbackQuery().getMessage().getMessageId();
+
+        if (ctx.session().getState() != BotState.WAITING_FILTER_RULE) {
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId, "⚠️ Это не ваше меню");
+            return;
+        }
+
+        MessageSend.answerCallback(ctx.sender(), callbackId);
         sessionService.setState(ctx.fromId(), BotState.WAITING_CONFIRM_CREATE);
         String text = ControllerConfirmCallback.buildConfirmText(ctx.fromId(), sessionService, messageSource);
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, text,

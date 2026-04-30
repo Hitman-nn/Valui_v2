@@ -112,9 +112,16 @@ public class ControllerServiceImpl implements ControllerService {
     }
 
     @Override
+    public List<ControllerDto> getUserControllersForChat(Long telegramId, Long chatId) {
+        UserEntity user = requireUser(telegramId);
+        return controllerPort.findAllActiveByUserId(user.getId())
+            .stream().map(e -> toDtoForChat(e, chatId)).toList();
+    }
+
+    @Override
     public List<ControllerDto> getGroupControllers(Long notificationChatId) {
         return controllerPort.findAllActiveByNotificationChatId(notificationChatId)
-            .stream().map(this::toDto).toList();
+            .stream().map(e -> toDtoForChat(e, notificationChatId)).toList();
     }
 
     @Override
@@ -139,7 +146,8 @@ public class ControllerServiceImpl implements ControllerService {
     @Override
     @Transactional
     public void muteForChat(UUID controllerId, Long telegramId, Long chatId) {
-        requireUser(telegramId);
+        UserEntity user = requireUser(telegramId);
+        requireOwned(controllerId, user.getId());
         controllerPort.muteSubscription(controllerId, chatId);
         if (!controllerPort.hasActiveSubscriptions(controllerId)) {
             dedup.clearController(controllerId);
@@ -152,7 +160,8 @@ public class ControllerServiceImpl implements ControllerService {
     @Override
     @Transactional
     public void unmuteForChat(UUID controllerId, Long telegramId, Long chatId) {
-        requireUser(telegramId);
+        UserEntity user = requireUser(telegramId);
+        requireOwned(controllerId, user.getId());
         controllerPort.unmuteSubscription(controllerId, chatId);
         if (!monitorScheduler.getScheduledControllerIds().contains(controllerId)) {
             controllerPort.findById(controllerId).ifPresent(c -> {
@@ -194,7 +203,8 @@ public class ControllerServiceImpl implements ControllerService {
     @Override
     @Transactional
     public void stopForChat(UUID controllerId, Long telegramId, Long chatId) {
-        requireUser(telegramId);
+        UserEntity user = requireUser(telegramId);
+        requireOwned(controllerId, user.getId());
         controllerPort.removeSubscription(controllerId, chatId);
         if (!controllerPort.hasActiveSubscriptions(controllerId)) {
             dedup.clearController(controllerId);
@@ -212,12 +222,13 @@ public class ControllerServiceImpl implements ControllerService {
             .map(s -> s.isMuted() || s.isPausedByTokens())
             .orElse(false);
         long eventCount = detectedEventPort.countByControllerId(e.getId());
+        Long ownerTelegramId = e.getUser() != null ? e.getUser().getTelegramId() : null;
         return new ControllerDto(
             e.getId(), e.getBookmaker().name(), e.getUrl(), e.getTitle(),
             e.getFilterRule(), isMuted, Boolean.TRUE.equals(e.getIsActive()),
             e.getLastCheckedAt() != null ? e.getLastCheckedAt().toInstant() : null,
             e.getLastEventAt()   != null ? e.getLastEventAt().toInstant()   : null,
-            (int) eventCount, e.getType(), e.getNotificationChatId()
+            (int) eventCount, e.getType(), e.getNotificationChatId(), ownerTelegramId
         );
     }
 
@@ -233,8 +244,24 @@ public class ControllerServiceImpl implements ControllerService {
             .orElseThrow(() -> new ControllerAccessException(controllerId));
     }
 
+    private ControllerDto toDtoForChat(ControllerEntity e, Long chatId) {
+        boolean isMuted = controllerPort.findSubscription(e.getId(), chatId)
+            .map(s -> s.isMuted() || s.isPausedByTokens())
+            .orElse(false);
+        long eventCount = detectedEventPort.countByControllerId(e.getId());
+        Long ownerTelegramId = e.getUser() != null ? e.getUser().getTelegramId() : null;
+        return new ControllerDto(
+            e.getId(), e.getBookmaker().name(), e.getUrl(), e.getTitle(),
+            e.getFilterRule(), isMuted, Boolean.TRUE.equals(e.getIsActive()),
+            e.getLastCheckedAt() != null ? e.getLastCheckedAt().toInstant() : null,
+            e.getLastEventAt()   != null ? e.getLastEventAt().toInstant()   : null,
+            (int) eventCount, e.getType(), e.getNotificationChatId(), ownerTelegramId
+        );
+    }
+
     private ControllerDto toDto(ControllerEntity e) {
         long eventCount = detectedEventPort.countByControllerId(e.getId());
+        Long ownerTelegramId = e.getUser() != null ? e.getUser().getTelegramId() : null;
         return new ControllerDto(
             e.getId(),
             e.getBookmaker().name(),
@@ -247,7 +274,8 @@ public class ControllerServiceImpl implements ControllerService {
             e.getLastEventAt()   != null ? e.getLastEventAt().toInstant()   : null,
             (int) eventCount,
             e.getType(),
-            e.getNotificationChatId()
+            e.getNotificationChatId(),
+            ownerTelegramId
         );
     }
 

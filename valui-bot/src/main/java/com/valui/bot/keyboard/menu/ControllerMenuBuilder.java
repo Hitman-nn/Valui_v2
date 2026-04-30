@@ -8,6 +8,8 @@ import com.valui.bot.keyboard.PagedKeyboardBuilder;
 import com.valui.monitor.dto.ControllerDto;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 public final class ControllerMenuBuilder {
@@ -17,7 +19,7 @@ public final class ControllerMenuBuilder {
 
     private ControllerMenuBuilder() {}
 
-    public static MenuMessage build(List<ControllerDto> controllers, int page) {
+    public static MenuMessage build(List<ControllerDto> controllers, int page, int staleThresholdDays) {
         if (controllers.isEmpty()) {
             return new MenuMessage("📋 Список контроллеров пуст.",
                 InlineKeyboardMarkup.builder().keyboard(List.of()).build());
@@ -29,8 +31,9 @@ public final class ControllerMenuBuilder {
         var keyboard = PagedKeyboardBuilder.<ControllerDto>create()
             .items(controllers)
             .itemRenderer(c -> {
-                String icon = !c.isActive() ? "🔴" : (c.isMuted() ? "🔕" : "🟢");
-                String label = icon + " " + (c.title() != null ? c.title() : c.url()) + " [" + c.bookmaker() + "]";
+                String statusIcon = !c.isActive() ? "🔴" : (c.isMuted() ? "🔕" : "🟢");
+                String staleIcon  = isStale(c.lastEventAt(), staleThresholdDays) ? "🕰️" : "";
+                String label = statusIcon + staleIcon + " " + (c.title() != null ? c.title() : c.url()) + " [" + c.bookmaker() + "]";
                 return KeyboardButton.callback(label, CallbackData.ctrlDetail(c.id()));
             })
             .pageSize(PAGE_SIZE)
@@ -39,5 +42,9 @@ public final class ControllerMenuBuilder {
             .build();
 
         return new MenuMessage(text, keyboard);
+    }
+
+    private static boolean isStale(Instant lastEventAt, int days) {
+        return lastEventAt != null && lastEventAt.isBefore(Instant.now().minus(days, ChronoUnit.DAYS));
     }
 }

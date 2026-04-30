@@ -27,15 +27,27 @@ public class ControllerMuteCallback implements CallbackHandler {
         String callbackId = ctx.update().getCallbackQuery().getId();
         int messageId = ctx.update().getCallbackQuery().getMessage().getMessageId();
         MessageSend.answerCallback(ctx.sender(), callbackId);
+
+        UUID id;
         try {
-            UUID id = UUID.fromString(ctx.update().getCallbackQuery().getData().substring(PREFIX.length()));
+            id = UUID.fromString(ctx.update().getCallbackQuery().getData().substring(PREFIX.length()));
+        } catch (Exception e) {
+            return;
+        }
+
+        try {
             controllerService.muteForChat(id, ctx.fromId(), ctx.chatId());
-            ControllerDto c = controllerService.getControllerForChat(id, ctx.chatId());
-            MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-                ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
-                ControllerDetailCallback.buildDetailKeyboard(c, ctx.chatId()));
         } catch (Exception e) {
             log.warn("muteForChat failed chatId={}: {}", ctx.chatId(), e.getMessage());
+        }
+
+        try {
+            ControllerDto c = controllerService.getControllerForChat(id, ctx.chatId());
+            MessageSend.editTextWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+                ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
+                ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
+        } catch (Exception e) {
+            log.warn("Failed to refresh detail chatId={}: {}", ctx.chatId(), e.getMessage());
         }
     }
 }
@@ -56,15 +68,27 @@ class ControllerUnmuteCallback implements CallbackHandler {
         String callbackId = ctx.update().getCallbackQuery().getId();
         int messageId = ctx.update().getCallbackQuery().getMessage().getMessageId();
         MessageSend.answerCallback(ctx.sender(), callbackId);
+
+        UUID id;
         try {
-            UUID id = UUID.fromString(ctx.update().getCallbackQuery().getData().substring(PREFIX.length()));
+            id = UUID.fromString(ctx.update().getCallbackQuery().getData().substring(PREFIX.length()));
+        } catch (Exception e) {
+            return;
+        }
+
+        try {
             controllerService.unmuteForChat(id, ctx.fromId(), ctx.chatId());
-            ControllerDto c = controllerService.getControllerForChat(id, ctx.chatId());
-            MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-                ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
-                ControllerDetailCallback.buildDetailKeyboard(c, ctx.chatId()));
         } catch (Exception e) {
             log.warn("unmuteForChat failed chatId={}: {}", ctx.chatId(), e.getMessage());
+        }
+
+        try {
+            ControllerDto c = controllerService.getControllerForChat(id, ctx.chatId());
+            MessageSend.editTextWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+                ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
+                ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
+        } catch (Exception e) {
+            log.warn("Failed to refresh detail chatId={}: {}", ctx.chatId(), e.getMessage());
         }
     }
 }

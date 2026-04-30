@@ -46,10 +46,22 @@ public class CancelCallback implements CallbackHandler {
 
         BotState state = ctx.session() != null ? ctx.session().getState() : BotState.IDLE;
 
+        // Search Cancel → return to the list the user was searching in
+        if (state == BotState.WAITING_WIZARD_SEARCH) {
+            String target = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SEARCH_TARGET)
+                    .orElse("SPORT");
+            if ("TOURNAMENT".equals(target)) {
+                backNavigator.returnToTournamentList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
+            } else {
+                backNavigator.returnToSportList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
+            }
+            return;
+        }
+
         // Tournament selection Cancel → bookmaker selection
         // Confirmation screen Cancel → bookmaker selection
         if (state == BotState.SELECTING_TOURNAMENT || state == BotState.WAITING_CONFIRM_CREATE) {
-            backNavigator.returnToBookmakerSelection(ctx.sender(), ctx.chatId(), messageId);
+            backNavigator.returnToBookmakerSelection(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
             return;
         }
 
@@ -58,18 +70,19 @@ public class CancelCallback implements CallbackHandler {
             String mode = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_FILTER_MODE)
                     .orElse("GLOBAL");
             if ("INDIVIDUAL".equals(mode)) {
-                backNavigator.returnToTournamentList(ctx.sender(), ctx.chatId(), messageId);
+                backNavigator.returnToTournamentList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
             } else if ("CONTROLLER_FILTER".equals(mode)) {
                 // editing controller filter — back to controller detail
                 Optional<String> ctrlIdOpt = sessionService.getContext(
-                        ctx.chatId(), UserBotSession.CTX_EDIT_CONTROLLER_ID);
+                        ctx.fromId(), UserBotSession.CTX_EDIT_CONTROLLER_ID);
                 sessionService.setState(ctx.fromId(), BotState.IDLE);
                 ctrlIdOpt.ifPresent(idStr -> {
                     try {
-                        ControllerDto c = controllerService.getController(UUID.fromString(idStr));
+                        ControllerDto c = controllerService.getControllerForChat(
+                                UUID.fromString(idStr), ctx.chatId());
                         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                                 ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
-                                ControllerDetailCallback.buildDetailKeyboard(c, ctx.chatId()));
+                                ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
                     } catch (Exception e) {
                         log.warn("cancel: controller not found {}", idStr);
                     }
@@ -86,6 +99,10 @@ public class CancelCallback implements CallbackHandler {
         }
 
         // All other states (IDLE, SELECTING_BOOKMAKER, SELECTING_SPORT) → main menu
+        // In group: don't flood the chat — the user pressing Cancel is not the wizard owner
+        if (ctx.isGroupChat()) {
+            return;
+        }
         sessionService.clearSession(ctx.fromId());
         MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(),
             messageSource.getMessage("menu.main", ctx.fromId()),

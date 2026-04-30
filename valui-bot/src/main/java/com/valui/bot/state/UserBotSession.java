@@ -45,4 +45,10 @@ public class UserBotSession {
     public static final String CTX_EDIT_FILTER_ID      = "editFilterId";
     public static final String CTX_EDIT_CONTROLLER_ID  = "editControllerId";
     public static final String CTX_WIZARD_MSG_ID       = "wizardMsgId";
+
+    // Wizard search
+    public static final String CTX_SEARCH_TARGET           = "searchTarget";
+    // Wizard cache (serialised JSON — cleared on state transitions)
+    public static final String CTX_CACHED_SPORTS_JSON      = "cachedSportsJson";
+    public static final String CTX_CACHED_TOURNAMENTS_JSON = "cachedTournamentsJson";
 }

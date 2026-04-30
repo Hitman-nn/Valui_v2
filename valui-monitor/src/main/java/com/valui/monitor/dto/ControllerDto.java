@@ -17,5 +17,6 @@ public record ControllerDto(
         Instant lastEventAt,
         int detectedEventsCount,
         ControllerType type,
-        Long notificationChatId
+        Long notificationChatId,
+        Long ownerTelegramId
 ) {}

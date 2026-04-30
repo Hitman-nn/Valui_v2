@@ -7,6 +7,8 @@ import com.valui.bot.keyboard.MenuMessage;
 import com.valui.bot.keyboard.PagedKeyboardBuilder;
 import com.valui.monitor.dto.ControllerDto;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,10 +41,8 @@ public final class BookmakerMenuBuilder {
 
         var builder = InlineKeyboardBuilder.create();
         grouped.forEach((bm, controllers) -> {
-            String icon = bookmakerIcon(controllers);
             int count = controllers.size();
-            builder.button(icon + " " + bm + " (" + count + ")",
-                CallbackData.ctrlByBookmaker(bm));
+            builder.button(bm + " (" + count + ")", CallbackData.ctrlByBookmaker(bm));
             builder.row();
         });
 
@@ -52,7 +52,7 @@ public final class BookmakerMenuBuilder {
     /**
      * Builds the per-bookmaker controller list (no [BK] suffix in labels, with "← Букмекеры" back).
      */
-    public static MenuMessage buildControllerList(String bookmaker, List<ControllerDto> controllers, int page) {
+    public static MenuMessage buildControllerList(String bookmaker, List<ControllerDto> controllers, int page, int staleThresholdDays) {
         if (controllers.isEmpty()) {
             var keyboard = InlineKeyboardBuilder.create()
                 .button("← Букмекеры", CallbackData.CTRL_BK_LIST)
@@ -68,8 +68,9 @@ public final class BookmakerMenuBuilder {
         var keyboard = PagedKeyboardBuilder.<ControllerDto>create()
             .items(controllers)
             .itemRenderer(c -> {
-                String icon = !c.isActive() ? "🔴" : (c.isMuted() ? "🔕" : "🟢");
-                String label = icon + " " + (c.title() != null ? c.title() : c.url());
+                String statusIcon = !c.isActive() ? "🔴" : (c.isMuted() ? "🔕" : "🟢");
+                String staleIcon  = isStale(c.lastEventAt(), staleThresholdDays) ? "🕰️" : "";
+                String label = statusIcon + staleIcon + " " + (c.title() != null ? c.title() : c.url());
                 return KeyboardButton.callback(label, CallbackData.ctrlDetail(c.id()));
             })
             .pageSize(PAGE_SIZE)
@@ -81,10 +82,8 @@ public final class BookmakerMenuBuilder {
         return new MenuMessage(text, keyboard);
     }
 
-    private static String bookmakerIcon(List<ControllerDto> controllers) {
-        boolean anyInactive = controllers.stream().anyMatch(c -> !c.isActive());
-        if (anyInactive) return "🔴";
-        boolean anyMuted = controllers.stream().anyMatch(ControllerDto::isMuted);
-        return anyMuted ? "🔕" : "🟢";
+    private static boolean isStale(Instant lastEventAt, int days) {
+        return lastEventAt != null && lastEventAt.isBefore(Instant.now().minus(days, ChronoUnit.DAYS));
     }
+
 }

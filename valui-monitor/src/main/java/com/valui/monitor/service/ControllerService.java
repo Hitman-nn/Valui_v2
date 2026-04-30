@@ -27,6 +27,13 @@ public interface ControllerService {
 
     List<ControllerDto> getUserControllers(Long telegramId);
 
+    /**
+     * Like {@link #getUserControllers} but with {@code isMuted} reflecting the subscription
+     * state for {@code chatId} instead of the entity-level flag.
+     * Use this for list views so muted controllers show 🔕 correctly.
+     */
+    List<ControllerDto> getUserControllersForChat(Long telegramId, Long chatId);
+
     /** Returns active controllers whose notifications are routed to the given group chat. */
     List<ControllerDto> getGroupControllers(Long notificationChatId);
 

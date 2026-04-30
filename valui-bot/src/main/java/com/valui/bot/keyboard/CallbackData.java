@@ -78,6 +78,10 @@ public final class CallbackData {
 
     public static String plansSelect(String planCode) { return "PLANS:SELECT:" + planCode; }
 
+    // ─── Wizard search ───────────────────────────────────────────────────────
+    public static final String SEARCH_SPORT = "SEARCH:SPORT";
+    public static final String SEARCH_TOURN = "SEARCH:TOURN";
+
     // ─── Quick-add from notification — "QADD:{notificationLogId}" ───────────
     /** Max 64 bytes: "QADD:" (5) + UUID (36) = 41 bytes. */
     public static final String QADD_PREFIX = "QADD:";

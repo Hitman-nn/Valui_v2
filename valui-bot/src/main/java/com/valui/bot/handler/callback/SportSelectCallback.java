@@ -1,5 +1,6 @@
 package com.valui.bot.handler.callback;
 
+import com.valui.bot.config.BotWizardProperties;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
@@ -9,6 +10,7 @@ import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.bot.keyboard.KeyboardButton;
 import com.valui.bot.keyboard.PagedKeyboardBuilder;
 import com.valui.bot.service.BotSessionService;
+import com.valui.bot.service.WizardCacheService;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
 import com.valui.common.domain.BookmakerType;
@@ -25,24 +27,26 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class SportSelectCallback implements CallbackHandler {
 
-    private final BotSessionService sessionService;
-    private final BotMessageSource messageSource;
-    private final ParserFactory parserFactory;
-    private final ControllerService controllerService;
-    private final PlanLimitFacade planLimitFacade;
+    private final BotSessionService   sessionService;
+    private final BotMessageSource    messageSource;
+    private final ParserFactory       parserFactory;
+    private final ControllerService   controllerService;
+    private final PlanLimitFacade     planLimitFacade;
+    private final WizardCacheService  wizardCache;
+    private final BotWizardProperties wizardProps;
 
     @Override
     public String callbackPrefix() { return "SPORT:"; }
@@ -56,6 +60,11 @@ public class SportSelectCallback implements CallbackHandler {
         int messageId = ctx.update().getCallbackQuery().getMessage().getMessageId();
         String callbackId = ctx.update().getCallbackQuery().getId();
 
+        if (ctx.session().getState() != BotState.SELECTING_SPORT) {
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId, "⚠️ Это не ваше меню");
+            return;
+        }
+
         MessageSend.answerCallback(ctx.sender(), callbackId);
 
         if (data.equals(CallbackData.SPORT_BACK)) {
@@ -67,7 +76,6 @@ public class SportSelectCallback implements CallbackHandler {
         }
     }
 
-    // "← Назад" from sport list → re-show bookmaker selection (no cancel button on BK screen)
     private void handleBackToBookmakers(BotUpdateContext ctx, int messageId) {
         sessionService.setStateWithContext(ctx.fromId(), BotState.SELECTING_BOOKMAKER, new HashMap<>());
         List<String> allowed = planLimitFacade.getLimitInfo(ctx.fromId()).allowedBookmakers();
@@ -85,15 +93,24 @@ public class SportSelectCallback implements CallbackHandler {
         Optional<String> bm = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
         if (bm.isEmpty()) return;
 
-        BookmakerParser parser = getParser(bm.get());
-        if (parser == null) return;
-
-        ParseResult<List<SportDto>> result = parser.fetchSports();
-        if (!result.success() || result.data() == null) return;
+        // Use cache — avoids HTTP round-trip on every page click
+        List<SportDto> sports;
+        Optional<List<SportDto>> cached = wizardCache.getCachedSports(ctx.fromId());
+        if (cached.isPresent()) {
+            sports = cached.get();
+        } else {
+            BookmakerParser parser = getParser(bm.get());
+            if (parser == null) return;
+            ParseResult<List<SportDto>> result = parser.fetchSports();
+            if (!result.success() || result.data() == null) return;
+            sports = result.data();
+            wizardCache.cacheSports(ctx.fromId(), sports);
+        }
 
         InlineKeyboardMarkup keyboard = BookmakerSelectCallback.buildSportsKeyboard(
-            result.data(), page,
-            messageSource.getMessage("menu.back", ctx.fromId()));
+            sports, page,
+            messageSource.getMessage("menu.back", ctx.fromId()),
+            wizardProps.getSportPageSize());
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_sport", ctx.fromId(), bm.get()), keyboard);
     }
@@ -110,16 +127,25 @@ public class SportSelectCallback implements CallbackHandler {
             return;
         }
 
-        ParseResult<List<SportDto>> sportsResult = parser.fetchSports();
+        // Resolve sport name from cache if available, otherwise fetch
         String sportName = sportId;
         String sportAlias = sportId;
-        if (sportsResult.success() && sportsResult.data() != null) {
-            var found = sportsResult.data().stream()
-                .filter(s -> s.id().equals(sportId))
-                .findFirst();
+        Optional<List<SportDto>> cachedSports = wizardCache.getCachedSports(ctx.fromId());
+        if (cachedSports.isPresent()) {
+            var found = cachedSports.get().stream().filter(s -> s.id().equals(sportId)).findFirst();
             if (found.isPresent()) {
-                sportName = found.get().name();
+                sportName  = found.get().name();
                 sportAlias = found.get().alias() != null ? found.get().alias() : sportId;
+            }
+        } else {
+            ParseResult<List<SportDto>> sportsResult = parser.fetchSports();
+            if (sportsResult.success() && sportsResult.data() != null) {
+                wizardCache.cacheSports(ctx.fromId(), sportsResult.data());
+                var found = sportsResult.data().stream().filter(s -> s.id().equals(sportId)).findFirst();
+                if (found.isPresent()) {
+                    sportName  = found.get().name();
+                    sportAlias = found.get().alias() != null ? found.get().alias() : sportId;
+                }
             }
         }
 
@@ -130,12 +156,15 @@ public class SportSelectCallback implements CallbackHandler {
             return;
         }
 
+        // Cache tournaments for this sport; clear any stale previous cache
+        wizardCache.cacheTournaments(ctx.fromId(), tournsResult.data());
+
         sessionService.setStateAndMergeContext(ctx.fromId(), BotState.SELECTING_TOURNAMENT,
-            Map.of(UserBotSession.CTX_SPORT_ID, sportId,
-                   UserBotSession.CTX_SPORT_NAME, sportName,
+            Map.of(UserBotSession.CTX_SPORT_ID,    sportId,
+                   UserBotSession.CTX_SPORT_NAME,  sportName,
                    UserBotSession.CTX_SPORT_ALIAS, sportAlias));
 
-        Set<String> existingUrls = buildExistingUrls(ctx, bm.get());
+        Map<String, Instant> urlToLastEventAt = buildUrlToLastEventAtMap(ctx, bm.get());
         BookmakerType bookmakerType = BookmakerType.valueOf(bm.get().toUpperCase());
         String sportUrl = buildSportUrl(bookmakerType, sportId, sportAlias);
 
@@ -143,54 +172,69 @@ public class SportSelectCallback implements CallbackHandler {
         String backText   = messageSource.getMessage("menu.back",   ctx.fromId());
         String cancelText = messageSource.getMessage("menu.cancel", ctx.fromId());
         InlineKeyboardMarkup keyboard = buildTournamentKeyboard(
-            tournsResult.data(), 0, monitorAllText, backText, cancelText, existingUrls, sportUrl);
+            tournsResult.data(), 0, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
+            wizardProps.getTournamentPageSize(), wizardProps.getStaleThresholdDays());
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_tournament", ctx.fromId(), sportName),
             keyboard);
     }
 
-    /**
-     * Builds the tournament keyboard. Tournaments are sorted alphabetically so the list
-     * order is stable across page navigation even if the API response order varies between calls.
-     */
-    static InlineKeyboardMarkup buildTournamentKeyboard(
+    public static InlineKeyboardMarkup buildTournamentKeyboard(
             List<TournamentDto> tournaments, int page,
             String monitorAllText, String backText, String cancelText,
-            Set<String> existingUrls, String sportUrl) {
+            Map<String, Instant> urlToLastEventAt, String sportUrl, int pageSize, int staleThresholdDays) {
 
         List<TournamentDto> sorted = tournaments.stream()
                 .sorted(Comparator.comparing(t -> t.title().toLowerCase()))
                 .toList();
 
-        boolean sportExists = existingUrls.contains(sportUrl);
+        boolean sportExists = urlToLastEventAt.containsKey(sportUrl);
         String monitorAllCallback = sportExists ? CallbackData.TOURN_EXIST : CallbackData.TOURN_ALL;
-        String monitorAllLabel   = sportExists ? "✅ " + monitorAllText : monitorAllText;
+        String monitorAllLabel;
+        if (sportExists) {
+            monitorAllLabel = isStale(urlToLastEventAt.get(sportUrl), staleThresholdDays)
+                ? "🕰️ " + monitorAllText : "✅ " + monitorAllText;
+        } else {
+            monitorAllLabel = monitorAllText;
+        }
 
         return PagedKeyboardBuilder.<TournamentDto>create()
             .items(sorted)
             .itemRenderer(t -> {
-                boolean exists = existingUrls.contains(t.url());
-                String label    = exists ? "✅ " + t.title() : t.title();
+                boolean exists = urlToLastEventAt.containsKey(t.url());
+                String label;
+                if (exists) {
+                    label = isStale(urlToLastEventAt.get(t.url()), staleThresholdDays)
+                        ? "🕰️ " + t.title() : "✅ " + t.title();
+                } else {
+                    label = t.title();
+                }
                 String callback = exists ? CallbackData.TOURN_EXIST : CallbackData.tournSel(t.id());
                 return KeyboardButton.callback(label, callback);
             })
-            .pageSize(8)
+            .pageSize(pageSize)
             .currentPage(page)
             .navigationCallbackPrefix(CallbackData.TOURN_PAGE_PREFIX)
+            .appendRow(KeyboardButton.callback("🔍 Поиск", CallbackData.SEARCH_TOURN))
             .appendRow(KeyboardButton.callback(monitorAllLabel, monitorAllCallback))
             .appendRow(KeyboardButton.callback(backText,   CallbackData.TOURN_BACK))
             .appendRow(KeyboardButton.callback(cancelText, CallbackData.CANCEL))
             .build();
     }
 
-    private Set<String> buildExistingUrls(BotUpdateContext ctx, String bookmakerCode) {
+    private static boolean isStale(Instant lastEventAt, int days) {
+        return lastEventAt != null && lastEventAt.isBefore(Instant.now().minus(days, ChronoUnit.DAYS));
+    }
+
+    private Map<String, Instant> buildUrlToLastEventAtMap(BotUpdateContext ctx, String bookmakerCode) {
         List<ControllerDto> controllers = ctx.isGroupChat()
             ? controllerService.getGroupControllers(ctx.chatId())
             : controllerService.getUserControllers(ctx.fromId());
-        return controllers.stream()
+        Map<String, Instant> map = new HashMap<>();
+        controllers.stream()
             .filter(c -> bookmakerCode.equalsIgnoreCase(c.bookmaker()))
-            .map(ControllerDto::url)
-            .collect(Collectors.toSet());
+            .forEach(c -> map.put(c.url(), c.lastEventAt()));
+        return map;
     }
 
     static String buildSportUrl(BookmakerType bm, String sportId, String alias) {

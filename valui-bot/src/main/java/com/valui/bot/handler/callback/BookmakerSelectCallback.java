@@ -1,5 +1,6 @@
 package com.valui.bot.handler.callback;
 
+import com.valui.bot.config.BotWizardProperties;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
@@ -8,6 +9,7 @@ import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.KeyboardButton;
 import com.valui.bot.keyboard.PagedKeyboardBuilder;
 import com.valui.bot.service.BotSessionService;
+import com.valui.bot.service.WizardCacheService;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
 import com.valui.common.domain.BookmakerType;
@@ -29,12 +31,12 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class BookmakerSelectCallback implements CallbackHandler {
 
-    private final BotSessionService sessionService;
-    private final BotMessageSource messageSource;
-    private final ParserFactory parserFactory;
+    private final BotSessionService    sessionService;
+    private final BotMessageSource     messageSource;
+    private final ParserFactory        parserFactory;
+    private final WizardCacheService   wizardCache;
+    private final BotWizardProperties  wizardProps;
 
-    // Sports pinned to the top of page 0 in this priority order.
-    // Matched via case-insensitive contains so "Хоккей с шайбой" still ranks as hockey.
     private static final List<String> PRIORITY_KEYWORDS =
             List.of("футбол", "теннис", "хоккей", "баскетбол");
 
@@ -51,7 +53,11 @@ public class BookmakerSelectCallback implements CallbackHandler {
         int messageId = ctx.update().getCallbackQuery().getMessage().getMessageId();
         String callbackId = ctx.update().getCallbackQuery().getId();
 
-        // Answer immediately so Telegram removes the loading spinner — parser fetch can take seconds
+        if (ctx.session().getState() != BotState.SELECTING_BOOKMAKER) {
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId, "⚠️ Это не ваше меню");
+            return;
+        }
+
         MessageSend.answerCallback(ctx.sender(), callbackId);
 
         BookmakerParser parser;
@@ -63,7 +69,6 @@ public class BookmakerSelectCallback implements CallbackHandler {
             return;
         }
 
-        // Show "loading" state while the HTTP call is in progress
         MessageSend.editTextWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.loading", ctx.fromId(), bookmakerCode),
             buildLoadingKeyboard());
@@ -76,11 +81,17 @@ public class BookmakerSelectCallback implements CallbackHandler {
             return;
         }
 
+        // Cache sports so pagination doesn't need to re-fetch
+        wizardCache.cacheSports(ctx.fromId(), result.data());
+        // Clear stale tournament cache from any previous wizard run
+        wizardCache.clearTournamentsCache(ctx.fromId());
+
         sessionService.setStateAndMergeContext(ctx.fromId(), BotState.SELECTING_SPORT,
             Map.of(UserBotSession.CTX_BOOKMAKER, bookmakerCode));
 
         InlineKeyboardMarkup keyboard = buildSportsKeyboard(result.data(), 0,
-            messageSource.getMessage("menu.back", ctx.fromId()));
+            messageSource.getMessage("menu.back", ctx.fromId()),
+            wizardProps.getSportPageSize());
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_sport", ctx.fromId(), bookmakerCode),
             keyboard);
@@ -93,30 +104,19 @@ public class BookmakerSelectCallback implements CallbackHandler {
             .build();
     }
 
-    /**
-     * Builds the sports keyboard with stable alphabetical ordering and priority sports
-     * (Футбол, Теннис, Хоккей, Баскетбол) always pinned to the top of the list so
-     * they appear on page 0 regardless of API response order.
-     *
-     * Stable sort prevents duplicates/missing items on page navigation because the list
-     * order is deterministic even if the API returns items in a different sequence per call.
-     */
-    static InlineKeyboardMarkup buildSportsKeyboard(
-            List<SportDto> sports, int page, String backText) {
+    public static InlineKeyboardMarkup buildSportsKeyboard(
+            List<SportDto> sports, int page, String backText, int pageSize) {
         return PagedKeyboardBuilder.<SportDto>create()
             .items(sortedSports(sports))
             .itemRenderer(s -> KeyboardButton.callback(s.name(), CallbackData.sportSel(s.id())))
-            .pageSize(8)
+            .pageSize(pageSize)
             .currentPage(page)
             .navigationCallbackPrefix(CallbackData.SPORT_PAGE_PREFIX)
+            .appendRow(KeyboardButton.callback("🔍 Поиск", CallbackData.SEARCH_SPORT))
             .appendRow(KeyboardButton.callback(backText, CallbackData.SPORT_BACK))
             .build();
     }
 
-    /**
-     * Returns sports sorted so that priority sports (Футбол, Теннис, Хоккей, Баскетбол)
-     * appear first in priority order, followed by all remaining sports alphabetically.
-     */
     static List<SportDto> sortedSports(List<SportDto> sports) {
         return sports.stream()
                 .sorted(Comparator.comparingInt(BookmakerSelectCallback::priorityOf)

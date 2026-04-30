@@ -1,5 +1,6 @@
 package com.valui.bot.handler.callback;
 
+import com.valui.bot.config.BotWizardProperties;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
@@ -16,7 +17,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ControllerListCallback implements CallbackHandler {
 
-    private final ControllerService controllerService;
+    private final ControllerService   controllerService;
+    private final BotWizardProperties wizardProps;
 
     @Override
     public String callbackPrefix() { return CallbackData.CTRL_LIST; }
@@ -37,8 +39,10 @@ public class ControllerListCallback implements CallbackHandler {
             catch (NumberFormatException ignored) {}
         }
 
-        List<ControllerDto> controllers = controllerService.getUserControllers(ctx.fromId());
-        var menu = ControllerMenuBuilder.build(controllers, page);
+        List<ControllerDto> controllers = ctx.isGroupChat()
+            ? controllerService.getGroupControllers(ctx.chatId())
+            : controllerService.getUserControllersForChat(ctx.fromId(), ctx.chatId());
+        var menu = ControllerMenuBuilder.build(controllers, page, wizardProps.getStaleThresholdDays());
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
     }
 }

@@ -1,17 +1,25 @@
 package com.valui.bot.handler.message;
 
+import com.valui.bot.config.BotWizardProperties;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.BotUpdateHandler;
 import com.valui.bot.handler.MessageSend;
+import com.valui.bot.handler.callback.BookmakerSelectCallback;
 import com.valui.bot.handler.callback.ControllerDetailCallback;
 import com.valui.bot.handler.callback.ControllerConfirmCallback;
+import com.valui.bot.handler.callback.SportSelectCallback;
+import com.valui.bot.handler.callback.TournamentSelectCallback;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.menu.FilterMenuBuilder;
 import com.valui.bot.service.BotSessionService;
+import com.valui.bot.service.WizardCacheService;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
+import com.valui.common.domain.BookmakerType;
 import com.valui.common.entity.GlobalFilterEntity;
 import com.valui.common.exception.InsufficientTokensException;
+import com.valui.common.parser.dto.SportDto;
+import com.valui.common.parser.dto.TournamentDto;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
 import com.valui.user.service.GlobalFilterService;
@@ -20,22 +28,27 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.Update;
 
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class WizardTextHandler implements BotUpdateHandler {
 
-    private final BotSessionService    sessionService;
-    private final BotMessageSource     messageSource;
-    private final GlobalFilterService  globalFilterService;
-    private final ControllerService    controllerService;
+    private final BotSessionService   sessionService;
+    private final BotMessageSource    messageSource;
+    private final GlobalFilterService globalFilterService;
+    private final ControllerService   controllerService;
+    private final WizardCacheService  wizardCache;
+    private final BotWizardProperties wizardProps;
 
     @Override
     public boolean canHandle(Update update) {
@@ -50,6 +63,11 @@ public class WizardTextHandler implements BotUpdateHandler {
     @Override
     public void handle(BotUpdateContext ctx) {
         BotState state = ctx.session().getState();
+
+        if (state == BotState.WAITING_WIZARD_SEARCH) {
+            handleWizardSearch(ctx, ctx.update().getMessage().getText().trim());
+            return;
+        }
 
         if (state != BotState.WAITING_FILTER_RULE) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
@@ -124,7 +142,7 @@ public class WizardTextHandler implements BotUpdateHandler {
         try {
             UUID controllerId = UUID.fromString(ctrlIdOpt.get());
             controllerService.updateFilterRule(controllerId, ctx.fromId(), filterText);
-            ControllerDto c = controllerService.getController(controllerId);
+            ControllerDto c = controllerService.getControllerForChat(controllerId, ctx.chatId());
 
             Optional<String> msgIdOpt = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_WIZARD_MSG_ID);
             if (msgIdOpt.isPresent()) {
@@ -132,19 +150,98 @@ public class WizardTextHandler implements BotUpdateHandler {
                     int msgId = Integer.parseInt(msgIdOpt.get());
                     MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), msgId,
                         ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
-                        ControllerDetailCallback.buildDetailKeyboard(c, ctx.chatId()));
+                        ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
                     return;
                 } catch (NumberFormatException ignored) {}
             }
             MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(),
                 ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
-                ControllerDetailCallback.buildDetailKeyboard(c, ctx.chatId()));
+                ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
 
         } catch (InsufficientTokensException e) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
                 messageSource.getMessage("error.insufficient_tokens", ctx.fromId()));
         } catch (Exception e) {
             log.warn("Failed to update controller filter: {}", e.getMessage());
+        }
+    }
+
+    private void handleWizardSearch(BotUpdateContext ctx, String query) {
+        String target  = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SEARCH_TARGET).orElse("SPORT");
+        int    msgId   = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_WIZARD_MSG_ID)
+                .map(s -> { try { return Integer.parseInt(s); } catch (NumberFormatException e) { return 0; } })
+                .orElse(0);
+
+        String lower = query.toLowerCase();
+
+        if ("TOURNAMENT".equals(target)) {
+            sessionService.setState(ctx.fromId(), BotState.SELECTING_TOURNAMENT);
+            Optional<String> bm        = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
+            Optional<String> sportId   = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_ID);
+            Optional<String> sportName = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_NAME);
+            Optional<String> sportAlias= sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_ALIAS);
+            if (bm.isEmpty() || sportId.isEmpty()) return;
+
+            List<TournamentDto> filtered = wizardCache.getCachedTournaments(ctx.fromId())
+                .map(list -> list.stream()
+                    .filter(t -> t.title().toLowerCase().contains(lower))
+                    .collect(Collectors.toList()))
+                .orElse(List.of());
+
+            boolean isGroupChat = ctx.isGroupChat();
+            List<ControllerDto> controllers = isGroupChat
+                ? controllerService.getGroupControllers(ctx.chatId())
+                : controllerService.getUserControllers(ctx.fromId());
+            Map<String, Instant> urlToLastEventAt = new HashMap<>();
+            controllers.stream()
+                .filter(c -> bm.get().equalsIgnoreCase(c.bookmaker()))
+                .forEach(c -> urlToLastEventAt.put(c.url(), c.lastEventAt()));
+
+            String sAlias   = sportAlias.orElse(sportId.get());
+            String sName    = sportName.orElse(sportId.get());
+            BookmakerType bmType = BookmakerType.valueOf(bm.get().toUpperCase());
+            String sportUrl = TournamentSelectCallback.buildSportUrl(bmType, sportId.get(), sAlias);
+
+            String monitorAllText = messageSource.getMessage("wizard.monitor_all_sport", ctx.fromId(), sName);
+            String backText   = messageSource.getMessage("menu.back",   ctx.fromId());
+            String cancelText = messageSource.getMessage("menu.cancel", ctx.fromId());
+            var keyboard = SportSelectCallback.buildTournamentKeyboard(
+                filtered, 0, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
+                wizardProps.getTournamentPageSize(), wizardProps.getStaleThresholdDays());
+
+            String text = filtered.isEmpty()
+                ? "🔍 По запросу «" + query + "» ничего не найдено."
+                : messageSource.getMessage("wizard.select_tournament", ctx.fromId(), sName);
+            if (msgId > 0) {
+                MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), msgId, text, keyboard);
+            } else {
+                MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(), text, keyboard);
+            }
+
+        } else { // SPORT
+            sessionService.setState(ctx.fromId(), BotState.SELECTING_SPORT);
+            Optional<String> bm = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
+            if (bm.isEmpty()) return;
+
+            List<SportDto> filtered = wizardCache.getCachedSports(ctx.fromId())
+                .map(list -> list.stream()
+                    .filter(s -> s.name().toLowerCase().contains(lower))
+                    .collect(Collectors.toList()))
+                .orElse(List.of());
+
+            var keyboard = BookmakerSelectCallback.buildSportsKeyboard(
+                filtered, 0,
+                messageSource.getMessage("menu.back", ctx.fromId()),
+                wizardProps.getSportPageSize());
+
+            String text = filtered.isEmpty()
+                ? "🔍 По запросу «" + query + "» ничего не найдено."
+                : messageSource.getMessage("wizard.select_sport", ctx.fromId(), bm.get());
+            if (msgId > 0) {
+                MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), msgId, text, keyboard);
+            } else {
+                MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(), text, keyboard);
+            }
         }
     }
 

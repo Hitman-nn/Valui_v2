@@ -50,7 +50,7 @@ public class ControllerDetailCallback implements CallbackHandler {
 
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             buildDetailText(c, ctx.chatId()),
-            buildDetailKeyboard(c, ctx.chatId()));
+            buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
     }
 
     public static String buildDetailText(ControllerDto c, Long chatId) {
@@ -79,10 +79,15 @@ public class ControllerDetailCallback implements CallbackHandler {
         return sb.toString();
     }
 
-    public static InlineKeyboardMarkup buildDetailKeyboard(ControllerDto c, Long chatId) {
+    public static InlineKeyboardMarkup buildDetailKeyboard(ControllerDto c, Long fromId, Long chatId) {
+        boolean isGroupChat = chatId != null && chatId < 0;
+        boolean isOwner = !isGroupChat
+            || c.ownerTelegramId() == null
+            || c.ownerTelegramId().equals(fromId);
+
         var builder = InlineKeyboardBuilder.create();
 
-        if (c.isActive()) {
+        if (c.isActive() && isOwner) {
             builder.button("🛑 Остановить", CallbackData.ctrlStop(c.id()));
             if (c.isMuted()) {
                 builder.button("🔔 Размьютить", CallbackData.ctrlUnmute(c.id()));
@@ -92,7 +97,7 @@ public class ControllerDetailCallback implements CallbackHandler {
             builder.row();
         }
 
-        if (c.type() == ControllerType.SPORT) {
+        if (c.type() == ControllerType.SPORT && isOwner) {
             builder.button("✏️ Изменить фильтр", CallbackData.ctrlFilterEdit(c.id()));
             builder.row();
         }

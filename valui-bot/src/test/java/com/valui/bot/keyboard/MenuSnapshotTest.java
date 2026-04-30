@@ -78,14 +78,10 @@ class MenuSnapshotTest {
         InlineKeyboardMarkup kb = menu.keyboard();
         // 2 BK buttons
         assertThat(kb.getKeyboard()).hasSize(2);
-        // XBET has muted controller → 🔕
-        assertThat(kb.getKeyboard().get(0).get(0).getText()).startsWith("🔕");
-        assertThat(kb.getKeyboard().get(0).get(0).getText()).contains("XBET");
-        assertThat(kb.getKeyboard().get(0).get(0).getText()).contains("(2)");
+        assertThat(kb.getKeyboard().get(0).get(0).getText()).isEqualTo("XBET (2)");
         assertThat(kb.getKeyboard().get(0).get(0).getCallbackData())
             .isEqualTo(CallbackData.ctrlByBookmaker("XBET"));
-        // BETBOOM all active → 🟢
-        assertThat(kb.getKeyboard().get(1).get(0).getText()).startsWith("🟢");
+        assertThat(kb.getKeyboard().get(1).get(0).getText()).isEqualTo("BETBOOM (1)");
     }
 
     @Test
@@ -95,7 +91,7 @@ class MenuSnapshotTest {
             ctrl(UUID.randomUUID(), "Лига чемпионов", "XBET", ControllerType.TOURNAMENT, true,  false),
             ctrl(UUID.randomUUID(), "АПЛ",            "XBET", ControllerType.TOURNAMENT, true,  true)
         );
-        MenuMessage menu = BookmakerMenuBuilder.buildControllerList("XBET", controllers, 0);
+        MenuMessage menu = BookmakerMenuBuilder.buildControllerList("XBET", controllers, 0, 30);
         InlineKeyboardMarkup kb = menu.keyboard();
         // 2 items + back = 3 rows
         assertThat(kb.getKeyboard()).hasSize(3);
@@ -115,13 +111,13 @@ class MenuSnapshotTest {
     private static ControllerDto ctrl(UUID id, String title, String bookmaker,
                                       ControllerType type, boolean active, boolean muted) {
         return new ControllerDto(id, bookmaker, "https://example.com", title,
-                null, muted, active, Instant.now(), null, 0, type, null);
+                null, muted, active, Instant.now(), null, 0, type, null, null);
     }
 
     @Test
     @DisplayName("ControllerMenuBuilder: empty list → text only, empty keyboard")
     void controllerMenu_empty_noButtons() {
-        MenuMessage menu = ControllerMenuBuilder.build(List.of(), 0);
+        MenuMessage menu = ControllerMenuBuilder.build(List.of(), 0, 30);
         assertThat(menu.text()).contains("пуст");
         assertThat(menu.keyboard().getKeyboard()).isEmpty();
     }
@@ -136,7 +132,7 @@ class MenuSnapshotTest {
             ctrl(id3, "Stopped","OLIMP",  ControllerType.TOURNAMENT, false, false)
         );
 
-        MenuMessage menu = ControllerMenuBuilder.build(controllers, 0);
+        MenuMessage menu = ControllerMenuBuilder.build(controllers, 0, 30);
         InlineKeyboardMarkup kb = menu.keyboard();
         assertThat(kb.getKeyboard().get(0).get(0).getText()).startsWith("🟢");
         assertThat(kb.getKeyboard().get(1).get(0).getText()).startsWith("🔕");
@@ -153,7 +149,7 @@ class MenuSnapshotTest {
                     ControllerType.MATCH, true, false))
             .toList();
 
-        MenuMessage menu = ControllerMenuBuilder.build(controllers, 0);
+        MenuMessage menu = ControllerMenuBuilder.build(controllers, 0, 30);
         InlineKeyboardMarkup kb = menu.keyboard();
         // 6 items + 1 nav = 7 rows (no Back)
         assertThat(kb.getKeyboard()).hasSize(7);

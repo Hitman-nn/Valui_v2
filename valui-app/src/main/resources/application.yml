@@ -144,6 +144,10 @@ valui:
     allowed-ips:
       - "149.154.0.0/16"   # Telegram data centers (DC1-DC5)
       - "91.108.0.0/16"    # Telegram MTProto
+    wizard:
+      sport-page-size: ${BOT_WIZARD_SPORT_PAGE_SIZE:10}
+      tournament-page-size: ${BOT_WIZARD_TOURN_PAGE_SIZE:15}
+      stale-threshold-days: ${BOT_WIZARD_STALE_DAYS:30}
   monitor:
     poll-interval-ms: 30000         # legacy — kept for reference
     max-concurrent-tasks: 50        # global VT task cap

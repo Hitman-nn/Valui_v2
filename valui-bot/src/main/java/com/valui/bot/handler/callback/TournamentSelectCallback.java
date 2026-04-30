@@ -1,5 +1,6 @@
 package com.valui.bot.handler.callback;
 
+import com.valui.bot.config.BotWizardProperties;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
@@ -7,6 +8,7 @@ import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.bot.service.BotSessionService;
+import com.valui.bot.service.WizardCacheService;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
 import com.valui.common.domain.BookmakerType;
@@ -24,23 +26,25 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class TournamentSelectCallback implements CallbackHandler {
 
-    private final BotSessionService sessionService;
-    private final BotMessageSource messageSource;
-    private final ParserFactory parserFactory;
-    private final ControllerService controllerService;
-    private final PlanLimitFacade planLimitFacade;
+    private final BotSessionService   sessionService;
+    private final BotMessageSource    messageSource;
+    private final ParserFactory       parserFactory;
+    private final ControllerService   controllerService;
+    private final PlanLimitFacade     planLimitFacade;
     private final WizardBackNavigator backNavigator;
+    private final WizardCacheService  wizardCache;
+    private final BotWizardProperties wizardProps;
 
     @Override
     public String callbackPrefix() { return "TOURN:"; }
@@ -59,10 +63,15 @@ public class TournamentSelectCallback implements CallbackHandler {
             return;
         }
 
+        if (ctx.session().getState() != BotState.SELECTING_TOURNAMENT) {
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId, "⚠️ Это не ваше меню");
+            return;
+        }
+
         // "← Назад" from tournament list → back to sport selection
         if (data.equals(CallbackData.TOURN_BACK)) {
             MessageSend.answerCallback(ctx.sender(), callbackId);
-            backNavigator.returnToSportList(ctx.sender(), ctx.chatId(), messageId);
+            backNavigator.returnToSportList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
             return;
         }
 
@@ -79,22 +88,30 @@ public class TournamentSelectCallback implements CallbackHandler {
 
     private void handleTournamentPage(BotUpdateContext ctx, String data, int messageId) {
         int page = parsePageNum(data.substring("TOURN:PAGE:".length()));
-        Optional<String> bm       = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
-        Optional<String> sportId  = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_ID);
+        Optional<String> bm         = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
+        Optional<String> sportId    = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_ID);
         Optional<String> sportName  = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_NAME);
         Optional<String> sportAlias = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_ALIAS);
 
         if (bm.isEmpty() || sportId.isEmpty()) return;
 
-        BookmakerParser parser = getParser(bm.get());
-        if (parser == null) return;
-
-        ParseResult<List<TournamentDto>> result = parser.fetchTournaments(sportId.get());
-        if (!result.success() || result.data() == null) return;
+        // Use cache — no HTTP call on page navigation
+        List<TournamentDto> tournaments;
+        Optional<List<TournamentDto>> cached = wizardCache.getCachedTournaments(ctx.fromId());
+        if (cached.isPresent()) {
+            tournaments = cached.get();
+        } else {
+            BookmakerParser parser = getParser(bm.get());
+            if (parser == null) return;
+            ParseResult<List<TournamentDto>> result = parser.fetchTournaments(sportId.get());
+            if (!result.success() || result.data() == null) return;
+            tournaments = result.data();
+            wizardCache.cacheTournaments(ctx.fromId(), tournaments);
+        }
 
         String sName  = sportName.orElse(sportId.get());
         String sAlias = sportAlias.orElse(sportId.get());
-        Set<String> existingUrls = buildExistingUrls(ctx, bm.get());
+        Map<String, Instant> urlToLastEventAt = buildUrlToLastEventAtMap(ctx, bm.get());
         BookmakerType bookmakerType = BookmakerType.valueOf(bm.get().toUpperCase());
         String sportUrl = buildSportUrl(bookmakerType, sportId.get(), sAlias);
 
@@ -102,7 +119,8 @@ public class TournamentSelectCallback implements CallbackHandler {
         String backText   = messageSource.getMessage("menu.back",   ctx.fromId());
         String cancelText = messageSource.getMessage("menu.cancel", ctx.fromId());
         InlineKeyboardMarkup keyboard = SportSelectCallback.buildTournamentKeyboard(
-            result.data(), page, monitorAllText, backText, cancelText, existingUrls, sportUrl);
+            tournaments, page, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
+            wizardProps.getTournamentPageSize(), wizardProps.getStaleThresholdDays());
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_tournament", ctx.fromId(), sName), keyboard);
     }
@@ -142,24 +160,30 @@ public class TournamentSelectCallback implements CallbackHandler {
 
         if (bm.isEmpty() || sportId.isEmpty()) return;
 
-        BookmakerParser parser = getParser(bm.get());
-        if (parser == null) {
-            MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("wizard.parser_error", ctx.fromId(), bm.get()));
-            return;
-        }
-
-        ParseResult<List<TournamentDto>> result = parser.fetchTournaments(sportId.get());
-        if (!result.success() || result.data() == null) {
-            MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("wizard.parser_error", ctx.fromId(), bm.get()));
-            return;
-        }
-
-        TournamentDto tournament = result.data().stream()
-            .filter(t -> t.id().equals(tournamentId))
-            .findFirst()
+        // Try to resolve the tournament from cache first — avoids a full re-fetch on every selection
+        TournamentDto tournament = wizardCache.getCachedTournaments(ctx.fromId())
+            .flatMap(list -> list.stream().filter(t -> t.id().equals(tournamentId)).findFirst())
             .orElse(null);
+
+        if (tournament == null) {
+            BookmakerParser parser = getParser(bm.get());
+            if (parser == null) {
+                MessageSend.text(ctx.sender(), ctx.chatId(),
+                    messageSource.getMessage("wizard.parser_error", ctx.fromId(), bm.get()));
+                return;
+            }
+            ParseResult<List<TournamentDto>> result = parser.fetchTournaments(sportId.get());
+            if (!result.success() || result.data() == null) {
+                MessageSend.text(ctx.sender(), ctx.chatId(),
+                    messageSource.getMessage("wizard.parser_error", ctx.fromId(), bm.get()));
+                return;
+            }
+            wizardCache.cacheTournaments(ctx.fromId(), result.data());
+            tournament = result.data().stream()
+                .filter(t -> t.id().equals(tournamentId))
+                .findFirst()
+                .orElse(null);
+        }
 
         if (tournament == null) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
@@ -181,7 +205,7 @@ public class TournamentSelectCallback implements CallbackHandler {
         }
 
         // Return to tournament list — the created entry will now appear marked with ✅
-        backNavigator.returnToTournamentList(ctx.sender(), ctx.chatId(), messageId);
+        backNavigator.returnToTournamentList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
     }
 
     private void showFilterPrompt(BotUpdateContext ctx, int messageId) {
@@ -197,7 +221,7 @@ public class TournamentSelectCallback implements CallbackHandler {
             keyboard);
     }
 
-    static String buildSportUrl(BookmakerType bm, String sportId, String alias) {
+    public static String buildSportUrl(BookmakerType bm, String sportId, String alias) {
         return switch (bm) {
             case XBET    -> "https://1xstavka.ru/line/" + sportId;
             case FONBET  -> "https://www.fon.bet/sports/" + sportId;
@@ -207,14 +231,15 @@ public class TournamentSelectCallback implements CallbackHandler {
         };
     }
 
-    Set<String> buildExistingUrls(BotUpdateContext ctx, String bookmakerCode) {
+    Map<String, Instant> buildUrlToLastEventAtMap(BotUpdateContext ctx, String bookmakerCode) {
         List<ControllerDto> controllers = ctx.isGroupChat()
             ? controllerService.getGroupControllers(ctx.chatId())
             : controllerService.getUserControllers(ctx.fromId());
-        return controllers.stream()
+        Map<String, Instant> map = new HashMap<>();
+        controllers.stream()
             .filter(c -> bookmakerCode.equalsIgnoreCase(c.bookmaker()))
-            .map(ControllerDto::url)
-            .collect(Collectors.toSet());
+            .forEach(c -> map.put(c.url(), c.lastEventAt()));
+        return map;
     }
 
     private BookmakerParser getParser(String bookmakerCode) {

@@ -37,7 +37,7 @@ public class ListCommandHandler implements CommandHandler {
         // In a group: show that group's controllers. In private: show all user's controllers.
         List<ControllerDto> controllers = ctx.isGroupChat()
             ? controllerService.getGroupControllers(ctx.chatId())
-            : controllerService.getUserControllers(ctx.fromId());
+            : controllerService.getUserControllersForChat(ctx.fromId(), ctx.chatId());
 
         if (controllers.isEmpty()) {
             MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(),
