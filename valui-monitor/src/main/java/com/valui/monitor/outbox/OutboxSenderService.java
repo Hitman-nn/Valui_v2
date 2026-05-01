@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -35,6 +36,7 @@ public class OutboxSenderService {
     private final SportEventKafkaMetrics metrics;
     private final OutboxMarkingService markingService;
 
+    @Async
     public void publishImmediate(String externalEventId) {
         outboxRepo.findAllByExternalEventIdAndSentAtIsNull(externalEventId)
                 .forEach(this::doPublish);
