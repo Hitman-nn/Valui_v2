@@ -48,6 +48,9 @@ public interface ControllerService {
     /** Admin / system use: deactivates the controller without ownership check. */
     void deactivateController(UUID controllerId);
 
+    /** Admin use: paginated list of ALL controllers across all users. */
+    Page<ControllerDto> getAllControllers(Pageable pageable);
+
     /**
      * Mutes notifications for chatId (reversible — unmute restores them).
      * If no active subscriptions remain, the controller is unscheduled and reset for warmup.

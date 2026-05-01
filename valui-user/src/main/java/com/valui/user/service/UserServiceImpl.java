@@ -18,6 +18,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -127,6 +129,32 @@ public class UserServiceImpl implements UserService {
 
         SubscriptionPlanEntity plan = subscription.getPlan();
         return new UserWithSubscriptionDto(user, plan, subscription);
+    }
+
+    // ─── Admin-only operations ────────────────────────────────────────────────
+
+    @Override
+    public Page<UserEntity> findAllUsers(Pageable pageable) {
+        return userRepository.findAll(pageable);
+    }
+
+    @Override
+    public UserEntity findById(UUID userId) {
+        return userRepository.findById(userId)
+            .orElseThrow(() -> new UserNotFoundException(userId));
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
+    @CacheEvict(value = USERS_CACHE, allEntries = true)
+    @Audit(action = "UPDATE_ROLE", entityType = "User")
+    public void updateRole(UUID userId, UserRole newRole) {
+        UserEntity user = userRepository.findById(userId)
+            .orElseThrow(() -> new UserNotFoundException(userId));
+        user.setRole(newRole);
+        userRepository.save(user);
+        log.info("[ADMIN] Role changed: userId={} newRole={}", userId, newRole);
     }
 
     // ─── private helpers ─────────────────────────────────────────────────────

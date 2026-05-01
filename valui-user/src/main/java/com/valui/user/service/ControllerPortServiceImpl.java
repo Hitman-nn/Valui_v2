@@ -92,4 +92,9 @@ public class ControllerPortServiceImpl implements ControllerPortService {
     public Optional<ControllerSubscriptionEntity> findSubscription(UUID controllerId, Long chatId) {
         return subscriptionRepository.findByControllerIdAndChatId(controllerId, chatId);
     }
+
+    @Override
+    public Page<ControllerEntity> findAllPageable(Pageable pageable) {
+        return repository.findAll(pageable);
+    }
 }

@@ -24,6 +24,11 @@
             <groupId>com.valui</groupId>
             <artifactId>valui-user</artifactId>
         </dependency>
+        <!-- ControllerService, ControllerDto — REST API for controller management -->
+        <dependency>
+            <groupId>com.valui</groupId>
+            <artifactId>valui-monitor</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -78,6 +83,19 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
             <optional>true</optional>
+        </dependency>
+
+        <!-- HATEOAS: _links in responses -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-hateoas</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

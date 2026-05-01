@@ -47,4 +47,7 @@ public interface ControllerPortService {
     /** True if at least one subscription is active (not muted, not paused by tokens). */
     boolean hasActiveSubscriptions(UUID controllerId);
     Optional<ControllerSubscriptionEntity> findSubscription(UUID controllerId, Long chatId);
+
+    /** Admin use: paginated listing of all controllers across all users. */
+    Page<ControllerEntity> findAllPageable(Pageable pageable);
 }

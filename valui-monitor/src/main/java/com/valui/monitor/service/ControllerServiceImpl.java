@@ -201,6 +201,11 @@ public class ControllerServiceImpl implements ControllerService {
     }
 
     @Override
+    public Page<ControllerDto> getAllControllers(Pageable pageable) {
+        return controllerPort.findAllPageable(pageable).map(this::toDto);
+    }
+
+    @Override
     @Transactional
     public void stopForChat(UUID controllerId, Long telegramId, Long chatId) {
         UserEntity user = requireUser(telegramId);
