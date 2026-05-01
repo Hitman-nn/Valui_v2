@@ -87,7 +87,7 @@ class SportEventConsumerTest {
         given(userRepo.findById(USER_ID)).willReturn(Optional.of(activeUser));
         given(detectedEventRepo.findByControllerIdAndEventExternalId(any(), any()))
                 .willReturn(Optional.empty());
-        given(notificationLogService.createPending(any(), any(), any())).willReturn(logEntry);
+        given(notificationLogService.createPending(any(), any(), any(), any())).willReturn(logEntry);
         given(formatter.buildTelegramMessage(any(), any()))
                 .willReturn("🔔 *FONBET*\nSpartak - CSKA\nhttps://...");
         // Production code calls send(topic, key, value) — the 3-arg overload, not send(ProducerRecord)

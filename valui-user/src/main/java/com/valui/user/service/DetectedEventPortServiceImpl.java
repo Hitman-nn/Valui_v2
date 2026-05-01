@@ -25,6 +25,13 @@ public class DetectedEventPortServiceImpl implements DetectedEventPortService {
     }
 
     @Override
+    @Transactional
+    public boolean insertIfAbsent(UUID id, UUID controllerId, String externalId,
+                                  String title, String url) {
+        return repository.insertIfAbsent(id, controllerId, externalId, title, url) > 0;
+    }
+
+    @Override
     public long countByControllerId(UUID controllerId) {
         return repository.countByControllerId(controllerId);
     }
@@ -32,5 +39,10 @@ public class DetectedEventPortServiceImpl implements DetectedEventPortService {
     @Override
     public List<String> findExternalIdsByControllerIdSince(UUID controllerId, OffsetDateTime cutoff) {
         return repository.findExternalIdsByControllerIdAndDetectedAtAfter(controllerId, cutoff);
+    }
+
+    @Override
+    public List<String> findAllExternalIdsByControllerId(UUID controllerId) {
+        return repository.findAllExternalIdsByControllerId(controllerId);
     }
 }

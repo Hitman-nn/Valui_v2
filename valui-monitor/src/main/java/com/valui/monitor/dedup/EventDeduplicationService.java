@@ -133,17 +133,23 @@ public class EventDeduplicationService {
     // ── Nightly sync ──────────────────────────────────────────────────────────
 
     /**
-     * Reconciles the Redis SET with an authoritative set from the DB.
-     *   - Removes from Redis anything absent from DB (manual deletion recovery).
-     *   - Adds to Redis anything present in DB but absent from Redis (crash recovery).
+     * Two-directional sync with separate authoritative sets per direction.
+     *
+     * @param allDbIds    ALL known event IDs for the controller (no time limit).
+     *                    Used for remove: only evict what genuinely doesn't exist in DB at all.
+     *                    This prevents false eviction of old-but-valid events whose detectedAt
+     *                    falls outside the TTL window but are still in the Redis SET because a
+     *                    newer event refreshed the key TTL.
+     * @param recentDbIds Event IDs detected within the TTL window (cutoff = now - dedupTtlDays).
+     *                    Used for add: recovers events missing from Redis after crash / restart.
      */
-    public void syncSeenEvents(UUID controllerId, Set<String> authoritative) {
+    public void syncSeenEvents(UUID controllerId, Set<String> allDbIds, Set<String> recentDbIds) {
         Set<String> inRedis = new HashSet<>(getSeenEventIds(controllerId));
 
         Set<String> toRemove = new HashSet<>(inRedis);
-        toRemove.removeAll(authoritative);
+        toRemove.removeAll(allDbIds);
 
-        Set<String> toAdd = new HashSet<>(authoritative);
+        Set<String> toAdd = new HashSet<>(recentDbIds);
         toAdd.removeAll(inRedis);
 
         if (!toRemove.isEmpty()) {

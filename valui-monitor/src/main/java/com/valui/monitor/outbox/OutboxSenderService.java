@@ -42,8 +42,10 @@ public class OutboxSenderService {
 
     @Scheduled(fixedDelayString = "${valui.monitor.outbox.scan-interval-ms:5000}")
     public void scanAndSend() {
-        OffsetDateTime cutoff = OffsetDateTime.now().minusSeconds(15);
-        List<OutboxEvent> pending = outboxRepo.findUnsentBefore(cutoff);
+        OffsetDateTime now = OffsetDateTime.now();
+        // Pick up rows unsent for >15 s whose lock (if any) is stale by >30 s
+        List<OutboxEvent> pending = outboxRepo.findUnsentBefore(
+                now.minusSeconds(15), now.minusSeconds(30));
         if (!pending.isEmpty()) {
             log.debug("Outbox retry: {} unsent event(s)", pending.size());
             pending.forEach(this::doPublish);
@@ -51,6 +53,14 @@ public class OutboxSenderService {
     }
 
     private void doPublish(OutboxEvent outbox) {
+        // Atomically claim the row before sending to prevent concurrent duplicate sends
+        // from publishImmediate() and scanAndSend() racing on the same row.
+        int claimed = outboxRepo.tryLock(outbox.getId(), OffsetDateTime.now());
+        if (claimed == 0) {
+            log.debug("Outbox row {} already locked or sent — skipping", outbox.getId());
+            return;
+        }
+
         SportEventDetectedMessage message = mapper.fromOutbox(outbox);
         ProducerRecord<String, Object> record =
                 new ProducerRecord<>(outbox.getTopic(), outbox.getMessageKey(), message);
@@ -63,6 +73,7 @@ public class OutboxSenderService {
                 metrics.onSendFailed();
                 log.error("Outbox publish failed [id={} externalEventId={}]: {}",
                         outbox.getId(), outbox.getExternalEventId(), ex.getMessage());
+                // lockedAt stays set; scan will retry after the 30 s stale-lock window
             } else {
                 metrics.onSendSuccess(System.nanoTime() - startNs);
                 markingService.markSent(outbox.getId());

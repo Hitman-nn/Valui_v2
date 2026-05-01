@@ -51,6 +51,9 @@ public class NotificationLogEntity implements HasCreatedAt {
     @Column(name = "sent_at")
     private OffsetDateTime sentAt;
 
+    @Column(name = "chat_id")
+    private Long chatId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 }

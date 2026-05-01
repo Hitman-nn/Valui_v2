@@ -63,4 +63,7 @@ public class OutboxEvent {
     @Column(name = "retry_count", nullable = false)
     @Builder.Default
     private int retryCount = 0;
+
+    @Column(name = "locked_at")
+    private OffsetDateTime lockedAt;
 }

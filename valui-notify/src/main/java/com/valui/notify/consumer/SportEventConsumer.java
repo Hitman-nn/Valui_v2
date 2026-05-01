@@ -102,8 +102,20 @@ public class SportEventConsumer {
                 .map(e -> e.getId())
                 .orElse(null);
 
-        NotificationLogEntity logEntry = notificationLogService.createPending(
-                userId, detectedEventId, NotificationChannel.TELEGRAM);
+        // Use chatId (subscription target) for delivery; fall back to telegramId for legacy rows
+        Long targetChatId = event.chatId() != null ? event.chatId() : event.telegramId();
+
+        NotificationLogEntity logEntry;
+        try {
+            logEntry = notificationLogService.createPending(
+                    userId, detectedEventId, NotificationChannel.TELEGRAM, targetChatId);
+        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+            // Unique constraint (event_id, chat_id, channel) violated — Kafka message was
+            // replayed (consumer rebalance / restart). Notification already queued, skip.
+            log.debug("Duplicate notification suppressed [controllerId={} externalEventId={} chatId={}]",
+                    controllerId, event.externalEventId(), targetChatId);
+            return;
+        }
 
         String messageText = formatter.buildTelegramMessage(event, controller);
 
@@ -121,9 +133,6 @@ public class SportEventConsumer {
             // TOURNAMENT / MATCH → "🔗 Открыть матч" URL button
             eventUrl = event.url();
         }
-
-        // Use chatId (subscription target) for delivery; fall back to telegramId for legacy rows
-        Long targetChatId = event.chatId() != null ? event.chatId() : event.telegramId();
 
         UserNotificationRequestMessage request = new UserNotificationRequestMessage(
                 logEntry.getId().toString(),

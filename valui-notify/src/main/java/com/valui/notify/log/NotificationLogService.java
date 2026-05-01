@@ -24,7 +24,8 @@ public class NotificationLogService {
     private final DetectedEventRepository detectedEventRepo;
 
     @Transactional
-    public NotificationLogEntity createPending(UUID userId, UUID detectedEventId, NotificationChannel channel) {
+    public NotificationLogEntity createPending(UUID userId, UUID detectedEventId,
+                                               NotificationChannel channel, Long chatId) {
         UserEntity user = userId != null ? userRepo.getReferenceById(userId) : null;
         DetectedEventEntity event = detectedEventId != null
                 ? detectedEventRepo.getReferenceById(detectedEventId)
@@ -34,6 +35,7 @@ public class NotificationLogService {
                 .user(user)
                 .event(event)
                 .channel(channel)
+                .chatId(chatId)
                 .status(NotificationStatus.PENDING)
                 .build());
     }
@@ -45,6 +47,13 @@ public class NotificationLogService {
             log.setSentAt(OffsetDateTime.now());
             log.setAttempts(log.getAttempts() + 1);
         });
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isAlreadySent(UUID logId) {
+        return repo.findById(logId)
+                .map(log -> log.getStatus() == NotificationStatus.SENT)
+                .orElse(false);
     }
 
     @Transactional

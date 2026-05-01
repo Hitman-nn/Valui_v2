@@ -49,12 +49,14 @@ class DedupSyncSchedulerTest {
     void sync_callsSyncSeenEventsPerController() {
         ControllerEntity ctrl = controllerEntity(CTRL_ID);
         given(controllerPort.findAllActive()).willReturn(List.of(ctrl));
+        given(detectedEventPort.findAllExternalIdsByControllerId(eq(CTRL_ID)))
+                .willReturn(List.of("e1", "e2", "e3"));
         given(detectedEventPort.findExternalIdsByControllerIdSince(eq(CTRL_ID), any()))
                 .willReturn(List.of("e1", "e2", "e3"));
 
         scheduler.sync();
 
-        verify(dedup).syncSeenEvents(eq(CTRL_ID), eq(Set.of("e1", "e2", "e3")));
+        verify(dedup).syncSeenEvents(eq(CTRL_ID), eq(Set.of("e1", "e2", "e3")), eq(Set.of("e1", "e2", "e3")));
     }
 
     @Test
@@ -64,7 +66,7 @@ class DedupSyncSchedulerTest {
 
         scheduler.sync();
 
-        verify(dedup, org.mockito.Mockito.never()).syncSeenEvents(any(), any());
+        verify(dedup, org.mockito.Mockito.never()).syncSeenEvents(any(), any(), any());
     }
 
     @Test
@@ -76,12 +78,14 @@ class DedupSyncSchedulerTest {
                 .willReturn(List.of(controllerEntity(ctrl1), controllerEntity(ctrl2)));
         given(detectedEventPort.findExternalIdsByControllerIdSince(eq(ctrl1), any()))
                 .willThrow(new RuntimeException("DB error"));
+        given(detectedEventPort.findAllExternalIdsByControllerId(eq(ctrl2)))
+                .willReturn(List.of("good-event"));
         given(detectedEventPort.findExternalIdsByControllerIdSince(eq(ctrl2), any()))
                 .willReturn(List.of("good-event"));
 
         scheduler.sync(); // must not throw
 
-        verify(dedup).syncSeenEvents(eq(ctrl2), eq(Set.of("good-event")));
+        verify(dedup).syncSeenEvents(eq(ctrl2), eq(Set.of("good-event")), eq(Set.of("good-event")));
     }
 
     private ControllerEntity controllerEntity(UUID id) {

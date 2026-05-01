@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -55,8 +56,14 @@ public class DedupSyncScheduler {
     }
 
     private void syncOne(UUID controllerId, OffsetDateTime cutoff) {
-        List<String> dbIds = detectedEventPort
-                .findExternalIdsByControllerIdSince(controllerId, cutoff);
-        dedup.syncSeenEvents(controllerId, new HashSet<>(dbIds));
+        // toRemove: all-time DB set — only evict from Redis what genuinely doesn't exist in DB at all
+        Set<String> allDbIds = new HashSet<>(
+                detectedEventPort.findAllExternalIdsByControllerId(controllerId));
+
+        // toAdd: recent DB set — recover events within the TTL window that are missing from Redis
+        Set<String> recentDbIds = new HashSet<>(
+                detectedEventPort.findExternalIdsByControllerIdSince(controllerId, cutoff));
+
+        dedup.syncSeenEvents(controllerId, allDbIds, recentDbIds);
     }
 }

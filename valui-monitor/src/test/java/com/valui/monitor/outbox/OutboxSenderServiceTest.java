@@ -67,9 +67,10 @@ class OutboxSenderServiceTest {
     // ── publishImmediate ──────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("publishImmediate: found unsent row → sends to Kafka and marks sent on success")
+    @DisplayName("publishImmediate: found unsent row → claims lock, sends to Kafka, marks sent")
     void publishImmediate_found_sendsAndMarks() {
         given(outboxRepo.findAllByExternalEventIdAndSentAtIsNull("ext-1")).willReturn(List.of(outbox));
+        given(outboxRepo.tryLock(eq(1L), any())).willReturn(1);
         given(mapper.fromOutbox(outbox)).willReturn(message);
         CompletableFuture<SendResult<String, Object>> future = CompletableFuture.completedFuture(null);
         given(kafkaTemplate.send(any(ProducerRecord.class))).willReturn(future);
@@ -91,12 +92,24 @@ class OutboxSenderServiceTest {
         verifyNoInteractions(kafkaTemplate);
     }
 
+    @Test
+    @DisplayName("publishImmediate: row already locked → skips Kafka send")
+    void publishImmediate_alreadyLocked_skips() {
+        given(outboxRepo.findAllByExternalEventIdAndSentAtIsNull("ext-1")).willReturn(List.of(outbox));
+        given(outboxRepo.tryLock(eq(1L), any())).willReturn(0); // already locked
+
+        service.publishImmediate("ext-1");
+
+        verifyNoInteractions(kafkaTemplate);
+    }
+
     // ── scanAndSend ───────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("scanAndSend: unsent events older than cutoff → all sent")
+    @DisplayName("scanAndSend: unsent events older than cutoff → claims lock, sends, marks sent")
     void scanAndSend_unsentOldEvents_allSent() {
-        given(outboxRepo.findUnsentBefore(any())).willReturn(List.of(outbox));
+        given(outboxRepo.findUnsentBefore(any(), any())).willReturn(List.of(outbox));
+        given(outboxRepo.tryLock(eq(1L), any())).willReturn(1);
         given(mapper.fromOutbox(outbox)).willReturn(message);
         given(kafkaTemplate.send(any(ProducerRecord.class))).willReturn(CompletableFuture.completedFuture(null));
 
@@ -109,7 +122,7 @@ class OutboxSenderServiceTest {
     @Test
     @DisplayName("scanAndSend: no unsent events → no Kafka interaction")
     void scanAndSend_noUnsent_noKafka() {
-        given(outboxRepo.findUnsentBefore(any())).willReturn(List.of());
+        given(outboxRepo.findUnsentBefore(any(), any())).willReturn(List.of());
 
         service.scanAndSend();
 
@@ -119,7 +132,8 @@ class OutboxSenderServiceTest {
     @Test
     @DisplayName("scanAndSend: Kafka send failure → metrics recorded, row stays unsent")
     void scanAndSend_kafkaFailure_metricsAndNoMark() {
-        given(outboxRepo.findUnsentBefore(any())).willReturn(List.of(outbox));
+        given(outboxRepo.findUnsentBefore(any(), any())).willReturn(List.of(outbox));
+        given(outboxRepo.tryLock(eq(1L), any())).willReturn(1);
         given(mapper.fromOutbox(outbox)).willReturn(message);
         CompletableFuture<SendResult<String, Object>> failed = new CompletableFuture<>();
         failed.completeExceptionally(new RuntimeException("broker unavailable"));

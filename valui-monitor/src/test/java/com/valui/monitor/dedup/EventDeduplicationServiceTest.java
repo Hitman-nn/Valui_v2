@@ -199,12 +199,13 @@ class EventDeduplicationServiceTest {
     // ── syncSeenEvents ────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("syncSeenEvents: stale Redis entries not in DB are removed")
+    @DisplayName("syncSeenEvents: stale Redis entries absent from all DB IDs are removed")
     void syncSeenEvents_removesStale() {
         given(setOps.members(KEY_PREFIX + CTRL_ID))
                 .willReturn(new HashSet<>(Set.of("stale", "good")));
 
-        dedup.syncSeenEvents(CTRL_ID, Set.of("good"));
+        // "stale" not in allDbIds → removed; recentDbIds used only for toAdd direction
+        dedup.syncSeenEvents(CTRL_ID, Set.of("good"), Set.of("good"));
 
         verify(setOps).remove(eq(KEY_PREFIX + CTRL_ID), eq("stale"));
     }
@@ -215,7 +216,8 @@ class EventDeduplicationServiceTest {
         given(setOps.members(KEY_PREFIX + CTRL_ID))
                 .willReturn(new HashSet<>(Set.of("existing")));
 
-        dedup.syncSeenEvents(CTRL_ID, Set.of("existing", "recovered"));
+        // "recovered" is in recentDbIds but not in Redis → added
+        dedup.syncSeenEvents(CTRL_ID, Set.of("existing", "recovered"), Set.of("existing", "recovered"));
 
         verify(setOps).add(eq(KEY_PREFIX + CTRL_ID), eq("recovered"));
     }
@@ -227,7 +229,7 @@ class EventDeduplicationServiceTest {
         given(setOps.members(KEY_PREFIX + CTRL_ID))
                 .willReturn(new HashSet<>(same));
 
-        dedup.syncSeenEvents(CTRL_ID, same);
+        dedup.syncSeenEvents(CTRL_ID, same, same);
 
         verify(setOps, never()).add(anyString(), any(String[].class));
         verify(setOps, never()).remove(anyString(), any(Object[].class));

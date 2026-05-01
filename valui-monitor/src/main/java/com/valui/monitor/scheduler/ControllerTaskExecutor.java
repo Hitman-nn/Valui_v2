@@ -179,21 +179,25 @@ public class ControllerTaskExecutor {
             // Redis atomic claim replaces the per-event DB existsBy query (O(1) vs O(log n))
             if (!dedup.claimIfNew(ctx.controllerId(), item.id())) continue;
 
-            if (!isFirstRun) {
-                try {
-                    DetectedEventEntity entity = DetectedEventEntity.builder()
-                            .controller(ctrl)
-                            .eventExternalId(item.id())
-                            .title(item.title() != null ? item.title() : item.id())
-                            .url(item.url())
-                            .build();
-                    saved.add(detectedEventPort.save(entity));
-                } catch (org.springframework.dao.DataIntegrityViolationException ex) {
-                    // Redis claimed it as new but DB already has it (TTL expired + race condition).
-                    // Treat as duplicate — the nightly sync will reconcile.
-                    log.debug("Duplicate event in DB (Redis TTL expired?): controller={} eventId={}",
-                            ctx.controllerId(), item.id());
-                }
+            // Always persist to DB — including warmup — so the nightly dedup sync can find
+            // these events and won't clear them from Redis on the first 3 AM run.
+            // ON CONFLICT DO NOTHING keeps the transaction clean when Redis TTL expires and
+            // already-seen events pass claimIfNew() (the key was gone but DB still has them).
+            UUID entityId = UUID.randomUUID();
+            String title  = item.title() != null ? item.title() : item.id();
+            boolean inserted = detectedEventPort.insertIfAbsent(
+                    entityId, ctrl.getId(), item.id(), title, item.url());
+
+            if (inserted && !isFirstRun) {
+                // Build a value object for the fan-out loop below; fields match what was inserted.
+                DetectedEventEntity entity = DetectedEventEntity.builder()
+                        .id(entityId)
+                        .controller(ctrl)
+                        .eventExternalId(item.id())
+                        .title(title)
+                        .url(item.url())
+                        .build();
+                saved.add(entity);
             }
         }
 

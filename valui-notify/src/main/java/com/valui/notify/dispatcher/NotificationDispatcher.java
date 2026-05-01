@@ -45,13 +45,22 @@ public class NotificationDispatcher {
             return;
         }
 
-        Long telegramId = request.telegramId();
-        UUID logId = parseLogId(request.notificationLogId());
+        UUID logId  = parseLogId(request.notificationLogId());
+        UUID userId = parseUserId(request.userId());
 
-        // При нулевом балансе — пропускаем, контроллер уже на паузе
-        if (telegramId != null && tokenLedgerService.getBalance(telegramId) == 0) {
-            log.debug("[DISPATCH] Пропуск: нулевой баланс telegramId={}", telegramId);
+        // При нулевом балансе — пропускаем, контроллер уже на паузе.
+        // Используем userId (UUID), а не telegramId: для групповых чатов telegramId
+        // содержит chatId группы (-987654...), а не id владельца контроллера.
+        if (userId != null && tokenLedgerService.getBalance(userId) == 0) {
+            log.debug("[DISPATCH] Пропуск: нулевой баланс userId={}", userId);
             if (logId != null) logService.markFailed(logId, "Нулевой баланс токенов");
+            return;
+        }
+
+        // Guard against Kafka consumer replay (rebalance after dispatch but before offset commit):
+        // if the log is already SENT, the Telegram message was already delivered — skip.
+        if (logId != null && logService.isAlreadySent(logId)) {
+            log.debug("[DISPATCH] Повтор — уже отправлено logId={}", logId);
             return;
         }
 
@@ -61,13 +70,13 @@ public class NotificationDispatcher {
             log.debug("[DISPATCH] Отправлено [logId={} channel={}]", logId, request.channel());
 
             // Списываем токен за успешное уведомление
-            if (telegramId != null) {
+            if (userId != null) {
                 int cost = tokenLedgerService.getCost("NOTIFICATION_SENT");
-                tokenLedgerService.tryDebit(telegramId, cost, TokenReasonCode.NOTIFICATION_SENT, null);
+                tokenLedgerService.tryDebit(userId, cost, TokenReasonCode.NOTIFICATION_SENT, null);
             }
         } catch (Exception e) {
-            log.warn("[DISPATCH] Ошибка [logId={} channel={} telegramId={}]: {}",
-                logId, request.channel(), telegramId, e.getMessage());
+            log.warn("[DISPATCH] Ошибка [logId={} channel={} userId={}]: {}",
+                logId, request.channel(), userId, e.getMessage());
             if (logId != null) logService.markFailed(logId, e.getMessage());
             RetryableNotificationException rne = retryPolicy.classify(e);
             deadLetterPublisher.publishToDlq(record, rne);
@@ -75,6 +84,12 @@ public class NotificationDispatcher {
     }
 
     private static UUID parseLogId(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try { return UUID.fromString(raw); }
+        catch (IllegalArgumentException e) { return null; }
+    }
+
+    private static UUID parseUserId(String raw) {
         if (raw == null || raw.isBlank()) return null;
         try { return UUID.fromString(raw); }
         catch (IllegalArgumentException e) { return null; }
