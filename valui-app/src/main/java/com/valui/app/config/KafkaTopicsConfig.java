@@ -171,6 +171,21 @@ public class KafkaTopicsConfig {
 
     // ── helpers ────────────────────────────────────────────────────────────────
 
+    // ── admin.broadcast ────────────────────────────────────────────────────────
+
+    /** One record per recipient; produced by BroadcastController, consumed by BroadcastConsumer. */
+    @Bean
+    public org.apache.kafka.clients.admin.NewTopic adminBroadcast() {
+        return TopicBuilder.name(KafkaTopics.ADMIN_BROADCAST)
+                .partitions(3)
+                .replicas(replicationFactor)
+                .config(TopicConfig.RETENTION_MS_CONFIG,   ms(1, ChronoUnit.DAYS))
+                .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE)
+                .build();
+    }
+
+    // ── helpers ────────────────────────────────────────────────────────────────
+
     private static String ms(long amount, ChronoUnit unit) {
         return String.valueOf(Duration.of(amount, unit).toMillis());
     }

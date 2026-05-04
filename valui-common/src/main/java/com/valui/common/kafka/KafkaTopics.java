@@ -19,5 +19,8 @@ public final class KafkaTopics {
     /** Terminal dead-letter: no more retries; monitored by DlqMonitor. */
     public static final String NOTIFICATIONS_DLQ_FINAL = "notifications.dlq.final";
 
+    /** Admin broadcast: one message per recipient, consumed by BroadcastConsumer in valui-notify. */
+    public static final String ADMIN_BROADCAST = "admin.broadcast";
+
     private KafkaTopics() {}
 }

@@ -1,0 +1,692 @@
+{
+  "listType": 2,
+  "rows": [{
+    "sport": {
+      "id": 85,
+      "name": "Киберфутбол",
+      "order": 9,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/dc6c579a-86c3-4050-8376-1863bd6a477f.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/bdb4eea2-916b-4334-9f79-8d292c132a12.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/cyberfootball_fill_85.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/cyberfootball_85.webp"
+      },
+      "count": 796,
+      "updatedAt": "2026-04-30T21:02:00.000Z",
+      "category": 32,
+      "alias": "e-football",
+      "groups": []
+    }
+  }, {
+    "sport": {
+      "id": 2,
+      "name": "Футбол",
+      "order": 1,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/33c7399e-ee60-4425-bf61-599254e1f555.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/0fefec77-d3c1-46fb-bbec-0a1a778f44a3.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/football_fill_2.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/football_2.webp"
+      },
+      "count": 1523,
+      "updatedAt": "2026-04-30T22:00:00.000Z",
+      "category": 287,
+      "alias": "football",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["1"]
+      }, {
+        "name": "Тотал",
+        "codes": ["3"]
+      }, {
+        "name": "Фора",
+        "codes": ["2"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 26,
+      "name": "Настольный теннис",
+      "order": 8,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/762fc379-1e90-451e-a162-dd75e371d00f.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/76037abc-ebcd-4b6c-a091-b01e77194b8c.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/table_tennis_fill_26.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/table_tennis_26.webp"
+      },
+      "count": 847,
+      "updatedAt": "2026-04-30T21:10:00.000Z",
+      "category": 6,
+      "alias": "table-tennis",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["36041", "1"]
+      }, {
+        "name": "Тотал",
+        "codes": ["3"]
+      }, {
+        "name": "Фора",
+        "codes": ["2"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 4,
+      "name": "Теннис",
+      "order": 4,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/2ad82a74-6b75-4523-96f2-94a87f91cd9e.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/49b519bf-f42b-4709-bfd3-a6c5632241f5.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/tennis_fill_4.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/tennis_4.webp"
+      },
+      "count": 165,
+      "updatedAt": "2026-04-30T21:10:00.000Z",
+      "category": 60,
+      "alias": "tennis",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["1", "36041"]
+      }, {
+        "name": "Тотал",
+        "codes": ["3"]
+      }, {
+        "name": "Фора",
+        "codes": ["2", "69845"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 36,
+      "name": "Крикет",
+      "order": 82,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/ebf2eca6-c777-41a9-a7da-49cb263d8cbf.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/2a404594-7d2a-4b87-9e9a-ea3f1960d202.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/cricket_fill_36.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/cricket_36.webp"
+      },
+      "count": 63,
+      "updatedAt": "2026-05-01T02:00:00.000Z",
+      "category": 16,
+      "alias": "cricket",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 8,
+      "name": "Бокс",
+      "order": 15,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/851e7619-b802-4555-9aa9-d8a1e4f19ea1.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/4fe25c47-38b6-4a88-9f48-ee9ecbc2df85.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/boxing_fill_8.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/boxing_8.webp"
+      },
+      "count": 99,
+      "updatedAt": "2026-05-01T18:00:00.000Z",
+      "category": 2,
+      "alias": "boxing",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 5,
+      "name": "Баскетбол",
+      "order": 5,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/e248e66d-c4fb-4562-b633-fabf808248bf.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/752c78ba-5d68-464e-aee7-c55b916387e3.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/basketball_fill_5.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/basketball_5.webp"
+      },
+      "count": 281,
+      "updatedAt": "2026-04-30T22:30:00.000Z",
+      "category": 90,
+      "alias": "basketball",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["71", "36041", "1"]
+      }, {
+        "name": "Тотал",
+        "codes": ["3", "115989"]
+      }, {
+        "name": "Фора",
+        "codes": ["2", "57565"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 46,
+      "name": "Единоборства",
+      "order": 13,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/bd852b9b-9681-43d1-a8e4-0242c7a37318.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/28877c73-5ea9-4a2a-9c3c-c1ba61c4bca7.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/mixed_martial_arts_fill_46.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/mixed_martial_arts_46.webp"
+      },
+      "count": 108,
+      "updatedAt": "2026-05-01T07:00:00.000Z",
+      "category": 13,
+      "alias": "martial-arts",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["36041", "1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 11,
+      "name": "Хоккей",
+      "order": 3,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/97cd9a74-3f61-41e9-a283-5ad8fc69d398.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/0dd54005-6a3e-4efe-bb88-b7a1b24ad473.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/hockey_fill_11.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/hockey_11.webp"
+      },
+      "count": 64,
+      "updatedAt": "2026-04-30T21:25:00.000Z",
+      "category": 20,
+      "alias": "ice-hockey",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["1", "16002"]
+      }, {
+        "name": "Тотал",
+        "codes": ["3"]
+      }, {
+        "name": "Фора",
+        "codes": ["2"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 14,
+      "name": "Гандбол",
+      "order": 16,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/b5b4918a-cca4-4c50-b88a-63f519a73a27.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/db6d27b8-82a0-43e2-ac4d-3dbe27b4f875.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/handball_fill_14.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/handball_14.webp"
+      },
+      "count": 89,
+      "updatedAt": "2026-05-01T05:00:00.000Z",
+      "category": 24,
+      "alias": "handball",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["1"]
+      }, {
+        "name": "Тотал",
+        "codes": ["3"]
+      }, {
+        "name": "Фора",
+        "codes": ["2"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 13,
+      "name": "Волейбол",
+      "order": 10,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/c6fe32d9-3430-4648-96d5-f2e9ba2bf663.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/3d466f63-a4f6-4fff-927e-1b46b2386e83.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/volleyball_fill_13.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/volleyball_13.webp"
+      },
+      "count": 42,
+      "updatedAt": "2026-05-01T00:30:00.000Z",
+      "category": 21,
+      "alias": "volleyball",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["36041", "1"]
+      }, {
+        "name": "Тотал",
+        "codes": ["3"]
+      }, {
+        "name": "Фора",
+        "codes": ["2"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 19,
+      "name": "Формула-1",
+      "order": 27,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/9b808765-849d-4c2e-a33e-a09b650d1187.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/e03efb1d-37de-4c99-b31d-d16216992009.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/formula_fill_19.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/formula_19.webp"
+      },
+      "count": 43,
+      "updatedAt": "2026-05-01T16:00:00.000Z",
+      "category": 7,
+      "alias": "formula-1",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["16002", "1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 18,
+      "name": "Футзал",
+      "order": 17,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/a0ddf537-6926-44eb-a343-e249ea9c1a35.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/d0258d93-e795-467e-beba-6fe37593df1f.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/futsal_fill_18.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/futsal_18.webp"
+      },
+      "count": 21,
+      "updatedAt": "2026-04-30T22:00:00.000Z",
+      "category": 7,
+      "alias": "futsal",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 31,
+      "name": "Регби лига",
+      "order": 110,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/268f371a-a2a0-4ecc-8652-f6660549c5ce.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/32a54475-d223-4e3e-bc05-bbf5174a942c.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/rugby_league_fill_31.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/rugby_league_31.webp"
+      },
+      "count": 23,
+      "updatedAt": "2026-05-01T08:00:00.000Z",
+      "category": 2,
+      "alias": "rugby-league",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 1,
+      "name": "Киберспорт",
+      "order": 2,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/6f01b95a-8d27-4be9-a2f3-b4c99a028312.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/a6e105e9-3d1d-420a-b6fc-1bbbc02167f0.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/tab_cyber_fill_1.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/tab_cyber_1.webp"
+      },
+      "count": 238,
+      "updatedAt": "2026-04-30T21:00:00.000Z",
+      "category": 67,
+      "alias": "esports",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["8489", "36041", "1"]
+      }, {
+        "name": "Тотал",
+        "codes": ["8491", "120914"]
+      }, {
+        "name": "Фора",
+        "codes": ["8490", "120966"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 7,
+      "name": "Американский футбол",
+      "order": 26,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/c5b20d08-f2c9-4715-abba-8cd4441dc2a2.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/6886261d-44bb-4ec4-bf3f-108e29ce16bc.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/american_football_fill_7.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/american_football_7.webp"
+      },
+      "count": 14,
+      "updatedAt": "2026-05-01T00:00:00.000Z",
+      "category": 3,
+      "alias": "american-football",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["36041", "1"]
+      }, {
+        "name": "Тотал",
+        "codes": ["3"]
+      }, {
+        "name": "Фора",
+        "codes": ["2"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 15,
+      "name": "Регби союз",
+      "order": 100,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/40d8c5b0-048e-4616-8be9-0c8378d0a265.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/f68d36d4-d153-4f72-8f94-d5f255370875.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/rugby_union_fill_15.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/rugby_union_15.webp"
+      },
+      "count": 9,
+      "updatedAt": "2026-05-01T07:05:00.000Z",
+      "category": 3,
+      "alias": "rugby-union",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 3,
+      "name": "Водное поло",
+      "order": 18,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/5fdad4fe-e2c0-4f30-939a-fa9abb976d06.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/f0712370-d046-4ed6-ad63-0fa09587e129.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/water_polo_fill_3.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/water_polo_3.webp"
+      },
+      "count": 7,
+      "updatedAt": "2026-05-01T12:00:00.000Z",
+      "category": 5,
+      "alias": "water-polo",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 21,
+      "name": "Дартс",
+      "order": 25,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/2f0b6a91-1130-4927-bbd4-0f524222ca17.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/7155ed86-bbee-4c55-8079-8532fe8d3832.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/darts_fill_21.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/darts_21.webp"
+      },
+      "count": 26,
+      "updatedAt": "2026-04-30T21:20:00.000Z",
+      "category": 3,
+      "alias": "darts",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["36041", "1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 102,
+      "name": "Автоспорт",
+      "order": 1700,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/652facb4-e80d-468b-b963-c428b33cb853.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/b98a3b65-b56a-458e-a1ed-928b097524e8.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/motorsport_fill_102.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/motorsport_102.webp"
+      },
+      "count": 10,
+      "updatedAt": "2026-05-03T17:30:00.000Z",
+      "category": 7,
+      "alias": "auto-racing",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 121,
+      "name": "Мотоспорт",
+      "order": 1750,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/5abf35bb-63ac-41a4-a924-34413f39b0ca.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/d521245c-739e-4327-952b-7d397457075d.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/motorsport_fill_121.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/2d8b8ef8-a77a-4fde-bb3c-050bd7d49b69.webp"
+      },
+      "count": 8,
+      "updatedAt": "2026-05-02T23:00:00.000Z",
+      "category": 5,
+      "alias": "motorcycling",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["16002", "1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 6,
+      "name": "Бейсбол",
+      "order": 19,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/1b20962c-d2c1-45c2-ad37-ae9aafbbb19f.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/ec111bc4-34a3-47f4-b03c-ebaf19ce1547.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/baseball_fill_6.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/baseball_6.webp"
+      },
+      "count": 74,
+      "updatedAt": "2026-04-30T21:05:00.000Z",
+      "category": 12,
+      "alias": "baseball",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["36041", "1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 9,
+      "name": "Гольф",
+      "order": 2000,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/b89c1449-28a4-496e-8692-32e7eb4854b1.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/86ebde22-5e92-43b1-8c06-26c7a0dd9f7a.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/golf_fill_9.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/golf_9.webp"
+      },
+      "count": 5,
+      "updatedAt": "2026-05-17T12:00:00.000Z",
+      "category": 1,
+      "alias": "golf",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["16002", "1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 119,
+      "name": "Парусный Спорт ",
+      "order": 2050,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/251c49cc-a14a-4f52-83bf-f86d3337765d.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/51357b4c-3ed1-42dd-8466-69bd32c54fe9.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/sailing_fill_119.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/sailing_119.webp"
+      },
+      "count": 1,
+      "updatedAt": "2026-11-29T05:00:00.000Z",
+      "category": 1,
+      "alias": "sailing",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 64,
+      "name": "Серфинг",
+      "order": 2090,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/ec815b2a-a1f8-4cb5-bab9-4f5a1815f6a3.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/4c578177-1a4d-4e73-8865-1c83b481434a.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/surfing_fill_64.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/surfing_64.webp"
+      },
+      "count": 1,
+      "updatedAt": "2026-05-11T16:00:00.000Z",
+      "category": 1,
+      "alias": "surfing",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["16002", "1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 37,
+      "name": "Флорбол",
+      "order": 80,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/bab823b7-5560-4958-8bd8-9dd4643c7390.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/22febcc5-cc2d-4c03-a25d-819ee4313bf2.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/floorball_fill_37.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/floorball_37.webp"
+      },
+      "count": 9,
+      "updatedAt": "2026-05-01T14:00:00.000Z",
+      "category": 5,
+      "alias": "floorball",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 123,
+      "name": "Софтбол",
+      "order": 2100,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/6e1fb7b1-6b48-4eaa-854e-a1cb11fa7dc6.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/9af76684-d1ab-4ce4-814e-ee8f0ce1cc12.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/softball_fill_123.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/softball_123.webp"
+      },
+      "count": 1,
+      "updatedAt": "2026-06-04T20:00:00.000Z",
+      "category": 1,
+      "alias": "softball",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["36041", "1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 30,
+      "name": "Бадминтон",
+      "order": 23,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/c9e5b41c-3d6b-41b6-a408-ef8e300f68c8.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/5c910ac4-49ae-4e0d-82a4-b4d083605c25.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/badminton_fill_30.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/badminton_30.webp"
+      },
+      "count": 21,
+      "updatedAt": "2026-05-01T07:00:00.000Z",
+      "category": 5,
+      "alias": "badminton",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["36041", "1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 41,
+      "name": "Велоспорт",
+      "order": 1800,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/ae654789-0065-4bf4-bc81-1bdcc67277a7.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/36c7200a-12d1-4422-a78b-7a32c830de5f.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/cycling_fill_41.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/cycling_41.webp"
+      },
+      "count": 45,
+      "updatedAt": "2026-05-01T09:15:00.000Z",
+      "category": 5,
+      "alias": "cycling",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["16002", "1"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 10,
+      "name": "Шахматы",
+      "order": 96,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/ceac105c-0a2d-41ec-b2a9-3aca0eb8bb9d.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/414c460d-abfe-4a30-bf9a-33f0e9c1c360.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/chess_com_10.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/chess_com_10.webp"
+      },
+      "count": 5,
+      "updatedAt": "2026-05-01T13:00:00.000Z",
+      "category": 1,
+      "alias": "chess",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["1", "36041"]
+      }]
+    }
+  }, {
+    "sport": {
+      "id": 86,
+      "name": "Кибербаскетбол",
+      "order": 12,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/c4f6d2bc-ad4d-4b90-aab8-a3d69f759694.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/7cdbe4fb-6ad6-4029-a844-9860c83dcfbb.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/cyberbasket_fill_86.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/cyberbasket_86.webp"
+      },
+      "count": 4,
+      "updatedAt": "2026-04-30T21:12:00.000Z",
+      "category": 1,
+      "alias": "e-basketball",
+      "groups": []
+    }
+  }, {
+    "sport": {
+      "id": 108,
+      "name": "Боулинг",
+      "order": 98,
+      "assets": {
+        "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/8a6ed8e6-a67a-4b26-b55f-dc47d38959c5.svg",
+        "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/3de46065-87b9-42f8-b940-afb5d5517e22.pdf",
+        "fillImage": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/cup_fill.webp",
+        "image": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/sports/cup.webp"
+      },
+      "count": 1,
+      "updatedAt": "2026-04-30T21:30:00.000Z",
+      "category": 1,
+      "alias": "bowling",
+      "groups": [{
+        "name": "Исход",
+        "codes": ["1", "16002", "36041"]
+      }]
+    }
+  }]
+}

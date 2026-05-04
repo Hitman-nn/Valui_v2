@@ -1,5 +1,6 @@
 package com.valui.admin.auth;
 
+import com.valui.admin.auth.dto.AdminLoginRequest;
 import com.valui.admin.auth.dto.AuthRequest;
 import com.valui.admin.auth.dto.AuthResponse;
 import com.valui.admin.auth.dto.RefreshRequest;
@@ -25,6 +26,12 @@ public class AuthController {
     @Operation(summary = "Issue access + refresh tokens for a Telegram user")
     public ResponseEntity<AuthResponse> createToken(@RequestBody @Valid AuthRequest request) {
         return ResponseEntity.ok(authService.authenticate(request));
+    }
+
+    @PostMapping("/admin/login")
+    @Operation(summary = "Admin panel login — telegramId + adminPassword → JWT")
+    public ResponseEntity<AuthResponse> adminLogin(@RequestBody @Valid AdminLoginRequest request) {
+        return ResponseEntity.ok(authService.authenticateAdmin(request));
     }
 
     @PostMapping("/refresh")

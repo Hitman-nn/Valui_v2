@@ -1,0 +1,50 @@
+{
+  "sports" : [ {
+    "id" : 1,
+    "kind" : "sport",
+    "sortOrder" : "1+++8+++-+++-",
+    "name" : "Футбол",
+    "alias" : "football"
+  }, {
+    "id" : 11935,
+    "parentId" : 1,
+    "parentIds" : [ 11934 ],
+    "kind" : "segment",
+    "regionId" : 643,
+    "sortOrder" : "1+++8+++-+++-&t0+zzv++2S+0uS+++8+0uT",
+    "name" : "Россия. Премьер-Лига. Сезон 25/26",
+    "searchKeyWords" : "РПЛ РФПЛ",
+    "outrightTableOraIds" : [ 138559, 34162, 56714 ],
+    "outrightTableLinks" : [ {
+      "oraId" : 138559,
+      "tabTournamentAlias" : "tournament"
+    }, {
+      "oraId" : 34162,
+      "tabTournamentAlias" : "tournament"
+    }, {
+      "oraId" : 56714,
+      "tabTournamentAlias" : "tournament"
+    } ],
+    "tournamentInfoId" : 144,
+    "geoCategoryId" : 2
+  }, {
+    "id" : 11918,
+    "parentId" : 1,
+    "parentIds" : [ 11917 ],
+    "kind" : "segment",
+    "regionId" : 643688,
+    "sortOrder" : "1+++8+++-+++-&t1+zzv+++S+0uB++4i+0uC",
+    "name" : "Англия. Премьер-Лига. Сезон 25/26",
+    "searchKeyWords" : "АПЛ",
+    "outrightTableOraIds" : [ 58429, 47677 ],
+    "outrightTableLinks" : [ {
+      "oraId" : 58429,
+      "tabTournamentAlias" : "tournament"
+    }, {
+      "oraId" : 47677,
+      "tabTournamentAlias" : "tournament"
+    } ],
+    "tournamentInfoId" : 53,
+    "geoCategoryId" : 75
+  } ]
+}

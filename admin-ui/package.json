@@ -1,0 +1,31 @@
+{
+  "name": "valui-admin-ui",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "generate-api": "orval"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.3.0",
+    "@tanstack/react-query": "^5.28.0",
+    "@tanstack/react-query-devtools": "^5.28.0",
+    "antd": "^5.15.0",
+    "axios": "^1.6.8",
+    "dayjs": "^1.11.10",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.22.3",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "orval": "^6.28.2",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.0"
+  }
+}

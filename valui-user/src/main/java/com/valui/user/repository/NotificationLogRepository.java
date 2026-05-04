@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,4 +26,6 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
     @Modifying
     @Query("UPDATE NotificationLogEntity n SET n.status = :status, n.attempts = n.attempts + 1 WHERE n.id = :id")
     int incrementAttemptsAndSetStatus(@Param("id") UUID id, @Param("status") NotificationStatus status);
+
+    long countByCreatedAtAfter(OffsetDateTime since);
 }

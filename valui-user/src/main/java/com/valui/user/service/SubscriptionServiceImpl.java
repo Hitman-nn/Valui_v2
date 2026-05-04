@@ -7,6 +7,7 @@ import com.valui.common.entity.SubscriptionEntity;
 import com.valui.common.entity.SubscriptionPlanEntity;
 import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.UserNotFoundException;
+import com.valui.user.dto.PlanStatsDto;
 import com.valui.user.dto.SubscriptionPlanDto;
 import com.valui.user.event.SubscriptionExpiredEvent;
 import com.valui.user.repository.SubscriptionPlanRepository;
@@ -17,6 +18,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -138,6 +142,45 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
         log.info("[PLAN] Подписка истекла: subscriptionId={} userId={} план={} → FREE",
             subscriptionId, user.getId(), oldPlanCode);
+    }
+
+    // ─── Admin-only operations ────────────────────────────────────────────────
+
+    @Override
+    @PreAuthorize("hasRole('ADMIN')")
+    public Page<SubscriptionEntity> findAllActive(Pageable pageable) {
+        return subscriptionRepository.findAllActiveWithDetails(pageable);
+    }
+
+    @Override
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<SubscriptionEntity> findExpiringSoon(OffsetDateTime from, OffsetDateTime to) {
+        return subscriptionRepository.findExpiringBetween(from, to);
+    }
+
+    @Override
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<PlanStatsDto> getStatsByPlan() {
+        return subscriptionRepository.countActiveGroupedByPlan()
+            .stream()
+            .map(row -> new PlanStatsDto((String) row[0], (String) row[1], (Long) row[2]))
+            .toList();
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
+    @CacheEvict(value = PLANS_CACHE, allEntries = true)
+    @Audit(action = "GRANT_PLAN", entityType = "Subscription")
+    public void grantPlan(UUID userId, String planCode) {
+        activatePlan(userId, planCode, "admin-grant");
+        log.info("[ADMIN] Plan granted: userId={} plan={}", userId, planCode);
+    }
+
+    @Override
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<Long> findActiveTelegramIdsByPlan(String planCode) {
+        return subscriptionRepository.findActiveTelegramIdsByPlan(planCode);
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────────

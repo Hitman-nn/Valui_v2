@@ -95,6 +95,21 @@ services:
       start_period: 60s
     restart: unless-stopped
 
+  # ── Admin UI (Nginx + React SPA) ─────────────────────────────
+  admin-ui:
+    build:
+      context: ./admin-ui
+      dockerfile: Dockerfile
+    image: valui-admin-ui:latest
+    container_name: valui-admin-ui
+    ports:
+      - "127.0.0.1:3001:80"   # host-Nginx проксирует снаружи
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # даёт доступ к Java-app на хосте
+    networks:
+      - valui-network
+    restart: unless-stopped
+
   # ── Kafka UI ──────────────────────────────────────────────────
   kafka-ui:
     image: provectuslabs/kafka-ui:v0.7.2

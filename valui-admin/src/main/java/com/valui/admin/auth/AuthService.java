@@ -1,7 +1,9 @@
 package com.valui.admin.auth;
 
+import com.valui.admin.auth.dto.AdminLoginRequest;
 import com.valui.admin.auth.dto.AuthRequest;
 import com.valui.admin.auth.dto.AuthResponse;
+import com.valui.common.domain.UserRole;
 import com.valui.admin.auth.jwt.JwtProperties;
 import com.valui.admin.auth.jwt.JwtService;
 import com.valui.admin.auth.redis.RefreshToken;
@@ -77,6 +79,40 @@ public class AuthService {
         );
 
         return new AuthResponse(newAccessToken, refreshToken, jwtProperties.accessTokenTtlSeconds());
+    }
+
+    /**
+     * Admin panel login: validates adminPassword from config, checks ADMIN role,
+     * and issues JWT tokens identically to {@link #authenticate}.
+     */
+    public AuthResponse authenticateAdmin(AdminLoginRequest request) {
+        if (authProperties.adminPassword() == null ||
+                !authProperties.adminPassword().equals(request.adminPassword())) {
+            throw new ValuiException("Invalid admin password", 401);
+        }
+
+        UserEntity user = userService.findByTelegramId(request.telegramId())
+            .orElseThrow(() -> new UserNotFoundException(request.telegramId()));
+
+        if (user.getRole() != UserRole.ADMIN) {
+            throw new ValuiException("Access denied: not an admin", 403);
+        }
+
+        String planCode = resolvePlanCode(request.telegramId());
+        String accessToken = jwtService.generateAccessToken(
+            user.getId(), request.telegramId(), user.getRole().name(), planCode
+        );
+        String refreshTokenValue = java.util.UUID.randomUUID().toString();
+
+        refreshTokenRepository.save(new RefreshToken(
+            refreshTokenValue,
+            user.getId().toString(),
+            request.telegramId(),
+            user.getRole().name()
+        ));
+
+        log.info("Admin login: telegramId={} userId={}", request.telegramId(), user.getId());
+        return new AuthResponse(accessToken, refreshTokenValue, jwtProperties.accessTokenTtlSeconds());
     }
 
     /** Invalidates the refresh token in Redis — subsequent refresh calls will fail with 401. */

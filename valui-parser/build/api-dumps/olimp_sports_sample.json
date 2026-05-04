@@ -1,0 +1,46 @@
+[ {
+  "operationId" : "LINE_SPORTS_GET_ALL",
+  "version" : 1,
+  "payload" : {
+    "id" : "1",
+    "names" : {
+      "0" : "Футбол",
+      "2" : "Soccer"
+    },
+    "name" : "Футбол",
+    "position" : 10,
+    "eventCount" : 1697,
+    "eventCountToHours" : [ 42, 95, 114, 524, 1434 ],
+    "image" : "4309dce0-13cf-4628-b17b-3f705c328e70"
+  }
+}, {
+  "operationId" : "LINE_SPORTS_GET_ALL",
+  "version" : 1,
+  "payload" : {
+    "id" : "3",
+    "names" : {
+      "0" : "Теннис",
+      "2" : "Tennis"
+    },
+    "name" : "Теннис",
+    "position" : 20,
+    "eventCount" : 97,
+    "eventCountToHours" : [ 4, 15, 44, 87, 88 ],
+    "image" : "17792b53-7f0a-4d52-8e47-4d745cb1dd89"
+  }
+}, {
+  "operationId" : "LINE_SPORTS_GET_ALL",
+  "version" : 1,
+  "payload" : {
+    "id" : "2",
+    "names" : {
+      "0" : "Хоккей",
+      "2" : "Ice Hockey"
+    },
+    "name" : "Хоккей",
+    "position" : 30,
+    "eventCount" : 82,
+    "eventCountToHours" : [ 3, 22, 28, 38, 75 ],
+    "image" : "acc4ddef-7b0e-43ee-a261-d2276cf55fed"
+  }
+} ]

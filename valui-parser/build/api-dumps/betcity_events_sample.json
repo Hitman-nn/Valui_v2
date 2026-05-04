@@ -1,0 +1,3096 @@
+{
+  "reply" : {
+    "curr_time" : "2026-05-01 00:08:35",
+    "ntime_templates" : 1777537455,
+    "ntime_vg" : 1777537455,
+    "ntime" : 1777594107,
+    "sports" : {
+      "1" : {
+        "name_sp" : "Футбол",
+        "id_sp" : 1,
+        "order" : 39,
+        "ord_pop" : 1,
+        "is_virtual" : 0,
+        "chmps" : {
+          "177677" : {
+            "id_ch" : 177677,
+            "id_ch_gl" : 8,
+            "show_cntr" : 1,
+            "name_ch" : "Футбол. Чемпионат мира 2026. Победитель.",
+            "hd_bl" : 0,
+            "is_stat" : 0,
+            "order" : 1043,
+            "cn_ch" : 1120350,
+            "order_type" : [ "date_ev", "num_sort", "kf" ],
+            "future" : 1,
+            "stat_link" : "1:8",
+            "is_cyber" : 0,
+            "evts" : {
+              "12305280" : {
+                "id_ev" : 12305280,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2447,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 12,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2447,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2955,
+                "name_ht" : "Бразилия",
+                "iso_f" : "BR",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305280" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 9,
+                              "ps" : 380,
+                              "md" : 1775043481
+                            },
+                            "N" : {
+                              "kf" : 1.06,
+                              "ps" : 381,
+                              "md" : 1775043481
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305281" : {
+                "id_ev" : 12305281,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2456,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 36,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2456,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2961,
+                "name_ht" : "Бельгия",
+                "iso_f" : "BE",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305281" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 40,
+                              "ps" : 380,
+                              "md" : 1774560458
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305282" : {
+                "id_ev" : 12305282,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 6126,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 27,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 6126,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2956,
+                "name_ht" : "Аргентина",
+                "iso_f" : "AR",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305282" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 9,
+                              "ps" : 380,
+                              "md" : 1775043482
+                            },
+                            "N" : {
+                              "kf" : 1.06,
+                              "ps" : 381,
+                              "md" : 1775043482
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305283" : {
+                "id_ev" : 12305283,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2483,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 4,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2483,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2954,
+                "name_ht" : "Франция",
+                "iso_f" : "FR",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305283" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 6.8,
+                              "ps" : 380,
+                              "md" : 1776116278
+                            },
+                            "N" : {
+                              "kf" : 1.1,
+                              "ps" : 381,
+                              "md" : 1776116264
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305284" : {
+                "id_ev" : 12305284,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 24,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1777146739,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 3,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 24,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2953,
+                "name_ht" : "Англия",
+                "iso_f" : "EN",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305284" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 6.8,
+                              "ps" : 380,
+                              "md" : 1776602552
+                            },
+                            "N" : {
+                              "kf" : 1.1,
+                              "ps" : 381,
+                              "md" : 1776116267
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1777146739
+              },
+              "12305286" : {
+                "id_ev" : 12305286,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2487,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 17,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2487,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2952,
+                "name_ht" : "Испания",
+                "iso_f" : "ES",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305286" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 5.8,
+                              "ps" : 380,
+                              "md" : 1775212246
+                            },
+                            "N" : {
+                              "kf" : 1.14,
+                              "ps" : 381,
+                              "md" : 1775212234
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305287" : {
+                "id_ev" : 12305287,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2474,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 139,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2474,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2959,
+                "name_ht" : "Нидерланды",
+                "iso_f" : "NL",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305287" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 23,
+                              "ps" : 380,
+                              "md" : 1776116304
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305288" : {
+                "id_ev" : 12305288,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2523,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776694895,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 153,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2523,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2957,
+                "name_ht" : "Португалия",
+                "iso_f" : "PT",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305288" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 11,
+                              "ps" : 380,
+                              "md" : 1776694895
+                            },
+                            "N" : {
+                              "kf" : 1.04,
+                              "ps" : 381,
+                              "md" : 1776694895
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776694895
+              },
+              "12305291" : {
+                "id_ev" : 12305291,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2805,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 5,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2805,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2958,
+                "name_ht" : "Германия",
+                "iso_f" : "DE",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305291" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 15,
+                              "ps" : 380,
+                              "md" : 1776116292
+                            },
+                            "N" : {
+                              "kf" : 1.01,
+                              "ps" : 381,
+                              "md" : 1776116292
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305292" : {
+                "id_ev" : 12305292,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2469,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 194,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2469,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2969,
+                "name_ht" : "Хорватия",
+                "iso_f" : "HR",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305292" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 80,
+                              "ps" : 380,
+                              "md" : 1774560469
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305293" : {
+                "id_ev" : 12305293,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2319,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 125,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2319,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2966,
+                "name_ht" : "Мексика",
+                "iso_f" : "MX",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305293" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 70,
+                              "ps" : 380,
+                              "md" : 1776116869
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305294" : {
+                "id_ev" : 12305294,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 5071,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 189,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 5071,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2967,
+                "name_ht" : "Уругвай",
+                "iso_f" : "UY",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305294" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 70,
+                              "ps" : 380,
+                              "md" : 1776116369
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305295" : {
+                "id_ev" : 12305295,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2473,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 11,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2473,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2968,
+                "name_ht" : "Швейцария",
+                "iso_f" : "CH",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305295" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 80,
+                              "ps" : 380,
+                              "md" : 1776116389
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305296" : {
+                "id_ev" : 12305296,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2321,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 2,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2321,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2965,
+                "name_ht" : "США",
+                "iso_f" : "US",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305296" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 65,
+                              "ps" : 380,
+                              "md" : 1776116378
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305297" : {
+                "id_ev" : 12305297,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2489,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 95,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2489,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2962,
+                "name_ht" : "Колумбия",
+                "iso_f" : "CO",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305297" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 40,
+                              "ps" : 380,
+                              "md" : 1776116323
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305298" : {
+                "id_ev" : 12305298,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 3022,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 164,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 3022,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2972,
+                "name_ht" : "Сенегал",
+                "iso_f" : "SN",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305298" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 125,
+                              "ps" : 380,
+                              "md" : 1776116415
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305300" : {
+                "id_ev" : 12305300,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 8169,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 79,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 8169,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2991,
+                "name_ht" : "Иран",
+                "iso_f" : "IR",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305300" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 1000,
+                              "ps" : 380,
+                              "md" : 1776116482
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305303" : {
+                "id_ev" : 12305303,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 3024,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 123,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 3024,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2963,
+                "name_ht" : "Марокко",
+                "iso_f" : "MA",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305303" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 60,
+                              "ps" : 380,
+                              "md" : 1776116362
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305305" : {
+                "id_ev" : 12305305,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2853,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 10,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2853,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2964,
+                "name_ht" : "Япония",
+                "iso_f" : "JP",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305305" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 60,
+                              "ps" : 380,
+                              "md" : 1776116354
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305306" : {
+                "id_ev" : 12305306,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2462,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 7,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2462,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2974,
+                "name_ht" : "Швеция",
+                "iso_f" : "SE",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305306" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 150,
+                              "ps" : 380,
+                              "md" : 1776116421
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305310" : {
+                "id_ev" : 12305310,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 5249,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 100,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 5249,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2983,
+                "name_ht" : "Южная Корея",
+                "iso_f" : "KR",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305310" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 500,
+                              "ps" : 380,
+                              "md" : 1775043572
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "12305328" : {
+                "id_ev" : 12305328,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2856,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 6,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2856,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2973,
+                "name_ht" : "Канада",
+                "iso_f" : "CA",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "12305328" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 150,
+                              "ps" : 380,
+                              "md" : 1774560517
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "19504986" : {
+                "id_ev" : 19504986,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 5074,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 150,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 5074,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2976,
+                "name_ht" : "Парагвай",
+                "iso_f" : "PY",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "19504986" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 150,
+                              "ps" : 380,
+                              "md" : 1774560522
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "19504987" : {
+                "id_ev" : 19504987,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2467,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 71,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2467,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2980,
+                "name_ht" : "Египет",
+                "iso_f" : "EG",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "19504987" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 300,
+                              "ps" : 380,
+                              "md" : 1775043604
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "19504988" : {
+                "id_ev" : 19504988,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 3032,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 206,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 3032,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2989,
+                "name_ht" : "ЮАР",
+                "iso_f" : "ZA",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "19504988" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 1000,
+                              "ps" : 380,
+                              "md" : 1775043647
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "19504990" : {
+                "id_ev" : 19504990,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 3021,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 102,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 3021,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2981,
+                "name_ht" : "Кот-д'Ивуар",
+                "iso_f" : "CI",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "19504990" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 300,
+                              "ps" : 380,
+                              "md" : 1775043609
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "19504992" : {
+                "id_ev" : 19504992,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 1710,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 23,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 1710,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2982,
+                "name_ht" : "Алжир",
+                "iso_f" : "DZ",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "19504992" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 400,
+                              "ps" : 380,
+                              "md" : 1775043615
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "19504993" : {
+                "id_ev" : 19504993,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2461,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 183,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2461,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2986,
+                "name_ht" : "Тунис",
+                "iso_f" : "TN",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "19504993" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 500,
+                              "ps" : 380,
+                              "md" : 1775043625
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "19504995" : {
+                "id_ev" : 19504995,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2781,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 20,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2781,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2975,
+                "name_ht" : "Австрия",
+                "iso_f" : "AT",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "19504995" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 150,
+                              "ps" : 380,
+                              "md" : 1774560527
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "19504996" : {
+                "id_ev" : 19504996,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2904,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 187,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2904,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2994,
+                "name_ht" : "Узбекистан",
+                "iso_f" : "UZ",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "19504996" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 1500,
+                              "ps" : 380,
+                              "md" : 1776116523
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "19504998" : {
+                "id_ev" : 19504998,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2478,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 19,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2478,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2985,
+                "name_ht" : "Австралия",
+                "iso_f" : "AU",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "19504998" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 500,
+                              "ps" : 380,
+                              "md" : 1775043729
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "21066948" : {
+                "id_ev" : 21066948,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2796,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 210,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2796,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2977,
+                "name_ht" : "Шотландия",
+                "iso_f" : "_H",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "21066948" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 200,
+                              "ps" : 380,
+                              "md" : 1775043620
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "21066949" : {
+                "id_ev" : 21066949,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 3166,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 40,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 3166,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2978,
+                "name_ht" : "Босния и Герцеговина",
+                "iso_f" : "BA",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "21066949" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 250,
+                              "ps" : 380,
+                              "md" : 1775043584
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "21066950" : {
+                "id_ev" : 21066950,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2463,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 185,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2463,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2971,
+                "name_ht" : "Турция",
+                "iso_f" : "TR",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "21066950" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 100,
+                              "ps" : 380,
+                              "md" : 1775043587
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "21066964" : {
+                "id_ev" : 21066964,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2484,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 197,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2484,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2979,
+                "name_ht" : "Чехия",
+                "iso_f" : "CZ",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "21066964" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 300,
+                              "ps" : 380,
+                              "md" : 1776116439
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "21066966" : {
+                "id_ev" : 21066966,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 4837,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 148,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 4837,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2993,
+                "name_ht" : "Панама",
+                "iso_f" : "PA",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "21066966" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 1500,
+                              "ps" : 380,
+                              "md" : 1775043674
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "21066974" : {
+                "id_ev" : 21066974,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 23057,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 55,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 23057,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2998,
+                "name_ht" : "Гаити",
+                "iso_f" : "HT",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "21066974" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 3000,
+                              "ps" : 380,
+                              "md" : 1775043753
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "21066975" : {
+                "id_ev" : 21066975,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 69165,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 245,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 69165,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2999,
+                "name_ht" : "Кюрасао",
+                "iso_f" : "_A",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "21066975" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 3000,
+                              "ps" : 380,
+                              "md" : 1776116567
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "21066980" : {
+                "id_ev" : 21066980,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 3370,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 98,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 3370,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2990,
+                "name_ht" : "Конго ДР",
+                "iso_f" : "CD",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "21066980" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 1000,
+                              "ps" : 380,
+                              "md" : 1775043680
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "21066981" : {
+                "id_ev" : 21066981,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 7085,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 78,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 7085,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2996,
+                "name_ht" : "Ирак",
+                "iso_f" : "IQ",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "21066981" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 2000,
+                              "ps" : 380,
+                              "md" : 1776116518
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "20656499" : {
+                "id_ev" : 20656499,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 7177,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 85,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 7177,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2997,
+                "name_ht" : "Кабо-Верде",
+                "iso_f" : "CV",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "20656499" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 2000,
+                              "ps" : 380,
+                              "md" : 1775043718
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "20673073" : {
+                "id_ev" : 20673073,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 3125,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 141,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 3125,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2995,
+                "name_ht" : "Новая Зеландия",
+                "iso_f" : "NZ",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "20673073" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 1500,
+                              "ps" : 380,
+                              "md" : 1775043666
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "20673075" : {
+                "id_ev" : 20673075,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 7566,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 77,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 7566,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2987,
+                "name_ht" : "Иордания",
+                "iso_f" : "JO",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "20673075" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 700,
+                              "ps" : 380,
+                              "md" : 1776117077
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "20673077" : {
+                "id_ev" : 20673077,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 4335,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 90,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 4335,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2992,
+                "name_ht" : "Катар",
+                "iso_f" : "QA",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "20673077" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 1000,
+                              "ps" : 380,
+                              "md" : 1775043692
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "20673078" : {
+                "id_ev" : 20673078,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 5917,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 161,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 5917,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2988,
+                "name_ht" : "Саудовская Аравия",
+                "iso_f" : "SA",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "20673078" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 1000,
+                              "ps" : 380,
+                              "md" : 1775043686
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "13496101" : {
+                "id_ev" : 13496101,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2466,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 142,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 2466,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2960,
+                "name_ht" : "Норвегия",
+                "iso_f" : "NO",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "13496101" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 27,
+                              "ps" : 380,
+                              "md" : 1776116310
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "14582042" : {
+                "id_ev" : 14582042,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 5075,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 202,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 5075,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2970,
+                "name_ht" : "Эквадор",
+                "iso_f" : "EC",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "14582042" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 100,
+                              "ps" : 380,
+                              "md" : 1774560503
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              },
+              "14582045" : {
+                "id_ev" : 14582045,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 3366,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1120350,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1781204400,
+                "date_ev_str" : "2026-06-11 22:00",
+                "md_ev" : 1776688817,
+                "cnt_ext_add" : 2,
+                "var" : 9,
+                "cntr_ht" : 58,
+                "is_stat" : 0,
+                "fut" : 1,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "show_cntr" : 1,
+                "timer" : 0,
+                "maximum" : 10000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00000",
+                "id_ht" : 3366,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 8,
+                "type_sb" : 1,
+                "bet_num" : 2984,
+                "name_ht" : "Гана",
+                "iso_f" : "GH",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Победитель",
+                    "data" : {
+                      "14582045" : {
+                        "blocks" : {
+                          "YNm" : {
+                            "Y" : {
+                              "kf" : 500,
+                              "ps" : 380,
+                              "md" : 1775043595
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1776688817
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "ok" : true,
+  "lng" : 0
+}

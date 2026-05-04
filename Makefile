@@ -10,13 +10,14 @@
 -include .env
 export
 
-PROD  = docker compose -f docker-compose.prod.yml --env-file .env
-TEST  = docker compose -f docker-compose.test.yml --env-file .env.test
+PROD  = docker compose -p valui-prod -f docker-compose.prod.yml --env-file .env.prod
+TEST  = docker compose -p valuii-test -f docker-compose.test.yml --env-file .env.test
 
 .PHONY: help \
         up down reset logs psql redis-cli \
         test-up test-down test-restart test-logs test-status test-psql test-redis \
-        prod-up prod-down prod-restart prod-logs prod-status prod-deploy
+        prod-up prod-down prod-restart prod-logs prod-status prod-deploy \
+        ui-build ui-deploy
 
 # ── Помощь ────────────────────────────────────────────────────────────────────
 help:
@@ -37,6 +38,10 @@ help:
 	@echo "    make prod-logs      — хвост логов (Ctrl+C для выхода)"
 	@echo "    make prod-status    — статус контейнеров"
 	@echo "    make prod-deploy    — скачать новый образ app и перезапустить"
+	@echo ""
+	@echo "  FRONTEND (Admin UI):"
+	@echo "    make ui-build       — собрать Docker-образ фронта"
+	@echo "    make ui-deploy      — пересобрать образ и перезапустить контейнер"
 	@echo ""
 
 # ── Обратная совместимость (старые цели без префикса = prod) ──────────────────
@@ -102,3 +107,13 @@ prod-status:
 prod-deploy:
 	$(PROD) pull app
 	$(PROD) up -d --no-deps app
+
+# ── Admin UI ──────────────────────────────────────────────────────────────────
+# ui-build  — собрать Docker-образ фронта (запускать на сервере после git pull)
+# ui-deploy — пересобрать образ и перезапустить контейнер без простоя
+ui-build:
+	docker build -t valui-admin-ui:latest ./admin-ui
+
+ui-deploy:
+	docker build -t valui-admin-ui:latest ./admin-ui
+	$(PROD) up -d --no-deps admin-ui

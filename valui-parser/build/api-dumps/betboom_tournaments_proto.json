@@ -1,0 +1,1209 @@
+{
+  "type": 200,
+  "subType": 1,
+  "parentNode": "e795d0",
+  "listType": 2,
+  "list": {
+    "sport": {
+    },
+    "entries": [{
+      "tournament": {
+        "id": 14107,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "GT Leagues (2x6). 12 mins play",
+        "events": 5000,
+        "level": 12,
+        "active": 0,
+        "shortName": "GT Leagues (2x6). 12 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 14131,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "eAdriatic League (2х5). 10 mins play",
+        "events": 51,
+        "level": 8,
+        "active": 0,
+        "shortName": "eAdriatic League (2х5). 10 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 2569,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA ESportsBattle. International 2. 8 mins play",
+        "events": 50,
+        "level": 20,
+        "active": 0,
+        "shortName": "FIFA ESportsBattle. International 2. 8 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 5047,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA ESportsBattle. Bundesliga. 8 mins play",
+        "events": 50,
+        "level": 20,
+        "active": 0,
+        "shortName": "FIFA ESportsBattle. Bundesliga. 8 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 20060,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "ESportsBattle. La Liga (2x6). 12 mins play",
+        "events": 5000,
+        "level": 10,
+        "active": 1,
+        "shortName": "ESportsBattle. La Liga (2x6). 12 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 5180,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA ESportsBattle. Champions League A (2x4). 8 mins play",
+        "events": 50,
+        "level": 20,
+        "active": 0,
+        "shortName": "FIFA ESportsBattle. Champions League A (2x4). 8 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 20037,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA ESportsBattle. League 1. 8 mins play",
+        "events": 5000,
+        "level": 20,
+        "active": 0,
+        "shortName": "FIFA ESportsBattle. League 1. 8 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 5179,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA ESportsBattle. Seria A. 8 mins play",
+        "events": 50,
+        "level": 40,
+        "active": 0,
+        "shortName": "FIFA ESportsBattle. Seria A. 8 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 26825,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA ESportsBattle. Premier League. 8 mins play",
+        "events": 5000,
+        "level": 40,
+        "active": 0,
+        "shortName": "FIFA ESportsBattle. Premier League. 8 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 28400,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA. EsportsBattle. Conference League. 8 mins play",
+        "events": 5000,
+        "level": 40,
+        "active": 1,
+        "shortName": "FIFA. EsportsBattle. Conference League. 8 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 2561,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA ESportsBattle. Champions League B. 8 mins play",
+        "events": 50,
+        "level": 38,
+        "active": 1,
+        "shortName": "ESportsBattle. Champions League B. 8 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 5045,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA ESportsBattle. Europa League. 8 mins play",
+        "events": 50,
+        "level": 20,
+        "active": 0,
+        "shortName": "FIFA ESportsBattle. Europa League. 8 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 20055,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA ESportsBattle. Portugal Primera. 8 mins play",
+        "events": 5000,
+        "level": 10,
+        "active": 0,
+        "shortName": "FIFA ESportsBattle. Portugal Primera. 8 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 20063,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA ESportsBattle. La Liga (2x4). 8 mins play",
+        "events": 5000,
+        "level": 24,
+        "active": 0,
+        "shortName": "FIFA ESportsBattle. La Liga (2x4). 8 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 5048,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA ESportsBattle. FA Cup. 8 mins play",
+        "events": 50,
+        "level": 20,
+        "active": 1,
+        "shortName": "ESportsBattle. FA Cup. 8 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 20062,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA ESportsBattle. RSL (2x6). 12 mins play",
+        "events": 5000,
+        "level": 20,
+        "active": 0,
+        "shortName": "FIFA ESportsBattle. RSL (2x6). 12 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 20067,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA ESportsBattle. Champions League AFC. 8 mins play",
+        "events": 5000,
+        "level": 20,
+        "active": 1,
+        "shortName": "ESportsBattle. Champions League AFC. 8 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 5044,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA ESportsBattle. International 1 (2x4). 8 mins play",
+        "events": 50,
+        "level": 28,
+        "active": 0,
+        "shortName": "FIFA ESportsBattle. International 1 (2x4). 8 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 20056,
+        "sportId": 85,
+        "countryId": 316,
+        "title": "FIFA ESportsBattle. Argentinian Super League. 12 mins play",
+        "events": 5000,
+        "level": 11,
+        "active": 0,
+        "shortName": "FIFA ESportsBattle. Argentinian Super League. 12 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA",
+          "tier": 50,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/17732eda-779e-4a6b-9963-51da88544ac1.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/1b1c922b-8b69-40e4-941a-d47f89b29ba0.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 421,
+          "updatedAt": "2026-04-30T21:07:00.000Z",
+          "regionId": 19,
+          "alias": "fifa",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "71", "16002"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "57651", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "57565", "69845", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 33239,
+        "sportId": 85,
+        "countryId": 19,
+        "title": "FC 26. Valkyrie Cup #18",
+        "events": 5000,
+        "level": 4,
+        "active": 1,
+        "shortName": "FC 26. Valkyrie Cup #18"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "eFootball",
+          "tier": 8,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/99aa4ede-fa65-4a64-8a29-478d9f053cee.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/991d5c5b-9fac-427d-b93b-ad168a3659d3.pdf",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 15,
+          "updatedAt": "2026-04-30T21:02:00.000Z",
+          "regionId": 3,
+          "alias": "efootball",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["8489"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 33234,
+        "sportId": 85,
+        "countryId": 19,
+        "title": "FC 26. Valhalla Cup #18",
+        "events": 5000,
+        "level": 9,
+        "active": 1,
+        "shortName": "FC 26. Valhalla Cup #18"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "eFootball",
+          "tier": 8,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/99aa4ede-fa65-4a64-8a29-478d9f053cee.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/991d5c5b-9fac-427d-b93b-ad168a3659d3.pdf",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 15,
+          "updatedAt": "2026-04-30T21:02:00.000Z",
+          "regionId": 3,
+          "alias": "efootball",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["8489"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 33236,
+        "sportId": 85,
+        "countryId": 19,
+        "title": "FC 26. Valhalla Cup 3 #18",
+        "events": 5000,
+        "level": 2,
+        "active": 1,
+        "shortName": "FC 26. Valhalla Cup 3 #18"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "eFootball",
+          "tier": 8,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/99aa4ede-fa65-4a64-8a29-478d9f053cee.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/991d5c5b-9fac-427d-b93b-ad168a3659d3.pdf",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 15,
+          "updatedAt": "2026-04-30T21:02:00.000Z",
+          "regionId": 3,
+          "alias": "efootball",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["8489"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 32184,
+        "sportId": 85,
+        "countryId": 328,
+        "title": "🌍 Клубный чемпионат мира",
+        "events": 5000,
+        "level": 20,
+        "active": 1,
+        "shortName": "Клубный чемпионат мира"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA.Volta",
+          "tier": 20,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/eec6bd0e-49eb-47f1-a675-7bd9ed58e574.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/6dc7c244-5e6b-4d4e-95b4-0dbdea29f861.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 360,
+          "updatedAt": "2026-04-30T21:10:00.000Z",
+          "regionId": 10,
+          "alias": "fifa.volta",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "16002", "71"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 20057,
+        "sportId": 85,
+        "countryId": 328,
+        "title": "FIFA. ECF. Volta International C. 6 mins play",
+        "events": 5000,
+        "level": 60,
+        "active": 0,
+        "shortName": "FIFA. ECF. Volta International C. 6 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA.Volta",
+          "tier": 20,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/eec6bd0e-49eb-47f1-a675-7bd9ed58e574.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/6dc7c244-5e6b-4d4e-95b4-0dbdea29f861.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 360,
+          "updatedAt": "2026-04-30T21:10:00.000Z",
+          "regionId": 10,
+          "alias": "fifa.volta",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "16002", "71"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 5041,
+        "sportId": 85,
+        "countryId": 328,
+        "title": "FIFA. ECF. Volta International A (2x3). 6 mins play",
+        "events": 55,
+        "level": 60,
+        "active": 0,
+        "shortName": "FIFA. ECF. Volta International A (2x3). 6 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA.Volta",
+          "tier": 20,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/eec6bd0e-49eb-47f1-a675-7bd9ed58e574.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/6dc7c244-5e6b-4d4e-95b4-0dbdea29f861.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 360,
+          "updatedAt": "2026-04-30T21:10:00.000Z",
+          "regionId": 10,
+          "alias": "fifa.volta",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "16002", "71"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 5039,
+        "sportId": 85,
+        "countryId": 328,
+        "title": "FIFA. ECF. Volta Champions League A. 6 mins play",
+        "events": 55,
+        "level": 40,
+        "active": 0,
+        "shortName": "FIFA. ECF. Volta Champions League A. 6 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA.Volta",
+          "tier": 20,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/eec6bd0e-49eb-47f1-a675-7bd9ed58e574.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/6dc7c244-5e6b-4d4e-95b4-0dbdea29f861.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 360,
+          "updatedAt": "2026-04-30T21:10:00.000Z",
+          "regionId": 10,
+          "alias": "fifa.volta",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "16002", "71"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 5183,
+        "sportId": 85,
+        "countryId": 328,
+        "title": "FIFA EsportsBattle. Volta Club World Cup",
+        "events": 50,
+        "level": 40,
+        "active": 1,
+        "shortName": "FIFA EsportsBattle. Volta Club World Cup"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA.Volta",
+          "tier": 20,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/eec6bd0e-49eb-47f1-a675-7bd9ed58e574.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/6dc7c244-5e6b-4d4e-95b4-0dbdea29f861.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 360,
+          "updatedAt": "2026-04-30T21:10:00.000Z",
+          "regionId": 10,
+          "alias": "fifa.volta",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "16002", "71"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 5042,
+        "sportId": 85,
+        "countryId": 328,
+        "title": "FIFA EsportsBattle. Volta Bundesliga",
+        "events": 50,
+        "level": 60,
+        "active": 1,
+        "shortName": "FIFA EsportsBattle. Volta Bundesliga"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA.Volta",
+          "tier": 20,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/eec6bd0e-49eb-47f1-a675-7bd9ed58e574.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/6dc7c244-5e6b-4d4e-95b4-0dbdea29f861.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 360,
+          "updatedAt": "2026-04-30T21:10:00.000Z",
+          "regionId": 10,
+          "alias": "fifa.volta",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "16002", "71"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 5040,
+        "sportId": 85,
+        "countryId": 328,
+        "title": "FIFA EsportsBattle. Volta Premier League",
+        "events": 50,
+        "level": 20,
+        "active": 0,
+        "shortName": "FIFA EsportsBattle. Volta Premier League"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA.Volta",
+          "tier": 20,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/eec6bd0e-49eb-47f1-a675-7bd9ed58e574.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/6dc7c244-5e6b-4d4e-95b4-0dbdea29f861.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 360,
+          "updatedAt": "2026-04-30T21:10:00.000Z",
+          "regionId": 10,
+          "alias": "fifa.volta",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "16002", "71"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 5227,
+        "sportId": 85,
+        "countryId": 328,
+        "title": "FIFA EsportsBattle. Volta FA Cup",
+        "events": 50,
+        "level": 20,
+        "active": 0,
+        "shortName": "FIFA EsportsBattle. Volta FA Cup"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA.Volta",
+          "tier": 20,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/eec6bd0e-49eb-47f1-a675-7bd9ed58e574.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/6dc7c244-5e6b-4d4e-95b4-0dbdea29f861.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 360,
+          "updatedAt": "2026-04-30T21:10:00.000Z",
+          "regionId": 10,
+          "alias": "fifa.volta",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "16002", "71"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 2574,
+        "sportId": 85,
+        "countryId": 328,
+        "title": "FIFA EsportsBattle. Volta Seria A (2х3). 6 mins play",
+        "events": 50,
+        "level": 20,
+        "active": 1,
+        "shortName": "FIFA EsportsBattle. Volta Seria A (2х3). 6 mins play"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA.Volta",
+          "tier": 20,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/eec6bd0e-49eb-47f1-a675-7bd9ed58e574.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/6dc7c244-5e6b-4d4e-95b4-0dbdea29f861.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 360,
+          "updatedAt": "2026-04-30T21:10:00.000Z",
+          "regionId": 10,
+          "alias": "fifa.volta",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "16002", "71"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "120966"]
+          }]
+        }
+      }
+    }, {
+      "tournament": {
+        "id": 28399,
+        "sportId": 85,
+        "countryId": 328,
+        "title": "FIFA. ESportsBattle. Volta Europa League",
+        "events": 5000,
+        "level": 20,
+        "active": 1,
+        "shortName": "FIFA. ESportsBattle. Volta Europa League"
+      },
+      "category": {
+        "category": {
+          "sportId": 85,
+          "nameShort": "FIFA.Volta",
+          "tier": 20,
+          "assets": {
+            "iconSvg": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/eec6bd0e-49eb-47f1-a675-7bd9ed58e574.svg",
+            "iconPdf": "https://static.sporthub.bet/aa3d3491a0d2a4774baa3b1863918115/multifeed/categories/6dc7c244-5e6b-4d4e-95b4-0dbdea29f861.svg",
+            "fillImage": "",
+            "image": ""
+          },
+          "id": 360,
+          "updatedAt": "2026-04-30T21:10:00.000Z",
+          "regionId": 10,
+          "alias": "fifa.volta",
+          "groups": [{
+            "name": "Исход",
+            "codes": ["1", "36041", "16002", "71"]
+          }, {
+            "name": "Тотал",
+            "codes": ["3", "120914"]
+          }, {
+            "name": "Фора",
+            "codes": ["2", "120966"]
+          }]
+        }
+      }
+    }]
+  }
+}

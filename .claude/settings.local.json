@@ -33,7 +33,9 @@
       "Bash(sed -n '105,120p' /Users/danilabogatyrev/Documents/java/Valui_v2/valui_v2/valui-bot/src/main/java/com/valui/bot/handler/callback/WizardBackNavigator.java)",
       "Bash(sed -n '105,120p' /Users/danilabogatyrev/Documents/java/Valui_v2/valui-bot/src/main/java/com/valui/bot/handler/callback/WizardBackNavigator.java)",
       "Bash(mvn package *)",
-      "Bash(xargs ls *)"
+      "Bash(xargs ls *)",
+      "Bash(npm --version)",
+      "Bash(mvn install *)"
     ]
   }
 }
