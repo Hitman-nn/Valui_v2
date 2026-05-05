@@ -40,7 +40,6 @@ const MENU_ITEMS = [
   { key: '/parsers',   icon: <DashboardOutlined />, label: 'Parsers' },
   { key: '/audit',     icon: <AuditOutlined />,     label: 'Audit Log' },
   { key: '/broadcast', icon: <NotificationOutlined />, label: 'Broadcast' },
-  { key: '/system',    icon: <ApiOutlined />,        label: 'System' },
 ];
 
 const BREADCRUMB_MAP: Record<string, string> = {
@@ -52,7 +51,6 @@ const BREADCRUMB_MAP: Record<string, string> = {
   parsers:       'Parsers',
   audit:         'Audit Log',
   broadcast:     'Broadcast',
-  system:        'System',
 };
 
 function buildBreadcrumbs(pathname: string): { title: ReactNode }[] {

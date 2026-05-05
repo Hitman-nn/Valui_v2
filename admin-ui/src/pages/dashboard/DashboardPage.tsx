@@ -28,6 +28,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { dashboardApi } from '../../api/endpoints';
 import type { DashboardFull, ActivityPoint, KafkaLag } from '../../api/types';
+import JvmCharts from './JvmCharts';
 
 const { Text } = Typography;
 
@@ -167,17 +168,23 @@ export default function DashboardPage() {
             </div>
           </Col>
           <Col xs={12} sm={8} md={4}>
-            <Statistic title="Активных" value={summary.controllers.active}
-              valueStyle={{ color: '#52c41a' }} />
+            <div onClick={() => navigate('/controllers?active=true')} style={{ cursor: 'pointer' }}>
+              <Statistic title="Активных" value={summary.controllers.active}
+                valueStyle={{ color: '#52c41a' }} />
+            </div>
           </Col>
           <Col xs={12} sm={8} md={4}>
-            <Statistic title="Muted" value={summary.controllers.muted}
-              valueStyle={{ color: summary.controllers.muted > 0 ? '#faad14' : undefined }} />
+            <div onClick={() => navigate('/controllers?muted=true')} style={{ cursor: 'pointer' }}>
+              <Statistic title="Muted" value={summary.controllers.muted}
+                valueStyle={{ color: summary.controllers.muted > 0 ? '#faad14' : undefined }} />
+            </div>
           </Col>
           <Col xs={12} sm={8} md={4}>
             <Tooltip title="Активные контроллеры без события более 7 дней">
-              <Statistic title="Неактивных долго" value={summary.controllers.stale}
-                valueStyle={{ color: summary.controllers.stale > 0 ? '#ff4d4f' : undefined }} />
+              <div onClick={() => navigate('/controllers?active=true')} style={{ cursor: 'pointer' }}>
+                <Statistic title="Неактивных долго" value={summary.controllers.stale}
+                  valueStyle={{ color: summary.controllers.stale > 0 ? '#ff4d4f' : undefined }} />
+              </div>
             </Tooltip>
           </Col>
         </Row>
@@ -342,6 +349,9 @@ export default function DashboardPage() {
           </Col>
         </Row>
       </Card>
+
+      {/* ── JVM Charts ──────────────────────────────────────────────────── */}
+      <JvmCharts />
 
       {/* ── Activity Chart ──────────────────────────────────────────────── */}
       <Card title="Активность за 14 дней" size="small">

@@ -10,7 +10,6 @@ import EventsPage from '../pages/events/EventsPage';
 import SubscriptionsPage from '../pages/subscriptions/SubscriptionsPage';
 import ParsersPage from '../pages/parsers/ParsersPage';
 import AuditPage from '../pages/audit/AuditPage';
-import SystemPage from '../pages/system/SystemPage';
 import BroadcastPage from '../pages/broadcast/BroadcastPage';
 import { useAuthStore } from '../store/authStore';
 import type { ReactNode } from 'react';
@@ -45,7 +44,7 @@ export const router = createBrowserRouter(
         { path: 'subscriptions', element: <SubscriptionsPage /> },
         { path: 'parsers',      element: <ParsersPage /> },
         { path: 'audit',        element: <AuditPage /> },
-        { path: 'system',       element: <SystemPage /> },
+
         { path: 'broadcast',    element: <BroadcastPage /> },
       ],
     },

@@ -139,6 +139,13 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public Page<UserEntity> findAllUsers(UserStatus status, Pageable pageable) {
+        return status != null
+                ? userRepository.findAllByStatus(status, pageable)
+                : userRepository.findAll(pageable);
+    }
+
+    @Override
     public UserEntity findById(UUID userId) {
         return userRepository.findById(userId)
             .orElseThrow(() -> new UserNotFoundException(userId));
@@ -155,6 +162,18 @@ public class UserServiceImpl implements UserService {
         user.setRole(newRole);
         userRepository.save(user);
         log.info("[ADMIN] Role changed: userId={} newRole={}", userId, newRole);
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = USERS_CACHE, allEntries = true)
+    public UserEntity updateProfile(UUID userId, Integer tokenBalance, Integer tokenLowThresholdPct, Integer tokenMonthlyGrantRef) {
+        UserEntity user = userRepository.findById(userId)
+            .orElseThrow(() -> new UserNotFoundException(userId));
+        if (tokenBalance != null)           user.setTokenBalance(tokenBalance);
+        if (tokenLowThresholdPct != null)   user.setTokenLowThresholdPct(tokenLowThresholdPct);
+        if (tokenMonthlyGrantRef != null)   user.setTokenMonthlyGrantRef(tokenMonthlyGrantRef);
+        return userRepository.save(user);
     }
 
     // ─── private helpers ─────────────────────────────────────────────────────

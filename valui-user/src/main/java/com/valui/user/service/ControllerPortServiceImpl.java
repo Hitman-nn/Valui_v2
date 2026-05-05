@@ -97,4 +97,9 @@ public class ControllerPortServiceImpl implements ControllerPortService {
     public Page<ControllerEntity> findAllPageable(Pageable pageable) {
         return repository.findAll(pageable);
     }
+
+    @Override
+    public Page<ControllerEntity> findAllFiltered(BookmakerType bookmaker, Boolean isActive, Boolean isMuted, Pageable pageable) {
+        return repository.findAllFiltered(bookmaker, isActive, isMuted, pageable);
+    }
 }

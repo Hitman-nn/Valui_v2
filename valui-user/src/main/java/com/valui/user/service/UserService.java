@@ -1,6 +1,7 @@
 package com.valui.user.service;
 
 import com.valui.common.domain.UserRole;
+import com.valui.common.domain.UserStatus;
 import com.valui.common.entity.UserEntity;
 import com.valui.user.dto.TelegramUserDto;
 import com.valui.user.dto.UserWithSubscriptionDto;
@@ -38,6 +39,9 @@ public interface UserService {
     /** Paginated list of all users (admin only). */
     Page<UserEntity> findAllUsers(Pageable pageable);
 
+    /** Paginated list filtered by status, or all if status is null (admin only). */
+    Page<UserEntity> findAllUsers(UserStatus status, Pageable pageable);
+
     /** Get user by internal UUID (admin only). Throws UserNotFoundException if absent. */
     UserEntity findById(UUID userId);
 
@@ -46,4 +50,7 @@ public interface UserService {
 
     /** Delete user and all associated data (admin only). DB cascades handle related rows. */
     void deleteUser(UUID userId);
+
+    /** Update token balance, low threshold %, and monthly grant reference (admin only). */
+    UserEntity updateProfile(UUID userId, Integer tokenBalance, Integer tokenLowThresholdPct, Integer tokenMonthlyGrantRef);
 }

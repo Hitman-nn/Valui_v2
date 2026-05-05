@@ -8,6 +8,8 @@ import com.valui.admin.subscriptions.dto.AdminSubscriptionDto;
 import com.valui.admin.users.dto.AdminUserDto;
 import com.valui.admin.users.dto.AdminUserSummaryDto;
 import com.valui.admin.users.dto.ChangeRoleRequest;
+import com.valui.admin.users.dto.UpdateUserProfileRequest;
+import com.valui.admin.users.dto.UpdateSubscriptionDatesRequest;
 import com.valui.common.domain.UserStatus;
 import com.valui.common.dto.ErrorResponse;
 import com.valui.admin.audit.dto.AdminAuditDto;
@@ -76,9 +78,14 @@ public class AdminUserController {
     @GetMapping(produces = {V1, MediaType.APPLICATION_JSON_VALUE})
     public ResponseEntity<PagedModel<AdminUserSummaryDto>> listUsers(
             @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal,
+            @RequestParam(required = false) String status,
             @ParameterObject @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
 
-        Page<UserEntity> page = userService.findAllUsers(pageable);
+        UserStatus userStatus = null;
+        if (status != null && !status.isBlank()) {
+            try { userStatus = UserStatus.valueOf(status.toUpperCase()); } catch (IllegalArgumentException ignored) {}
+        }
+        Page<UserEntity> page = userService.findAllUsers(userStatus, pageable);
         return ResponseEntity.ok(pagedAssembler.toModel(page, assembler));
     }
 
@@ -262,6 +269,37 @@ public class AdminUserController {
             @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
         subscriptionService.grantPlan(id, req.planCode());
         return ResponseEntity.noContent().build();
+    }
+
+    // ── PATCH /api/v1/admin/users/{id}/profile ───────────────────────────────
+
+    @Operation(summary = "Обновить профиль пользователя (токены, пороги)")
+    @PatchMapping(value = "/{id}/profile", consumes = {V1, MediaType.APPLICATION_JSON_VALUE})
+    public ResponseEntity<AdminUserDto> updateProfile(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateUserProfileRequest req,
+            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        UserEntity user = userService.updateProfile(id, req.tokenBalance(), req.tokenLowThresholdPct(), req.tokenMonthlyGrantRef());
+        UserWithSubscriptionDto withSub = null;
+        try { withSub = userService.getUserWithSubscription(user.getTelegramId()); } catch (Exception ignored) {}
+        AdminUserDto dto = withSub != null
+            ? new AdminUserDto(user, withSub.plan(), withSub.subscription())
+            : new AdminUserDto(user, null, null);
+        enrichWithLinks(dto, user);
+        return ResponseEntity.ok(dto);
+    }
+
+    // ── PATCH /api/v1/admin/users/{id}/subscription/dates ─────────────────────
+
+    @Operation(summary = "Изменить даты подписки пользователя")
+    @PatchMapping(value = "/{id}/subscription/dates", consumes = {V1, MediaType.APPLICATION_JSON_VALUE})
+    public ResponseEntity<AdminSubscriptionDto> updateSubscriptionDates(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateSubscriptionDatesRequest req,
+            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        UserEntity user = userService.findById(id);
+        return ResponseEntity.ok(AdminSubscriptionDto.from(
+            subscriptionService.updateSubscriptionDates(user.getId(), req.startedAt(), req.expiresAt())));
     }
 
     // ── GET /api/v1/admin/users/{id}/payments ─────────────────────────────────

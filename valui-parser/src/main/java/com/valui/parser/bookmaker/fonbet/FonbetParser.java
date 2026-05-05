@@ -90,7 +90,7 @@ public class FonbetParser implements BookmakerParser {
             String id = s(item, "id"), name = s(item, "name");
             if (id == null || name == null) continue;
             tournaments.add(new TournamentDto(id, name, sportId, null,
-                    "https://www.fon.bet/sports/" + sportId + "/" + id));
+                    "https://fon.bet/sports/" + sportId + "/tournament/" + id));
         }
         return ParseResult.ok(tournaments, ms() - start);
     }
@@ -102,6 +102,7 @@ public class FonbetParser implements BookmakerParser {
         long start = ms();
         JsonNode snap = fetchSnapshot();
         List<ParsedMatchDto> matches = new ArrayList<>();
+        String parentSportId = findParentSportId(snap, tournamentId);
         JsonNode events = snap.path("events");
         if (!events.isArray()) return ParseResult.ok(matches, ms() - start);
         for (JsonNode ev : events) {
@@ -111,11 +112,23 @@ public class FonbetParser implements BookmakerParser {
             String id = s(ev, "id"), t1 = s(ev, "team1"), t2 = s(ev, "team2");
             if (id == null || t1 == null || t2 == null) continue;
             Instant startsAt = parseInstant(s(ev, "startTime"), false);
+            String matchUrl = parentSportId != null
+                    ? "https://fon.bet/sports/" + parentSportId + "/" + tournamentId + "/" + id
+                    : "https://fon.bet/sports/" + tournamentId + "/" + id;
             matches.add(new ParsedMatchDto(id, t1 + " - " + t2, tournamentId,
-                    "https://www.fon.bet/sports/" + tournamentId + "/" + id,
-                    startsAt, ev.path("live").asBoolean(false)));
+                    matchUrl, startsAt, ev.path("live").asBoolean(false)));
         }
         return ParseResult.ok(matches, ms() - start);
+    }
+
+    private String findParentSportId(JsonNode snap, String sportId) {
+        for (JsonNode item : sportsArray(snap)) {
+            if (sportId.equals(s(item, "id"))) {
+                JsonNode parentId = item.path("parentId");
+                if (!parentId.isNull() && !parentId.isMissingNode()) return parentId.asText();
+            }
+        }
+        return null;
     }
 
     @Override

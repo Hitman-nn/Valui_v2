@@ -41,12 +41,16 @@ public final class UrlParser {
         return new ParsedUrlIds(sportId, tournamentId, matchId);
     }
 
-    // /sports/{sportId}[/{champId}]
+    // /sports/{sportId}/tournament/{champId}           — tournament
+    // /sports/{sportId}/{champId}[/{matchId}]          — tournament or match (legacy/direct)
     private static ParsedUrlIds extractFonbet(String[] p) {
-        // p[0]="sports", p[1]=sportId, p[2]=champId
-        String sportId     = p.length > 1 ? p[1] : null;
+        String sportId = p.length > 1 ? p[1] : null;
+        if (p.length > 2 && "tournament".equals(p[2])) {
+            return new ParsedUrlIds(sportId, p.length > 3 ? p[3] : null, null);
+        }
         String tournamentId = p.length > 2 ? p[2] : null;
-        return new ParsedUrlIds(sportId, tournamentId, null);
+        String matchId      = p.length > 3 ? p[3] : null;
+        return new ParsedUrlIds(sportId, tournamentId, matchId);
     }
 
     // /line/{sportId}[/{champId}]

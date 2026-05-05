@@ -49,6 +49,9 @@ export interface UserSummary {
   role: 'USER' | 'ADMIN';
   status: 'ACTIVE' | 'BANNED' | 'PENDING';
   tokenBalance: number;
+  controllersCount: number;
+  planCode: string | null;
+  subscriptionExpiresAt: string | null;
   createdAt: string;
 }
 
@@ -273,6 +276,17 @@ export interface DashboardFull {
   db: DbPool;
   jvm: DashboardJvm;
   activity: ActivityPoint[];
+}
+
+// ─── JVM History ─────────────────────────────────────────────────────────────
+
+export interface JvmDataPoint {
+  ts: number;         // epoch millis
+  heapMb: number;
+  heapMaxMb: number;
+  nonHeapMb: number;
+  threads: number;
+  cpu: number;        // 0–100
 }
 
 // ─── Events ───────────────────────────────────────────────────────────────────

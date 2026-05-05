@@ -15,8 +15,10 @@ import com.valui.common.exception.UserNotFoundException;
 import com.valui.user.dto.UserWithSubscriptionDto;
 import com.valui.admin.monitoring.ControllerAssembler;
 import com.valui.user.repository.AuditLogRepository;
+import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.NotificationLogRepository;
 import com.valui.user.repository.PaymentTransactionRepository;
+import com.valui.user.repository.SubscriptionRepository;
 import com.valui.user.service.SubscriptionService;
 import com.valui.user.service.UserService;
 import com.valui.monitor.service.ControllerService;
@@ -67,6 +69,8 @@ class AdminUserControllerTest {
     @MockBean ControllerService controllerService;
     @MockBean ControllerAssembler controllerAssembler;
     @MockBean PaymentTransactionRepository paymentTransactionRepository;
+    @MockBean ControllerRepository controllerRepository;
+    @MockBean SubscriptionRepository subscriptionRepository;
 
     static final UUID ADMIN_ID   = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
     static final Long ADMIN_TG   = 111111111L;
@@ -104,7 +108,10 @@ class AdminUserControllerTest {
     @DisplayName("GET /admin/users — ADMIN → 200 с пагинацией")
     void listUsers_admin_returns200() throws Exception {
         var page = new PageImpl<>(List.of(targetUser), PageRequest.of(0, 20), 1);
-        given(userService.findAllUsers(any())).willReturn(page);
+        given(userService.findAllUsers(any(), any())).willReturn(page);
+        given(controllerRepository.countByUserId(any())).willReturn(0L);
+        given(subscriptionRepository.findTopByUserIdAndStatusOrderByStartedAtDesc(any(), any()))
+                .willReturn(java.util.Optional.empty());
 
         mockMvc.perform(get("/api/v1/admin/users")
                         .header("Authorization", adminBearer)

@@ -50,4 +50,7 @@ public interface ControllerPortService {
 
     /** Admin use: paginated listing of all controllers across all users. */
     Page<ControllerEntity> findAllPageable(Pageable pageable);
+
+    /** Admin use: filtered paginated listing. Any null param means "no filter". */
+    Page<ControllerEntity> findAllFiltered(BookmakerType bookmaker, Boolean isActive, Boolean isMuted, Pageable pageable);
 }

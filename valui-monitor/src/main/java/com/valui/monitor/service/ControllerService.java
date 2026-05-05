@@ -63,6 +63,9 @@ public interface ControllerService {
     /** Admin use: paginated list of ALL controllers across all users. */
     Page<ControllerDto> getAllControllers(Pageable pageable);
 
+    /** Admin use: filtered paginated list. Any null param means "no filter". */
+    Page<ControllerDto> getAllControllers(String bookmaker, Boolean isActive, Boolean isMuted, Pageable pageable);
+
     /**
      * Mutes notifications for chatId (reversible — unmute restores them).
      * If no active subscriptions remain, the controller is unscheduled and reset for warmup.

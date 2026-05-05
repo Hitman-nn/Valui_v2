@@ -188,6 +188,17 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         return subscriptionRepository.findTopByUserIdAndStatusOrderByStartedAtDesc(userId, SubscriptionStatus.ACTIVE);
     }
 
+    @Override
+    @Transactional
+    public SubscriptionEntity updateSubscriptionDates(UUID userId, java.time.OffsetDateTime startedAt, java.time.OffsetDateTime expiresAt) {
+        SubscriptionEntity sub = subscriptionRepository
+            .findTopByUserIdAndStatusOrderByStartedAtDesc(userId, SubscriptionStatus.ACTIVE)
+            .orElseThrow(() -> new IllegalStateException("No active subscription for userId=" + userId));
+        if (startedAt != null)  sub.setStartedAt(startedAt);
+        if (expiresAt != null)  sub.setExpiresAt(expiresAt);
+        return subscriptionRepository.save(sub);
+    }
+
     // ─── helpers ─────────────────────────────────────────────────────────────
 
     private UserEntity requireUser(Long telegramId) {

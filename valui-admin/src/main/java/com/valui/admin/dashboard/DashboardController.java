@@ -44,6 +44,7 @@ public class DashboardController {
     private final KafkaAdmin                   kafkaAdmin;
     private final RedisConnectionFactory       redisConnectionFactory;
     private final ParserHealthService          parserHealthService;
+    private final JvmMetricsHistoryService     jvmHistory;
 
     @GetMapping("/summary")
     @Operation(summary = "Бизнес-метрики: пользователи, контроллеры, события, подписки")
@@ -55,6 +56,14 @@ public class DashboardController {
     @Operation(summary = "JVM и системные метрики")
     public ResponseEntity<DashboardJvmDto> jvm() {
         return ResponseEntity.ok(buildJvm());
+    }
+
+    @GetMapping("/jvm-history")
+    @Operation(summary = "История JVM-метрик для графиков",
+               description = "range: 1h (60 точек, 1 мин), 24h (1440 точек, 1 мин), 7d (168 точек, 1 час), 30d (720 точек, 1 час)")
+    public ResponseEntity<List<com.valui.admin.dashboard.dto.JvmDataPointDto>> jvmHistory(
+            @RequestParam(defaultValue = "1h") String range) {
+        return ResponseEntity.ok(jvmHistory.getHistory(range));
     }
 
     @GetMapping("/infrastructure")

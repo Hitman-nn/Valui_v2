@@ -23,9 +23,10 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       useAuthStore.getState().clearAuth();
-      // Navigate to /login — using window.location because we're outside React tree
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+      // BASE_URL includes the basename (e.g. '/admin/'), so login path is BASE_URL + 'login'
+      const loginPath = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '') + '/login';
+      if (window.location.pathname !== loginPath) {
+        window.location.href = loginPath;
       }
     }
     return Promise.reject(error);

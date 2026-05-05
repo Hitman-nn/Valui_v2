@@ -60,6 +60,8 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
     @Query("UPDATE ControllerEntity c SET c.pausedByTokens = :paused, c.isActive = :active, c.isMuted = :muted WHERE c.id = :id")
     int updateTokenPauseState(@Param("id") UUID id, @Param("paused") boolean paused, @Param("active") boolean active, @Param("muted") boolean muted);
 
+    long countByUserId(UUID userId);
+
     long countByIsActiveTrue();
 
     long countByIsMutedTrue();
@@ -70,4 +72,22 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
 
     @Query("SELECT COUNT(c) FROM ControllerEntity c WHERE c.bookmaker = :bm")
     long countByBookmakerType(@Param("bm") BookmakerType bm);
+
+    @Query(value = """
+            SELECT c FROM ControllerEntity c
+            WHERE (:bookmaker IS NULL OR c.bookmaker = :bookmaker)
+              AND (:isActive  IS NULL OR c.isActive  = :isActive)
+              AND (:isMuted   IS NULL OR c.isMuted   = :isMuted)
+            """,
+           countQuery = """
+            SELECT COUNT(c) FROM ControllerEntity c
+            WHERE (:bookmaker IS NULL OR c.bookmaker = :bookmaker)
+              AND (:isActive  IS NULL OR c.isActive  = :isActive)
+              AND (:isMuted   IS NULL OR c.isMuted   = :isMuted)
+            """)
+    Page<ControllerEntity> findAllFiltered(
+            @Param("bookmaker") BookmakerType bookmaker,
+            @Param("isActive")  Boolean isActive,
+            @Param("isMuted")   Boolean isMuted,
+            Pageable pageable);
 }

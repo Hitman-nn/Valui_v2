@@ -58,9 +58,14 @@ public class AdminMonitoringController {
     @GetMapping(produces = {V1, MediaType.APPLICATION_JSON_VALUE})
     public ResponseEntity<PagedModel<ControllerApiDto>> listAllControllers(
             @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal,
+            @RequestParam(required = false) String bookmaker,
+            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(required = false) Boolean isMuted,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
 
-        Page<ControllerDto> page = controllerService.getAllControllers(pageable);
+        Page<ControllerDto> page = (bookmaker != null || isActive != null || isMuted != null)
+                ? controllerService.getAllControllers(bookmaker, isActive, isMuted, pageable)
+                : controllerService.getAllControllers(pageable);
         return ResponseEntity.ok(pagedAssembler.toModel(page, controllerAssembler));
     }
 

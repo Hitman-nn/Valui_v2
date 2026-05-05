@@ -52,4 +52,7 @@ public interface SubscriptionService {
 
     /** Returns the active subscription for a user, or empty if none. */
     java.util.Optional<SubscriptionEntity> findActiveByUserId(UUID userId);
+
+    /** Update subscription dates (admin only). Null values are ignored. */
+    SubscriptionEntity updateSubscriptionDates(UUID userId, java.time.OffsetDateTime startedAt, java.time.OffsetDateTime expiresAt);
 }

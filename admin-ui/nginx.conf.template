@@ -8,10 +8,12 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
-    # Проксирование API-запросов к Java-приложению на хосте.
-    # host.docker.internal резолвится в IP хоста через extra_hosts в compose.
+    # Проксирование API-запросов к Java-приложению.
+    # API_UPSTREAM задаётся через env при старте контейнера (envsubst).
+    # Дефолт: host.docker.internal:8080 (локальная разработка — Spring вне Docker).
+    # Прод:   app:8080 (Spring в той же Docker-сети valui-network).
     location /api/ {
-        proxy_pass         http://host.docker.internal:8080;
+        proxy_pass         http://${API_UPSTREAM};
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;

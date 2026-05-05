@@ -18,7 +18,7 @@ import java.util.UUID;
 @Repository
 public interface SubscriptionRepository extends JpaRepository<SubscriptionEntity, UUID> {
 
-    @EntityGraph(attributePaths = {"plan"})
+    @EntityGraph(attributePaths = {"plan", "user"})
     Optional<SubscriptionEntity> findTopByUserIdAndStatusOrderByStartedAtDesc(UUID userId, SubscriptionStatus status);
 
     List<SubscriptionEntity> findAllByUserId(UUID userId);

@@ -102,7 +102,7 @@ services:
     ports:
       - "127.0.0.1:3001:80"   # host-Nginx проксирует снаружи
     extra_hosts:
-      - "host.docker.internal:host-gateway"   # даёт доступ к Java-app на хосте
+      - "host.docker.internal:host-gateway"   # Spring вне Docker — доступен через IP хоста
     networks:
       - valui-network
     restart: unless-stopped

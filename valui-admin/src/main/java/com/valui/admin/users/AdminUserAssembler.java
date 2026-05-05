@@ -1,24 +1,38 @@
 package com.valui.admin.users;
 
 import com.valui.admin.users.dto.AdminUserSummaryDto;
+import com.valui.common.domain.SubscriptionStatus;
 import com.valui.common.entity.UserEntity;
+import com.valui.user.repository.ControllerRepository;
+import com.valui.user.repository.SubscriptionRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.hateoas.server.RepresentationModelAssembler;
 import org.springframework.stereotype.Component;
 
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
 @Component
+@RequiredArgsConstructor
 public class AdminUserAssembler
         implements RepresentationModelAssembler<UserEntity, AdminUserSummaryDto> {
 
+    private final ControllerRepository controllerRepository;
+    private final SubscriptionRepository subscriptionRepository;
+
     @Override
     public AdminUserSummaryDto toModel(UserEntity entity) {
-        AdminUserSummaryDto dto = new AdminUserSummaryDto(entity);
+        long controllersCount = controllerRepository.countByUserId(entity.getId());
+        var activeSub = subscriptionRepository
+                .findTopByUserIdAndStatusOrderByStartedAtDesc(entity.getId(), SubscriptionStatus.ACTIVE);
+        String planCode = activeSub.map(s -> s.getPlan().getCode()).orElse(null);
+        var subscriptionExpiresAt = activeSub.map(s -> s.getExpiresAt()).orElse(null);
+
+        AdminUserSummaryDto dto = new AdminUserSummaryDto(entity, controllersCount, planCode, subscriptionExpiresAt);
 
         dto.add(linkTo(methodOn(AdminUserController.class)
                 .getUser(entity.getId(), null)).withSelfRel());
         dto.add(linkTo(methodOn(AdminUserController.class)
-                .listUsers(null, null)).withRel("users"));
+                .listUsers(null, null, null)).withRel("users"));
 
         if (entity.getStatus() != null) {
             switch (entity.getStatus()) {
@@ -32,7 +46,7 @@ public class AdminUserAssembler
         dto.add(linkTo(methodOn(AdminUserController.class)
                 .changeRole(entity.getId(), null, null)).withRel("changeRole"));
         dto.add(linkTo(methodOn(AdminMonitoringController.class)
-                .listAllControllers(null, null)).withRel("controllers"));
+                .listAllControllers(null, null, null, null, null)).withRel("controllers"));
 
         return dto;
     }

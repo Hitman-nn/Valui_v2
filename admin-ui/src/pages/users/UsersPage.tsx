@@ -5,81 +5,94 @@ import {
   Select,
   Space,
   Button,
-  Modal,
-  Form,
   App,
   Typography,
+  Tag,
   TablePaginationConfig,
 } from 'antd';
+import type { SorterResult } from 'antd/es/table/interface';
 import { SearchOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { usersApi, subscriptionsApi } from '../../api/endpoints';
+import { usersApi } from '../../api/endpoints';
 import { StatusBadge, RoleBadge } from '../../components/StatusBadge';
 import type { UserSummary } from '../../api/types';
 
-const PLAN_OPTIONS = [
-  { label: 'FREE', value: 'FREE' },
-  { label: 'PRO', value: 'PRO' },
-  { label: 'PREMIUM', value: 'PREMIUM' },
-];
+function planColor(code: string | null): string {
+  switch (code?.toUpperCase()) {
+    case 'PREMIUM': return 'gold';
+    case 'PRO':     return 'blue';
+    default:        return 'default';
+  }
+}
+
+function subDaysLabel(expiresAt: string | null): React.ReactNode {
+  if (!expiresAt) return <Typography.Text type="secondary">—</Typography.Text>;
+  const days = dayjs(expiresAt).diff(dayjs(), 'day');
+  if (days < 0) return <Tag color="default">Истёк</Tag>;
+  if (days === 0) return <Tag color="warning">Сегодня</Tag>;
+  if (days <= 7)  return <Tag color="warning">{days} д.</Tag>;
+  return <Tag color="processing">{days} д.</Tag>;
+}
 
 export default function UsersPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'BANNED'>('ALL');
-  const [grantUserId, setGrantUserId] = useState<string | null>(null);
-  const [grantForm] = Form.useForm<{ planCode: string }>();
+  const [sort, setSort] = useState<string>('createdAt,desc');
+  const statusFilter = (searchParams.get('status') as 'ACTIVE' | 'BANNED' | null) ?? 'ALL';
   const navigate = useNavigate();
   const { notification } = App.useApp();
   const qc = useQueryClient();
 
+  const setStatusFilter = (value: 'ALL' | 'ACTIVE' | 'BANNED') => {
+    setPage(0);
+    if (value === 'ALL') setSearchParams({});
+    else setSearchParams({ status: value });
+  };
+
   const { data, isLoading } = useQuery({
-    queryKey: ['users', page],
-    queryFn: () => usersApi.list({ page, size: 20, sort: 'createdAt' }),
+    queryKey: ['users', page, statusFilter, sort],
+    queryFn: () => usersApi.list({
+      page,
+      size: 20,
+      sort,
+      ...(statusFilter !== 'ALL' ? { status: statusFilter } : {}),
+    }),
   });
 
   const users: UserSummary[] = data?._embedded?.users ?? [];
   const total = data?.page?.totalElements ?? 0;
 
-  const filteredUsers = users.filter((u) => {
-    const matchesSearch =
-      !search ||
-      u.username?.toLowerCase().includes(search.toLowerCase()) ||
-      String(u.telegramId).includes(search);
-    const matchesStatus = statusFilter === 'ALL' || u.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredUsers = users.filter((u) =>
+    !search ||
+    u.username?.toLowerCase().includes(search.toLowerCase()) ||
+    u.firstName?.toLowerCase().includes(search.toLowerCase()) ||
+    String(u.telegramId).includes(search),
+  );
 
   const banMutation = useMutation({
     mutationFn: (user: UserSummary) =>
       user.status === 'BANNED' ? usersApi.unban(user.id) : usersApi.ban(user.id),
     onSuccess: () => {
-      notification.success({ message: 'User status updated' });
+      notification.success({ message: 'Статус обновлён' });
       qc.invalidateQueries({ queryKey: ['users'] });
     },
-    onError: (err: Error) => {
-      notification.error({ message: 'Failed to update status', description: err.message });
-    },
+    onError: (err: Error) => notification.error({ message: err.message }),
   });
 
-  const grantMutation = useMutation({
-    mutationFn: ({ userId, planCode }: { userId: string; planCode: string }) =>
-      subscriptionsApi.grant(userId, { planCode }),
-    onSuccess: () => {
-      notification.success({ message: 'Plan granted successfully' });
-      setGrantUserId(null);
-      grantForm.resetFields();
-      qc.invalidateQueries({ queryKey: ['users'] });
-    },
-    onError: (err: Error) => {
-      notification.error({ message: 'Failed to grant plan', description: err.message });
-    },
-  });
-
-  const handleTableChange = (pagination: TablePaginationConfig) => {
+  const handleTableChange = (
+    pagination: TablePaginationConfig,
+    _: unknown,
+    sorter: SorterResult<UserSummary> | SorterResult<UserSummary>[],
+  ) => {
     setPage((pagination.current ?? 1) - 1);
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    if (s?.columnKey && s.order) {
+      const dir = s.order === 'ascend' ? 'asc' : 'desc';
+      setSort(`${String(s.columnKey)},${dir}`);
+    }
   };
 
   const columns = [
@@ -87,72 +100,89 @@ export default function UsersPage() {
       title: 'Telegram ID',
       dataIndex: 'telegramId',
       key: 'telegramId',
-      width: 130,
+      width: 120,
+      sorter: true,
+    },
+    {
+      title: 'Имя',
+      dataIndex: 'firstName',
+      key: 'firstName',
+      width: 120,
+      sorter: true,
+      render: (v: string | null) => v ?? <Typography.Text type="secondary">—</Typography.Text>,
     },
     {
       title: 'Username',
       dataIndex: 'username',
       key: 'username',
+      sorter: true,
       render: (v: string | null) => v ?? <Typography.Text type="secondary">—</Typography.Text>,
     },
     {
-      title: 'Role',
+      title: 'Роль',
       dataIndex: 'role',
       key: 'role',
       width: 90,
+      sorter: true,
       render: (role: UserSummary['role']) => <RoleBadge role={role} />,
     },
     {
-      title: 'Status',
+      title: 'Статус',
       dataIndex: 'status',
       key: 'status',
       width: 100,
+      sorter: true,
       render: (status: UserSummary['status']) => <StatusBadge status={status} />,
     },
     {
-      title: 'Tokens',
+      title: 'План',
+      dataIndex: 'planCode',
+      key: 'planCode',
+      width: 90,
+      sorter: true,
+      render: (v: string | null) => v
+        ? <Tag color={planColor(v)}>{v}</Tag>
+        : <Typography.Text type="secondary">—</Typography.Text>,
+    },
+    {
+      title: 'Подписка',
+      dataIndex: 'subscriptionExpiresAt',
+      key: 'subscriptionExpiresAt',
+      width: 110,
+      sorter: true,
+      render: (v: string | null) => subDaysLabel(v),
+    },
+    {
+      title: 'Контроллеры',
+      dataIndex: 'controllersCount',
+      key: 'controllersCount',
+      width: 110,
+      align: 'right' as const,
+      sorter: true,
+    },
+    {
+      title: 'Токены',
       dataIndex: 'tokenBalance',
       key: 'tokenBalance',
-      width: 100,
+      width: 90,
       align: 'right' as const,
+      sorter: true,
     },
     {
-      title: 'Created',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 150,
-      render: (v: string) => dayjs(v).format('DD.MM.YYYY HH:mm'),
-    },
-    {
-      title: 'Actions',
+      title: '',
       key: 'actions',
-      width: 180,
+      width: 100,
       render: (_: unknown, record: UserSummary) => (
-        <Space size="small">
-          <Button
-            size="small"
-            danger={record.status !== 'BANNED'}
-            type={record.status === 'BANNED' ? 'default' : 'text'}
-            icon={record.status === 'BANNED' ? <CheckCircleOutlined /> : <StopOutlined />}
-            loading={banMutation.isPending}
-            onClick={(e) => {
-              e.stopPropagation();
-              banMutation.mutate(record);
-            }}
-          >
-            {record.status === 'BANNED' ? 'Unban' : 'Ban'}
-          </Button>
-          <Button
-            size="small"
-            type="link"
-            onClick={(e) => {
-              e.stopPropagation();
-              setGrantUserId(record.id);
-            }}
-          >
-            Grant Plan
-          </Button>
-        </Space>
+        <Button
+          size="small"
+          danger={record.status !== 'BANNED'}
+          type={record.status === 'BANNED' ? 'default' : 'text'}
+          icon={record.status === 'BANNED' ? <CheckCircleOutlined /> : <StopOutlined />}
+          loading={banMutation.isPending}
+          onClick={(e) => { e.stopPropagation(); banMutation.mutate(record); }}
+        >
+          {record.status === 'BANNED' ? 'Разбан' : 'Бан'}
+        </Button>
       ),
     },
   ];
@@ -161,21 +191,21 @@ export default function UsersPage() {
     <>
       <Space style={{ marginBottom: 16, flexWrap: 'wrap' }} size="middle">
         <Input
-          placeholder="Search by username or Telegram ID"
+          placeholder="Поиск по имени, username или Telegram ID"
           prefix={<SearchOutlined />}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ width: 300 }}
+          style={{ width: 320 }}
           allowClear
         />
         <Select
           value={statusFilter}
           onChange={setStatusFilter}
-          style={{ width: 140 }}
+          style={{ width: 150 }}
           options={[
-            { label: 'All Statuses', value: 'ALL' },
-            { label: 'Active', value: 'ACTIVE' },
-            { label: 'Banned', value: 'BANNED' },
+            { label: 'Все статусы', value: 'ALL' },
+            { label: 'Активные',    value: 'ACTIVE' },
+            { label: 'Забаненные',  value: 'BANNED' },
           ]}
         />
       </Space>
@@ -190,7 +220,7 @@ export default function UsersPage() {
           pageSize: 20,
           total,
           showSizeChanger: false,
-          showTotal: (t) => `Total ${t} users`,
+          showTotal: (t) => `Всего ${t}`,
         }}
         onChange={handleTableChange}
         onRow={(record) => ({
@@ -199,36 +229,6 @@ export default function UsersPage() {
         })}
         size="middle"
       />
-
-      <Modal
-        title="Grant Subscription Plan"
-        open={grantUserId !== null}
-        onCancel={() => {
-          setGrantUserId(null);
-          grantForm.resetFields();
-        }}
-        onOk={() => grantForm.submit()}
-        okText="Grant"
-        confirmLoading={grantMutation.isPending}
-      >
-        <Form<{ planCode: string }>
-          form={grantForm}
-          layout="vertical"
-          onFinish={(values) => {
-            if (grantUserId) {
-              grantMutation.mutate({ userId: grantUserId, planCode: values.planCode });
-            }
-          }}
-        >
-          <Form.Item
-            name="planCode"
-            label="Select Plan"
-            rules={[{ required: true, message: 'Please select a plan' }]}
-          >
-            <Select options={PLAN_OPTIONS} placeholder="Choose a plan" />
-          </Form.Item>
-        </Form>
-      </Modal>
     </>
   );
 }

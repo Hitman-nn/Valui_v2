@@ -64,6 +64,11 @@ export const dashboardApi = {
     apiClient.get<ActivityPoint[]>('/api/v1/admin/dashboard/activity', {
       params: { days },
     }).then((r) => r.data),
+
+  jvmHistory: (range: '1h' | '24h' | '7d' | '30d') =>
+    apiClient.get<import('./types').JvmDataPoint[]>('/api/v1/admin/dashboard/jvm-history', {
+      params: { range },
+    }).then((r) => r.data),
 };
 
 // ─── Users ───────────────────────────────────────────────────────────────────
@@ -112,6 +117,12 @@ export const usersApi = {
   payments: (id: string) =>
     apiClient.get<Payment[]>(`/api/v1/admin/users/${id}/payments`).then((r) => r.data),
 
+  updateProfile: (id: string, data: { tokenBalance?: number; tokenLowThresholdPct?: number; tokenMonthlyGrantRef?: number }) =>
+    apiClient.patch<import('./types').UserDetail>(`/api/v1/admin/users/${id}/profile`, data).then((r) => r.data),
+
+  updateSubscriptionDates: (id: string, data: { startedAt?: string | null; expiresAt?: string | null }) =>
+    apiClient.patch<Subscription>(`/api/v1/admin/users/${id}/subscription/dates`, data).then((r) => r.data),
+
   auditLog: (id: string, params: { page?: number; size?: number }) =>
     apiClient
       .get<SpringPage<AuditLog>>(`/api/v1/admin/users/${id}/audit-log`, { params })
@@ -130,6 +141,8 @@ export const controllersApi = {
     page?: number;
     size?: number;
     bookmaker?: string;
+    isActive?: boolean;
+    isMuted?: boolean;
     userId?: string;
     sort?: string;
   }) =>

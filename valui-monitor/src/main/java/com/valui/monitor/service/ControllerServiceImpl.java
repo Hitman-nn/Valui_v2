@@ -206,6 +206,12 @@ public class ControllerServiceImpl implements ControllerService {
     }
 
     @Override
+    public Page<ControllerDto> getAllControllers(String bookmaker, Boolean isActive, Boolean isMuted, Pageable pageable) {
+        BookmakerType bm = bookmaker != null ? BookmakerType.valueOf(bookmaker.toUpperCase()) : null;
+        return controllerPort.findAllFiltered(bm, isActive, isMuted, pageable).map(this::toDto);
+    }
+
+    @Override
     @Transactional
     public void activateController(UUID controllerId) {
         ControllerEntity e = controllerPort.findById(controllerId)

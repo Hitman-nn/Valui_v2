@@ -7,8 +7,6 @@ import {
   Button,
   Tag,
   Tooltip,
-  Modal,
-  Form,
   App,
   Typography,
   TablePaginationConfig,
@@ -19,32 +17,41 @@ import {
   SoundOutlined,
   PlayCircleOutlined,
   PauseCircleOutlined,
-  EditOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { controllersApi } from '../../api/endpoints';
-import type { Controller, HalPage, UpdateControllerRequest } from '../../api/types';
+import type { Controller, HalPage } from '../../api/types';
 
 const BOOKMAKERS = ['XBET', 'FONBET', 'OLIMP', 'BETCITY', 'BETBOOM'];
 
 export default function ControllersPage() {
-  const [page, setPage]              = useState(0);
-  const [search, setSearch]          = useState('');
-  const [bookmakerFilter, setBookmaker] = useState<string>('ALL');
-  const [editTarget, setEditTarget]  = useState<Controller | null>(null);
-  const [editForm]                   = Form.useForm<UpdateControllerRequest & { title?: string }>();
-  const navigate                     = useNavigate();
-  const { notification, modal }      = App.useApp();
-  const qc                           = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [page, setPage]   = useState(0);
+  const [search, setSearch] = useState('');
+  const bookmakerFilter = searchParams.get('bookmaker') ?? 'ALL';
+  const isActiveFilter  = searchParams.get('active');
+  const isMutedFilter   = searchParams.get('muted');
+  const navigate        = useNavigate();
+  const { notification, modal } = App.useApp();
+  const qc = useQueryClient();
+
+  const setBookmaker = (value: string) => {
+    setPage(0);
+    const next = new URLSearchParams(searchParams);
+    if (value === 'ALL') next.delete('bookmaker'); else next.set('bookmaker', value);
+    setSearchParams(next);
+  };
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-controllers', page, bookmakerFilter],
+    queryKey: ['admin-controllers', page, bookmakerFilter, isActiveFilter, isMutedFilter],
     queryFn: () => controllersApi.list({
       page,
       size: 25,
       ...(bookmakerFilter !== 'ALL' ? { bookmaker: bookmakerFilter } : {}),
+      ...(isActiveFilter !== null ? { isActive: isActiveFilter === 'true' } : {}),
+      ...(isMutedFilter  !== null ? { isMuted:  isMutedFilter  === 'true' } : {}),
     }),
   });
 
@@ -93,18 +100,6 @@ export default function ControllersPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => controllersApi.delete(id),
     onSuccess: () => { notification.success({ message: 'Контроллер удалён' }); refetchList(); },
-    onError: (e: Error) => notification.error({ message: e.message }),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateControllerRequest }) =>
-      controllersApi.update(id, data),
-    onSuccess: (updated) => {
-      notification.success({ message: 'Контроллер обновлён' });
-      setEditTarget(null);
-      editForm.resetFields();
-      patchCache(updated);
-    },
     onError: (e: Error) => notification.error({ message: e.message }),
   });
 
@@ -161,12 +156,14 @@ export default function ControllersPage() {
       dataIndex: 'lastEventAt',
       key: 'lastEventAt',
       width: 150,
-      render: (v: string | null) => v ? dayjs(v).format('DD.MM.YY HH:mm') : <Typography.Text type="secondary">—</Typography.Text>,
+      render: (v: string | null) => v
+        ? dayjs(v).format('DD.MM.YY HH:mm')
+        : <Typography.Text type="secondary">—</Typography.Text>,
     },
     {
       title: '',
       key: 'actions',
-      width: 140,
+      width: 90,
       render: (_: unknown, c: Controller) => (
         <Space size={4}>
           <Tooltip title={c.isActive ? 'Деактивировать' : 'Активировать'}>
@@ -184,18 +181,6 @@ export default function ControllersPage() {
               icon={<SoundOutlined />}
               style={{ color: c.isMuted ? '#faad14' : undefined }}
               onClick={(e) => { e.stopPropagation(); muteMutation.mutate(c); }}
-            />
-          </Tooltip>
-          <Tooltip title="Редактировать">
-            <Button
-              size="small"
-              type="text"
-              icon={<EditOutlined />}
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditTarget(c);
-                editForm.setFieldsValue({ title: c.title ?? '', filterRule: c.filterRule ?? '', pollIntervalSec: c.pollIntervalSec ?? undefined });
-              }}
             />
           </Tooltip>
           <Tooltip title="Удалить">
@@ -255,36 +240,6 @@ export default function ControllersPage() {
         })}
         size="middle"
       />
-
-      {/* Edit modal */}
-      <Modal
-        title="Редактировать контроллер"
-        open={editTarget !== null}
-        onCancel={() => { setEditTarget(null); editForm.resetFields(); }}
-        onOk={() => editForm.submit()}
-        okText="Сохранить"
-        confirmLoading={updateMutation.isPending}
-      >
-        <Form
-          form={editForm}
-          layout="vertical"
-          onFinish={(values) => {
-            if (editTarget) {
-              updateMutation.mutate({ id: editTarget.id, data: values });
-            }
-          }}
-        >
-          <Form.Item name="title" label="Название">
-            <Input />
-          </Form.Item>
-          <Form.Item name="filterRule" label="Фильтр (regex)">
-            <Input placeholder="Реал|Барселона" />
-          </Form.Item>
-          <Form.Item name="pollIntervalSec" label="Интервал опроса (сек)">
-            <Input type="number" min={10} />
-          </Form.Item>
-        </Form>
-      </Modal>
     </>
   );
 }

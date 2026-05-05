@@ -13,7 +13,7 @@ public class BookmakerUrlValidator implements ConstraintValidator<ValidBookmaker
 
     private static final List<Pattern> SUPPORTED = List.of(
             Pattern.compile(".*1xbet\\..*|.*1xstavka\\..*|.*1xbet\\.kz.*", CASE_INSENSITIVE),
-            Pattern.compile(".*fonbet\\..*|.*bk6bba-resources\\.com.*", CASE_INSENSITIVE),
+            Pattern.compile(".*fonbet\\..*|.*fon\\.bet.*|.*bk6bba-resources\\.com.*", CASE_INSENSITIVE),
             Pattern.compile(".*olimp\\.bet.*", CASE_INSENSITIVE),
             Pattern.compile(".*betcity\\.ru.*", CASE_INSENSITIVE),
             Pattern.compile(".*betboom\\.ru.*|.*sporthub\\.bet.*", CASE_INSENSITIVE)

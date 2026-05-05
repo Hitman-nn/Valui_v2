@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -56,6 +57,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleValidation(ValidationException ex, HttpServletRequest req) {
         log.debug("ValidationException at {}: {}", req.getRequestURI(), ex.getMessage());
         return respond(400, ex.getMessage(), req.getRequestURI());
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex, HttpServletRequest req) {
+        log.debug("Method not supported at {} [{}]: {}", req.getRequestURI(), req.getMethod(), ex.getMessage());
+        return respond(405, ex.getMessage(), req.getRequestURI());
     }
 
     @ExceptionHandler(AccessDeniedException.class)

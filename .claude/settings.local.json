@@ -42,7 +42,16 @@
       "Bash(mvn -pl valui-admin test -q)",
       "Bash(mvn -pl valui-admin test)",
       "Bash(make ui-deploy *)",
-      "Bash(mvn -pl valui-common,valui-user,valui-monitor,valui-admin compile -q)"
+      "Bash(mvn -pl valui-common,valui-user,valui-monitor,valui-admin compile -q)",
+      "Bash(mvn -pl valui-user,valui-monitor,valui-admin compile -q)",
+      "Bash(mvn -pl valui-user,valui-monitor,valui-admin compile)",
+      "Bash(mvn -pl valui-common,valui-user install -q)",
+      "Bash(npm install *)",
+      "Bash(mvn -pl valui-admin compile)",
+      "Bash(mvn -pl valui-common,valui-user,valui-monitor,valui-admin compile)",
+      "Bash(mvn -pl valui-monitor install -q)",
+      "Bash(mvn -pl valui-parser test -q)",
+      "Bash(mvn -pl valui-parser test)"
     ]
   }
 }
