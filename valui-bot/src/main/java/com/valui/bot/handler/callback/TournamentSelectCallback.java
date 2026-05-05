@@ -1,5 +1,6 @@
 package com.valui.bot.handler.callback;
 
+import com.valui.bot.config.BotProperties;
 import com.valui.bot.config.BotWizardProperties;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
@@ -46,6 +47,7 @@ public class TournamentSelectCallback implements CallbackHandler {
     private final WizardBackNavigator backNavigator;
     private final WizardCacheService  wizardCache;
     private final BotWizardProperties wizardProps;
+    private final BotProperties       botProperties;
 
     @Override
     public String callbackPrefix() { return "TOURN:"; }
@@ -121,7 +123,7 @@ public class TournamentSelectCallback implements CallbackHandler {
         String cancelText = messageSource.getMessage("menu.cancel", ctx.fromId());
         InlineKeyboardMarkup keyboard = SportSelectCallback.buildTournamentKeyboard(
             tournaments, page, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
-            wizardProps.getTournamentPageSize(), wizardProps.getStaleThresholdDays());
+            wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_tournament", ctx.fromId(), sName), keyboard);
     }

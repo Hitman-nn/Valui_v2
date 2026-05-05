@@ -1,5 +1,6 @@
 package com.valui.bot.handler.callback;
 
+import com.valui.bot.config.BotProperties;
 import com.valui.bot.config.BotWizardProperties;
 import com.valui.bot.handler.MessageSend;
 import com.valui.bot.i18n.BotMessageSource;
@@ -43,6 +44,7 @@ public class WizardBackNavigator {
     private final PlanLimitFacade     planLimitFacade;
     private final WizardCacheService  wizardCache;
     private final BotWizardProperties wizardProps;
+    private final BotProperties       botProperties;
 
     public void returnToBookmakerSelection(AbsSender sender, long fromId, long chatId, int messageId) {
         sessionService.setStateWithContext(fromId, BotState.SELECTING_BOOKMAKER, new HashMap<>());
@@ -169,7 +171,7 @@ public class WizardBackNavigator {
         String cancelText = messageSource.getMessage("menu.cancel", fromId);
         InlineKeyboardMarkup keyboard = SportSelectCallback.buildTournamentKeyboard(
             tournaments, 0, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
-            wizardProps.getTournamentPageSize(), wizardProps.getStaleThresholdDays());
+            wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
 
         MessageSend.replaceWithKeyboard(sender, chatId, messageId,
             messageSource.getMessage("wizard.select_tournament", fromId, sportName), keyboard);

@@ -1,5 +1,6 @@
 package com.valui.bot.handler.message;
 
+import com.valui.bot.config.BotProperties;
 import com.valui.bot.config.BotWizardProperties;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.BotUpdateHandler;
@@ -49,6 +50,7 @@ public class WizardTextHandler implements BotUpdateHandler {
     private final ControllerService   controllerService;
     private final WizardCacheService  wizardCache;
     private final BotWizardProperties wizardProps;
+    private final BotProperties       botProperties;
 
     @Override
     public boolean canHandle(Update update) {
@@ -204,7 +206,7 @@ public class WizardTextHandler implements BotUpdateHandler {
             String cancelText = messageSource.getMessage("menu.cancel", ctx.fromId());
             var keyboard = SportSelectCallback.buildTournamentKeyboard(
                 filtered, 0, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
-                wizardProps.getTournamentPageSize(), wizardProps.getStaleThresholdDays());
+                wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
 
             String text = filtered.isEmpty()
                 ? "🔍 По запросу «" + query + "» ничего не найдено."

@@ -12,5 +12,4 @@ import org.springframework.stereotype.Component;
 public class BotWizardProperties {
     private int sportPageSize        = 10;
     private int tournamentPageSize   = 15;
-    private int staleThresholdDays   = 30;
 }

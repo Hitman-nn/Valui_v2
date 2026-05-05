@@ -1,6 +1,6 @@
 package com.valui.bot.handler.callback;
 
-import com.valui.bot.config.BotWizardProperties;
+import com.valui.bot.config.BotProperties;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
@@ -21,8 +21,8 @@ public class ControllerStopCallback implements CallbackHandler {
 
     private static final String PREFIX = "CTRL:STOP:";
 
-    private final ControllerService   controllerService;
-    private final BotWizardProperties wizardProps;
+    private final ControllerService controllerService;
+    private final BotProperties     botProperties;
 
     @Override public String callbackPrefix() { return PREFIX; }
     @Override public int order() { return 50; }
@@ -56,7 +56,7 @@ public class ControllerStopCallback implements CallbackHandler {
                 .filter(c -> bookmaker.equalsIgnoreCase(c.bookmaker()))
                 .filter(c -> removedId == null || !c.id().equals(removedId))
                 .toList();
-            var menu = BookmakerMenuBuilder.buildControllerList(bookmaker, remaining, 0, wizardProps.getStaleThresholdDays());
+            var menu = BookmakerMenuBuilder.buildControllerList(bookmaker, remaining, 0, botProperties.staleThresholdDays());
             MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
         } else {
             List<ControllerDto> all = ctx.isGroupChat()

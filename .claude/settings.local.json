@@ -35,7 +35,8 @@
       "Bash(mvn package *)",
       "Bash(xargs ls *)",
       "Bash(npm --version)",
-      "Bash(mvn install *)"
+      "Bash(mvn install *)",
+      "Bash(mvn test-compile *)"
     ]
   }
 }

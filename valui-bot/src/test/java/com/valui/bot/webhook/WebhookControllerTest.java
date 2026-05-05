@@ -45,7 +45,7 @@ class WebhookControllerTest {
         BotProperties props = new BotProperties(
             TOKEN, "ValuiBot", "https://pay.valui.com",
             BotMode.WEBHOOK, "https://example.com/webhook/" + TOKEN,
-            SECRET, List.of("149.154.0.0/16", "91.108.0.0/16"), null);
+            SECRET, List.of("149.154.0.0/16", "91.108.0.0/16"), null, 30);
 
         WebhookController controller = new WebhookController(props, processor, bot);
 
@@ -112,7 +112,7 @@ class WebhookControllerTest {
         BotProperties noSecret = new BotProperties(
             TOKEN, "ValuiBot", "https://pay.valui.com",
             BotMode.WEBHOOK, "https://example.com/webhook/" + TOKEN,
-            null, List.of("149.154.0.0/16"), null);
+            null, List.of("149.154.0.0/16"), null, 30);
 
         WebhookController controller = new WebhookController(
             noSecret, processor, bot);

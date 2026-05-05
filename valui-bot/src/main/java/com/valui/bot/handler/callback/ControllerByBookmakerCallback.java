@@ -1,6 +1,6 @@
 package com.valui.bot.handler.callback;
 
-import com.valui.bot.config.BotWizardProperties;
+import com.valui.bot.config.BotProperties;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
@@ -17,8 +17,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ControllerByBookmakerCallback implements CallbackHandler {
 
-    private final ControllerService   controllerService;
-    private final BotWizardProperties wizardProps;
+    private final ControllerService controllerService;
+    private final BotProperties     botProperties;
 
     private static final String PREFIX = "CTRL:BK:";
 
@@ -63,7 +63,7 @@ public class ControllerByBookmakerCallback implements CallbackHandler {
             .filter(c -> bm.equalsIgnoreCase(c.bookmaker()))
             .toList();
 
-        var menu = BookmakerMenuBuilder.buildControllerList(bm, filtered, page, wizardProps.getStaleThresholdDays());
+        var menu = BookmakerMenuBuilder.buildControllerList(bm, filtered, page, botProperties.staleThresholdDays());
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             menu.text(), menu.keyboard());
     }

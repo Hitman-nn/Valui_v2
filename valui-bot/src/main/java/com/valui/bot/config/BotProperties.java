@@ -13,12 +13,14 @@ public record BotProperties(
     String webhookUrl,
     String secretToken,
     List<String> allowedIps,
-    BotProxyProperties proxy
+    BotProxyProperties proxy,
+    int staleThresholdDays
 ) {
     public BotProperties {
         if (mode == null)  mode = BotMode.LONG_POLLING;
         if (allowedIps == null || allowedIps.isEmpty())
             allowedIps = List.of("149.154.0.0/16", "91.108.0.0/16");
+        if (staleThresholdDays <= 0) staleThresholdDays = 30;
     }
 
     public record BotProxyProperties(
