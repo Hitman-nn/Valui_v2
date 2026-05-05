@@ -80,6 +80,13 @@ export interface Controller {
   type: string;
   notificationChatId: number | null;
   ownerTelegramId: number | null;
+  pollIntervalSec: number | null;
+}
+
+export interface UpdateControllerRequest {
+  title?: string | null;
+  filterRule?: string | null;
+  pollIntervalSec?: number | null;
 }
 
 // ─── Subscriptions ────────────────────────────────────────────────────────────
@@ -135,6 +142,7 @@ export interface TestParseResult {
 
 export interface AuditLog {
   id: string;
+  userId: string | null;
   action: string;
   entityType: string | null;
   entityId: string | null;
@@ -194,4 +202,108 @@ export interface BroadcastRequest {
 export interface BroadcastResult {
   recipientCount: number;
   planFilter: string | null;
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+export interface PlanCount {
+  planCode: string;
+  planName: string;
+  count: number;
+}
+
+export interface DashboardSummary {
+  users: {
+    total: number;
+    active: number;
+    banned: number;
+    newToday: number;
+    newThisWeek: number;
+  };
+  controllers: {
+    total: number;
+    active: number;
+    muted: number;
+    stale: number;
+  };
+  events: {
+    today: number;
+    thisWeek: number;
+    thisMonth: number;
+    thisYear: number;
+    total: number;
+  };
+  notifications: {
+    today: number;
+    thisWeek: number;
+    thisMonth: number;
+    thisYear: number;
+    total: number;
+  };
+  subscriptions: {
+    byPlan: PlanCount[];
+    expiringIn7d: number;
+  };
+}
+
+export interface DashboardJvm {
+  heapUsedBytes: number;
+  heapMaxBytes: number;
+  nonHeapUsedBytes: number;
+  threadsLive: number;
+  uptimeSeconds: number;
+  cpuUsagePct: number;
+  httpRps: number;
+  errorRate5xxPct: number;
+  diskFreeBytes: number;
+  diskTotalBytes: number;
+}
+
+export interface ActivityPoint {
+  date: string;
+  events: number;
+  notifications: number;
+}
+
+export interface DashboardFull {
+  summary: DashboardSummary;
+  parsers: BookmakerStatus[];
+  redis: RedisInfo;
+  kafka: KafkaLag[];
+  db: DbPool;
+  jvm: DashboardJvm;
+  activity: ActivityPoint[];
+}
+
+// ─── Events ───────────────────────────────────────────────────────────────────
+
+export interface AdminEvent {
+  id: string;
+  controllerId: string | null;
+  controllerTitle: string | null;
+  bookmaker: string | null;
+  eventExternalId: string;
+  title: string;
+  url: string | null;
+  detectedAt: string;
+  expiresAt: string | null;
+}
+
+export interface EventStats {
+  totalEvents: number;
+  expiredEvents: number;
+  byBookmaker: Array<{ bookmaker: string; count: number }>;
+}
+
+// ─── Payments ─────────────────────────────────────────────────────────────────
+
+export interface Payment {
+  id: string;
+  paymentId: string;
+  planCode: string;
+  amount: number;
+  currency: string;
+  status: string;
+  description: string | null;
+  createdAt: string;
 }

@@ -4,6 +4,7 @@ import com.valui.common.domain.SubscriptionStatus;
 import com.valui.common.entity.SubscriptionEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -17,6 +18,7 @@ import java.util.UUID;
 @Repository
 public interface SubscriptionRepository extends JpaRepository<SubscriptionEntity, UUID> {
 
+    @EntityGraph(attributePaths = {"plan"})
     Optional<SubscriptionEntity> findTopByUserIdAndStatusOrderByStartedAtDesc(UUID userId, SubscriptionStatus status);
 
     List<SubscriptionEntity> findAllByUserId(UUID userId);
@@ -60,4 +62,14 @@ public interface SubscriptionRepository extends JpaRepository<SubscriptionEntity
               AND (:planCode IS NULL OR sp.code = :planCode)
             """)
     List<Long> findActiveTelegramIdsByPlan(@Param("planCode") String planCode);
+
+    @Query("""
+            SELECT COUNT(s) FROM SubscriptionEntity s
+            WHERE s.status = 'ACTIVE'
+              AND s.expiresAt IS NOT NULL
+              AND s.expiresAt BETWEEN :from AND :to
+            """)
+    long countExpiringSoon(@Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to);
+
+    Optional<SubscriptionEntity> findTopByUserIdOrderByStartedAtDesc(UUID userId);
 }

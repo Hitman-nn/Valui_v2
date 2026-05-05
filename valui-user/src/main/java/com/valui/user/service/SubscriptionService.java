@@ -49,4 +49,7 @@ public interface SubscriptionService {
 
     /** Returns telegramIds of all active subscribers of the given plan (null = ALL plans). */
     List<Long> findActiveTelegramIdsByPlan(String planCode);
+
+    /** Returns the active subscription for a user, or empty if none. */
+    java.util.Optional<SubscriptionEntity> findActiveByUserId(UUID userId);
 }

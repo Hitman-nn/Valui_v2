@@ -1,18 +1,26 @@
 package com.valui.admin.users;
 
+import com.valui.admin.monitoring.ControllerAssembler;
+import com.valui.admin.monitoring.dto.ControllerApiDto;
 import com.valui.admin.security.CurrentUser;
 import com.valui.admin.security.ValuiPrincipal;
+import com.valui.admin.subscriptions.dto.AdminSubscriptionDto;
 import com.valui.admin.users.dto.AdminUserDto;
 import com.valui.admin.users.dto.AdminUserSummaryDto;
 import com.valui.admin.users.dto.ChangeRoleRequest;
 import com.valui.common.domain.UserStatus;
 import com.valui.common.dto.ErrorResponse;
-import com.valui.common.entity.AuditLogEntity;
+import com.valui.admin.audit.dto.AdminAuditDto;
 import com.valui.common.entity.NotificationLogEntity;
+import com.valui.common.entity.PaymentTransactionEntity;
 import com.valui.common.entity.UserEntity;
+import com.valui.monitor.dto.ControllerDto;
+import com.valui.monitor.service.ControllerService;
 import com.valui.user.dto.UserWithSubscriptionDto;
 import com.valui.user.repository.AuditLogRepository;
 import com.valui.user.repository.NotificationLogRepository;
+import com.valui.user.repository.PaymentTransactionRepository;
+import com.valui.user.service.SubscriptionService;
 import com.valui.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -33,6 +41,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @Tag(name = "Admin — Users", description = "Управление пользователями (только ADMIN)")
@@ -44,10 +53,14 @@ public class AdminUserController {
     private static final String V1 = "application/vnd.valui.v1+json";
 
     private final UserService userService;
+    private final SubscriptionService subscriptionService;
+    private final ControllerService controllerService;
+    private final ControllerAssembler controllerAssembler;
     private final AdminUserAssembler assembler;
     private final PagedResourcesAssembler<UserEntity> pagedAssembler;
     private final AuditLogRepository auditLogRepository;
     private final NotificationLogRepository notificationLogRepository;
+    private final PaymentTransactionRepository paymentTransactionRepository;
 
     // ── GET /api/v1/admin/users ───────────────────────────────────────────────
 
@@ -181,12 +194,13 @@ public class AdminUserController {
 
     @Operation(summary = "Аудит-лог пользователя")
     @GetMapping(value = "/{id}/audit-log", produces = {V1, MediaType.APPLICATION_JSON_VALUE})
-    public ResponseEntity<Page<AuditLogEntity>> auditLog(
+    public ResponseEntity<Page<AdminAuditDto>> auditLog(
             @PathVariable UUID id,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable,
             @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
         return ResponseEntity.ok(
-                auditLogRepository.findAllByUserIdOrderByCreatedAtDesc(id, pageable));
+                auditLogRepository.findAllByUserIdOrderByCreatedAtDesc(id, pageable)
+                        .map(AdminAuditDto::from));
     }
 
     // ── GET /api/v1/admin/users/{id}/notifications ───────────────────────────
@@ -199,6 +213,65 @@ public class AdminUserController {
             @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
         return ResponseEntity.ok(
                 notificationLogRepository.findAllByUserId(id, pageable));
+    }
+
+    // ── DELETE /api/v1/admin/users/{id} ──────────────────────────────────────
+
+    @Operation(summary = "Удалить пользователя (каскадно)")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteUser(
+            @PathVariable UUID id,
+            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        userService.deleteUser(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ── GET /api/v1/admin/users/{id}/controllers ──────────────────────────────
+
+    @Operation(summary = "Контроллеры пользователя")
+    @GetMapping(value = "/{id}/controllers", produces = {V1, MediaType.APPLICATION_JSON_VALUE})
+    public ResponseEntity<List<ControllerApiDto>> userControllers(
+            @PathVariable UUID id,
+            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        UserEntity user = userService.findById(id);
+        List<ControllerDto> list = controllerService.getUserControllers(user.getTelegramId());
+        return ResponseEntity.ok(list.stream().map(controllerAssembler::toModel).toList());
+    }
+
+    // ── GET /api/v1/admin/users/{id}/subscription ─────────────────────────────
+
+    @Operation(summary = "Текущая подписка пользователя")
+    @GetMapping(value = "/{id}/subscription", produces = {V1, MediaType.APPLICATION_JSON_VALUE})
+    public ResponseEntity<AdminSubscriptionDto> userSubscription(
+            @PathVariable UUID id,
+            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        UserEntity user = userService.findById(id);
+        return subscriptionService.findActiveByUserId(user.getId())
+            .map(s -> ResponseEntity.ok(AdminSubscriptionDto.from(s)))
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    // ── PATCH /api/v1/admin/users/{id}/subscription ───────────────────────────
+
+    @Operation(summary = "Изменить тарифный план пользователя")
+    @PostMapping(value = "/{id}/subscription",
+                 consumes = {V1, MediaType.APPLICATION_JSON_VALUE})
+    public ResponseEntity<Void> grantPlan(
+            @PathVariable UUID id,
+            @Valid @RequestBody com.valui.admin.subscriptions.dto.GrantPlanRequest req,
+            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        subscriptionService.grantPlan(id, req.planCode());
+        return ResponseEntity.noContent().build();
+    }
+
+    // ── GET /api/v1/admin/users/{id}/payments ─────────────────────────────────
+
+    @Operation(summary = "История платежей пользователя")
+    @GetMapping(value = "/{id}/payments", produces = {V1, MediaType.APPLICATION_JSON_VALUE})
+    public ResponseEntity<List<PaymentTransactionEntity>> userPayments(
+            @PathVariable UUID id,
+            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        return ResponseEntity.ok(paymentTransactionRepository.findAllByUserId(id));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

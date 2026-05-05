@@ -1,10 +1,15 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import AdminLayout from '../layouts/AdminLayout';
 import LoginPage from '../pages/login/LoginPage';
+import DashboardPage from '../pages/dashboard/DashboardPage';
 import UsersPage from '../pages/users/UsersPage';
 import UserDetailPage from '../pages/users/UserDetailPage';
+import ControllersPage from '../pages/controllers/ControllersPage';
+import ControllerDetailPage from '../pages/controllers/ControllerDetailPage';
+import EventsPage from '../pages/events/EventsPage';
 import SubscriptionsPage from '../pages/subscriptions/SubscriptionsPage';
 import ParsersPage from '../pages/parsers/ParsersPage';
+import AuditPage from '../pages/audit/AuditPage';
 import SystemPage from '../pages/system/SystemPage';
 import BroadcastPage from '../pages/broadcast/BroadcastPage';
 import { useAuthStore } from '../store/authStore';
@@ -30,13 +35,18 @@ export const router = createBrowserRouter(
         </RequireAuth>
       ),
       children: [
-        { index: true, element: <Navigate to="/system" replace /> },
-        { path: 'users', element: <UsersPage /> },
-        { path: 'users/:id', element: <UserDetailPage /> },
+        { index: true,          element: <Navigate to="/dashboard" replace /> },
+        { path: 'dashboard',    element: <DashboardPage /> },
+        { path: 'users',        element: <UsersPage /> },
+        { path: 'users/:id',    element: <UserDetailPage /> },
+        { path: 'controllers',  element: <ControllersPage /> },
+        { path: 'controllers/:id', element: <ControllerDetailPage /> },
+        { path: 'events',       element: <EventsPage /> },
         { path: 'subscriptions', element: <SubscriptionsPage /> },
-        { path: 'parsers', element: <ParsersPage /> },
-        { path: 'system', element: <SystemPage /> },
-        { path: 'broadcast', element: <BroadcastPage /> },
+        { path: 'parsers',      element: <ParsersPage /> },
+        { path: 'audit',        element: <AuditPage /> },
+        { path: 'system',       element: <SystemPage /> },
+        { path: 'broadcast',    element: <BroadcastPage /> },
       ],
     },
     { path: '*', element: <Navigate to="/" replace /> },

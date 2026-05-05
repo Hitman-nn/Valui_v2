@@ -3,6 +3,7 @@ package com.valui.user.repository;
 import com.valui.common.domain.UserStatus;
 import com.valui.common.entity.UserEntity;
 import org.springframework.data.domain.Page;
+import java.time.OffsetDateTime;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -38,4 +39,11 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     @Modifying
     @Query("UPDATE UserEntity u SET u.status = :status WHERE u.id = :id")
     int updateStatus(@Param("id") UUID id, @Param("status") UserStatus status);
+
+    long countByCreatedAtAfter(OffsetDateTime date);
+
+    long countByCreatedAtBetween(OffsetDateTime from, OffsetDateTime to);
+
+    @Query("SELECT COUNT(u) FROM UserEntity u WHERE u.role = :role")
+    long countByRole(@Param("role") com.valui.common.domain.UserRole role);
 }

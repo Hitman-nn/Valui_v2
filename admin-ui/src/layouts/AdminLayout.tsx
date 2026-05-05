@@ -20,6 +20,9 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   BulbOutlined,
+  ThunderboltOutlined,
+  AuditOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -29,19 +32,27 @@ const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
 const MENU_ITEMS = [
-  { key: '/system', icon: <DashboardOutlined />, label: 'System' },
-  { key: '/users', icon: <UserOutlined />, label: 'Users' },
+  { key: '/dashboard', icon: <BarChartOutlined />, label: 'Dashboard' },
+  { key: '/users',     icon: <UserOutlined />,      label: 'Users' },
+  { key: '/controllers', icon: <ApiOutlined />,     label: 'Controllers' },
+  { key: '/events',    icon: <ThunderboltOutlined />, label: 'Events' },
   { key: '/subscriptions', icon: <CreditCardOutlined />, label: 'Subscriptions' },
-  { key: '/parsers', icon: <ApiOutlined />, label: 'Parsers' },
+  { key: '/parsers',   icon: <DashboardOutlined />, label: 'Parsers' },
+  { key: '/audit',     icon: <AuditOutlined />,     label: 'Audit Log' },
   { key: '/broadcast', icon: <NotificationOutlined />, label: 'Broadcast' },
+  { key: '/system',    icon: <ApiOutlined />,        label: 'System' },
 ];
 
 const BREADCRUMB_MAP: Record<string, string> = {
-  system: 'System',
-  users: 'Users',
+  dashboard:     'Dashboard',
+  users:         'Users',
+  controllers:   'Controllers',
+  events:        'Events',
   subscriptions: 'Subscriptions',
-  parsers: 'Parsers',
-  broadcast: 'Broadcast',
+  parsers:       'Parsers',
+  audit:         'Audit Log',
+  broadcast:     'Broadcast',
+  system:        'System',
 };
 
 function buildBreadcrumbs(pathname: string): { title: ReactNode }[] {

@@ -43,4 +43,7 @@ public interface UserService {
 
     /** Change the user's role (admin only). Evicts user cache. */
     void updateRole(UUID userId, UserRole newRole);
+
+    /** Delete user and all associated data (admin only). DB cascades handle related rows. */
+    void deleteUser(UUID userId);
 }

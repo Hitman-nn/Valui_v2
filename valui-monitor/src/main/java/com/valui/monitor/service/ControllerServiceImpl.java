@@ -207,6 +207,53 @@ public class ControllerServiceImpl implements ControllerService {
 
     @Override
     @Transactional
+    public void activateController(UUID controllerId) {
+        ControllerEntity e = controllerPort.findById(controllerId)
+            .orElseThrow(() -> new ControllerNotFoundException(controllerId));
+        controllerPort.updateIsActive(controllerId, true);
+        log.info("[CONTROLLER] Активирован (admin): id={}", controllerId);
+        eventPublisher.publishEvent(new ControllerAddedEvent(
+            controllerId, e.getUser() != null ? e.getUser().getId() : null,
+            e.getUser() != null ? e.getUser().getTelegramId() : null,
+            e.getBookmaker(),
+            e.getPollIntervalSec() != null ? e.getPollIntervalSec() : 60));
+    }
+
+    @Override
+    @Transactional
+    public void muteAdmin(UUID controllerId) {
+        ControllerEntity e = controllerPort.findById(controllerId)
+            .orElseThrow(() -> new ControllerNotFoundException(controllerId));
+        e.setIsMuted(true);
+        controllerPort.save(e);
+        log.info("[CONTROLLER] Muted (admin): id={}", controllerId);
+    }
+
+    @Override
+    @Transactional
+    public void unmuteAdmin(UUID controllerId) {
+        ControllerEntity e = controllerPort.findById(controllerId)
+            .orElseThrow(() -> new ControllerNotFoundException(controllerId));
+        e.setIsMuted(false);
+        controllerPort.save(e);
+        log.info("[CONTROLLER] Unmuted (admin): id={}", controllerId);
+    }
+
+    @Override
+    @Transactional
+    public ControllerDto updateAdmin(UUID controllerId, String title, String filterRule, Integer pollIntervalSec) {
+        ControllerEntity e = controllerPort.findById(controllerId)
+            .orElseThrow(() -> new ControllerNotFoundException(controllerId));
+        if (title != null)          e.setTitle(title);
+        if (filterRule != null)     e.setFilterRule(filterRule.isBlank() ? null : filterRule);
+        if (pollIntervalSec != null) e.setPollIntervalSec(pollIntervalSec);
+        ControllerEntity saved = controllerPort.save(e);
+        log.info("[CONTROLLER] Updated (admin): id={}", controllerId);
+        return toDto(saved);
+    }
+
+    @Override
+    @Transactional
     public void stopForChat(UUID controllerId, Long telegramId, Long chatId) {
         UserEntity user = requireUser(telegramId);
         requireOwned(controllerId, user.getId());

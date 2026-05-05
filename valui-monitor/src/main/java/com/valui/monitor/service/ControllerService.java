@@ -48,6 +48,18 @@ public interface ControllerService {
     /** Admin / system use: deactivates the controller without ownership check. */
     void deactivateController(UUID controllerId);
 
+    /** Admin: activates a previously deactivated controller without ownership check. */
+    void activateController(UUID controllerId);
+
+    /** Admin: mutes entity-level isMuted flag without ownership check. */
+    void muteAdmin(UUID controllerId);
+
+    /** Admin: unmutes entity-level isMuted flag without ownership check. */
+    void unmuteAdmin(UUID controllerId);
+
+    /** Admin: updates editable fields (null values are ignored). */
+    ControllerDto updateAdmin(UUID controllerId, String title, String filterRule, Integer pollIntervalSec);
+
     /** Admin use: paginated list of ALL controllers across all users. */
     Page<ControllerDto> getAllControllers(Pageable pageable);
 

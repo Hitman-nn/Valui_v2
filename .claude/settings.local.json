@@ -36,7 +36,13 @@
       "Bash(xargs ls *)",
       "Bash(npm --version)",
       "Bash(mvn install *)",
-      "Bash(mvn test-compile *)"
+      "Bash(mvn test-compile *)",
+      "Bash(grep -v \"^--$\")",
+      "Bash(npx tsc *)",
+      "Bash(mvn -pl valui-admin test -q)",
+      "Bash(mvn -pl valui-admin test)",
+      "Bash(make ui-deploy *)",
+      "Bash(mvn -pl valui-common,valui-user,valui-monitor,valui-admin compile -q)"
     ]
   }
 }

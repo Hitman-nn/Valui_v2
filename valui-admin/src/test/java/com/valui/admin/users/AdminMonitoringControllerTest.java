@@ -12,6 +12,7 @@ import com.valui.common.domain.ControllerType;
 import com.valui.common.exception.ControllerNotFoundException;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
+import com.valui.user.repository.DetectedEventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,6 +52,7 @@ class AdminMonitoringControllerTest {
 
     @MockBean ControllerService controllerService;
     @MockBean AuthProperties authProperties;
+    @MockBean DetectedEventRepository detectedEventRepository;
 
     static final UUID ADMIN_ID = UUID.fromString("aaaaaaaa-1111-0000-0000-000000000001");
     static final Long ADMIN_TG = 100000001L;

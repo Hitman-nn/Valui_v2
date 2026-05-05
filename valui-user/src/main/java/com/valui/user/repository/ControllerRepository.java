@@ -59,4 +59,15 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
     @Modifying
     @Query("UPDATE ControllerEntity c SET c.pausedByTokens = :paused, c.isActive = :active, c.isMuted = :muted WHERE c.id = :id")
     int updateTokenPauseState(@Param("id") UUID id, @Param("paused") boolean paused, @Param("active") boolean active, @Param("muted") boolean muted);
+
+    long countByIsActiveTrue();
+
+    long countByIsMutedTrue();
+
+    long countByIsActiveFalse();
+
+    long countByIsActiveTrueAndLastEventAtBefore(OffsetDateTime cutoff);
+
+    @Query("SELECT COUNT(c) FROM ControllerEntity c WHERE c.bookmaker = :bm")
+    long countByBookmakerType(@Param("bm") BookmakerType bm);
 }

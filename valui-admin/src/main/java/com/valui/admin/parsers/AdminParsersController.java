@@ -20,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -102,6 +103,52 @@ public class AdminParsersController {
             log.warn("[ADMIN] Test parse failed for bk={} url={}: {}", bk, req.url(), e.getMessage());
             return ResponseEntity.ok(new TestParseResult(false, 0, List.of(), e.getMessage(), latency));
         }
+    }
+
+    @PostMapping("/{bookmaker}/poll")
+    @Operation(summary = "Ручной запуск poll для парсера")
+    public ResponseEntity<TestParseResult> pollBookmaker(@PathVariable String bookmaker) {
+        BookmakerType bk;
+        try { bk = BookmakerType.valueOf(bookmaker.toUpperCase()); }
+        catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(
+                new TestParseResult(false, 0, List.of(), "Unknown bookmaker: " + bookmaker, 0));
+        }
+        long start = System.currentTimeMillis();
+        try {
+            BookmakerParser parser = parserFactory.getParser(bk);
+            ParseResult<List<com.valui.common.parser.dto.SportDto>> result = parser.fetchSports();
+            long latency = System.currentTimeMillis() - start;
+            if (!result.success()) {
+                return ResponseEntity.ok(new TestParseResult(false, 0, List.of(), result.errorMessage(), latency));
+            }
+            List<?> items = result.data() != null ? result.data() : List.of();
+            return ResponseEntity.ok(new TestParseResult(true, items.size(), List.of(), null, latency));
+        } catch (Exception e) {
+            long latency = System.currentTimeMillis() - start;
+            return ResponseEntity.ok(new TestParseResult(false, 0, List.of(), e.getMessage(), latency));
+        }
+    }
+
+    @PostMapping("/poll-all")
+    @Operation(summary = "Ручной запуск poll для всех парсеров")
+    public ResponseEntity<Map<String, TestParseResult>> pollAll() {
+        Map<String, TestParseResult> results = new java.util.LinkedHashMap<>();
+        for (BookmakerType bk : BookmakerType.values()) {
+            long start = System.currentTimeMillis();
+            try {
+                BookmakerParser parser = parserFactory.getParser(bk);
+                ParseResult<List<com.valui.common.parser.dto.SportDto>> result = parser.fetchSports();
+                long latency = System.currentTimeMillis() - start;
+                List<?> items = result.data() != null ? result.data() : List.of();
+                results.put(bk.name(), new TestParseResult(result.success(), items.size(),
+                    List.of(), result.errorMessage(), latency));
+            } catch (Exception e) {
+                long latency = System.currentTimeMillis() - start;
+                results.put(bk.name(), new TestParseResult(false, 0, List.of(), e.getMessage(), latency));
+            }
+        }
+        return ResponseEntity.ok(results);
     }
 
     // ── internals ─────────────────────────────────────────────────────────────

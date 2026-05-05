@@ -1,12 +1,15 @@
 package com.valui.admin.users;
 
+import com.valui.admin.events.dto.AdminEventDto;
 import com.valui.admin.monitoring.ControllerAssembler;
 import com.valui.admin.monitoring.dto.ControllerApiDto;
 import com.valui.admin.security.CurrentUser;
 import com.valui.admin.security.ValuiPrincipal;
 import com.valui.common.dto.ErrorResponse;
+import com.valui.common.entity.DetectedEventEntity;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
+import com.valui.user.repository.DetectedEventRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -14,6 +17,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
@@ -38,6 +42,7 @@ public class AdminMonitoringController {
     private final ControllerService controllerService;
     private final ControllerAssembler controllerAssembler;
     private final PagedResourcesAssembler<ControllerDto> pagedAssembler;
+    private final DetectedEventRepository detectedEventRepository;
 
     // ── GET /api/v1/admin/controllers ────────────────────────────────────────
 
@@ -105,4 +110,64 @@ public class AdminMonitoringController {
         controllerService.deactivateController(id);
         return ResponseEntity.noContent().build();
     }
+
+    // ── PATCH /api/v1/admin/controllers/{id}/toggle ──────────────────────────
+
+    @Operation(summary = "Переключить активность контроллера")
+    @PatchMapping("/{id}/toggle")
+    public ResponseEntity<ControllerApiDto> toggleController(
+            @PathVariable UUID id,
+            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        ControllerDto dto = controllerService.getController(id);
+        if (dto.isActive()) {
+            controllerService.deactivateController(id);
+        } else {
+            controllerService.activateController(id);
+        }
+        return ResponseEntity.ok(controllerAssembler.toModel(controllerService.getController(id)));
+    }
+
+    // ── PATCH /api/v1/admin/controllers/{id}/mute ────────────────────────────
+
+    @Operation(summary = "Переключить mute контроллера")
+    @PatchMapping("/{id}/mute")
+    public ResponseEntity<ControllerApiDto> toggleMute(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "true") boolean muted,
+            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        if (muted) {
+            controllerService.muteAdmin(id);
+        } else {
+            controllerService.unmuteAdmin(id);
+        }
+        return ResponseEntity.ok(controllerAssembler.toModel(controllerService.getController(id)));
+    }
+
+    // ── PATCH /api/v1/admin/controllers/{id} ─────────────────────────────────
+
+    @Operation(summary = "Редактировать контроллер")
+    @PatchMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE,
+                  produces = {V1, MediaType.APPLICATION_JSON_VALUE})
+    public ResponseEntity<ControllerApiDto> updateController(
+            @PathVariable UUID id,
+            @RequestBody AdminUpdateControllerRequest req,
+            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        ControllerDto dto = controllerService.updateAdmin(id, req.title(), req.filterRule(), req.pollIntervalSec());
+        return ResponseEntity.ok(controllerAssembler.toModel(dto));
+    }
+
+    // ── GET /api/v1/admin/controllers/{id}/events ─────────────────────────────
+
+    @Operation(summary = "События контроллера")
+    @GetMapping(value = "/{id}/events", produces = {V1, MediaType.APPLICATION_JSON_VALUE})
+    public ResponseEntity<Page<AdminEventDto>> controllerEvents(
+            @PathVariable UUID id,
+            @ParameterObject @PageableDefault(size = 25) Pageable pageable,
+            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        Page<DetectedEventEntity> page =
+            detectedEventRepository.findByControllerIdOrderByDetectedAtDesc(id, pageable);
+        return ResponseEntity.ok(page.map(AdminEventDto::from));
+    }
+
+    public record AdminUpdateControllerRequest(String title, String filterRule, Integer pollIntervalSec) {}
 }

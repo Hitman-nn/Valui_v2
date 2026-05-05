@@ -28,4 +28,6 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
     int incrementAttemptsAndSetStatus(@Param("id") UUID id, @Param("status") NotificationStatus status);
 
     long countByCreatedAtAfter(OffsetDateTime since);
+
+    long countByCreatedAtBetween(OffsetDateTime from, OffsetDateTime to);
 }

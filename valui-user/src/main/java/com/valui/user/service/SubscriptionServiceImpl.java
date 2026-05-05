@@ -183,6 +183,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         return subscriptionRepository.findActiveTelegramIdsByPlan(planCode);
     }
 
+    @Override
+    public java.util.Optional<SubscriptionEntity> findActiveByUserId(UUID userId) {
+        return subscriptionRepository.findTopByUserIdAndStatusOrderByStartedAtDesc(userId, SubscriptionStatus.ACTIVE);
+    }
+
     // ─── helpers ─────────────────────────────────────────────────────────────
 
     private UserEntity requireUser(Long telegramId) {

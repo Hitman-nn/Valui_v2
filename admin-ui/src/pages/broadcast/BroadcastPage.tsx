@@ -59,7 +59,7 @@ export default function BroadcastPage() {
   const { notification } = App.useApp();
 
   const sendMutation = useMutation({
-    mutationFn: broadcastApi.send,
+    mutationFn: (data: BroadcastRequest) => broadcastApi.send(data),
     onSuccess: (result) => {
       setSentResult(result);
       setConfirmOpen(false);

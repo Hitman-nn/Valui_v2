@@ -1,6 +1,8 @@
 package com.valui.user.repository;
 
 import com.valui.common.entity.DetectedEventEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -56,4 +58,8 @@ public interface DetectedEventRepository extends JpaRepository<DetectedEventEnti
     int deleteExpiredBefore(@Param("threshold") OffsetDateTime threshold);
 
     long countByDetectedAtAfter(OffsetDateTime since);
+
+    long countByDetectedAtBetween(OffsetDateTime from, OffsetDateTime to);
+
+    Page<DetectedEventEntity> findByControllerIdOrderByDetectedAtDesc(UUID controllerId, Pageable pageable);
 }

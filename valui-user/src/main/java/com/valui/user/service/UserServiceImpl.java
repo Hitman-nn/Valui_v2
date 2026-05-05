@@ -185,9 +185,18 @@ public class UserServiceImpl implements UserService {
         return user;
     }
 
+    @Override
+    @Transactional
+    @CacheEvict(value = USERS_CACHE, allEntries = true)
+    @Audit(action = "USER_DELETE", entityType = "User")
+    public void deleteUser(UUID userId) {
+        UserEntity user = userRepository.findById(userId)
+            .orElseThrow(() -> new UserNotFoundException(userId));
+        userRepository.delete(user);
+        log.info("[ADMIN] User deleted: userId={} telegramId={}", userId, user.getTelegramId());
+    }
+
     private UUID resolveCurrentAdminId() {
-        // TODO: extract from Spring Security context once Telegram auth is implemented
-        // SecurityContextHolder.getContext().getAuthentication().getPrincipal()
         return null;
     }
 }

@@ -9,6 +9,7 @@ import type {
   UserSummary,
   UserDetail,
   Controller,
+  UpdateControllerRequest,
   Subscription,
   SubscriptionStats,
   GrantPlanRequest,
@@ -23,6 +24,13 @@ import type {
   DbPool,
   BroadcastRequest,
   BroadcastResult,
+  DashboardFull,
+  DashboardSummary,
+  DashboardJvm,
+  ActivityPoint,
+  AdminEvent,
+  EventStats,
+  Payment,
 } from './types';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -38,16 +46,46 @@ export const authApi = {
     apiClient.post<void>('/api/v1/auth/logout', data).then((r) => r.data),
 };
 
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+export const dashboardApi = {
+  full: (activityDays = 7) =>
+    apiClient.get<DashboardFull>('/api/v1/admin/dashboard/full', {
+      params: { activityDays },
+    }).then((r) => r.data),
+
+  summary: () =>
+    apiClient.get<DashboardSummary>('/api/v1/admin/dashboard/summary').then((r) => r.data),
+
+  jvm: () =>
+    apiClient.get<DashboardJvm>('/api/v1/admin/dashboard/jvm').then((r) => r.data),
+
+  activity: (days = 7) =>
+    apiClient.get<ActivityPoint[]>('/api/v1/admin/dashboard/activity', {
+      params: { days },
+    }).then((r) => r.data),
+};
+
 // ─── Users ───────────────────────────────────────────────────────────────────
 
 export const usersApi = {
-  list: (params: { page?: number; size?: number; sort?: string }) =>
+  list: (params: {
+    page?: number;
+    size?: number;
+    sort?: string;
+    status?: string;
+    role?: string;
+    search?: string;
+  }) =>
     apiClient
       .get<HalPage<UserSummary>>('/api/v1/admin/users', { params })
       .then((r) => r.data),
 
   get: (id: string) =>
     apiClient.get<UserDetail>(`/api/v1/admin/users/${id}`).then((r) => r.data),
+
+  delete: (id: string) =>
+    apiClient.delete<void>(`/api/v1/admin/users/${id}`).then((r) => r.data),
 
   ban: (id: string) =>
     apiClient.post<void>(`/api/v1/admin/users/${id}/ban`).then((r) => r.data),
@@ -59,6 +97,20 @@ export const usersApi = {
     apiClient
       .patch<void>(`/api/v1/admin/users/${id}/role`, { role })
       .then((r) => r.data),
+
+  controllers: (id: string) =>
+    apiClient.get<Controller[]>(`/api/v1/admin/users/${id}/controllers`).then((r) => r.data),
+
+  subscription: (id: string) =>
+    apiClient.get<Subscription>(`/api/v1/admin/users/${id}/subscription`).then((r) => r.data),
+
+  grantPlan: (id: string, data: GrantPlanRequest) =>
+    apiClient
+      .post<void>(`/api/v1/admin/users/${id}/subscription`, data)
+      .then((r) => r.data),
+
+  payments: (id: string) =>
+    apiClient.get<Payment[]>(`/api/v1/admin/users/${id}/payments`).then((r) => r.data),
 
   auditLog: (id: string, params: { page?: number; size?: number }) =>
     apiClient
@@ -74,7 +126,13 @@ export const usersApi = {
 // ─── Controllers ─────────────────────────────────────────────────────────────
 
 export const controllersApi = {
-  list: (params: { page?: number; size?: number }) =>
+  list: (params: {
+    page?: number;
+    size?: number;
+    bookmaker?: string;
+    userId?: string;
+    sort?: string;
+  }) =>
     apiClient
       .get<HalPage<Controller>>('/api/v1/admin/controllers', { params })
       .then((r) => r.data),
@@ -82,8 +140,47 @@ export const controllersApi = {
   get: (id: string) =>
     apiClient.get<Controller>(`/api/v1/admin/controllers/${id}`).then((r) => r.data),
 
+  update: (id: string, data: UpdateControllerRequest) =>
+    apiClient
+      .patch<Controller>(`/api/v1/admin/controllers/${id}`, data)
+      .then((r) => r.data),
+
+  toggle: (id: string) =>
+    apiClient.patch<Controller>(`/api/v1/admin/controllers/${id}/toggle`).then((r) => r.data),
+
+  setMute: (id: string, muted: boolean) =>
+    apiClient
+      .patch<Controller>(`/api/v1/admin/controllers/${id}/mute`, null, { params: { muted } })
+      .then((r) => r.data),
+
   delete: (id: string) =>
     apiClient.delete<void>(`/api/v1/admin/controllers/${id}`).then((r) => r.data),
+
+  events: (id: string, params: { page?: number; size?: number }) =>
+    apiClient
+      .get<SpringPage<AdminEvent>>(`/api/v1/admin/controllers/${id}/events`, { params })
+      .then((r) => r.data),
+};
+
+// ─── Events ────────────────────────────────────────────────────────────────────
+
+export const eventsApi = {
+  list: (params: { page?: number; size?: number; controllerId?: string }) =>
+    apiClient
+      .get<SpringPage<AdminEvent>>('/api/v1/admin/events', { params })
+      .then((r) => r.data),
+
+  get: (id: string) =>
+    apiClient.get<AdminEvent>(`/api/v1/admin/events/${id}`).then((r) => r.data),
+
+  delete: (id: string) =>
+    apiClient.delete<void>(`/api/v1/admin/events/${id}`).then((r) => r.data),
+
+  deleteExpired: () =>
+    apiClient.delete<number>('/api/v1/admin/events/expired').then((r) => r.data),
+
+  stats: () =>
+    apiClient.get<EventStats>('/api/v1/admin/events/stats').then((r) => r.data),
 };
 
 // ─── Subscriptions ────────────────────────────────────────────────────────────
@@ -122,6 +219,30 @@ export const parsersApi = {
     apiClient
       .post<TestParseResult>(`/api/v1/admin/parsers/${bookmaker}/test`, data)
       .then((r) => r.data),
+
+  poll: (bookmaker: string) =>
+    apiClient
+      .post<TestParseResult>(`/api/v1/admin/parsers/${bookmaker}/poll`)
+      .then((r) => r.data),
+
+  pollAll: () =>
+    apiClient
+      .post<Record<string, TestParseResult>>('/api/v1/admin/parsers/poll-all')
+      .then((r) => r.data),
+};
+
+// ─── Audit ────────────────────────────────────────────────────────────────────
+
+export const auditApi = {
+  list: (params: { page?: number; size?: number; action?: string }) =>
+    apiClient
+      .get<SpringPage<AuditLog>>('/api/v1/admin/audit', { params })
+      .then((r) => r.data),
+
+  byUser: (userId: string, params: { page?: number; size?: number }) =>
+    apiClient
+      .get<SpringPage<AuditLog>>(`/api/v1/admin/audit/user/${userId}`, { params })
+      .then((r) => r.data),
 };
 
 // ─── System ───────────────────────────────────────────────────────────────────
@@ -145,6 +266,13 @@ export const systemApi = {
 export const broadcastApi = {
   send: (data: BroadcastRequest) =>
     apiClient
-      .post<BroadcastResult>('/api/v1/admin/notifications/broadcast', data)
+      .post<BroadcastResult>('/api/v1/admin/broadcast', data)
+      .then((r) => r.data),
+
+  preview: (planCode?: string) =>
+    apiClient
+      .get<BroadcastResult>('/api/v1/admin/broadcast/preview', {
+        params: planCode ? { planCode } : {},
+      })
       .then((r) => r.data),
 };

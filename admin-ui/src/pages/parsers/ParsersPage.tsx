@@ -69,6 +69,8 @@ export default function ParsersPage() {
     };
   }, []);
 
+  const [, setPollResults] = useState<Record<string, { success: boolean; count: number; ms: number }>>({});
+
   const testMutation = useMutation({
     mutationFn: ({ bookmaker, url }: { bookmaker: string; url: string }) =>
       parsersApi.test(bookmaker, { url }),
@@ -78,6 +80,20 @@ export default function ParsersPage() {
     onError: (err: Error) => {
       notification.error({ message: 'Test failed', description: err.message });
     },
+  });
+
+  const pollMutation = useMutation({
+    mutationFn: (bookmaker: string) => parsersApi.poll(bookmaker),
+    onSuccess: (result, bookmaker) => {
+      setPollResults((prev) => ({
+        ...prev,
+        [bookmaker]: { success: result.success, count: result.eventCount, ms: result.latencyMs },
+      }));
+      notification.success({
+        message: `Poll ${bookmaker}: ${result.success ? `${result.eventCount} sports, ${result.latencyMs}ms` : result.errorMessage}`,
+      });
+    },
+    onError: (err: Error) => notification.error({ message: err.message }),
   });
 
   const handleManualRefresh = () => {
@@ -138,14 +154,25 @@ export default function ParsersPage() {
                   </Space>
                 }
                 extra={
-                  <Button
-                    size="small"
-                    icon={<PlayCircleOutlined />}
-                    onClick={() => openTestModal(parser.bookmaker)}
-                    type="link"
-                  >
-                    Test
-                  </Button>
+                  <Space size={4}>
+                    <Button
+                      size="small"
+                      icon={<PlayCircleOutlined />}
+                      onClick={() => pollMutation.mutate(parser.bookmaker)}
+                      type="default"
+                      loading={pollMutation.isPending}
+                    >
+                      Poll
+                    </Button>
+                    <Button
+                      size="small"
+                      icon={<PlayCircleOutlined />}
+                      onClick={() => openTestModal(parser.bookmaker)}
+                      type="link"
+                    >
+                      Test
+                    </Button>
+                  </Space>
                 }
                 style={{
                   borderLeft: `4px solid ${indicatorBorderColor(parser.indicator)}`,

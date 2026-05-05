@@ -13,9 +13,13 @@ import com.valui.common.domain.UserStatus;
 import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.UserNotFoundException;
 import com.valui.user.dto.UserWithSubscriptionDto;
+import com.valui.admin.monitoring.ControllerAssembler;
 import com.valui.user.repository.AuditLogRepository;
 import com.valui.user.repository.NotificationLogRepository;
+import com.valui.user.repository.PaymentTransactionRepository;
+import com.valui.user.service.SubscriptionService;
 import com.valui.user.service.UserService;
+import com.valui.monitor.service.ControllerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -59,6 +63,10 @@ class AdminUserControllerTest {
     @MockBean AuthProperties authProperties;
     @MockBean AuditLogRepository auditLogRepository;
     @MockBean NotificationLogRepository notificationLogRepository;
+    @MockBean SubscriptionService subscriptionService;
+    @MockBean ControllerService controllerService;
+    @MockBean ControllerAssembler controllerAssembler;
+    @MockBean PaymentTransactionRepository paymentTransactionRepository;
 
     static final UUID ADMIN_ID   = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
     static final Long ADMIN_TG   = 111111111L;
