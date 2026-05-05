@@ -97,10 +97,7 @@ services:
 
   # ── Admin UI (Nginx + React SPA) ─────────────────────────────
   admin-ui:
-    build:
-      context: ./admin-ui
-      dockerfile: Dockerfile
-    image: valui-admin-ui:latest
+    image: ghcr.io/hitman-nn/valui-admin-ui:latest
     container_name: valui-admin-ui
     ports:
       - "127.0.0.1:3001:80"   # host-Nginx проксирует снаружи

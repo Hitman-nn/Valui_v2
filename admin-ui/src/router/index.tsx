@@ -16,27 +16,30 @@ function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export const router = createBrowserRouter([
-  {
-    path: '/login',
-    element: <LoginPage />,
-  },
-  {
-    path: '/',
-    element: (
-      <RequireAuth>
-        <AdminLayout />
-      </RequireAuth>
-    ),
-    children: [
-      { index: true, element: <Navigate to="/system" replace /> },
-      { path: 'users', element: <UsersPage /> },
-      { path: 'users/:id', element: <UserDetailPage /> },
-      { path: 'subscriptions', element: <SubscriptionsPage /> },
-      { path: 'parsers', element: <ParsersPage /> },
-      { path: 'system', element: <SystemPage /> },
-      { path: 'broadcast', element: <BroadcastPage /> },
-    ],
-  },
-  { path: '*', element: <Navigate to="/" replace /> },
-]);
+export const router = createBrowserRouter(
+  [
+    {
+      path: '/login',
+      element: <LoginPage />,
+    },
+    {
+      path: '/',
+      element: (
+        <RequireAuth>
+          <AdminLayout />
+        </RequireAuth>
+      ),
+      children: [
+        { index: true, element: <Navigate to="/system" replace /> },
+        { path: 'users', element: <UsersPage /> },
+        { path: 'users/:id', element: <UserDetailPage /> },
+        { path: 'subscriptions', element: <SubscriptionsPage /> },
+        { path: 'parsers', element: <ParsersPage /> },
+        { path: 'system', element: <SystemPage /> },
+        { path: 'broadcast', element: <BroadcastPage /> },
+      ],
+    },
+    { path: '*', element: <Navigate to="/" replace /> },
+  ],
+  { basename: import.meta.env.BASE_URL },
+);

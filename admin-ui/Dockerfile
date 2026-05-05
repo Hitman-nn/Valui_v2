@@ -3,6 +3,8 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 COPY . .
+ARG VITE_BASE_URL=/admin/
+ENV VITE_BASE_URL=${VITE_BASE_URL}
 RUN npm run build
 
 FROM nginx:alpine

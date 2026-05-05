@@ -13,11 +13,15 @@ export
 PROD  = docker compose -p valui-prod -f docker-compose.prod.yml --env-file .env.prod
 TEST  = docker compose -p valuii-test -f docker-compose.test.yml --env-file .env.test
 
+ADMIN_UI_IMAGE = ghcr.io/hitman-nn/valui-admin-ui
+# SSH_KEY и SERVER берутся из .env (gitignored). Пример: SSH_KEY=~/.ssh/valui_prod
+SSH_OPTS = $(if $(SSH_KEY),-i $(SSH_KEY),)
+
 .PHONY: help \
         up down reset logs psql redis-cli \
         test-up test-down test-restart test-logs test-status test-psql test-redis \
         prod-up prod-down prod-restart prod-logs prod-status prod-deploy \
-        ui-build ui-deploy
+        ui-build ui-push ui-deploy
 
 # ── Помощь ────────────────────────────────────────────────────────────────────
 help:
@@ -39,9 +43,10 @@ help:
 	@echo "    make prod-status    — статус контейнеров"
 	@echo "    make prod-deploy    — скачать новый образ app и перезапустить"
 	@echo ""
-	@echo "  FRONTEND (Admin UI):"
-	@echo "    make ui-build       — собрать Docker-образ фронта"
-	@echo "    make ui-deploy      — пересобрать образ и перезапустить контейнер"
+	@echo "  FRONTEND (Admin UI — запускать ЛОКАЛЬНО, не на сервере):"
+	@echo "    make ui-build       — собрать образ локально"
+	@echo "    make ui-push        — собрать и запушить в GHCR (текущая ветка + latest)"
+	@echo "    make ui-deploy      — pull образа на сервере + перезапуск контейнера"
 	@echo ""
 
 # ── Обратная совместимость (старые цели без префикса = prod) ──────────────────
@@ -109,11 +114,20 @@ prod-deploy:
 	$(PROD) up -d --no-deps app
 
 # ── Admin UI ──────────────────────────────────────────────────────────────────
-# ui-build  — собрать Docker-образ фронта (запускать на сервере после git pull)
-# ui-deploy — пересобрать образ и перезапустить контейнер без простоя
-ui-build:
-	docker build -t valui-admin-ui:latest ./admin-ui
+# Все три команды запускаются ЛОКАЛЬНО на маке.
+# ui-build  — собрать образ локально (для проверки)
+# ui-push   — собрать и запушить в GHCR с тегом ветки + latest
+# ui-deploy — запушить образ и дать команду серверу перезапустить контейнер
+BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 
-ui-deploy:
-	docker build -t valui-admin-ui:latest ./admin-ui
-	$(PROD) up -d --no-deps admin-ui
+ui-build:
+	docker buildx build --platform linux/amd64 -t $(ADMIN_UI_IMAGE):$(BRANCH) -t $(ADMIN_UI_IMAGE):latest ./admin-ui
+
+ui-push:
+	docker buildx build --platform linux/amd64 \
+		-t $(ADMIN_UI_IMAGE):$(BRANCH) \
+		-t $(ADMIN_UI_IMAGE):latest \
+		--push ./admin-ui
+
+ui-deploy: ui-push
+	ssh $(SSH_OPTS) $(SERVER) "cd app && docker compose -p valui-prod -f docker-compose.prod.yml --env-file .env.prod pull admin-ui && docker compose -p valui-prod -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps admin-ui"
