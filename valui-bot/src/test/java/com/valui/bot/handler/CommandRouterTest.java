@@ -1,5 +1,6 @@
 package com.valui.bot.handler;
 
+import com.valui.betting.service.ChatMemberService;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
@@ -38,9 +39,10 @@ import static org.mockito.Mockito.never;
 @DisplayName("CommandRouter — unit tests")
 class CommandRouterTest {
 
-    @Mock private BotSessionService sessionService;
-    @Mock private UserService userService;
-    @Mock private AbsSender sender;
+    @Mock private BotSessionService  sessionService;
+    @Mock private UserService        userService;
+    @Mock private ChatMemberService  chatMemberService;
+    @Mock private AbsSender          sender;
 
     private static final Long CHAT_ID = 100L;
 
@@ -60,7 +62,7 @@ class CommandRouterTest {
 
         CommandRouter router = new CommandRouter(
             List.of(lowPriority, highPriority),   // deliberately unordered
-            sessionService, userService);
+            sessionService, userService, chatMemberService);
 
         router.route(messageUpdate("/test"), sender);
 
@@ -76,7 +78,7 @@ class CommandRouterTest {
 
         CommandRouter router = new CommandRouter(
             List.of(match, noMatch),
-            sessionService, userService);
+            sessionService, userService, chatMemberService);
 
         router.route(messageUpdate("/cmd"), sender);
 
@@ -91,7 +93,7 @@ class CommandRouterTest {
 
         CommandRouter router = new CommandRouter(
             List.of(noMatch),
-            sessionService, userService);
+            sessionService, userService, chatMemberService);
 
         assertThatCode(() -> router.route(messageUpdate("/unknown"), sender))
             .doesNotThrowAnyException();
@@ -106,7 +108,7 @@ class CommandRouterTest {
         BotUpdateHandler handler = mockHandler(true, 100);
         CommandRouter router = new CommandRouter(
             List.of(handler),
-            sessionService, userService);
+            sessionService, userService, chatMemberService);
 
         Update emptyUpdate = new Update();   // no message / callback → chatId = null
 
@@ -126,7 +128,7 @@ class CommandRouterTest {
 
         CommandRouter router = new CommandRouter(
             List.of(throwing),
-            sessionService, userService);
+            sessionService, userService, chatMemberService);
 
         assertThatCode(() -> router.route(messageUpdate("/boom"), sender))
             .doesNotThrowAnyException();
@@ -143,7 +145,7 @@ class CommandRouterTest {
 
         CommandRouter router = new CommandRouter(
             List.of(handler),
-            sessionService, userService);
+            sessionService, userService, chatMemberService);
 
         router.route(callbackUpdate("SOME_DATA"), sender);
 
@@ -165,7 +167,7 @@ class CommandRouterTest {
 
         CommandRouter router = new CommandRouter(
             List.of(handler),
-            sessionService, userService);
+            sessionService, userService, chatMemberService);
 
         router.route(messageUpdate("/any"), sender);
 

@@ -4,6 +4,7 @@ import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.BotUpdateHandler;
 import com.valui.bot.handler.MessageSend;
 import com.valui.bot.handler.command.AddControllerHandler;
+import com.valui.bot.handler.command.BetCommandHandler;
 import com.valui.bot.handler.command.HelpCommandHandler;
 import com.valui.bot.handler.command.InfoCommandHandler;
 import com.valui.bot.handler.command.LanguageCommandHandler;
@@ -29,7 +30,8 @@ import java.util.Set;
  *   🔍  →  ListFilterCommandHandler
  *   🛑  →  StopCommandHandler
  *   ℹ️  →  InfoCommandHandler
- *   ❓  →  HelpCommandHandler
+ *   💸  →  BetCommandHandler
+ *   ❓  →  HelpCommandHandler (legacy button — sends updated ReplyKeyboard so user migrates)
  *   🌍  →  LanguageCommandHandler
  */
 @Slf4j
@@ -42,11 +44,12 @@ public class MenuButtonHandler implements BotUpdateHandler {
     static final String BTN_FILTER   = "🔍";
     static final String BTN_STOP     = "🛑";
     static final String BTN_INFO     = "ℹ️";
-    static final String BTN_HELP     = "❓";
+    static final String BTN_BET      = "💸";
+    static final String BTN_HELP     = "❓"; // legacy — kept to handle old keyboard until /start is called
     static final String BTN_LANGUAGE = "🌍";
 
     private static final Set<String> BUTTON_EMOJIS =
-        Set.of(BTN_ADD, BTN_LIST, BTN_FILTER, BTN_STOP, BTN_INFO, BTN_HELP, BTN_LANGUAGE);
+        Set.of(BTN_ADD, BTN_LIST, BTN_FILTER, BTN_STOP, BTN_INFO, BTN_BET, BTN_HELP, BTN_LANGUAGE);
 
     private final BotMessageSource messageSource;
     private final BotSessionService sessionService;
@@ -56,6 +59,7 @@ public class MenuButtonHandler implements BotUpdateHandler {
     private final ListFilterCommandHandler listFilterCommandHandler;
     private final StopCommandHandler       stopCommandHandler;
     private final InfoCommandHandler       infoCommandHandler;
+    private final BetCommandHandler        betCommandHandler;
     private final HelpCommandHandler       helpCommandHandler;
     private final LanguageCommandHandler   languageCommandHandler;
 
@@ -85,7 +89,8 @@ public class MenuButtonHandler implements BotUpdateHandler {
         if (text.startsWith(BTN_FILTER))   { listFilterCommandHandler.handle(ctx);  return; }
         if (text.startsWith(BTN_STOP))     { stopCommandHandler.handle(ctx);         return; }
         if (text.startsWith(BTN_INFO))     { infoCommandHandler.handle(ctx);         return; }
-        if (text.startsWith(BTN_HELP))     { helpCommandHandler.handle(ctx);         return; }
+        if (text.startsWith(BTN_BET))      { betCommandHandler.handle(ctx);   return; }
+        if (text.startsWith(BTN_HELP))     { helpCommandHandler.handle(ctx);  return; } // legacy: sends updated keyboard
         if (text.startsWith(BTN_LANGUAGE)) { languageCommandHandler.handle(ctx); }
     }
 }

@@ -12,6 +12,7 @@ import com.valui.bot.handler.callback.SportSelectCallback;
 import com.valui.bot.handler.callback.TournamentSelectCallback;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.menu.FilterMenuBuilder;
+import com.valui.bot.keyboard.menu.FilterWordBuilder;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.service.WizardCacheService;
 import com.valui.bot.state.BotState;
@@ -71,6 +72,17 @@ public class WizardTextHandler implements BotUpdateHandler {
             return;
         }
 
+        // Betting states are handled by BettingTextHandler (order=40); should not reach here
+        if (state == BotState.BETTING_WAITING_TITLE
+                || state == BotState.BETTING_WAITING_ODDS
+                || state == BotState.BETTING_WAITING_AMOUNT
+                || state == BotState.BETTING_WAITING_PARTICIPANT
+                || state == BotState.BANKING_WAITING_BALANCE
+                || state == BotState.BANKING_WAITING_NAME
+                || state == BotState.BANKING_SELECTING_OWNER) {
+            return;
+        }
+
         if (state != BotState.WAITING_FILTER_RULE) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
                 messageSource.getMessage("bot.unknown_command", ctx.fromId()));
@@ -79,16 +91,20 @@ public class WizardTextHandler implements BotUpdateHandler {
 
         String filterText = ctx.update().getMessage().getText().trim();
 
-        try {
-            Pattern.compile(filterText);
-        } catch (PatternSyntaxException e) {
-            MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("wizard.filter_invalid_regex", ctx.fromId()));
-            return;
-        }
-
         String mode = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_FILTER_MODE)
             .orElse("GLOBAL");
+
+        // Global filter modes accept plain words — skip raw-regex validation
+        boolean isWordMode = "GLOBAL".equals(mode) || "GLOBAL_EDIT".equals(mode);
+        if (!isWordMode) {
+            try {
+                Pattern.compile(filterText);
+            } catch (PatternSyntaxException e) {
+                MessageSend.text(ctx.sender(), ctx.chatId(),
+                    messageSource.getMessage("wizard.filter_invalid_regex", ctx.fromId()));
+                return;
+            }
+        }
 
         switch (mode) {
             case "INDIVIDUAL"        -> handleIndividualFilter(ctx, filterText);
@@ -108,9 +124,16 @@ public class WizardTextHandler implements BotUpdateHandler {
         replaceOrSend(ctx, confirmText, confirmKeyboard);
     }
 
-    private void handleGlobalFilter(BotUpdateContext ctx, String filterText) {
+    private void handleGlobalFilter(BotUpdateContext ctx, String rawInput) {
+        List<String> words = FilterWordBuilder.parseWords(rawInput);
+        if (words.isEmpty()) {
+            MessageSend.text(ctx.sender(), ctx.chatId(),
+                messageSource.getMessage("filter.words_empty", ctx.fromId()));
+            return;
+        }
+        String filterRule = FilterWordBuilder.wordsToRegex(words);
         try {
-            globalFilterService.addFilter(ctx.fromId(), filterText);
+            globalFilterService.addFilter(ctx.fromId(), filterRule);
         } catch (InsufficientTokensException e) {
             sessionService.setState(ctx.fromId(), BotState.IDLE);
             return;
@@ -119,12 +142,19 @@ public class WizardTextHandler implements BotUpdateHandler {
         showFilterList(ctx);
     }
 
-    private void handleGlobalFilterEdit(BotUpdateContext ctx, String filterText) {
+    private void handleGlobalFilterEdit(BotUpdateContext ctx, String rawInput) {
+        List<String> words = FilterWordBuilder.parseWords(rawInput);
+        if (words.isEmpty()) {
+            MessageSend.text(ctx.sender(), ctx.chatId(),
+                messageSource.getMessage("filter.words_empty", ctx.fromId()));
+            return;
+        }
+        String filterRule = FilterWordBuilder.wordsToRegex(words);
         Optional<String> filterIdOpt = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_EDIT_FILTER_ID);
         if (filterIdOpt.isPresent()) {
             try {
                 UUID filterId = UUID.fromString(filterIdOpt.get());
-                globalFilterService.updateFilter(ctx.fromId(), filterId, filterText);
+                globalFilterService.updateFilter(ctx.fromId(), filterId, filterRule);
             } catch (Exception e) {
                 log.warn("Failed to update global filter: {}", e.getMessage());
             }

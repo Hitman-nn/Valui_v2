@@ -89,6 +89,11 @@ public class ControllerTask implements Runnable {
         }
         TaskContext ctx = ctxOpt.get();
 
+        if (!executor.isParserAvailable(ctx.bookmaker())) {
+            log.debug("⏭  Parser {} not available — controller {} skipped", ctx.bookmaker(), controllerId);
+            return;
+        }
+
         // External HTTP call (outside any transaction)
         List<ParsedItem> fetched;
         try {

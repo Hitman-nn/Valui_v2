@@ -12,8 +12,11 @@ import com.valui.common.domain.NotificationStatus;
 import com.valui.notify.formatter.NotificationFormatter;
 import com.valui.common.entity.NotificationLogEntity;
 import com.valui.notify.log.NotificationLogService;
+import com.valui.betting.cache.BetNotifCacheService;
+import com.valui.user.quickadd.QuickAddCacheService;
 import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.DetectedEventRepository;
+import com.valui.user.repository.GlobalFilterRepository;
 import com.valui.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +31,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -44,9 +48,12 @@ class SportEventConsumerTest {
     @Mock ControllerRepository    controllerRepo;
     @Mock UserRepository          userRepo;
     @Mock DetectedEventRepository detectedEventRepo;
+    @Mock GlobalFilterRepository  globalFilterRepo;
     @Mock NotificationLogService  notificationLogService;
     @Mock NotificationFormatter   formatter;
     @Mock KafkaTemplate<String, Object> kafkaTemplate;
+    @Mock QuickAddCacheService    quickAddCacheService;
+    @Mock BetNotifCacheService    betNotifCacheService;
 
     @InjectMocks SportEventConsumer consumer;
 
@@ -85,6 +92,7 @@ class SportEventConsumerTest {
 
         given(controllerRepo.findById(CTRL_ID)).willReturn(Optional.of(activeController));
         given(userRepo.findById(USER_ID)).willReturn(Optional.of(activeUser));
+        given(globalFilterRepo.findAllByUserIdOrderByCreatedAtAsc(USER_ID)).willReturn(List.of());
         given(detectedEventRepo.findByControllerIdAndEventExternalId(any(), any()))
                 .willReturn(Optional.empty());
         given(notificationLogService.createPending(any(), any(), any(), any())).willReturn(logEntry);

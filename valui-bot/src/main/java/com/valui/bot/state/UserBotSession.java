@@ -51,4 +51,22 @@ public class UserBotSession {
     // Wizard cache (serialised JSON — cleared on state transitions)
     public static final String CTX_CACHED_SPORTS_JSON      = "cachedSportsJson";
     public static final String CTX_CACHED_TOURNAMENTS_JSON = "cachedTournamentsJson";
+
+    // ── Betting wizard context keys ───────────────────────────────────────────
+    public static final String CTX_BET_NOTIF_KEY   = "betNotifKey";    // Redis key for BetNotifData
+    public static final String CTX_BET_TYPE        = "betType";        // SINGLE | EXPRESS
+    public static final String CTX_BET_MATCH_TITLE = "betMatchTitle";
+    public static final String CTX_BET_MATCH_URL   = "betMatchUrl";
+    public static final String CTX_BET_BOOKMAKER   = "betBookmaker";
+    public static final String CTX_BET_ODDS        = "betOdds";
+    public static final String CTX_BET_AMOUNT      = "betAmount";
+    public static final String CTX_BET_PARTS_JSON  = "betPartsJson";   // JSON list of ParticipantRequest
+    public static final String CTX_BET_BANK_ID     = "betBankId";      // selected bank account UUID
+    public static final String CTX_BET_WIZARD_MSG  = "betWizardMsg";   // wizard message ID
+    public static final String CTX_BET_EXPRESS_JSON = "betExpressJson"; // JSON list of BetSlipRequest legs
+    public static final String CTX_BET_BANK_NAME       = "betBankName";       // pending bank account name
+    public static final String CTX_BET_BANK_OWNER_ID   = "betBankOwnerId";    // selected owner's telegram ID (Long as String)
+    public static final String CTX_BET_BANK_OWNER_NM   = "betBankOwnerNm";    // selected owner's display name
+    public static final String CTX_BET_BANK_EDIT_ID    = "betBankEditId";     // UUID of existing account being edited
+    public static final String CTX_BET_EDITING_PART_TID = "betEditingPartTid"; // telegramId of participant whose stake is being edited
 }

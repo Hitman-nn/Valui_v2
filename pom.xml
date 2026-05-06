@@ -20,6 +20,7 @@
         <module>valui-monitor</module>
         <module>valui-notify</module>
         <module>valui-admin</module>
+        <module>valui-betting</module>
         <module>valui-app</module>
     </modules>
 
@@ -114,6 +115,11 @@
             <dependency>
                 <groupId>com.valui</groupId>
                 <artifactId>valui-admin</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.valui</groupId>
+                <artifactId>valui-betting</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

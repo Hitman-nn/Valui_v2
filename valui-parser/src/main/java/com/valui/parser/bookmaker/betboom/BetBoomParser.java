@@ -133,6 +133,9 @@ public class BetBoomParser implements BookmakerParser {
     @Override
     public boolean isAvailable() { return ws.getPool().available() > 0; }
 
+    @Override
+    public boolean isConnectionReady() { return ws.getPool().available() > 0; }
+
     // ── fallbacks ─────────────────────────────────────────────────────────────
 
     private ParseResult<List<SportDto>> fetchSportsFallback(Throwable t) {
@@ -154,7 +157,7 @@ public class BetBoomParser implements BookmakerParser {
 
     private byte[] filtered(String op, byte[] req, Predicate<Envelope> ok) {
         try { return ws.sendAndAwaitFiltered(req, WS_TIMEOUT_MS, ok); }
-        catch (Exception e) { log.error("{}: WS error", op, e); throw new RuntimeException(op + " WS error", e); }
+        catch (Exception e) { log.debug("{}: WS error", op, e); throw new RuntimeException(op + " WS error", e); }
     }
 
     private static boolean hasExpectedTournamentMatches(Envelope env, int expectedTid) {

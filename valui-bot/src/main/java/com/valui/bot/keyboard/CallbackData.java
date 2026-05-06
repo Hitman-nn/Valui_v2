@@ -88,8 +88,70 @@ public final class CallbackData {
 
     public static String qadd(String notificationLogId) { return QADD_PREFIX + notificationLogId; }
 
-    // ─── Pagination — format: "PAGE:{listKey}:{pageNum}" ─────────────────────
+    // ─── Betting Journal ──────────────────────────────────────────────────────
+    /**
+     * "💸 Поставил" from notification: "BET:NOTIF:{notifLogId}" → shows type choice.
+     * After choice: "BET:NOTIF:S:{key}" for single, "BET:NOTIF:E:{key}" for express.
+     * All fit in 64 bytes: 12 + UUID(36) = 48.
+     */
+    public static final String BET_NOTIF_PREFIX         = "BET:NOTIF:";
+    public static final String BET_NOTIF_SINGLE_PREFIX  = "BET:NOTIF:S:";
+    public static final String BET_NOTIF_EXPRESS_PREFIX = "BET:NOTIF:E:";
+    public static final String BET_MENU             = "BET:MENU";
+    public static final String BET_NEW_SINGLE       = "BET:NEW:SINGLE";
+    public static final String BET_NEW_EXPRESS      = "BET:NEW:EXPRESS";
+    public static final String BET_EXPRESS_ADD      = "BET:EXPR:ADD";
+    public static final String BET_EXPRESS_DONE     = "BET:EXPR:DONE";
+    public static final String BET_CONFIRM          = "BET:CONFIRM";
+    public static final String BET_LIST_OPEN        = "BET:LIST:OPEN";
+    public static final String BET_LIST_ALL         = "BET:LIST:ALL";
+    public static final String BET_STAT             = "BET:STAT";
+    public static final String BET_CANCEL_WIZARD    = "BET:CANCEL";
+    public static final String BET_ADD_PARTICIPANT  = "BET:PART:ADD";
+    public static final String BET_PART_STEP        = "BET:PART:STEP";   // back to participant step from confirmation
+    public static final String BET_PART_DONE        = "BET:PART:DONE";   // done with participant selection
+    public static final String BET_PART_TOGGLE_PREFIX = "BET:PT:";        // BET:PT:{telegramId} — toggle participant
+    public static final String BET_PART_SPLIT_PREFIX  = "BET:PS:";        // BET:PS:{myN}:{partN} — set ratio
+    public static final String BET_PART_AMT_PREFIX    = "BET:PA:";        // BET:PA:{telegramId}  — edit stake for participant
+    public static final String BET_DETAIL_PREFIX    = "BET:D:";
+    public static final String BET_RESOLVE_PREFIX   = "BET:R:";    // BET:R:{id}:WIN|LOSE|RETURN
+    public static final String BET_CANCEL_PREFIX    = "BET:C:";    // BET:C:{betId}
+
+    /** Bank accounts */
+    public static final String BANK_LIST          = "BANK:LIST";
+    public static final String BANK_NEW           = "BANK:NEW";
+    public static final String BANK_BALANCE_SKIP  = "BANK:BAL:0";  // skip initial balance (set 0)
+    public static final String BANK_OWN_PREFIX    = "BANK:OWN:";   // BANK:OWN:{telegramId} — owner selected
+    public static final String BANK_SEL_PREFIX    = "BANK:SEL:";   // BANK:SEL:{accountId}
+    public static final String BANK_DEF_PREFIX    = "BANK:DEF:";   // BANK:DEF:{accountId}
+    public static final String BANK_DEL_PREFIX    = "BANK:DEL:";   // BANK:DEL:{accountId}
+    public static final String BANK_EDIT_PREFIX   = "BANK:E:";     // BANK:E:{accountId} — edit balance
+
+    public static String bankOwn(long telegramId) { return BANK_OWN_PREFIX + telegramId; }
+
+    public static String betNotif(String notifLogId)        { return BET_NOTIF_PREFIX + notifLogId; }
+    public static String betPartToggle(long telegramId)    { return BET_PART_TOGGLE_PREFIX + telegramId; }
+    /** Ratio split: myN parts for me, partN parts for partner (e.g. 1:1, 2:1, 3:2). */
+    public static String betPartSplit(int myN, int partN)  { return BET_PART_SPLIT_PREFIX + myN + ":" + partN; }
+    public static String betPartAmtEdit(long telegramId)   { return BET_PART_AMT_PREFIX + telegramId; }
+    public static String bankEdit(String accountId)        { return BANK_EDIT_PREFIX + accountId; }
+    public static String betNotifSingle(String notifLogId) { return BET_NOTIF_SINGLE_PREFIX + notifLogId; }
+    public static String betNotifExpress(String notifLogId) { return BET_NOTIF_EXPRESS_PREFIX + notifLogId; }
+    public static String betDetail(String betId)        { return BET_DETAIL_PREFIX + betId; }
+    public static String betResolve(String betId, String result) { return BET_RESOLVE_PREFIX + betId + ":" + result; }
+    public static String betCancel(String betId)        { return BET_CANCEL_PREFIX + betId; }
+    public static String bankSel(String accountId)      { return BANK_SEL_PREFIX + accountId; }
+    public static String bankDef(String accountId)      { return BANK_DEF_PREFIX + accountId; }
+    public static String bankDel(String accountId)      { return BANK_DEL_PREFIX + accountId; }
+
+    // ─── Pagination ───────────────────────────────────────────────────────────
+    /** Generic pagination — format: "PAGE:{listKey}:{n}" (used by controller/tournament lists). */
     public static String page(String listKey, int pageNum) {
         return "PAGE:" + listKey + ":" + pageNum;
+    }
+
+    /** Bet-list pagination — format: "BET:LIST:OPEN:P:{n}" / "BET:LIST:ALL:P:{n}". */
+    public static String betListPage(boolean openOnly, int pageNum) {
+        return (openOnly ? BET_LIST_OPEN : BET_LIST_ALL) + ":P:" + pageNum;
     }
 }

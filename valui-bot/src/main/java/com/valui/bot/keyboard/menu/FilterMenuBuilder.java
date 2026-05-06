@@ -15,9 +15,10 @@ public final class FilterMenuBuilder {
         var builder = InlineKeyboardBuilder.create();
 
         for (GlobalFilterEntity f : filters) {
-            // Delete and Edit buttons on the same row
-            builder.button("🗑 " + f.getFilterRule(), CallbackData.filterDelete(f.getId()));
-            builder.button("✏️",                       CallbackData.filterEdit(f.getId()));
+            String display = FilterWordBuilder.regexToDisplay(f.getFilterRule());
+            builder.button("🚫 " + display, CallbackData.NOOP);
+            builder.button("✏️", CallbackData.filterEdit(f.getId()));
+            builder.button("🗑", CallbackData.filterDelete(f.getId()));
             builder.row();
         }
 

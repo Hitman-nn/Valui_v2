@@ -20,4 +20,10 @@ public interface BookmakerParser {
     default boolean isAvailable() {
         return true;
     }
+
+    /** Cheap in-memory check: connection pool has slots ready (no HTTP).
+     *  Override only for parsers that maintain a persistent pool (e.g. WS). */
+    default boolean isConnectionReady() {
+        return true;
+    }
 }

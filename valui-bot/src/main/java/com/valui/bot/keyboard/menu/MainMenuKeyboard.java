@@ -12,7 +12,7 @@ import java.util.List;
  *
  * Row 1:  [add]        [list]
  * Row 2:  [listfilter] [stop]
- * Row 3:  [info]       [help]
+ * Row 3:  [info]       [bet]
  * Row 4:  [language]
  *
  * Button text dispatches by leading emoji in MenuButtonHandler.
@@ -32,7 +32,7 @@ public final class MainMenuKeyboard {
 
         KeyboardRow row3 = new KeyboardRow();
         row3.add(new KeyboardButton(msg.getMessage("menu.btn.info",     fromId)));
-        row3.add(new KeyboardButton(msg.getMessage("menu.btn.help",     fromId)));
+        row3.add(new KeyboardButton(msg.getMessage("menu.btn.bet",      fromId)));
 
         KeyboardRow row4 = new KeyboardRow();
         row4.add(new KeyboardButton(msg.getMessage("menu.btn.language", fromId)));

@@ -172,7 +172,7 @@ class MenuSnapshotTest {
     }
 
     @Test
-    @DisplayName("FilterMenuBuilder: 2 filters → 2×[delete,edit] rows + Add (3 rows, no Back)")
+    @DisplayName("FilterMenuBuilder: 2 filters → 2×[label,edit,delete] rows + Add (3 rows, no Back)")
     void filterMenu_twoFilters_deleteAndEdit() {
         UserEntity user = new UserEntity();
         UUID id1 = UUID.randomUUID(), id2 = UUID.randomUUID();
@@ -184,11 +184,11 @@ class MenuSnapshotTest {
         InlineKeyboardMarkup kb = menu.keyboard();
         // 2 filter rows + 1 add row = 3 (no Back)
         assertThat(kb.getKeyboard()).hasSize(3);
-        assertThat(kb.getKeyboard().get(0)).hasSize(2);
-        assertThat(kb.getKeyboard().get(0).get(0).getCallbackData())
-            .isEqualTo(CallbackData.filterDelete(id1));
-        assertThat(kb.getKeyboard().get(0).get(1).getCallbackData())
-            .isEqualTo(CallbackData.filterEdit(id1));
+        // Each filter row: [label(NOOP), edit, delete]
+        assertThat(kb.getKeyboard().get(0)).hasSize(3);
+        assertThat(kb.getKeyboard().get(0).get(0).getCallbackData()).isEqualTo(CallbackData.NOOP);
+        assertThat(kb.getKeyboard().get(0).get(1).getCallbackData()).isEqualTo(CallbackData.filterEdit(id1));
+        assertThat(kb.getKeyboard().get(0).get(2).getCallbackData()).isEqualTo(CallbackData.filterDelete(id1));
         assertThat(kb.getKeyboard().get(2).get(0).getCallbackData()).isEqualTo(CallbackData.FILTER_ADD);
     }
 

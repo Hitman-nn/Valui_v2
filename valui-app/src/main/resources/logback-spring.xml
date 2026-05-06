@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
+    <!-- Suppress logback's own startup status messages -->
+    <statusListener class="ch.qos.logback.core.status.NopStatusListener"/>
+
     <!-- ─── Custom converter: [BOT] / [MON] / [PAR] / [USR] colored tags ─── -->
     <conversionRule conversionWord="subsystem"
-                    converterClass="com.valui.app.logging.SubsystemConverter"/>
+                    class="com.valui.app.logging.SubsystemConverter"/>
 
     <springProperty scope="context" name="appName"
                     source="spring.application.name" defaultValue="valui"/>
@@ -42,6 +45,31 @@
     </appender>
 
     <!-- ═══════════════════════════════════════════════════════════════════════
+         Early-startup noise — логируют до применения springProfile
+         ═══════════════════════════════════════════════════════════════════════ -->
+    <logger name="org.apache.catalina"        level="WARN"/>
+    <logger name="org.apache.coyote"          level="WARN"/>
+    <logger name="org.apache.tomcat"          level="WARN"/>
+    <logger name="com.zaxxer.hikari"          level="WARN"/>
+    <logger name="org.hibernate"              level="WARN"/>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         Kafka internals — подавляем rebalance/offset шум при любом профиле
+         ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- Kafka consumer internals: ConsumerCoordinator, SubscriptionState,
+         ConsumerUtils, ConsumerRebalanceListenerInvoker и др. -->
+    <logger name="org.apache.kafka.clients.consumer.internals" level="WARN"/>
+    <logger name="org.apache.kafka.clients.consumer.ConsumerConfig"   level="WARN"/>
+    <logger name="org.apache.kafka.clients.producer.ProducerConfig"   level="WARN"/>
+    <logger name="org.apache.kafka.clients.admin.AdminClientConfig"   level="WARN"/>
+    <logger name="org.apache.kafka.common.utils.AppInfoParser"        level="WARN"/>
+    <logger name="org.apache.kafka.clients.Metadata"                  level="WARN"/>
+    <logger name="org.apache.kafka.clients.NetworkClient"             level="ERROR"/>
+    <logger name="org.apache.kafka.common.metrics"                   level="WARN"/>
+    <logger name="org.apache.kafka.common.telemetry.internals"       level="WARN"/>
+    <logger name="org.springframework.kafka.listener.KafkaMessageListenerContainer" level="WARN"/>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
          local — подробный вывод с цветами
          ═══════════════════════════════════════════════════════════════════════ -->
     <springProfile name="local">
@@ -50,21 +78,14 @@
         <!-- Spring internals — INFO уровень для старта, не выше -->
         <logger name="org.springframework.web"          level="INFO"/>
         <logger name="org.springframework.security"     level="INFO"/>
-        <logger name="org.springframework.kafka"        level="INFO"/>
+        <logger name="org.springframework.kafka"                                         level="INFO"/>
+        <logger name="org.springframework.kafka.listener.KafkaMessageListenerContainer" level="INFO"/>
+        <logger name="org.hibernate"                    level="INFO"/>
         <logger name="org.hibernate.SQL"                level="DEBUG"/>
         <logger name="org.hibernate.orm.jdbc.bind"      level="TRACE"/>
+        <logger name="com.zaxxer.hikari"                level="INFO"/>
+        <logger name="org.apache.catalina"              level="INFO"/>
         <logger name="org.flywaydb"                     level="INFO"/>
-        <!-- Kafka consumer config — очень шумный (выводит все 60+ параметров) -->
-        <logger name="org.apache.kafka.clients.consumer.ConsumerConfig"   level="WARN"/>
-        <logger name="org.apache.kafka.clients.producer.ProducerConfig"   level="WARN"/>
-        <logger name="org.apache.kafka.clients.admin.AdminClientConfig"   level="WARN"/>
-        <logger name="org.apache.kafka.common.utils.AppInfoParser"        level="WARN"/>
-        <!-- Kafka координатор — много INFO при старте, оставим только WARNING -->
-        <logger name="org.apache.kafka.clients.consumer.internals.ConsumerCoordinator" level="WARN"/>
-        <logger name="org.apache.kafka.clients.Metadata"                  level="WARN"/>
-        <!-- Kafka NetworkClient — спамит UNKNOWN_TOPIC_OR_PARTITION при первом старте
-             пока топик не создан, это ожидаемо и не является ошибкой -->
-        <logger name="org.apache.kafka.clients.NetworkClient"             level="ERROR"/>
         <!-- Netty TLS — ожидаемый RST от geo-blocked серверов (BetCity/XBet) -->
         <logger name="reactor.netty.http.client.HttpClientConnect"        level="ERROR"/>
         <logger name="io.netty.handler.ssl"                               level="ERROR"/>

@@ -125,6 +125,10 @@ public class ControllerTaskExecutor {
 
     // ── Step 3: Fetch from parser (NO transaction — external HTTP call) ───────
 
+    public boolean isParserAvailable(BookmakerType bookmaker) {
+        return parserFactory.getParser(bookmaker).isConnectionReady();
+    }
+
     public List<ParsedItem> fetch(TaskContext ctx) {
         if (ctx.tournamentId() == null && ctx.sportId() == null) {
             log.warn("No tournamentId/sportId extractable from URL {} — skipping", ctx.url());

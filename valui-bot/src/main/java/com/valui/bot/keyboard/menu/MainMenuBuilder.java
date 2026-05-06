@@ -38,7 +38,7 @@ public final class MainMenuBuilder {
                 CallbackData.FILTER_LIST)
             .row()
             .button("💳 Подписка", CallbackData.MENU_SUBSCRIPTION)
-            .button("❓ Помощь",   CallbackData.MENU_HELP)
+            .button("💸 Ставки",   CallbackData.BET_MENU)
             .build();
 
         return new MenuMessage(text, keyboard);

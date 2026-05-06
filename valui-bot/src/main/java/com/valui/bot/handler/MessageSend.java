@@ -63,6 +63,26 @@ public final class MessageSend {
         }
     }
 
+    /**
+     * Sends a new Markdown message and returns its message ID (0 on failure).
+     * Use when the caller needs to track the new wizard message position.
+     */
+    public static int sendMarkdownGetId(AbsSender sender, long chatId, String text, InlineKeyboardMarkup keyboard) {
+        try {
+            org.telegram.telegrambots.meta.api.objects.Message msg = sender.execute(
+                SendMessage.builder()
+                    .chatId(chatId)
+                    .text(text)
+                    .parseMode("Markdown")
+                    .replyMarkup(keyboard)
+                    .build());
+            return msg != null ? msg.getMessageId() : 0;
+        } catch (TelegramApiException e) {
+            log.error("Send failed chatId={}: {}", chatId, e.getMessage());
+            return 0;
+        }
+    }
+
     public static void textMarkdownWithKeyboard(AbsSender sender, long chatId, String text,
                                                  org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup keyboard) {
         try {
@@ -121,6 +141,10 @@ public final class MessageSend {
         } catch (TelegramApiException e) {
             log.error("Send failed chatId={}: {}", chatId, e.getMessage());
         }
+    }
+
+    public static void deleteMessage(AbsSender sender, long chatId, int messageId) {
+        tryDelete(sender, chatId, messageId);
     }
 
     private static void tryDelete(AbsSender sender, long chatId, int messageId) {

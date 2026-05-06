@@ -19,7 +19,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMa
  *   {@link #send}             — plain text, used by DLQ retry path (legacy callers)
  *   {@link #sendNotification} — full message with optional inline keyboard button:
  *       SPORT controller event   → "➕ Следить за турниром" callback button
- *       TOURNAMENT/MATCH event   → "🔗 Открыть матч" URL button
+ *       TOURNAMENT/MATCH event   → "💸 Поставил" callback button
  */
 @Slf4j
 @Component
@@ -93,11 +93,24 @@ public class TelegramNotificationSender implements NotificationSender {
     }
 
     private static InlineKeyboardMarkup buildKeyboard(UserNotificationRequestMessage request) {
-        if (request.quickAddKey() != null && !request.quickAddKey().isBlank()) {
-            return InlineKeyboardBuilder.create()
-                    .button("➕ Следить за турниром", CallbackData.qadd(request.quickAddKey()))
-                    .build();
+        boolean hasQuickAdd = request.quickAddKey() != null && !request.quickAddKey().isBlank();
+        boolean hasBetKey   = request.betKey()      != null && !request.betKey().isBlank();
+        boolean hasUrl      = request.eventUrl()    != null && !request.eventUrl().isBlank();
+
+        if (!hasQuickAdd && !hasBetKey && !hasUrl) return null;
+
+        InlineKeyboardBuilder kb = InlineKeyboardBuilder.create();
+
+        if (hasQuickAdd) {
+            kb.button("➕ Следить за турниром", CallbackData.qadd(request.quickAddKey())).row();
         }
-        return null;
+        if (hasUrl) {
+            kb.urlButton("🔗 Открыть матч", request.eventUrl()).row();
+        }
+        if (hasBetKey) {
+            kb.button("💸 Поставил", CallbackData.betNotif(request.betKey())).row();
+        }
+
+        return kb.build();
     }
 }

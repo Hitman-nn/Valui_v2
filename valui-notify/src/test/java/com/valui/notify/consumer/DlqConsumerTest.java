@@ -55,6 +55,7 @@ class DlqConsumerTest {
                 "test message",
                 UUID.randomUUID().toString(),
                 null,
+                null,
                 null);
 
         // Stub retryPolicy to avoid NPE in error path

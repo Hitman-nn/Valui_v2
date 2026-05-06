@@ -9,12 +9,16 @@ import com.valui.common.entity.UserEntity;
 import com.valui.common.kafka.KafkaTopics;
 import com.valui.common.kafka.SportEventDetectedMessage;
 import com.valui.common.kafka.UserNotificationRequestMessage;
+import com.valui.betting.cache.BetNotifCacheService;
+import com.valui.betting.cache.BetNotifData;
+import com.valui.common.entity.GlobalFilterEntity;
 import com.valui.notify.formatter.NotificationFormatter;
 import com.valui.notify.log.NotificationLogService;
 import com.valui.user.quickadd.QuickAddCacheService;
 import com.valui.user.quickadd.QuickAddData;
 import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.DetectedEventRepository;
+import com.valui.user.repository.GlobalFilterRepository;
 import com.valui.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,8 +42,8 @@ import java.util.regex.PatternSyntaxException;
  *   4. filterRule regex matches event title (if rule is set)
  *
  * Inline-button enrichment:
- *   SPORT controller   → quick-add data stored in Redis + quickAddKey in message
- *   TOURNAMENT/MATCH   → eventUrl for "🔗 Открыть матч" URL button
+ *   SPORT controller   → quick-add data stored in Redis + quickAddKey in message ("➕ Следить за турниром")
+ *   TOURNAMENT/MATCH   → bet data stored in Redis + betKey in message ("💸 Поставил")
  */
 @Slf4j
 @Component
@@ -49,10 +53,12 @@ public class SportEventConsumer {
     private final ControllerRepository    controllerRepo;
     private final UserRepository          userRepo;
     private final DetectedEventRepository detectedEventRepo;
+    private final GlobalFilterRepository  globalFilterRepo;
     private final NotificationLogService  notificationLogService;
     private final NotificationFormatter   formatter;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final QuickAddCacheService    quickAddCacheService;
+    private final BetNotifCacheService    betNotifCacheService;
 
     @KafkaListener(
             topics  = KafkaTopics.SPORT_EVENTS_DETECTED,
@@ -97,6 +103,14 @@ public class SportEventConsumer {
             return;
         }
 
+        // Check global exclusion filters (blacklist: event blocked if any forbidden word is found)
+        for (GlobalFilterEntity gf : globalFilterRepo.findAllByUserIdOrderByCreatedAtAsc(userId)) {
+            if (!passesFilterRule(gf.getFilterRule(), event.title())) {
+                log.debug("Event '{}' blocked by global filter for user {}", event.title(), userId);
+                return;
+            }
+        }
+
         UUID detectedEventId = detectedEventRepo
                 .findByControllerIdAndEventExternalId(controllerId, event.externalEventId())
                 .map(e -> e.getId())
@@ -122,16 +136,19 @@ public class SportEventConsumer {
         // Determine inline button metadata based on controller type
         String quickAddKey = null;
         String eventUrl    = null;
+        String betKey      = null;
 
         if (ControllerType.SPORT == controller.getType() && hasUrl(event.url())) {
-            // SPORT controller → cache tournament data for "➕ Следить за турниром" button
+            // SPORT controller → "➕ Следить за турниром" button only; no bet on a tournament
             quickAddKey = logEntry.getId().toString();
             quickAddCacheService.store(quickAddKey,
                     new QuickAddData(event.url(), event.bookmaker(), event.title()));
             log.debug("[QUICK-ADD] Cached tournament data for notifLogId={}", quickAddKey);
-        } else if (hasUrl(event.url())) {
-            // TOURNAMENT / MATCH → "🔗 Открыть матч" URL button
-            eventUrl = event.url();
+        } else {
+            // TOURNAMENT / MATCH → "💸 Поставил" button; no URL button
+            betKey = logEntry.getId().toString();
+            betNotifCacheService.store(betKey,
+                    new BetNotifData(event.title(), event.url(), event.bookmaker()));
         }
 
         UserNotificationRequestMessage request = new UserNotificationRequestMessage(
@@ -142,7 +159,8 @@ public class SportEventConsumer {
                 messageText,
                 event.eventId(),
                 quickAddKey,
-                eventUrl
+                eventUrl,
+                betKey
         );
 
         final boolean hasQuickAdd = quickAddKey != null;
@@ -162,7 +180,8 @@ public class SportEventConsumer {
         if (filterRule == null || filterRule.isBlank()) return true;
         if (title == null) return false;
         try {
-            return Pattern.compile(filterRule, Pattern.CASE_INSENSITIVE).matcher(title).find();
+            return Pattern.compile(filterRule, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE)
+                    .matcher(title).find();
         } catch (PatternSyntaxException e) {
             log.warn("Invalid filterRule regex '{}': {}", filterRule, e.getMessage());
             return true;

@@ -51,7 +51,24 @@
       "Bash(mvn -pl valui-common,valui-user,valui-monitor,valui-admin compile)",
       "Bash(mvn -pl valui-monitor install -q)",
       "Bash(mvn -pl valui-parser test -q)",
-      "Bash(mvn -pl valui-parser test)"
+      "Bash(mvn -pl valui-parser test)",
+      "Bash(mvn -pl valui-common install -q)",
+      "Bash(mvn -pl valui-betting install -q)",
+      "Bash(mvn -pl valui-notify compile -q)",
+      "Bash(mvn -pl valui-common,valui-user,valui-parser,valui-monitor,valui-betting,valui-bot install -q)",
+      "Bash(mvn -pl valui-common,valui-user,valui-parser,valui-monitor,valui-betting,valui-bot install)",
+      "Bash(mvn -pl valui-common,valui-user,valui-parser,valui-monitor,valui-betting,valui-bot clean install -q)",
+      "Bash(mvn -pl valui-notify clean install -q)",
+      "Bash(mvn -pl valui-common,valui-user,valui-parser,valui-monitor,valui-betting,valui-bot,valui-notify clean install -q)",
+      "Bash(mvn -pl valui-admin clean install -q)",
+      "Bash(mvn -pl valui-app clean install -q)",
+      "Bash(jar tf *)",
+      "Bash(grep -v \"inner\\\\|class\\\\$\")",
+      "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml dependency:tree -pl valui-notify -Dincludes=\"org.springframework.kafka:spring-kafka\" -q)",
+      "Bash(grep -v \"\\\\$\")",
+      "Bash(xargs -I{} jar tf {})",
+      "Bash(xargs -I{} bash -c 'jar tf \"$1\" 2>/dev/null | grep -l \"KafkaMetricsCollector\" | xargs -I@ echo \"$1:@\"' _ {})",
+      "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml dependency:tree -pl valui-notify -Dincludes=\"org.springframework.kafka:*,io.micrometer:*\" -q)"
     ]
   }
 }

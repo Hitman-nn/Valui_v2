@@ -36,6 +36,7 @@ public class BotCommandsRegistrar {
             new BotCommand("/stop",       "🛑 Остановить всё"),
             new BotCommand("/deleteall",  "🗑 Удалить все контроллеры"),
             new BotCommand("/language",   "🌍 Сменить язык"),
+            new BotCommand("/bet",        "💸 Журнал ставок"),
             new BotCommand("/help",       "❓ Справка"),
             new BotCommand("/start",      "🔄 Перезапустить бота")
         );

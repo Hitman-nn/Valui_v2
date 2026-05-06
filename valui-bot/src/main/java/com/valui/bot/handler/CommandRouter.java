@@ -1,5 +1,6 @@
 package com.valui.bot.handler;
 
+import com.valui.betting.service.ChatMemberService;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.state.UserBotSession;
 import com.valui.user.dto.UserWithSubscriptionDto;
@@ -29,15 +30,18 @@ public class CommandRouter {
     private final List<BotUpdateHandler> handlers;
     private final BotSessionService sessionService;
     private final UserService userService;
+    private final ChatMemberService chatMemberService;
 
     public CommandRouter(List<BotUpdateHandler> handlers,
                          BotSessionService sessionService,
-                         UserService userService) {
+                         UserService userService,
+                         ChatMemberService chatMemberService) {
         this.handlers = handlers.stream()
             .sorted(Comparator.comparingInt(BotUpdateHandler::order))
             .toList();
         this.sessionService = sessionService;
         this.userService = userService;
+        this.chatMemberService = chatMemberService;
         log.info("Маршрутизатор запущен: {} обработчиков зарегистрировано  →  {}",
             handlers.size(),
             this.handlers.stream().map(h -> h.getClass().getSimpleName()).toList());
@@ -56,6 +60,12 @@ public class CommandRouter {
         if (chatId == null || fromId == null) {
             log.warn("Не удалось извлечь chatId/fromId из апдейта — пропускаем");
             return;
+        }
+
+        // Track every user seen in a group chat for the betting journal participant picker
+        if (chatId < 0) {  // group/supergroup chat IDs are negative
+            String[] names = extractNames(update);
+            chatMemberService.track(chatId, fromId, names[0], names[1]);
         }
 
         String username = extractUsername(update);
@@ -123,6 +133,17 @@ public class CommandRouter {
             return cb.getFrom() != null ? cb.getFrom().getUserName() : null;
         }
         return null;
+    }
+
+    /** Returns [firstName, username] of the user who triggered the update. */
+    private String[] extractNames(Update update) {
+        org.telegram.telegrambots.meta.api.objects.User from = null;
+        if (update.hasMessage() && update.getMessage().getFrom() != null)
+            from = update.getMessage().getFrom();
+        else if (update.hasCallbackQuery() && update.getCallbackQuery().getFrom() != null)
+            from = update.getCallbackQuery().getFrom();
+        if (from == null) return new String[]{null, null};
+        return new String[]{from.getFirstName(), from.getUserName()};
     }
 
     private UserWithSubscriptionDto loadUserInfo(Long chatId) {
