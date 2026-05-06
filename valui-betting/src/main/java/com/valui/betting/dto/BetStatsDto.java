@@ -8,6 +8,7 @@ public record BetStatsDto(
         long wonBets,
         long lostBets,
         long returnedBets,
+        long cancelledBets,
         BigDecimal totalStaked,
         BigDecimal totalPayout,
         BigDecimal profitLoss,   // totalPayout - totalStaked

@@ -105,13 +105,12 @@ public class BankAccountCallback implements CallbackHandler {
               .append(" ").append(acc.currency()).append("\n");
         }
 
-        // Each account: [Name: balance] [✏️] [🗑]
+        // Each account: [Name: balance ✏️] [🗑]  — tapping label opens edit
         InlineKeyboardBuilder kb = InlineKeyboardBuilder.create();
         for (BankAccountDto acc : accounts) {
             String label = escape(acc.name()) + ": "
                     + acc.balance().setScale(0, RoundingMode.HALF_UP) + " " + acc.currency();
-            kb.button(label, CallbackData.NOOP)
-              .button("✏️", CallbackData.bankEdit(acc.id().toString()))
+            kb.button(label, CallbackData.bankEdit(acc.id().toString()))
               .button("🗑", CallbackData.bankDel(acc.id().toString()))
               .row();
         }

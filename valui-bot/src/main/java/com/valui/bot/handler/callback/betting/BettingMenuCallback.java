@@ -193,7 +193,6 @@ public class BettingMenuCallback implements CallbackHandler {
         if (lastColon < 0) { MessageSend.answerCallback(ctx.sender(), callbackId); return; }
         String betIdStr = rest.substring(0, lastColon);
         String resultStr = rest.substring(lastColon + 1);
-        MessageSend.answerCallback(ctx.sender(), callbackId);
         try {
             com.valui.common.domain.BetStatus status = switch (resultStr) {
                 case "WIN"    -> com.valui.common.domain.BetStatus.WON;
@@ -203,10 +202,11 @@ public class BettingMenuCallback implements CallbackHandler {
             };
             BetDto updated = bettingService.resolveBet(
                     java.util.UUID.fromString(betIdStr), ctx.fromId(), status);
-            String text = BetDetailCallback.buildDetailText(updated);
-            var kb = BetDetailCallback.buildDetailKeyboard(updated);
-            MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId, text, kb);
+            MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+                    BetDetailCallback.buildDetailText(updated), BetDetailCallback.buildDetailKeyboard(updated));
+            MessageSend.answerCallback(ctx.sender(), callbackId);
         } catch (Exception e) {
+            log.warn("[BET] resolveBet failed id={} fromId={}: {}", betIdStr, ctx.fromId(), e.getMessage());
             MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, "❌ " + e.getMessage());
         }
     }
@@ -215,13 +215,13 @@ public class BettingMenuCallback implements CallbackHandler {
 
     private void handleCancelBet(BotUpdateContext ctx, String data, String callbackId, int messageId) {
         String betIdStr = data.substring(CallbackData.BET_CANCEL_PREFIX.length());
-        MessageSend.answerCallback(ctx.sender(), callbackId);
         try {
             BetDto updated = bettingService.cancelBet(java.util.UUID.fromString(betIdStr), ctx.fromId());
-            String text = BetDetailCallback.buildDetailText(updated);
-            var kb = BetDetailCallback.buildDetailKeyboard(updated);
-            MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId, text, kb);
+            MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+                    BetDetailCallback.buildDetailText(updated), BetDetailCallback.buildDetailKeyboard(updated));
+            MessageSend.answerCallback(ctx.sender(), callbackId);
         } catch (Exception e) {
+            log.warn("[BET] cancelBet failed id={} fromId={}: {}", betIdStr, ctx.fromId(), e.getMessage());
             MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, "❌ " + e.getMessage());
         }
     }

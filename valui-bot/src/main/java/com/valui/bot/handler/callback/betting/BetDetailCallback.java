@@ -43,13 +43,14 @@ public class BetDetailCallback implements CallbackHandler {
         int    messageId  = ctx.update().getCallbackQuery().getMessage().getMessageId();
 
         String betIdStr = data.substring(CallbackData.BET_DETAIL_PREFIX.length());
-        MessageSend.answerCallback(ctx.sender(), callbackId);
 
         try {
             BetDto bet = bettingService.getBet(java.util.UUID.fromString(betIdStr), ctx.fromId());
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     buildDetailText(bet), buildDetailKeyboard(bet));
+            MessageSend.answerCallback(ctx.sender(), callbackId);
         } catch (Exception e) {
+            log.warn("[BET] getBet failed id={} fromId={}: {}", betIdStr, ctx.fromId(), e.getMessage());
             MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, "❌ " + e.getMessage());
         }
     }
