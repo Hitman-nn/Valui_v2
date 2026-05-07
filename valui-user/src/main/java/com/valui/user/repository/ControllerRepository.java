@@ -77,6 +77,9 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
     @Query("SELECT COUNT(c) FROM ControllerEntity c WHERE c.bookmaker = :bm")
     long countByBookmakerType(@Param("bm") BookmakerType bm);
 
+    @Query("SELECT c.bookmaker, COUNT(c) FROM ControllerEntity c WHERE c.isActive = true GROUP BY c.bookmaker ORDER BY COUNT(c) DESC")
+    List<Object[]> countActiveGroupedByBookmaker();
+
     @Query(value = """
             SELECT c FROM ControllerEntity c
             WHERE (:bookmaker IS NULL OR c.bookmaker = :bookmaker)

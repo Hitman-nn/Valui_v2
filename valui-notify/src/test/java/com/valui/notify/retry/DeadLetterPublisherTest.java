@@ -31,6 +31,7 @@ class DeadLetterPublisherTest {
     @Mock KafkaTemplate<String, Object> kafkaTemplate;
     @Mock StringRedisTemplate redisTemplate;
     @Mock ValueOperations<String, String> valueOps;
+    @Mock com.valui.notify.stats.NotificationStats stats;
 
     @InjectMocks DeadLetterPublisher publisher;
 

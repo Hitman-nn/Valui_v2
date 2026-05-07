@@ -54,7 +54,8 @@ public class ControllerTaskExecutor {
             UUID controllerId,
             UUID userId,
             Long telegramId,
-            int pollIntervalSec
+            int pollIntervalSec,
+            BookmakerType bookmaker
     ) {}
 
     /** Full context needed to execute a task. */
@@ -79,7 +80,8 @@ public class ControllerTaskExecutor {
                         c.getId(),
                         c.getUser().getId(),
                         c.getUser().getTelegramId(),
-                        pollInterval(c)))
+                        pollInterval(c),
+                        c.getBookmaker()))
                 .toList();
     }
 
@@ -91,7 +93,8 @@ public class ControllerTaskExecutor {
                         c.getId(),
                         c.getUser().getId(),
                         c.getUser().getTelegramId(),
-                        pollInterval(c)))
+                        pollInterval(c),
+                        c.getBookmaker()))
                 .toList();
     }
 

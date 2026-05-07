@@ -1,12 +1,11 @@
-${AnsiColor.CYAN}${AnsiStyle.BOLD}
- ██╗   ██╗ █████╗ ██╗     ██╗   ██╗██╗
- ██║   ██║██╔══██╗██║     ██║   ██║██║
- ██║   ██║███████║██║     ██║   ██║██║
- ╚██╗ ██╔╝██╔══██║██║     ██║   ██║██║
-  ╚████╔╝ ██║  ██║███████╗╚██████╔╝██║
-   ╚═══╝  ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝${AnsiStyle.NORMAL}
-${AnsiColor.WHITE}  Telegram Monitor Bot  •  v2.0${AnsiColor.DEFAULT}
-${AnsiColor.CYAN}  ─────────────────────────────────────────────────${AnsiColor.DEFAULT}
-${AnsiColor.GREEN}  Spring Boot ${spring-boot.version}${AnsiColor.DEFAULT}   ${AnsiColor.YELLOW}Профиль: ${spring.profiles.active:default}${AnsiColor.DEFAULT}
-${AnsiColor.CYAN}  ─────────────────────────────────────────────────${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_RED}${AnsiStyle.BOLD} ██╗   ██╗${AnsiColor.BRIGHT_YELLOW} █████╗ ${AnsiColor.BRIGHT_GREEN}██╗     ${AnsiColor.BRIGHT_CYAN}██╗   ██╗${AnsiColor.BRIGHT_MAGENTA}██╗${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_RED} ██║   ██║${AnsiColor.BRIGHT_YELLOW}██╔══██╗${AnsiColor.BRIGHT_GREEN}██║     ${AnsiColor.BRIGHT_CYAN}██║   ██║${AnsiColor.BRIGHT_MAGENTA}██║${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_RED} ██║   ██║${AnsiColor.BRIGHT_YELLOW}███████║${AnsiColor.BRIGHT_GREEN}██║     ${AnsiColor.BRIGHT_CYAN}██║   ██║${AnsiColor.BRIGHT_MAGENTA}██║${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_RED} ╚██╗ ██╔╝${AnsiColor.BRIGHT_YELLOW}██╔══██║${AnsiColor.BRIGHT_GREEN}██║     ${AnsiColor.BRIGHT_CYAN}██║   ██║${AnsiColor.BRIGHT_MAGENTA}██║${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_RED}  ╚████╔╝ ${AnsiColor.BRIGHT_YELLOW}██║  ██║${AnsiColor.BRIGHT_GREEN}███████╗${AnsiColor.BRIGHT_CYAN}╚██████╔╝${AnsiColor.BRIGHT_MAGENTA}██║${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_RED}   ╚═══╝  ${AnsiColor.BRIGHT_YELLOW}╚═╝  ╚═╝${AnsiColor.BRIGHT_GREEN}╚══════╝${AnsiColor.BRIGHT_CYAN} ╚═════╝ ${AnsiColor.BRIGHT_MAGENTA}╚═╝${AnsiColor.DEFAULT}${AnsiStyle.NORMAL}
+${AnsiColor.BRIGHT_WHITE}${AnsiStyle.BOLD}  Telegram Monitor Bot  ${AnsiColor.BRIGHT_MAGENTA}•${AnsiColor.BRIGHT_WHITE}  v2.0${AnsiColor.DEFAULT}${AnsiStyle.NORMAL}
+${AnsiColor.BRIGHT_BLACK}  ─────────────────────────────────────────────────${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_GREEN}  ⚡ Spring Boot ${AnsiColor.WHITE}${spring-boot.version}${AnsiColor.DEFAULT}   ${AnsiColor.BRIGHT_YELLOW}❯ Профиль: ${AnsiColor.WHITE}${spring.profiles.active:default}${AnsiColor.DEFAULT}
+${AnsiColor.BRIGHT_BLACK}  ─────────────────────────────────────────────────${AnsiColor.DEFAULT}
 

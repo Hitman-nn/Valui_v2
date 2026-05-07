@@ -4,6 +4,7 @@ import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.common.kafka.UserNotificationRequestMessage;
 import com.valui.notify.ratelimit.TelegramRateLimiter;
+import com.valui.notify.stats.NotificationStats;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -32,6 +33,7 @@ public class TelegramNotificationSender implements NotificationSender {
 
     private final AbsSender absSender;
     private final TelegramRateLimiter rateLimiter;
+    private final NotificationStats stats;
 
     /** Legacy entry point — plain text, no keyboard. Used by DLQ consumers and email/webhook dispatch. */
     @Override
@@ -108,7 +110,8 @@ public class TelegramNotificationSender implements NotificationSender {
 
     private Integer doSend(Long chatId, SendMessage message) throws Exception {
         if (!rateLimiter.tryAcquire(chatId)) {
-            log.debug("Rate limit hit for chatId={}, backing off", chatId);
+            stats.incRateLimitBackoff();
+            log.warn("Rate limit hit chatId={}, backing off 1.2s", chatId);
             Thread.sleep(1_200);
             if (!rateLimiter.tryAcquire(chatId)) {
                 throw new RuntimeException("Telegram rate limit exceeded for chatId=" + chatId);

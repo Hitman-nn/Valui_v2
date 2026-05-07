@@ -17,10 +17,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -94,10 +97,20 @@ public class MonitorScheduler {
     @PostConstruct
     void init() {
         List<ControllerScheduleInfo> controllers = taskExecutor.loadAllActiveForScheduling();
-        controllers.stream()
-                .filter(info -> controllerPort.hasActiveSubscriptions(info.controllerId()))
-                .forEach(info -> doSchedule(info.controllerId(), info.userId(), info.pollIntervalSec()));
-        log.info("Монитор запущен: {} контроллеров поставлено в очередь", controllers.size());
+        Map<com.valui.common.domain.BookmakerType, Long> byBk = new LinkedHashMap<>();
+        for (ControllerScheduleInfo info : controllers) {
+            if (controllerPort.hasActiveSubscriptions(info.controllerId())) {
+                doSchedule(info.controllerId(), info.userId(), info.pollIntervalSec());
+                byBk.merge(info.bookmaker(), 1L, Long::sum);
+            }
+        }
+        long scheduled = byBk.values().stream().mapToLong(Long::longValue).sum();
+        String breakdown = byBk.entrySet().stream()
+                .sorted(Map.Entry.<com.valui.common.domain.BookmakerType, Long>comparingByValue().reversed())
+                .map(e -> e.getKey().name() + ":" + e.getValue())
+                .collect(Collectors.joining(", "));
+        log.info("Монитор запущен: {} контроллеров в очереди ({})",
+                scheduled, breakdown.isEmpty() ? "нет активных" : breakdown);
     }
 
     @PreDestroy

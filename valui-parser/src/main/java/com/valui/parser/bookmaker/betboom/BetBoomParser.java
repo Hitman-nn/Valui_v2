@@ -22,6 +22,8 @@ import proto.betboom.ServerFrame;
 import proto.betboom.SportAllBody;
 import proto.betboom.TournamentListFrame;
 
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,6 +31,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 @Slf4j
@@ -36,12 +39,13 @@ import java.util.function.Predicate;
 @RequiredArgsConstructor
 public class BetBoomParser implements BookmakerParser {
 
-    private static final long WS_TIMEOUT_MS   = 3_000L;
-    private static final long WARN_THROTTLE_MS = 60 * 60 * 1_000L; // 1 hour
+    private static final long WS_TIMEOUT_MS    = 3_000L;
+    private static final long WARN_THROTTLE_MS = 60 * 60 * 1_000L; // 1 hour per tournament
     private static final Current.TypeLine LINE = Current.TypeLine.LINE;
 
     private final WsRequestService ws;
     private final ConcurrentHashMap<String, Long> lastMatchesWarnAt = new ConcurrentHashMap<>();
+    final AtomicLong wsTimeoutTotal = new AtomicLong();
 
     @Override
     public BookmakerType getBookmaker() { return BookmakerType.BETBOOM; }
@@ -142,24 +146,30 @@ public class BetBoomParser implements BookmakerParser {
     // ── fallbacks ─────────────────────────────────────────────────────────────
 
     private ParseResult<List<SportDto>> fetchSportsFallback(Throwable t) {
-        log.warn("betboom fetchSports fallback: {}", t.getMessage());
+        log.warn("betboom fetchSports: {} — no data returned", fallbackReason(t));
         return ParseResult.error("betboom-cb: " + t.getMessage());
     }
 
     private ParseResult<List<TournamentDto>> fetchTournamentsFallback(String sportId, Throwable t) {
-        log.warn("betboom fetchTournaments fallback sportId={}: {}", sportId, t.getMessage());
+        log.warn("betboom fetchTournaments sportId={}: {} — no data returned", sportId, fallbackReason(t));
         return ParseResult.error("betboom-cb: " + t.getMessage());
     }
 
     private ParseResult<List<ParsedMatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
+        wsTimeoutTotal.incrementAndGet();
         long now = ms();
         Long last = lastMatchesWarnAt.get(tournamentId);
         if (last == null || now - last >= WARN_THROTTLE_MS) {
-            log.warn("betboom fetchMatches fallback tournamentId={}: {}", tournamentId, t.getMessage());
-            if (lastMatchesWarnAt.size() > 2000) lastMatchesWarnAt.clear(); // bound memory
+            log.warn("betboom fetchMatches tournamentId={}: {} — no data returned (total timeouts: {})",
+                    tournamentId, fallbackReason(t), wsTimeoutTotal.get());
+            if (lastMatchesWarnAt.size() > 2000) lastMatchesWarnAt.clear();
             lastMatchesWarnAt.put(tournamentId, now);
         }
         return ParseResult.error("betboom-cb: " + t.getMessage());
+    }
+
+    private static String fallbackReason(Throwable t) {
+        return (t instanceof CallNotPermittedException) ? "circuit breaker OPEN" : t.getMessage();
     }
 
     // ── WS helpers ────────────────────────────────────────────────────────────

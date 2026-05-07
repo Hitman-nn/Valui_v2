@@ -28,6 +28,7 @@ class TelegramNotificationSenderTest {
 
     @Mock AbsSender         absSender;
     @Mock TelegramRateLimiter rateLimiter;
+    @Mock com.valui.notify.stats.NotificationStats stats;
     @InjectMocks TelegramNotificationSender sender;
 
     static final long CHAT_ID = 123456L;

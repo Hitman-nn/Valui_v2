@@ -20,6 +20,7 @@
            12:34:56.789  INFO   [BOT]  CommandRouter            ▸  Инициализирован с 15 обработчиками
          ═══════════════════════════════════════════════════════════════════════ -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <withJansi>true</withJansi>
         <encoder>
             <pattern>%white(%d{HH:mm:ss.SSS})  %highlight(%-5level)  %subsystem  %-30(%cyan(%logger{0}))  %white(▸)  %msg%n%rootException{full}</pattern>
         </encoder>
@@ -61,6 +62,8 @@
     <logger name="org.apache.kafka.clients.consumer.internals" level="WARN"/>
     <logger name="org.apache.kafka.clients.consumer.ConsumerConfig"   level="WARN"/>
     <logger name="org.apache.kafka.clients.producer.ProducerConfig"   level="WARN"/>
+    <logger name="org.apache.kafka.clients.producer.KafkaProducer"    level="WARN"/>
+    <logger name="org.apache.kafka.clients.producer.internals"        level="WARN"/>
     <logger name="org.apache.kafka.clients.admin.AdminClientConfig"   level="WARN"/>
     <logger name="org.apache.kafka.common.utils.AppInfoParser"        level="WARN"/>
     <logger name="org.apache.kafka.clients.Metadata"                  level="WARN"/>
@@ -118,7 +121,7 @@
          ═══════════════════════════════════════════════════════════════════════ -->
     <springProfile name="prod">
         <logger name="com.valui"            level="INFO"/>
-        <logger name="org.flywaydb"         level="WARN"/>
+        <logger name="org.flywaydb"         level="INFO"/>
         <logger name="org.springframework"  level="WARN"/>
         <logger name="org.telegram"         level="WARN"/>
         <root level="WARN">

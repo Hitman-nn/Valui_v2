@@ -9,6 +9,7 @@ import com.valui.notify.exception.RetryableNotificationException;
 import com.valui.notify.log.NotificationLogService;
 import com.valui.notify.retry.DeadLetterPublisher;
 import com.valui.notify.retry.NotificationRetryPolicy;
+import com.valui.notify.stats.NotificationStats;
 import com.valui.user.service.TokenLedgerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,7 @@ public class NotificationDispatcher {
     private final NotificationRetryPolicy     retryPolicy;
     private final TokenLedgerService          tokenLedgerService;
     private final TitleDedupCacheService      titleDedupCache;
+    private final NotificationStats           stats;
 
     @KafkaListener(
         topics           = KafkaTopics.USER_NOTIFICATIONS_PENDING,
@@ -80,6 +82,7 @@ public class NotificationDispatcher {
         try {
             Integer telegramMessageId = dispatchService.dispatch(request);
             if (logId != null) logService.markSent(logId, telegramMessageId);
+            stats.incSent();
             log.debug("[DISPATCH] Отправлено [logId={} channel={}]", logId, request.channel());
 
             // After successful Telegram delivery: populate dedup cache so subsequent

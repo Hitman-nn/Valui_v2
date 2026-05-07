@@ -36,8 +36,11 @@ public class ParserHealthService {
     @PostConstruct
     void bindMetrics() {
         TaggedCircuitBreakerMetrics.ofCircuitBreakerRegistry(cbRegistry).bindTo(meterRegistry);
-        log.info("Resilience4j CB metrics bound to Micrometer for {} instances",
-                cbRegistry.getAllCircuitBreakers().size());
+        List<String> cbNames = cbRegistry.getAllCircuitBreakers().stream()
+                .map(CircuitBreaker::getName)
+                .sorted()
+                .toList();
+        log.info("Resilience4j CB metrics bound to Micrometer: {}", cbNames);
     }
 
     /** Returns CB state for every registered parser. */

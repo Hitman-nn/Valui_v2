@@ -72,6 +72,12 @@
                     <groupId>com.fasterxml.jackson.jaxrs</groupId>
                     <artifactId>jackson-jaxrs-json-provider</artifactId>
                 </exclusion>
+                <!-- spring-jcl replaces commons-logging; having both causes the
+                     "Standard Commons Logging discovery" noise on stdout at startup -->
+                <exclusion>
+                    <groupId>commons-logging</groupId>
+                    <artifactId>commons-logging</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
 

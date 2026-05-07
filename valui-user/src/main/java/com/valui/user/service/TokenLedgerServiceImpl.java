@@ -108,7 +108,7 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
         user.setTokenBalance(newBalance);
         userRepository.save(user);
         recordTransaction(user, -amount, reason, refId, newBalance);
-        log.info("[TOKEN] -{} userId={} reason={} balance={}", amount, userId, reason, newBalance);
+        log.debug("[TOKEN] -{} userId={} reason={} balance={}", amount, userId, reason, newBalance);
 
         checkAndNotifyThresholds(user, newBalance);
         if (newBalance == 0) {

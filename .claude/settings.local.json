@@ -80,7 +80,13 @@
       "Bash(mvn -pl valui-notify test -q)",
       "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml install -DskipTests -q)",
       "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml test -q)",
-      "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml test)"
+      "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml test)",
+      "Bash(grep -r \"Flyway\" /Users/danilabogatyrev/Documents/java/Valui_v2 --include=\"*.java\" ! -path \"*/target/*\")",
+      "Bash(grep -r \"migration\" /Users/danilabogatyrev/Documents/java/Valui_v2/valui-app/src/main/java --include=\"*.java\" ! -path \"*/target/*\" -l)",
+      "Bash(grep *)",
+      "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml dependency:tree -Dincludes=commons-logging)",
+      "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml dependency:tree -Dincludes=commons-logging -pl valui-app)",
+      "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml dependency:tree -Dincludes=commons-logging -pl valui-app -q)"
     ]
   }
 }

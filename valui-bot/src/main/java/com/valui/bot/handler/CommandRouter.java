@@ -38,9 +38,15 @@ public class CommandRouter {
             .toList();
         this.sessionService = sessionService;
         this.userService = userService;
-        log.info("Маршрутизатор запущен: {} обработчиков зарегистрировано  →  {}",
-            handlers.size(),
-            this.handlers.stream().map(h -> h.getClass().getSimpleName()).toList());
+        long callbacks = this.handlers.stream()
+                .filter(h -> h.getClass().getSimpleName().endsWith("Callback"))
+                .count();
+        long commands = this.handlers.stream()
+                .filter(h -> !h.getClass().getSimpleName().endsWith("Callback")
+                          && !h.getClass().getSimpleName().equals("UnknownUpdateHandler"))
+                .count();
+        log.info("Маршрутизатор запущен: {} обработчиков (команды: {}, коллбэки: {}, fallback: 1)",
+                handlers.size(), commands, callbacks);
     }
 
     /**

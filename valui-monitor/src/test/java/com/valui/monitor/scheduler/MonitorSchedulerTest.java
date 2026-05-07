@@ -138,8 +138,8 @@ class MonitorSchedulerTest {
 
         // after plan change the poll interval halves
         given(taskExecutor.loadActiveForUser(USER_ID)).willReturn(List.of(
-                new ControllerScheduleInfo(CTRL_ID, USER_ID, TG_ID, 15),
-                new ControllerScheduleInfo(ctrl2, USER_ID, TG_ID, 15)));
+                new ControllerScheduleInfo(CTRL_ID, USER_ID, TG_ID, 15, BookmakerType.FONBET),
+                new ControllerScheduleInfo(ctrl2, USER_ID, TG_ID, 15, BookmakerType.FONBET)));
 
         scheduler.on(new SubscriptionChangedEvent(USER_ID, TG_ID, "PRO", 15));
 
@@ -156,7 +156,7 @@ class MonitorSchedulerTest {
 
         UUID freshCtrl = UUID.randomUUID();
         given(taskExecutor.loadAllActiveForScheduling()).willReturn(List.of(
-                new ControllerScheduleInfo(freshCtrl, USER_ID, TG_ID, 60)));
+                new ControllerScheduleInfo(freshCtrl, USER_ID, TG_ID, 60, BookmakerType.FONBET)));
 
         scheduler.rescheduleAll();
 

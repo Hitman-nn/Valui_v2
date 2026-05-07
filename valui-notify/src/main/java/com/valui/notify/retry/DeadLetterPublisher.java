@@ -2,6 +2,7 @@ package com.valui.notify.retry;
 
 import com.valui.common.kafka.KafkaTopics;
 import com.valui.notify.exception.RetryableNotificationException;
+import com.valui.notify.stats.NotificationStats;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -45,6 +46,7 @@ public class DeadLetterPublisher {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final StringRedisTemplate redisTemplate;
+    private final NotificationStats stats;
 
     public void publishToDlq(ConsumerRecord<?, ?> original, RetryableNotificationException ex) {
         int currentCount = readRetryCount(original);
@@ -54,11 +56,13 @@ public class DeadLetterPublisher {
         if (!ex.isRetryable() || newCount > MAX_RETRIES) {
             target = KafkaTopics.NOTIFICATIONS_DLQ_FINAL;
             redisTemplate.opsForValue().increment(DLQ_FINAL_COUNTER_KEY);
+            stats.incDlqFinal();
             log.error("[DLQ-FINAL] Permanently failed after {} retries: topic={} error={}",
                     currentCount, original.topic(), ex.getMessage());
         } else {
             target = RETRY_TOPICS[newCount - 1];
-            log.warn("[DLQ] Routing to {} (attempt {}): {}", target, newCount, ex.getMessage());
+            stats.incDlqRetry();
+            log.warn("[DLQ] Routing to {} (attempt {}/{}): {}", target, newCount, MAX_RETRIES, ex.getMessage());
         }
 
         ProducerRecord<String, Object> out = buildRecord(target, original, newCount, ex);
