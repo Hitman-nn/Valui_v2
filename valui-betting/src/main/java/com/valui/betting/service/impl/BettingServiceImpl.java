@@ -1,8 +1,7 @@
 package com.valui.betting.service.impl;
 
 import com.valui.betting.dto.*;
-import com.valui.betting.repository.BankAccountRepository;
-import com.valui.betting.repository.BetRepository;
+import com.valui.betting.repository.*;
 import com.valui.betting.service.BettingService;
 import com.valui.common.domain.BetStatus;
 import com.valui.common.domain.BetType;
@@ -27,12 +26,15 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BettingServiceImpl implements BettingService {
 
-    // Tolerances for participant share/stake sum validation (rounding accumulation)
     private static final BigDecimal SHARE_SUM_TOLERANCE = new BigDecimal("0.02");
     private static final BigDecimal STAKE_SUM_TOLERANCE = BigDecimal.ONE;
 
-    private final BetRepository betRepo;
-    private final BankAccountRepository bankRepo;
+    private final BetRepository              betRepo;
+    private final BetAccountRepository       accountRepo;
+    private final BetPersonRepository        personRepo;
+    private final BetPersonBalanceRepository balanceRepo;
+
+    // ── placeBet ──────────────────────────────────────────────────────────────
 
     @Override
     @Transactional
@@ -52,6 +54,13 @@ public class BettingServiceImpl implements BettingService {
 
         List<ParticipantRequest> participants = normalizeParticipants(req.participants(), req.totalStake());
 
+        BetAccountEntity account = null;
+        if (req.accountId() != null) {
+            account = accountRepo.findById(req.accountId())
+                    .filter(a -> a.getChatId().equals(chatId))
+                    .orElse(null);
+        }
+
         BigDecimal totalOdds = computeTotalOdds(req.slips());
         BigDecimal potential = req.totalStake().multiply(totalOdds).setScale(2, RoundingMode.HALF_UP);
         OffsetDateTime now = OffsetDateTime.now();
@@ -64,6 +73,7 @@ public class BettingServiceImpl implements BettingService {
                 .totalOdds(totalOdds)
                 .totalStake(req.totalStake())
                 .potentialPayout(potential)
+                .account(account)
                 .slips(new ArrayList<>())
                 .participants(new ArrayList<>())
                 .createdAt(now)
@@ -72,7 +82,7 @@ public class BettingServiceImpl implements BettingService {
 
         int order = 0;
         for (BetSlipRequest s : req.slips()) {
-            BetSlipEntity slip = BetSlipEntity.builder()
+            bet.getSlips().add(BetSlipEntity.builder()
                     .bet(bet)
                     .matchTitle(s.matchTitle())
                     .matchUrl(s.matchUrl())
@@ -80,29 +90,26 @@ public class BettingServiceImpl implements BettingService {
                     .odds(s.odds())
                     .result(SlipResult.OPEN)
                     .sortOrder(order++)
-                    .build();
-            bet.getSlips().add(slip);
+                    .build());
         }
 
         for (ParticipantRequest p : participants) {
-            BankAccountEntity bankAccount = resolveAccount(p);
-            BetParticipantEntity participant = BetParticipantEntity.builder()
+            BetPersonEntity person = p.personId() != null
+                    ? personRepo.findById(p.personId()).orElse(null)
+                    : null;
+            bet.getParticipants().add(BetParticipantEntity.builder()
                     .bet(bet)
-                    .telegramId(p.telegramId())
+                    .person(person)
                     .displayName(p.displayName())
                     .stake(p.stake())
                     .profitShare(p.profitShare())
-                    .bankAccount(bankAccount)
-                    .build();
-            bet.getParticipants().add(participant);
-
-            if (bankAccount != null) {
-                adjustBalance(bankAccount, p.stake().negate());
-            }
+                    .build());
         }
 
         return BetDto.from(betRepo.save(bet));
     }
+
+    // ── resolveBet ────────────────────────────────────────────────────────────
 
     @Override
     @Transactional
@@ -116,10 +123,6 @@ public class BettingServiceImpl implements BettingService {
             throw new IllegalStateException("Ставка уже завершена: " + bet.getStatus());
         }
 
-        bet.setStatus(result);
-        bet.setResolvedAt(OffsetDateTime.now());
-        bet.setUpdatedAt(OffsetDateTime.now());
-
         SlipResult slipResult;
         BigDecimal actualPayout;
         switch (result) {
@@ -129,7 +132,7 @@ public class BettingServiceImpl implements BettingService {
             }
             case RETURNED -> {
                 slipResult = SlipResult.RETURNED;
-                actualPayout = bet.getTotalStake();
+                actualPayout = bet.getTotalStake(); // void bet: payout = stake so P/L = 0
             }
             case LOST -> {
                 slipResult = SlipResult.LOST;
@@ -138,22 +141,47 @@ public class BettingServiceImpl implements BettingService {
             default -> throw new IllegalArgumentException("Unexpected status: " + result);
         }
 
-        bet.getSlips().forEach(s -> {
-            s.setResult(slipResult);
-            s.setResolvedAt(bet.getResolvedAt());
-        });
-        bet.setActualPayout(actualPayout);
-
-        for (BetParticipantEntity p : bet.getParticipants()) {
-            if (p.getBankAccount() == null) continue;
-            BigDecimal participantPayout = actualPayout
-                    .multiply(p.getProfitShare())
-                    .setScale(2, RoundingMode.HALF_UP);
-            adjustBalance(p.getBankAccount(), participantPayout);
-        }
+        OffsetDateTime now = OffsetDateTime.now();
+        bet.getSlips().forEach(s -> { s.setResult(slipResult); s.setResolvedAt(now); });
+        applyBetResult(bet, result, actualPayout);
 
         return BetDto.from(betRepo.save(bet));
     }
+
+    // ── resolveSlip (express per-match) ──────────────────────────────────────
+
+    @Override
+    @Transactional
+    public BetDto resolveSlip(UUID betId, int slipSortOrder, long telegramId, SlipResult result) {
+        if (result == SlipResult.OPEN) {
+            throw new IllegalArgumentException("Недопустимый исход для события");
+        }
+
+        BetEntity bet = requireAccessible(betId, telegramId);
+        if (bet.getStatus() != BetStatus.OPEN) {
+            throw new IllegalStateException("Ставка уже завершена");
+        }
+        if (bet.getType() != BetType.EXPRESS) {
+            throw new IllegalStateException("Разметка по событиям доступна только для экспресса");
+        }
+
+        BetSlipEntity slip = bet.getSlips().stream()
+                .filter(s -> s.getSortOrder() == slipSortOrder)
+                .findFirst()
+                .orElseThrow(() -> new NoSuchElementException("Событие не найдено"));
+
+        if (slip.getResult() != SlipResult.OPEN) {
+            throw new IllegalStateException("Исход события уже выставлен");
+        }
+
+        slip.setResult(result);
+        slip.setResolvedAt(OffsetDateTime.now());
+        tryAutoResolve(bet);
+
+        return BetDto.from(betRepo.save(bet));
+    }
+
+    // ── cancelBet ─────────────────────────────────────────────────────────────
 
     @Override
     @Transactional
@@ -162,56 +190,223 @@ public class BettingServiceImpl implements BettingService {
         if (bet.getStatus() != BetStatus.OPEN) {
             throw new IllegalStateException("Отменить можно только открытую ставку");
         }
-
         bet.setStatus(BetStatus.CANCELLED);
         bet.setResolvedAt(OffsetDateTime.now());
         bet.setUpdatedAt(OffsetDateTime.now());
         bet.setActualPayout(BigDecimal.ZERO);
-
-        for (BetParticipantEntity p : bet.getParticipants()) {
-            if (p.getBankAccount() == null) continue;
-            adjustBalance(p.getBankAccount(), p.getStake());
-        }
-
         return BetDto.from(betRepo.save(bet));
     }
 
+    // ── deleteBet ─────────────────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public void deleteBet(UUID betId, long chatId) {
+        BetEntity bet = betRepo.findById(betId)
+                .orElseThrow(() -> new NoSuchElementException("Ставка не найдена"));
+        if (!bet.getChatId().equals(chatId)) {
+            throw new SecurityException("Ставка не принадлежит этому чату");
+        }
+        betRepo.delete(bet);
+    }
+
+    // ── queries ───────────────────────────────────────────────────────────────
+
     @Override
     @Transactional(readOnly = true)
-    public BetDto getBet(UUID betId, long telegramId) {
-        return BetDto.from(requireAccessible(betId, telegramId));
+    public BetDto getBet(UUID betId, long chatId) {
+        BetEntity bet = betRepo.findWithDetailById(betId)
+                .orElseThrow(() -> new NoSuchElementException("Ставка не найдена"));
+        if (!bet.getChatId().equals(chatId)) {
+            throw new SecurityException("Ставка недоступна этому чату");
+        }
+        return BetDto.from(bet);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Page<BetDto> listBets(long telegramId, BetStatus statusFilter, Pageable pageable) {
+    public Page<BetDto> listBets(long chatId, BetStatus statusFilter, Pageable pageable) {
         Page<BetEntity> page = statusFilter != null
-                ? betRepo.findAllByTelegramIdAndStatusOrderByCreatedAtDesc(telegramId, statusFilter, pageable)
-                : betRepo.findAllByTelegramIdOrderByCreatedAtDesc(telegramId, pageable);
+                ? betRepo.findAllByChatIdAndStatusOrderByCreatedAtDesc(chatId, statusFilter, pageable)
+                : betRepo.findAllByChatIdOrderByCreatedAtDesc(chatId, pageable);
         return page.map(BetDto::from);
     }
 
+    // ── stats ─────────────────────────────────────────────────────────────────
+
     @Override
     @Transactional(readOnly = true)
-    public BetStatsDto getStats(long telegramId) {
-        long open      = betRepo.countByTelegramIdAndStatus(telegramId, BetStatus.OPEN);
-        long won       = betRepo.countByTelegramIdAndStatus(telegramId, BetStatus.WON);
-        long lost      = betRepo.countByTelegramIdAndStatus(telegramId, BetStatus.LOST);
-        long returned  = betRepo.countByTelegramIdAndStatus(telegramId, BetStatus.RETURNED);
-        long cancelled = betRepo.countByTelegramIdAndStatus(telegramId, BetStatus.CANCELLED);
+    public BetStatsDto getStats(long chatId) {
+        long open      = betRepo.countByChatIdAndStatus(chatId, BetStatus.OPEN);
+        long won       = betRepo.countByChatIdAndStatus(chatId, BetStatus.WON);
+        long lost      = betRepo.countByChatIdAndStatus(chatId, BetStatus.LOST);
+        long returned  = betRepo.countByChatIdAndStatus(chatId, BetStatus.RETURNED);
+        long cancelled = betRepo.countByChatIdAndStatus(chatId, BetStatus.CANCELLED);
         long total     = open + won + lost + returned + cancelled;
 
-        BigDecimal staked = betRepo.sumTotalStakeByTelegramId(telegramId);
-        BigDecimal payout = betRepo.sumActualPayoutByTelegramId(telegramId);
+        BigDecimal staked = betRepo.sumTotalStakeByChatId(chatId);
+        BigDecimal payout = betRepo.sumActualPayoutByChatId(chatId);
         BigDecimal pl     = payout.subtract(staked);
         double roi = staked.compareTo(BigDecimal.ZERO) == 0 ? 0.0
-                : pl.divide(staked, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100))
+                : pl.divide(staked, 4, RoundingMode.HALF_UP)
+                     .multiply(BigDecimal.valueOf(100))
                      .round(new MathContext(4)).doubleValue();
 
         return new BetStatsDto(total, open, won, lost, returned, cancelled, staked, payout, pl, roi);
     }
 
-    // ── helpers ───────────────────────────────────────────────────────────────
+    @Override
+    @Transactional(readOnly = true)
+    public BetAccountStatsDto getAccountStats(UUID accountId, long chatId) {
+        BetAccountEntity account = accountRepo.findById(accountId)
+                .filter(a -> a.getChatId().equals(chatId))
+                .orElseThrow(() -> new NoSuchElementException("Счёт не найден"));
+
+        long open      = betRepo.countByAccount_IdAndStatus(accountId, BetStatus.OPEN);
+        long won       = betRepo.countByAccount_IdAndStatus(accountId, BetStatus.WON);
+        long lost      = betRepo.countByAccount_IdAndStatus(accountId, BetStatus.LOST);
+        long returned  = betRepo.countByAccount_IdAndStatus(accountId, BetStatus.RETURNED);
+        long cancelled = betRepo.countByAccount_IdAndStatus(accountId, BetStatus.CANCELLED);
+        long total     = open + won + lost + returned + cancelled;
+
+        BigDecimal volume = betRepo.sumTotalStakeByAccountId(accountId);
+        BigDecimal payout = betRepo.sumActualPayoutByAccountId(accountId);
+        BigDecimal pl     = payout.subtract(volume);
+
+        List<BetPersonBalanceDto> balances = balanceRepo.findByAccountIdWithPerson(accountId)
+                .stream().map(BetPersonBalanceDto::from).toList();
+
+        return new BetAccountStatsDto(accountId, account.getName(), total, open, won, lost, returned, volume, payout, pl, balances);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BetPersonStatsDto getPersonStats(UUID personId, long chatId) {
+        BetPersonEntity person = personRepo.findById(personId)
+                .filter(p -> p.getChatId().equals(chatId))
+                .orElseThrow(() -> new NoSuchElementException("Участник не найден"));
+
+        long open      = betRepo.countByPersonIdAndChatIdAndStatus(personId, chatId, BetStatus.OPEN);
+        long won       = betRepo.countByPersonIdAndChatIdAndStatus(personId, chatId, BetStatus.WON);
+        long lost      = betRepo.countByPersonIdAndChatIdAndStatus(personId, chatId, BetStatus.LOST);
+        long returned  = betRepo.countByPersonIdAndChatIdAndStatus(personId, chatId, BetStatus.RETURNED);
+        long total     = open + won + lost + returned
+                + betRepo.countByPersonIdAndChatIdAndStatus(personId, chatId, BetStatus.CANCELLED);
+
+        BigDecimal staked = betRepo.sumStakeByPersonId(personId, chatId);
+        BigDecimal payout = betRepo.sumPayoutByPersonId(personId, chatId);
+        BigDecimal pl     = payout.subtract(staked);
+        double roi = staked.compareTo(BigDecimal.ZERO) == 0 ? 0.0
+                : pl.divide(staked, 4, RoundingMode.HALF_UP)
+                     .multiply(BigDecimal.valueOf(100))
+                     .round(new MathContext(4)).doubleValue();
+
+        return new BetPersonStatsDto(personId, person.getDisplayName(),
+                total, open, won, lost, returned, staked, payout, pl, roi);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BetPersonBalanceDto> getAccountBalances(UUID accountId, long chatId) {
+        accountRepo.findById(accountId)
+                .filter(a -> a.getChatId().equals(chatId))
+                .orElseThrow(() -> new NoSuchElementException("Счёт не найден"));
+        return balanceRepo.findByAccountIdWithPerson(accountId)
+                .stream().map(BetPersonBalanceDto::from).toList();
+    }
+
+    // ── internal helpers ──────────────────────────────────────────────────────
+
+    private void tryAutoResolve(BetEntity bet) {
+        List<BetSlipEntity> slips = bet.getSlips();
+
+        boolean anyLost = slips.stream().anyMatch(s -> s.getResult() == SlipResult.LOST);
+        if (anyLost) {
+            OffsetDateTime now = OffsetDateTime.now();
+            slips.stream()
+                    .filter(s -> s.getResult() == SlipResult.OPEN)
+                    .forEach(s -> { s.setResult(SlipResult.LOST); s.setResolvedAt(now); });
+            applyBetResult(bet, BetStatus.LOST, BigDecimal.ZERO);
+            return;
+        }
+
+        if (slips.stream().anyMatch(s -> s.getResult() == SlipResult.OPEN)) return;
+
+        if (slips.stream().allMatch(s -> s.getResult() == SlipResult.RETURNED)) {
+            applyBetResult(bet, BetStatus.RETURNED, bet.getTotalStake());
+            return;
+        }
+
+        BigDecimal effectiveOdds = slips.stream()
+                .filter(s -> s.getResult() == SlipResult.WON)
+                .map(BetSlipEntity::getOdds)
+                .reduce(BigDecimal.ONE, BigDecimal::multiply)
+                .setScale(4, RoundingMode.HALF_UP);
+
+        BigDecimal actualPayout = bet.getTotalStake()
+                .multiply(effectiveOdds)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        applyBetResult(bet, BetStatus.WON, actualPayout);
+    }
+
+    /**
+     * Sets bet status/timestamps and applies P&L to each participant's balance in the bet's account.
+     * WIN:      balance += profitShare × (payout − stake)   [net profit]
+     * LOSS:     balance -= profitShare × stake               [net loss]
+     * RETURNED: no balance change (voided event)
+     */
+    private void applyBetResult(BetEntity bet, BetStatus status, BigDecimal actualPayout) {
+        bet.setStatus(status);
+        bet.setResolvedAt(OffsetDateTime.now());
+        bet.setUpdatedAt(OffsetDateTime.now());
+        bet.setActualPayout(actualPayout);
+
+        BetAccountEntity account = bet.getAccount();
+        if (account == null) return;
+
+        BigDecimal stake = bet.getTotalStake();
+
+        for (BetParticipantEntity p : bet.getParticipants()) {
+            if (p.getPerson() == null) continue;
+
+            BigDecimal delta = switch (status) {
+                case WON      -> actualPayout.subtract(stake).multiply(p.getProfitShare()).setScale(2, RoundingMode.HALF_UP);
+                case LOST     -> stake.multiply(p.getProfitShare()).negate().setScale(2, RoundingMode.HALF_UP);
+                case RETURNED, CANCELLED -> BigDecimal.ZERO;
+                default       -> BigDecimal.ZERO;
+            };
+
+            if (delta.compareTo(BigDecimal.ZERO) == 0) continue;
+            updatePersonBalance(account, p.getPerson(), delta);
+        }
+    }
+
+    private void updatePersonBalance(BetAccountEntity account, BetPersonEntity person, BigDecimal delta) {
+        BetPersonBalanceEntity bal = balanceRepo
+                .findByAccountIdAndPersonId(account.getId(), person.getId())
+                .orElseGet(() -> BetPersonBalanceEntity.builder()
+                        .account(account)
+                        .person(person)
+                        .balance(BigDecimal.ZERO)
+                        .updatedAt(OffsetDateTime.now())
+                        .build());
+        bal.setBalance(bal.getBalance().add(delta));
+        bal.setUpdatedAt(OffsetDateTime.now());
+        balanceRepo.save(bal);
+    }
+
+    private BetEntity requireAccessible(UUID betId, long telegramId) {
+        BetEntity bet = betRepo.findWithDetailById(betId)
+                .orElseThrow(() -> new NoSuchElementException("Ставка не найдена"));
+        boolean isOwner       = bet.getTelegramId() == telegramId;
+        boolean isParticipant = bet.getParticipants().stream()
+                .anyMatch(p -> p.getTelegramId() != null && p.getTelegramId() == telegramId);
+        if (!isOwner && !isParticipant) {
+            throw new SecurityException("Ставка недоступна этому пользователю");
+        }
+        return bet;
+    }
 
     private static List<ParticipantRequest> normalizeParticipants(
             List<ParticipantRequest> parts, BigDecimal totalStake) {
@@ -233,32 +428,28 @@ public class BettingServiceImpl implements BettingService {
             BigDecimal usedStake = BigDecimal.ZERO;
             BigDecimal usedShare = BigDecimal.ZERO;
             for (int i = 0; i < n; i++) {
-                boolean last = (i == n - 1);
+                boolean last  = (i == n - 1);
                 BigDecimal stake = last ? totalStake.subtract(usedStake) : equalStake;
                 BigDecimal share = last ? BigDecimal.ONE.subtract(usedShare) : equalShare;
                 ParticipantRequest p = parts.get(i);
-                result.add(new ParticipantRequest(p.telegramId(), p.displayName(), stake, share, p.bankAccountId()));
+                result.add(new ParticipantRequest(p.personId(), p.displayName(), stake, share));
                 usedStake = usedStake.add(stake);
                 usedShare = usedShare.add(share);
             }
             return result;
         }
 
-        BigDecimal shareSum = parts.stream()
-                .map(ParticipantRequest::profitShare)
+        BigDecimal shareSum = parts.stream().map(ParticipantRequest::profitShare)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         if (shareSum.subtract(BigDecimal.ONE).abs().compareTo(SHARE_SUM_TOLERANCE) > 0) {
-            throw new IllegalArgumentException(
-                    "Сумма долей участников должна быть равна 1.0 (получено: " + shareSum + ")");
+            throw new IllegalArgumentException("Сумма долей участников должна быть равна 1.0 (получено: " + shareSum + ")");
         }
 
-        BigDecimal stakeSum = parts.stream()
-                .map(ParticipantRequest::stake)
+        BigDecimal stakeSum = parts.stream().map(ParticipantRequest::stake)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         if (stakeSum.subtract(totalStake).abs().compareTo(STAKE_SUM_TOLERANCE) > 0) {
             throw new IllegalArgumentException(
-                    "Сумма ставок участников (" + stakeSum + " ₽) не совпадает с общей ставкой ("
-                            + totalStake + " ₽)");
+                    "Сумма ставок участников (" + stakeSum + " ₽) не совпадает с общей ставкой (" + totalStake + " ₽)");
         }
 
         return parts;
@@ -266,39 +457,7 @@ public class BettingServiceImpl implements BettingService {
 
     private static BigDecimal computeTotalOdds(List<BetSlipRequest> slips) {
         BigDecimal odds = BigDecimal.ONE;
-        for (BetSlipRequest s : slips) {
-            odds = odds.multiply(s.odds());
-        }
+        for (BetSlipRequest s : slips) odds = odds.multiply(s.odds());
         return odds.setScale(4, RoundingMode.HALF_UP);
-    }
-
-    private BetEntity requireAccessible(UUID betId, long telegramId) {
-        BetEntity bet = betRepo.findWithDetailById(betId)
-                .orElseThrow(() -> new NoSuchElementException("Ставка не найдена"));
-        boolean isOwner       = bet.getTelegramId() == telegramId;
-        boolean isParticipant = bet.getParticipants().stream()
-                .anyMatch(p -> p.getTelegramId() == telegramId);
-        if (!isOwner && !isParticipant) {
-            throw new SecurityException("Ставка недоступна этому пользователю");
-        }
-        return bet;
-    }
-
-    private BankAccountEntity resolveAccount(ParticipantRequest p) {
-        if (p.bankAccountId() != null) {
-            BankAccountEntity acct = bankRepo.findById(p.bankAccountId()).orElse(null);
-            if (acct == null) return null;
-            if (!acct.getOwnerTelegramId().equals(p.telegramId())) {
-                throw new SecurityException("Счёт не принадлежит участнику");
-            }
-            return acct;
-        }
-        return bankRepo.findByOwnerTelegramId(p.telegramId()).orElse(null);
-    }
-
-    private void adjustBalance(BankAccountEntity acct, BigDecimal delta) {
-        acct.setBalance(acct.getBalance().add(delta));
-        acct.setUpdatedAt(OffsetDateTime.now());
-        bankRepo.save(acct);
     }
 }

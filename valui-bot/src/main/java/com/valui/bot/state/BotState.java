@@ -12,14 +12,14 @@ public enum BotState {
     WAITING_WIZARD_SEARCH,
 
     // ── Betting wizard ────────────────────────────────────────────────────────
-    BETTING_WAITING_TITLE,    // entering match title
-    BETTING_WAITING_ODDS,     // entering coefficient
-    BETTING_WAITING_AMOUNT,   // entering stake amount
-    BETTING_WAITING_PARTICIPANT,  // entering partner's Telegram ID
+    BETTING_WAITING_TITLE,        // entering match title
+    BETTING_WAITING_ODDS,         // entering coefficient
+    BETTING_WAITING_AMOUNT,       // entering stake amount
     BETTING_CONFIRM,              // confirmation screen before submit
-    BANKING_SELECTING_OWNER,      // choosing owner from chat participant list
-    BANKING_WAITING_NAME,         // entering new bank account name (legacy, kept for compat)
-    BANKING_WAITING_BALANCE,      // entering initial balance for auto-named account
-    BANKING_EDITING_BALANCE,      // entering new absolute balance for existing account
-    BETTING_WAITING_PART_AMOUNT   // entering custom stake amount for one participant
+    BETTING_WAITING_PART_AMOUNT,  // entering custom stake amount for one participant
+
+    // ── Account / Person management ───────────────────────────────────────────
+    BETTING_WAITING_ACCOUNT_NAME,          // entering name for new bet account
+    BETTING_WAITING_PERSON_NAME,           // entering name for new bet person
+    BETTING_WAITING_ACCOUNT_PERSON_BALANCE, // entering initial/updated balance for a person in an account
 }

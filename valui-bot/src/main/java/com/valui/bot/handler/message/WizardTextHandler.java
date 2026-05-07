@@ -76,10 +76,10 @@ public class WizardTextHandler implements BotUpdateHandler {
         if (state == BotState.BETTING_WAITING_TITLE
                 || state == BotState.BETTING_WAITING_ODDS
                 || state == BotState.BETTING_WAITING_AMOUNT
-                || state == BotState.BETTING_WAITING_PARTICIPANT
-                || state == BotState.BANKING_WAITING_BALANCE
-                || state == BotState.BANKING_WAITING_NAME
-                || state == BotState.BANKING_SELECTING_OWNER) {
+                || state == BotState.BETTING_WAITING_PART_AMOUNT
+                || state == BotState.BETTING_WAITING_ACCOUNT_NAME
+                || state == BotState.BETTING_WAITING_PERSON_NAME
+                || state == BotState.BETTING_WAITING_ACCOUNT_PERSON_BALANCE) {
             return;
         }
 

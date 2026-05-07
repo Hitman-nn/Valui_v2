@@ -60,7 +60,7 @@ public class BetListCallback implements CallbackHandler {
         }
 
         BetStatus filter = openOnly ? BetStatus.OPEN : null;
-        Page<BetDto> page = bettingService.listBets(ctx.fromId(), filter, PageRequest.of(pageNum, PAGE_SIZE));
+        Page<BetDto> page = bettingService.listBets(ctx.chatId(), filter, PageRequest.of(pageNum, PAGE_SIZE));
         showList(ctx, page, openOnly, pageNum, messageId);
     }
 

@@ -21,6 +21,8 @@ public record BetDto(
         BigDecimal actualPayout,
         OffsetDateTime resolvedAt,
         OffsetDateTime createdAt,
+        UUID accountId,
+        String accountName,
         List<BetSlipDto> slips,
         List<BetParticipantDto> participants
 ) {
@@ -34,6 +36,8 @@ public record BetDto(
                 e.getType(), e.getStatus(),
                 e.getTotalOdds(), e.getTotalStake(), e.getPotentialPayout(), e.getActualPayout(),
                 e.getResolvedAt(), e.getCreatedAt(),
+                e.getAccount() != null ? e.getAccount().getId() : null,
+                e.getAccount() != null ? e.getAccount().getName() : null,
                 slips, parts);
     }
 

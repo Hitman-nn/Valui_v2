@@ -7,18 +7,17 @@ import java.util.UUID;
 
 public record BetParticipantDto(
         UUID id,
-        long telegramId,
+        UUID personId,
         String displayName,
         BigDecimal stake,
-        BigDecimal profitShare,
-        UUID bankAccountId,
-        String bankAccountName
+        BigDecimal profitShare
 ) {
     public static BetParticipantDto from(BetParticipantEntity e) {
         return new BetParticipantDto(
-                e.getId(), e.getTelegramId(), e.getDisplayName(),
-                e.getStake(), e.getProfitShare(),
-                e.getBankAccount() != null ? e.getBankAccount().getId() : null,
-                e.getBankAccount() != null ? e.getBankAccount().getName() : null);
+                e.getId(),
+                e.getPerson() != null ? e.getPerson().getId() : null,
+                e.getDisplayName(),
+                e.getStake(),
+                e.getProfitShare());
     }
 }

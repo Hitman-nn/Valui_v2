@@ -58,6 +58,10 @@ public class BetEntity implements HasUpdatedAt {
     @Column(name = "resolved_at")
     private OffsetDateTime resolvedAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "account_id")
+    private BetAccountEntity account;
+
     @OneToMany(mappedBy = "bet", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private List<BetSlipEntity> slips = new ArrayList<>();

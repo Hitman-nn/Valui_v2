@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 @Slf4j
@@ -35,10 +36,12 @@ import java.util.function.Predicate;
 @RequiredArgsConstructor
 public class BetBoomParser implements BookmakerParser {
 
-    private static final long WS_TIMEOUT_MS = 3_000L;
+    private static final long WS_TIMEOUT_MS   = 3_000L;
+    private static final long WARN_THROTTLE_MS = 60 * 60 * 1_000L; // 1 hour
     private static final Current.TypeLine LINE = Current.TypeLine.LINE;
 
     private final WsRequestService ws;
+    private final ConcurrentHashMap<String, Long> lastMatchesWarnAt = new ConcurrentHashMap<>();
 
     @Override
     public BookmakerType getBookmaker() { return BookmakerType.BETBOOM; }
@@ -149,7 +152,13 @@ public class BetBoomParser implements BookmakerParser {
     }
 
     private ParseResult<List<ParsedMatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
-        log.warn("betboom fetchMatches fallback tournamentId={}: {}", tournamentId, t.getMessage());
+        long now = ms();
+        Long last = lastMatchesWarnAt.get(tournamentId);
+        if (last == null || now - last >= WARN_THROTTLE_MS) {
+            log.warn("betboom fetchMatches fallback tournamentId={}: {}", tournamentId, t.getMessage());
+            if (lastMatchesWarnAt.size() > 2000) lastMatchesWarnAt.clear(); // bound memory
+            lastMatchesWarnAt.put(tournamentId, now);
+        }
         return ParseResult.error("betboom-cb: " + t.getMessage());
     }
 

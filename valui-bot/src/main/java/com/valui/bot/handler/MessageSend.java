@@ -191,6 +191,19 @@ public final class MessageSend {
         }
     }
 
+    /**
+     * Edits the existing message if messageId > 0, otherwise sends a new message.
+     * Returns the effective message ID (existing or newly sent).
+     */
+    public static int editOrSendMarkdown(AbsSender sender, long chatId, int messageId,
+                                         String text, InlineKeyboardMarkup keyboard) {
+        if (messageId > 0) {
+            editMarkdownWithKeyboard(sender, chatId, messageId, text, keyboard);
+            return messageId;
+        }
+        return sendMarkdownGetId(sender, chatId, text, keyboard);
+    }
+
     public static void answerCallback(AbsSender sender, String callbackQueryId) {
         try {
             sender.execute(AnswerCallbackQuery.builder()

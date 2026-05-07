@@ -1,12 +1,12 @@
 package com.valui.betting.service;
 
-import com.valui.betting.dto.BetDto;
-import com.valui.betting.dto.BetStatsDto;
-import com.valui.betting.dto.CreateBetRequest;
+import com.valui.betting.dto.*;
 import com.valui.common.domain.BetStatus;
+import com.valui.common.domain.SlipResult;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface BettingService {
@@ -15,11 +15,21 @@ public interface BettingService {
 
     BetDto resolveBet(UUID betId, long telegramId, BetStatus result);
 
+    BetDto resolveSlip(UUID betId, int slipSortOrder, long telegramId, SlipResult result);
+
     BetDto cancelBet(UUID betId, long telegramId);
 
-    BetDto getBet(UUID betId, long telegramId);
+    void deleteBet(UUID betId, long chatId);
 
-    Page<BetDto> listBets(long telegramId, BetStatus statusFilter, Pageable pageable);
+    BetDto getBet(UUID betId, long chatId);
 
-    BetStatsDto getStats(long telegramId);
+    Page<BetDto> listBets(long chatId, BetStatus statusFilter, Pageable pageable);
+
+    BetStatsDto getStats(long chatId);
+
+    BetAccountStatsDto getAccountStats(UUID accountId, long chatId);
+
+    BetPersonStatsDto getPersonStats(UUID personId, long chatId);
+
+    List<BetPersonBalanceDto> getAccountBalances(UUID accountId, long chatId);
 }

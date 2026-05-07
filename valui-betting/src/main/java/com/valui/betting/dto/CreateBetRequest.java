@@ -8,10 +8,12 @@ import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 public record CreateBetRequest(
         @NotNull BetType type,
         @NotEmpty @Valid List<BetSlipRequest> slips,
         @NotNull @DecimalMin("0.01") BigDecimal totalStake,
+        UUID accountId,
         @NotEmpty @Valid List<ParticipantRequest> participants
 ) {}

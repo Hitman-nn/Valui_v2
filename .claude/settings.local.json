@@ -68,7 +68,11 @@
       "Bash(grep -v \"\\\\$\")",
       "Bash(xargs -I{} jar tf {})",
       "Bash(xargs -I{} bash -c 'jar tf \"$1\" 2>/dev/null | grep -l \"KafkaMetricsCollector\" | xargs -I@ echo \"$1:@\"' _ {})",
-      "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml dependency:tree -pl valui-notify -Dincludes=\"org.springframework.kafka:*,io.micrometer:*\" -q)"
+      "Bash(mvn clean *)",
+      "Bash(sed -n '284,295p' valui-bot/src/main/java/com/valui/bot/handler/callback/betting/BettingMenuCallback.java)",
+      "Bash(sed -n '429,438p' valui-bot/src/main/java/com/valui/bot/handler/callback/betting/BettingMenuCallback.java)",
+      "Bash(sed -n '459,468p' valui-bot/src/main/java/com/valui/bot/handler/callback/betting/BettingMenuCallback.java)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

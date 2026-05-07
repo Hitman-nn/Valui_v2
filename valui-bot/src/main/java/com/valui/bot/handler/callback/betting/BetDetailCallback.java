@@ -10,6 +10,8 @@ import com.valui.bot.handler.MessageSend;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.common.domain.BetStatus;
+import com.valui.common.domain.BetType;
+import com.valui.common.domain.SlipResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -45,7 +47,7 @@ public class BetDetailCallback implements CallbackHandler {
         String betIdStr = data.substring(CallbackData.BET_DETAIL_PREFIX.length());
 
         try {
-            BetDto bet = bettingService.getBet(java.util.UUID.fromString(betIdStr), ctx.fromId());
+            BetDto bet = bettingService.getBet(java.util.UUID.fromString(betIdStr), ctx.chatId());
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     buildDetailText(bet), buildDetailKeyboard(bet));
             MessageSend.answerCallback(ctx.sender(), callbackId);
@@ -66,31 +68,32 @@ public class BetDetailCallback implements CallbackHandler {
         sb.append("\n\n");
 
         for (BetSlipDto slip : bet.slips()) {
-            sb.append("🏆 ").append(escape(slip.matchTitle()))
+            sb.append(slipEmoji(slip.result())).append(" ")
+              .append(escape(slip.matchTitle()))
               .append(" @ *").append(slip.odds().setScale(2, RoundingMode.HALF_UP)).append("*\n");
             if (slip.matchUrl() != null && !slip.matchUrl().isBlank()) {
                 sb.append("🔗 ").append(slip.matchUrl()).append("\n");
             }
         }
 
-        sb.append("\n💰 Ставка: *").append(bet.totalStake().setScale(2, RoundingMode.HALF_UP)).append(" ₽*\n");
+        sb.append("\n💰 Ставка: *").append(bet.totalStake().setScale(0, RoundingMode.HALF_UP)).append(" ₽*\n");
         sb.append("📈 Кэф: *").append(bet.totalOdds().setScale(2, RoundingMode.HALF_UP)).append("*\n");
-        sb.append("🎯 Потенц. выигрыш: *").append(bet.potentialPayout().setScale(2, RoundingMode.HALF_UP)).append(" ₽*\n");
+        sb.append("🎯 Потенц. выигрыш: *").append(bet.potentialPayout().setScale(0, RoundingMode.HALF_UP)).append(" ₽*\n");
 
         if (bet.actualPayout() != null && bet.status() != BetStatus.OPEN) {
-            sb.append("✅ Фактически: *").append(bet.actualPayout().setScale(2, RoundingMode.HALF_UP)).append(" ₽*\n");
+            sb.append("✅ Фактически: *").append(bet.actualPayout().setScale(0, RoundingMode.HALF_UP)).append(" ₽*\n");
+        }
+
+        if (bet.accountName() != null) {
+            sb.append("\n💰 Счёт: *").append(escape(bet.accountName())).append("*\n");
         }
 
         if (!bet.participants().isEmpty()) {
             sb.append("\n👥 Участники:\n");
             for (BetParticipantDto p : bet.participants()) {
-                String name = p.displayName() != null ? p.displayName() : String.valueOf(p.telegramId());
+                String name = p.displayName() != null ? p.displayName() : "—";
                 sb.append("  • ").append(escape(name))
-                  .append(": ").append(p.stake().setScale(2, RoundingMode.HALF_UP)).append(" ₽");
-                if (p.bankAccountName() != null) {
-                    sb.append(" [").append(escape(p.bankAccountName())).append("]");
-                }
-                sb.append("\n");
+                  .append(": ").append(p.stake().setScale(0, RoundingMode.HALF_UP)).append(" ₽\n");
             }
         }
 
@@ -106,12 +109,25 @@ public class BetDetailCallback implements CallbackHandler {
     public static InlineKeyboardMarkup buildDetailKeyboard(BetDto bet) {
         InlineKeyboardBuilder kb = InlineKeyboardBuilder.create();
         if (bet.status() == BetStatus.OPEN) {
-            kb.button("✅ Выиграл",   CallbackData.betResolve(bet.id().toString(), "WIN"))
-              .button("❌ Проиграл",  CallbackData.betResolve(bet.id().toString(), "LOSE"))
-              .button("🔄 Возврат",   CallbackData.betResolve(bet.id().toString(), "RETURN")).row()
-              .button("🚫 Отменить",  CallbackData.betCancel(bet.id().toString())).row();
+            if (bet.type() == BetType.EXPRESS) {
+                for (BetSlipDto slip : bet.slips()) {
+                    if (slip.result() == SlipResult.OPEN) {
+                        int num = slip.sortOrder() + 1;
+                        kb.button("✅ " + num, CallbackData.betSlipResolve(bet.id().toString(), slip.sortOrder(), "W"))
+                          .button("❌ " + num, CallbackData.betSlipResolve(bet.id().toString(), slip.sortOrder(), "L"))
+                          .button("🔄 " + num, CallbackData.betSlipResolve(bet.id().toString(), slip.sortOrder(), "R"))
+                          .row();
+                    }
+                }
+            } else {
+                kb.button("✅ Выиграл",  CallbackData.betResolve(bet.id().toString(), "WIN"))
+                  .button("❌ Проиграл", CallbackData.betResolve(bet.id().toString(), "LOSE"))
+                  .button("🔄 Возврат",  CallbackData.betResolve(bet.id().toString(), "RETURN")).row();
+            }
+            kb.button("🚫 Отменить", CallbackData.betCancel(bet.id().toString())).row();
         }
-        kb.button("← К меню", CallbackData.BET_MENU);
+        kb.button("🗑 Удалить", CallbackData.betDelete(bet.id().toString()))
+          .button("← К меню", CallbackData.BET_MENU);
         return kb.build();
     }
 
@@ -144,5 +160,14 @@ public class BetDetailCallback implements CallbackHandler {
     private static String escape(String s) {
         if (s == null) return "—";
         return s.replace("_", "\\_").replace("*", "\\*").replace("[", "\\[").replace("`", "\\`");
+    }
+
+    private static String slipEmoji(SlipResult r) {
+        return switch (r) {
+            case OPEN     -> "🏆";
+            case WON      -> "✅";
+            case LOST     -> "❌";
+            case RETURNED -> "🔄";
+        };
     }
 }

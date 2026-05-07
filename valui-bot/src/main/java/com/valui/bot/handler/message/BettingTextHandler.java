@@ -2,11 +2,12 @@ package com.valui.bot.handler.message;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.valui.betting.dto.BankAccountDto;
 import com.valui.betting.dto.BetSlipRequest;
 import com.valui.betting.dto.ParticipantRequest;
-import com.valui.betting.service.BankAccountService;
-import com.valui.bot.handler.callback.betting.BankAccountCallback;
+import com.valui.betting.service.BetAccountService;
+import com.valui.betting.service.BetPersonService;
+import com.valui.bot.handler.callback.betting.BetAccountCallback;
+import com.valui.bot.handler.callback.betting.BetPersonCallback;
 import com.valui.bot.handler.callback.betting.BettingMenuCallback;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.BotUpdateHandler;
@@ -22,44 +23,53 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.Update;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Handles text input during the betting wizard states.
- * Runs at order=40 — before WizardTextHandler (order=50) to capture betting states first.
+ * Runs at order=40 — before WizardTextHandler (order=50).
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class BettingTextHandler implements BotUpdateHandler {
 
-    private final BotSessionService   sessionService;
-    private final BankAccountService  bankService;
-    private final BankAccountCallback bankAccountCallback;
+    private final BotSessionService  sessionService;
+    private final BetAccountService  accountService;
+    private final BetPersonService   personService;
+    private final BetAccountCallback accountCallback;
+    private final BetPersonCallback  personCallback;
     private final BettingMenuCallback bettingMenuCallback;
-    private final ObjectMapper        objectMapper;
+    private final ObjectMapper       objectMapper;
 
     @Override
     public int order() { return 40; }
 
     @Override
     public void handle(BotUpdateContext ctx) {
-        String text  = ctx.update().getMessage().getText().trim();
+        String text    = ctx.update().getMessage().getText().trim();
         BotState state = ctx.session().getState();
 
         switch (state) {
-            case BETTING_WAITING_TITLE        -> handleTitle(ctx, text);
-            case BETTING_WAITING_ODDS         -> handleOdds(ctx, text);
-            case BETTING_WAITING_AMOUNT       -> handleAmount(ctx, text);
-            case BETTING_WAITING_PARTICIPANT  -> handleParticipant(ctx, text);
-            case BETTING_WAITING_PART_AMOUNT  -> handlePartAmount(ctx, text);
-            case BANKING_WAITING_BALANCE      -> handleBankBalance(ctx, text);
-            case BANKING_EDITING_BALANCE      -> handleBankEditBalance(ctx, text);
-            case BANKING_WAITING_NAME         -> handleBankName(ctx, text); // legacy fallback
-            default -> { /* should not reach */ }
+            case BETTING_WAITING_TITLE       -> handleTitle(ctx, text);
+            case BETTING_WAITING_ODDS        -> handleOdds(ctx, text);
+            case BETTING_WAITING_AMOUNT      -> handleAmount(ctx, text);
+            case BETTING_WAITING_PART_AMOUNT -> handlePartAmount(ctx, text);
+            case BETTING_WAITING_ACCOUNT_NAME -> handleNameEntry(ctx, text,
+                    "⚠️ Введите название счёта (не более 64 символов):", CallbackData.ACCT_LIST,
+                    accountService::create, c -> accountCallback.showList(c, 0));
+            case BETTING_WAITING_PERSON_NAME  -> handleNameEntry(ctx, text,
+                    "⚠️ Введите имя участника (не более 64 символов):", CallbackData.PERS_LIST,
+                    personService::create, c -> personCallback.showList(c, 0));
+            case BETTING_WAITING_ACCOUNT_PERSON_BALANCE -> handleAccountPersonBalance(ctx, text);
+            default -> { /* not a betting state */ }
         }
     }
 
@@ -78,7 +88,6 @@ public class BettingTextHandler implements BotUpdateHandler {
                          UserBotSession.CTX_BET_MATCH_URL,   "")
                 : Map.of(UserBotSession.CTX_BET_MATCH_TITLE, text);
         sessionService.setStateAndMergeContext(ctx.fromId(), BotState.BETTING_WAITING_ODDS, ctxUpdate);
-
         replaceWizard(ctx, "📈 Введите *коэффициент* (например: `1.85`):", cancelKb);
     }
 
@@ -98,7 +107,6 @@ public class BettingTextHandler implements BotUpdateHandler {
         String betType = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BET_TYPE).orElse("SINGLE");
 
         if ("EXPRESS".equals(betType)) {
-            // Save leg and go back to express menu
             String legTitle    = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BET_MATCH_TITLE).orElse("");
             String legUrl      = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BET_MATCH_URL)
                     .filter(s -> !s.isBlank()).orElse(null);
@@ -107,7 +115,6 @@ public class BettingTextHandler implements BotUpdateHandler {
             List<BetSlipRequest> legs = parseLegs(ctx);
             legs.add(new BetSlipRequest(legTitle, legUrl, legBookmaker, odds));
             saveLegs(ctx, legs);
-
             sessionService.setStateAndMergeContext(ctx.fromId(), BotState.IDLE, Map.of());
             replaceWizardViaCallback(ctx);
             bettingMenuCallback.showExpressMenu(ctx, 0, legs);
@@ -136,49 +143,9 @@ public class BettingTextHandler implements BotUpdateHandler {
         sessionService.setStateAndMergeContext(ctx.fromId(), BotState.BETTING_CONFIRM, Map.of(
                 UserBotSession.CTX_BET_AMOUNT, amount.toPlainString()
         ));
-
-        bettingMenuCallback.initDefaultParticipants(ctx, amount);
+        bettingMenuCallback.initDefaultParticipants(ctx);
         replaceWizardViaCallback(ctx);
-        bettingMenuCallback.showParticipantStep(ctx, 0);
-    }
-
-    // ── Participant ───────────────────────────────────────────────────────────
-
-    private void handleParticipant(BotUpdateContext ctx, String text) {
-        long partnerId;
-        try {
-            partnerId = Long.parseLong(text.trim().replace("@", "").replaceAll("\\D", ""));
-        } catch (NumberFormatException e) {
-            replaceWizard(ctx, "⚠️ Введите числовой Telegram ID партнёра:",
-                    InlineKeyboardBuilder.create().button("✕ Отмена", CallbackData.BET_CANCEL_WIZARD).build());
-            return;
-        }
-
-        // Add participant: split 50/50 between current user and partner
-        String amountStr = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BET_AMOUNT).orElse("0");
-        BigDecimal total = new BigDecimal(amountStr);
-        BigDecimal half  = total.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP);
-
-        String myName = ctx.username() != null ? "@" + ctx.username() : String.valueOf(ctx.fromId());
-        var myAcc      = bankService.findForUser(ctx.fromId());
-        var partnerAcc = bankService.findForUser(partnerId);
-        List<ParticipantRequest> parts = new ArrayList<>();
-        parts.add(new ParticipantRequest(ctx.fromId(), myName, half, new BigDecimal("0.5"),
-                myAcc.map(BankAccountDto::id).orElse(null)));
-        parts.add(new ParticipantRequest(partnerId, String.valueOf(partnerId), half, new BigDecimal("0.5"),
-                partnerAcc.map(BankAccountDto::id).orElse(null)));
-
-        try {
-            String json = objectMapper.writeValueAsString(parts);
-            sessionService.setStateAndMergeContext(ctx.fromId(), BotState.BETTING_CONFIRM, Map.of(
-                    UserBotSession.CTX_BET_PARTS_JSON, json
-            ));
-        } catch (Exception e) {
-            log.warn("[BETTING] Failed to serialize participants: {}", e.getMessage());
-        }
-
-        replaceWizardViaCallback(ctx);
-        bettingMenuCallback.showFullConfirmation(ctx, 0);
+        bettingMenuCallback.showAccountStep(ctx, 0);
     }
 
     // ── Participant custom stake ──────────────────────────────────────────────
@@ -196,34 +163,35 @@ public class BettingTextHandler implements BotUpdateHandler {
 
         BigDecimal total = new BigDecimal(
                 sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BET_AMOUNT).orElse("0"));
-        long editTid = Long.parseLong(
-                sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BET_EDITING_PART_TID).orElse("0"));
+        String editPersonIdStr = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BET_EDITING_PART_ID).orElse(null);
 
         if (newStake.compareTo(total) >= 0) {
             replaceWizard(ctx, "⚠️ Сумма одного участника не может быть ≥ общей ставки ("
-                    + total.setScale(0, java.math.RoundingMode.HALF_UP) + " ₽).\n\nВведите сумму:",
+                    + total.setScale(0, RoundingMode.HALF_UP) + " ₽).\n\nВведите сумму:",
                     InlineKeyboardBuilder.create().button("✕ Отмена", CallbackData.BET_CANCEL_WIZARD).build());
             return;
         }
 
         List<ParticipantRequest> parts = parseParticipantsFromCtx(ctx, total);
         BigDecimal remaining = total.subtract(newStake);
-        long othersCount = parts.stream().filter(p -> p.telegramId() != editTid).count();
+        long othersCount = parts.stream()
+                .filter(p -> !samePersonId(p, editPersonIdStr))
+                .count();
         BigDecimal otherStake = othersCount > 0
-                ? remaining.divide(BigDecimal.valueOf(othersCount), 2, java.math.RoundingMode.HALF_UP)
+                ? remaining.divide(BigDecimal.valueOf(othersCount), 2, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
 
         List<ParticipantRequest> updated = new ArrayList<>();
         for (int i = 0; i < parts.size(); i++) {
             ParticipantRequest p = parts.get(i);
-            boolean isTarget = p.telegramId() == editTid;
+            boolean isTarget = samePersonId(p, editPersonIdStr);
             boolean isLast   = i == parts.size() - 1;
             BigDecimal stake = isTarget ? newStake : (isLast && !isTarget
                     ? total.subtract(newStake).subtract(otherStake.multiply(BigDecimal.valueOf(othersCount - 1)))
                     : otherStake);
             BigDecimal share = total.compareTo(BigDecimal.ZERO) == 0 ? BigDecimal.ZERO
-                    : stake.divide(total, 4, java.math.RoundingMode.HALF_UP);
-            updated.add(new ParticipantRequest(p.telegramId(), p.displayName(), stake, share, p.bankAccountId()));
+                    : stake.divide(total, 4, RoundingMode.HALF_UP);
+            updated.add(new ParticipantRequest(p.personId(), p.displayName(), stake, share));
         }
 
         try {
@@ -237,90 +205,57 @@ public class BettingTextHandler implements BotUpdateHandler {
         bettingMenuCallback.showParticipantStep(ctx, 0);
     }
 
-    // ── Edit existing bank account balance ────────────────────────────────────
+    // ── Account person balance entry ──────────────────────────────────────────
 
-    private void handleBankEditBalance(BotUpdateContext ctx, String text) {
-        BigDecimal newBalance;
+    private void handleAccountPersonBalance(BotUpdateContext ctx, String text) {
+        BigDecimal amount;
         try {
-            newBalance = new BigDecimal(text.replace(",", ".").replace(" ", ""));
-            if (newBalance.compareTo(BigDecimal.ZERO) < 0) throw new NumberFormatException("negative");
+            amount = new BigDecimal(text.replace(",", ".").replace(" ", ""));
+            if (amount.compareTo(BigDecimal.ZERO) < 0) throw new NumberFormatException("negative");
         } catch (NumberFormatException e) {
-            replaceWizard(ctx, "⚠️ Введите корректную сумму (≥ 0):",
-                    InlineKeyboardBuilder.create().button("✕ Отмена", CallbackData.BANK_LIST).build());
+            replaceWizard(ctx, "⚠️ Введите корректную сумму (например: `1000` или `0`):",
+                    InlineKeyboardBuilder.create().button("✕ Отмена", CallbackData.ACCT_LIST).build());
             return;
         }
 
-        String editId = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BET_BANK_EDIT_ID).orElse(null);
-        if (editId == null) { sessionService.clearSession(ctx.fromId()); return; }
+        String accountIdStr = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_ACCT_EDIT_ID).orElse(null);
+        String personIdStr  = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_ACCT_EDIT_PERSON_ID).orElse(null);
+        String op           = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_ACCT_EDIT_OP).orElse("SET");
+        if (accountIdStr == null || personIdStr == null) { sessionService.clearSession(ctx.fromId()); return; }
 
         try {
-            java.util.UUID accId = java.util.UUID.fromString(editId);
-            var acc = bankService.listAccountsForChat(ctx.chatId(), ctx.fromId()).stream()
-                    .filter(a -> a.id().equals(accId)).findFirst().orElse(null);
-            if (acc == null) throw new IllegalStateException("Баланс не найден");
-
-            BigDecimal delta = newBalance.subtract(acc.balance());
-            if (delta.compareTo(BigDecimal.ZERO) != 0) {
-                bankService.adjustBalance(acc.ownerTelegramId(), accId, delta);
+            UUID accountId = UUID.fromString(accountIdStr);
+            UUID personId  = UUID.fromString(personIdStr);
+            switch (op) {
+                case "ADD" -> accountService.adjustPersonBalance(accountId, personId, ctx.chatId(), amount);
+                case "SUB" -> accountService.adjustPersonBalance(accountId, personId, ctx.chatId(), amount.negate());
+                default    -> accountService.setPersonBalance(accountId, personId, ctx.chatId(), amount);
             }
-            sessionService.clearSession(ctx.fromId());
-            // Show updated list — replace wizard with the accounts screen
+            sessionService.setStateAndMergeContext(ctx.fromId(), BotState.IDLE, Map.of());
             replaceWizardViaCallback(ctx);
-            bankAccountCallback.showAccountList(ctx,
-                    bankService.listAccountsForChat(ctx.chatId(), ctx.fromId()), 0);
+            accountCallback.showEditScreen(ctx, accountId, 0);
         } catch (Exception e) {
             MessageSend.text(ctx.sender(), ctx.chatId(), "❌ " + e.getMessage());
         }
     }
 
-    // ── Bank balance (auto-named + owner pre-selected, user enters initial balance) ──
+    // ── Account / Person name entry ───────────────────────────────────────────
 
-    private void handleBankBalance(BotUpdateContext ctx, String text) {
-        BigDecimal balance;
-        try {
-            balance = new BigDecimal(text.replace(",", ".").replace(" ", ""));
-            if (balance.compareTo(BigDecimal.ZERO) < 0) throw new NumberFormatException("negative");
-        } catch (NumberFormatException e) {
-            MessageSend.textMarkdownWithKeyboard(ctx.sender(), ctx.chatId(),
-                    "⚠️ Введите корректную сумму (например: `5000` или `0`):",
-                    InlineKeyboardBuilder.create().button("✕ Отмена", CallbackData.BET_CANCEL_WIZARD).build());
+    private void handleNameEntry(BotUpdateContext ctx, String text, String errorMsg, String cancelCallback,
+                                  BiConsumer<Long, String> serviceCreate,
+                                  Consumer<BotUpdateContext> showResult) {
+        if (text.isBlank() || text.length() > 64) {
+            replaceWizard(ctx, errorMsg,
+                    InlineKeyboardBuilder.create().button("✕ Отмена", cancelCallback).build());
             return;
         }
-        replaceWizardViaCallback(ctx);
-        bankAccountCallback.handleCreateWithBalance(ctx, null, 0, balance);
-    }
-
-    // ── Bank name (legacy — delegates to new balance flow) ───────────────────
-
-    private void handleBankName(BotUpdateContext ctx, String name) {
-        // Legacy path: pre-fill name and redirect to balance input
-        if (name.isBlank() || name.length() > 64) {
-            replaceWizard(ctx, "⚠️ Введите название (не более 64 символов):",
-                    InlineKeyboardBuilder.create().button("✕ Отмена", CallbackData.BET_CANCEL_WIZARD).build());
-            return;
-        }
-        sessionService.setStateAndMergeContext(ctx.fromId(), BotState.BANKING_WAITING_BALANCE, Map.of(
-                UserBotSession.CTX_BET_BANK_NAME,     name,
-                UserBotSession.CTX_BET_BANK_OWNER_ID, String.valueOf(ctx.fromId())
-        ));
-        var kb = InlineKeyboardBuilder.create()
-                .button("0 ₽ (пропустить)", CallbackData.BANK_BALANCE_SKIP).row()
-                .button("✕ Отмена", CallbackData.BET_CANCEL_WIZARD).build();
-        replaceWizard(ctx, "💰 Введите *начальный баланс* (₽) или нажмите «0 ₽»:", kb);
-    }
-
-    // ── Participant helpers ───────────────────────────────────────────────────
-
-    private List<ParticipantRequest> parseParticipantsFromCtx(BotUpdateContext ctx, BigDecimal total) {
-        Optional<String> json = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BET_PARTS_JSON);
-        if (json.isEmpty() || json.get().equals("[]")) {
-            String myName = ctx.username() != null ? "@" + ctx.username() : String.valueOf(ctx.fromId());
-            return List.of(new ParticipantRequest(ctx.fromId(), myName, total, BigDecimal.ONE, null));
-        }
         try {
-            return objectMapper.readValue(json.get(), new com.fasterxml.jackson.core.type.TypeReference<List<ParticipantRequest>>() {});
+            serviceCreate.accept(ctx.chatId(), text.trim());
+            sessionService.clearSession(ctx.fromId());
+            replaceWizardViaCallback(ctx);
+            showResult.accept(ctx);
         } catch (Exception e) {
-            return List.of();
+            MessageSend.text(ctx.sender(), ctx.chatId(), "❌ " + e.getMessage());
         }
     }
 
@@ -331,9 +266,7 @@ public class BettingTextHandler implements BotUpdateHandler {
         if (json.isEmpty() || json.get().equals("[]")) return new ArrayList<>();
         try {
             return new ArrayList<>(objectMapper.readValue(json.get(), new TypeReference<>() {}));
-        } catch (Exception e) {
-            return new ArrayList<>();
-        }
+        } catch (Exception e) { return new ArrayList<>(); }
     }
 
     private void saveLegs(BotUpdateContext ctx, List<BetSlipRequest> legs) {
@@ -345,6 +278,21 @@ public class BettingTextHandler implements BotUpdateHandler {
         }
     }
 
+    // ── Participant helpers ───────────────────────────────────────────────────
+
+    private List<ParticipantRequest> parseParticipantsFromCtx(BotUpdateContext ctx, BigDecimal total) {
+        Optional<String> json = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BET_PARTS_JSON);
+        if (json.isEmpty() || json.get().equals("[]")) return List.of();
+        try {
+            return objectMapper.readValue(json.get(), new TypeReference<List<ParticipantRequest>>() {});
+        } catch (Exception e) { return List.of(); }
+    }
+
+    private static boolean samePersonId(ParticipantRequest p, String personIdStr) {
+        if (personIdStr == null || p.personId() == null) return false;
+        return p.personId().toString().equals(personIdStr);
+    }
+
     // ── Utility ───────────────────────────────────────────────────────────────
 
     private int getWizardMsgId(BotUpdateContext ctx) {
@@ -353,21 +301,14 @@ public class BettingTextHandler implements BotUpdateHandler {
                 .orElse(0);
     }
 
-    /**
-     * Replaces the wizard message: deletes the old one (if any) and sends a new message
-     * at the bottom of the chat. Saves the new message ID to CTX_BET_WIZARD_MSG.
-     */
-    private void replaceWizard(BotUpdateContext ctx, String text, org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup kb) {
+    private void replaceWizard(BotUpdateContext ctx, String text,
+            org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup kb) {
         int oldId = getWizardMsgId(ctx);
         if (oldId > 0) MessageSend.deleteMessage(ctx.sender(), ctx.chatId(), oldId);
         int newId = MessageSend.sendMarkdownGetId(ctx.sender(), ctx.chatId(), text, kb);
         if (newId > 0) sessionService.putContext(ctx.fromId(), UserBotSession.CTX_BET_WIZARD_MSG, String.valueOf(newId));
     }
 
-    /**
-     * Deletes the old wizard message, then calls the given show-method with messageId=0
-     * so it sends a new message and saves the new ID itself.
-     */
     private void replaceWizardViaCallback(BotUpdateContext ctx) {
         int oldId = getWizardMsgId(ctx);
         if (oldId > 0) MessageSend.deleteMessage(ctx.sender(), ctx.chatId(), oldId);
@@ -378,31 +319,19 @@ public class BettingTextHandler implements BotUpdateHandler {
         return state == BotState.BETTING_WAITING_TITLE
                 || state == BotState.BETTING_WAITING_ODDS
                 || state == BotState.BETTING_WAITING_AMOUNT
-                || state == BotState.BETTING_WAITING_PARTICIPANT
                 || state == BotState.BETTING_WAITING_PART_AMOUNT
-                || state == BotState.BANKING_WAITING_BALANCE
-                || state == BotState.BANKING_EDITING_BALANCE
-                || state == BotState.BANKING_WAITING_NAME
-                || state == BotState.BANKING_SELECTING_OWNER;
+                || state == BotState.BETTING_WAITING_ACCOUNT_NAME
+                || state == BotState.BETTING_WAITING_PERSON_NAME
+                || state == BotState.BETTING_WAITING_ACCOUNT_PERSON_BALANCE;
     }
 
-    /**
-     * Checks both message type AND session state so that only betting-wizard interactions
-     * are intercepted here; all other text falls through to WizardTextHandler (order=50).
-     */
     @Override
     public boolean canHandle(Update update) {
         if (!update.hasMessage() || update.getMessage().getText() == null) return false;
         if (update.getMessage().getText().startsWith("/")) return false;
         Long fromId = update.getMessage().getFrom() != null ? update.getMessage().getFrom().getId() : null;
         if (fromId == null) return false;
-        // Quick session peek — no TTL side-effect needed here (CommandRouter re-reads with TTL refresh)
         BotState state = sessionService.getSession(fromId).getState();
         return isBettingState(state);
-    }
-
-    private static String escape(String s) {
-        if (s == null) return "—";
-        return s.replace("_", "\\_").replace("*", "\\*").replace("[", "\\[").replace("`", "\\`");
     }
 }

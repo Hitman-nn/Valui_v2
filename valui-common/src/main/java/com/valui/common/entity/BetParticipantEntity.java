@@ -24,8 +24,13 @@ public class BetParticipantEntity {
     @JoinColumn(name = "bet_id", nullable = false)
     private BetEntity bet;
 
-    @Column(name = "telegram_id", nullable = false)
+    /** Nullable — new bets use person instead */
+    @Column(name = "telegram_id")
     private Long telegramId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "person_id")
+    private BetPersonEntity person;
 
     @Column(name = "display_name", length = 128)
     private String displayName;
@@ -33,12 +38,8 @@ public class BetParticipantEntity {
     @Column(name = "stake", nullable = false, precision = 12, scale = 2)
     private BigDecimal stake;
 
-    /** Share of profit: 0.5 = 50%. All participants must sum to 1.0. */
+    /** Share of P&L: 0.5 = 50%. All participants must sum to 1.0. */
     @Column(name = "profit_share", nullable = false, precision = 5, scale = 4)
     @Builder.Default
     private BigDecimal profitShare = BigDecimal.ONE;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "bank_account_id")
-    private BankAccountEntity bankAccount;
 }

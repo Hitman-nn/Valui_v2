@@ -4,9 +4,8 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 public record ParticipantRequest(
-        long telegramId,
+        UUID personId,
         String displayName,
-        BigDecimal stake,
-        BigDecimal profitShare,
-        UUID bankAccountId         // nullable
+        BigDecimal stake,       // null → equal distribution applied by normalizeParticipants
+        BigDecimal profitShare  // null → equal distribution applied by normalizeParticipants
 ) {}
