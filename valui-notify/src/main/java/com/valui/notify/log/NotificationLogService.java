@@ -41,12 +41,21 @@ public class NotificationLogService {
     }
 
     @Transactional
-    public void markSent(UUID logId) {
+    public void markSent(UUID logId, Integer telegramMessageId) {
         repo.findById(logId).ifPresent(log -> {
             log.setStatus(NotificationStatus.SENT);
             log.setSentAt(OffsetDateTime.now());
             log.setAttempts(log.getAttempts() + 1);
+            if (telegramMessageId != null) {
+                log.setTelegramMessageId(telegramMessageId.longValue());
+            }
         });
+    }
+
+    /** Backward-compatible overload for non-Telegram channels and DLQ retries. */
+    @Transactional
+    public void markSent(UUID logId) {
+        markSent(logId, null);
     }
 
     @Transactional(readOnly = true)

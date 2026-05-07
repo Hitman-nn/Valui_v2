@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
+import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
@@ -46,8 +48,12 @@ public class TelegramNotificationSender implements NotificationSender {
         doSend(chatId, message);
     }
 
-    /** Full notification dispatch — attaches an inline keyboard button when the message carries one. */
-    public void sendNotification(UserNotificationRequestMessage request) throws Exception {
+    /**
+     * Full notification dispatch — attaches an inline keyboard button when the message carries one.
+     *
+     * @return Telegram message_id assigned by the API (used for future edits via dedup)
+     */
+    public Integer sendNotification(UserNotificationRequestMessage request) throws Exception {
         Long chatId = request.telegramId();
         if (chatId == null) {
             throw new IllegalArgumentException("chatId is null — user has no linked Telegram account");
@@ -63,12 +69,44 @@ public class TelegramNotificationSender implements NotificationSender {
 
         if (keyboard != null) builder.replyMarkup(keyboard);
 
-        doSend(chatId, builder.build());
+        return doSend(chatId, builder.build());
+    }
+
+    /**
+     * Edits an already-sent notification message in-place.
+     * Best-effort: logs and returns null on failure without throwing.
+     *
+     * @param chatId    target chat
+     * @param messageId Telegram message_id to edit
+     * @param request   new content (text + keyboard rebuilt from the same Redis keys)
+     */
+    public void editNotification(long chatId, int messageId, UserNotificationRequestMessage request) {
+        try {
+            InlineKeyboardMarkup keyboard = buildKeyboard(request);
+
+            EditMessageText.EditMessageTextBuilder builder = EditMessageText.builder()
+                    .chatId(chatId)
+                    .messageId(messageId)
+                    .text(request.messageText())
+                    .parseMode("Markdown")
+                    .disableWebPagePreview(true);
+
+            if (keyboard != null) builder.replyMarkup(keyboard);
+
+            absSender.execute(builder.build());
+            log.debug("[DEDUP] Edited Telegram message chatId={} messageId={}", chatId, messageId);
+        } catch (TelegramApiRequestException ex) {
+            // Message too old, bot blocked, or message content unchanged — all non-fatal
+            log.warn("[DEDUP] Edit failed chatId={} messageId={}: {} (code={})",
+                    chatId, messageId, ex.getMessage(), ex.getErrorCode());
+        } catch (Exception ex) {
+            log.warn("[DEDUP] Edit failed chatId={} messageId={}: {}", chatId, messageId, ex.getMessage());
+        }
     }
 
     // ── private ───────────────────────────────────────────────────────────────
 
-    private void doSend(Long chatId, SendMessage message) throws Exception {
+    private Integer doSend(Long chatId, SendMessage message) throws Exception {
         if (!rateLimiter.tryAcquire(chatId)) {
             log.debug("Rate limit hit for chatId={}, backing off", chatId);
             Thread.sleep(1_200);
@@ -78,14 +116,16 @@ public class TelegramNotificationSender implements NotificationSender {
         }
 
         try {
-            absSender.execute(message);
+            Message sent = absSender.execute(message);
             log.debug("Telegram notification sent to chatId={}", chatId);
+            return sent != null ? sent.getMessageId() : null;
         } catch (TelegramApiRequestException ex) {
             if (ex.getErrorCode() != null && ex.getErrorCode() == 429) {
                 log.warn("Telegram 429 for chatId={}, retrying after {} ms (raw: {})",
                         chatId, MAX_RATE_WAIT_MS, ex.getApiResponse());
                 Thread.sleep(MAX_RATE_WAIT_MS);
-                absSender.execute(message);
+                Message sent = absSender.execute(message);
+                return sent != null ? sent.getMessageId() : null;
             } else {
                 throw ex;
             }

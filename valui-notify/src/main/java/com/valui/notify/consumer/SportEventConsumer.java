@@ -12,6 +12,8 @@ import com.valui.common.kafka.UserNotificationRequestMessage;
 import com.valui.betting.cache.BetNotifCacheService;
 import com.valui.betting.cache.BetNotifData;
 import com.valui.common.entity.GlobalFilterEntity;
+import com.valui.notify.dedup.TitleDedupCacheService;
+import com.valui.notify.dedup.TitleDedupEntry;
 import com.valui.notify.formatter.NotificationFormatter;
 import com.valui.notify.log.NotificationLogService;
 import com.valui.user.api.ControllerPortService;
@@ -50,15 +52,16 @@ import java.util.regex.PatternSyntaxException;
 @RequiredArgsConstructor
 public class SportEventConsumer {
 
-    private final ControllerPortService   controllerPort;
-    private final UserPortService         userPort;
-    private final DetectedEventPortService detectedEventPort;
-    private final GlobalFilterService     globalFilterService;
-    private final NotificationLogService  notificationLogService;
-    private final NotificationFormatter   formatter;
+    private final ControllerPortService        controllerPort;
+    private final UserPortService              userPort;
+    private final DetectedEventPortService     detectedEventPort;
+    private final GlobalFilterService          globalFilterService;
+    private final NotificationLogService       notificationLogService;
+    private final NotificationFormatter        formatter;
     private final KafkaTemplate<String, Object> kafkaTemplate;
-    private final QuickAddCacheService    quickAddCacheService;
-    private final BetNotifCacheService    betNotifCacheService;
+    private final QuickAddCacheService         quickAddCacheService;
+    private final BetNotifCacheService         betNotifCacheService;
+    private final TitleDedupCacheService       titleDedupCache;
 
     @KafkaListener(
             topics  = KafkaTopics.SPORT_EVENTS_DETECTED,
@@ -106,12 +109,28 @@ public class SportEventConsumer {
             }
         }
 
+        // Use chatId (subscription target) for delivery; fall back to telegramId for legacy rows
+        Long targetChatId = event.chatId() != null ? event.chatId() : event.telegramId();
+
+        // ── Title-based deduplication ────────────────────────────────────────
+        // Same match may appear under a different event ID within the TTL window
+        // (e.g., BetBoom pre-match → live transition). Instead of sending a second
+        // notification, edit the already-sent message with the updated URL/text.
+        String dedupKey = titleDedupCache.computeKey(
+                targetChatId, event.bookmaker(), event.url(), event.title());
+
+        TitleDedupEntry existing = titleDedupCache.find(dedupKey).orElse(null);
+        if (existing != null) {
+            log.debug("[DEDUP] Hit for chatId={} — editing message {}", targetChatId, existing.telegramMessageId());
+            sendEditRequest(event, controller, targetChatId, existing);
+            return;
+        }
+
+        // ── Normal first-send path ────────────────────────────────────────────
+
         UUID detectedEventId = detectedEventPort
                 .findIdByControllerIdAndExternalId(controllerId, event.externalEventId())
                 .orElse(null);
-
-        // Use chatId (subscription target) for delivery; fall back to telegramId for legacy rows
-        Long targetChatId = event.chatId() != null ? event.chatId() : event.telegramId();
 
         NotificationLogEntity logEntry;
         try {
@@ -154,7 +173,9 @@ public class SportEventConsumer {
                 event.eventId(),
                 quickAddKey,
                 eventUrl,
-                betKey
+                betKey,
+                dedupKey,   // NotificationDispatcher will store this in the dedup cache after send
+                null        // editMessageId = null → normal send
         );
 
         final boolean hasQuickAdd = quickAddKey != null;
@@ -166,6 +187,54 @@ public class SportEventConsumer {
                     } else {
                         log.debug("Queued notification [logId={} chatId={} quickAdd={}]",
                                 logEntry.getId(), targetChatId, hasQuickAdd);
+                    }
+                });
+    }
+
+    /**
+     * Updates the cached bet/quickAdd Redis entries with the new event URL and
+     * sends an edit-request to the Kafka pipeline so NotificationDispatcher rewrites
+     * the already-sent Telegram message.
+     */
+    private void sendEditRequest(SportEventDetectedMessage event, ControllerEntity controller,
+                                 Long targetChatId, TitleDedupEntry existing) {
+        // Update the Redis cache entries so keyboard callbacks return the new URL.
+        // Edge case: if the Kafka send below fails after these stores, the callback
+        // URLs in Redis are already updated but the Telegram message still shows old text.
+        // Acceptable: the next dedup-window event will re-attempt the edit.
+        if (existing.betKey() != null) {
+            betNotifCacheService.store(existing.betKey(),
+                    new BetNotifData(event.title(), event.url(), event.bookmaker()));
+        }
+        if (existing.quickAddKey() != null && hasUrl(event.url())) {
+            quickAddCacheService.store(existing.quickAddKey(),
+                    new QuickAddData(event.url(), event.bookmaker(), event.title()));
+        }
+
+        String newText = formatter.buildTelegramMessage(event, controller);
+
+        UserNotificationRequestMessage editRequest = new UserNotificationRequestMessage(
+                null,                                   // no log entry for edits
+                event.userId(),
+                targetChatId,
+                NotificationChannel.TELEGRAM.name(),
+                newText,
+                event.eventId(),
+                existing.quickAddKey(),
+                null,
+                existing.betKey(),
+                null,                                   // dedupKey not needed for edits
+                existing.telegramMessageId()            // tells dispatcher to edit, not send
+        );
+
+        kafkaTemplate.send(KafkaTopics.USER_NOTIFICATIONS_PENDING, event.userId(), editRequest)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.warn("[DEDUP] Failed to queue edit for chatId={} messageId={}: {}",
+                                targetChatId, existing.telegramMessageId(), ex.getMessage());
+                    } else {
+                        log.debug("[DEDUP] Edit queued for chatId={} messageId={}",
+                                targetChatId, existing.telegramMessageId());
                     }
                 });
     }

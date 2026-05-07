@@ -11,6 +11,12 @@ package com.valui.common.kafka;
  *   eventUrl    — Source URL for "🔗 Открыть матч" URL-button (TOURNAMENT/MATCH events).
  *   betKey      — notificationLogId used as Redis key for "💸 Поставил" button (TOURNAMENT/MATCH only).
  *                 Populated by SportEventConsumer; consumed by BetNotifCallback.
+ *
+ * Dedup/edit fields (both nullable):
+ *   dedupKey      — SHA-256 hash key used for title-based dedup cache. Set on first sends so
+ *                   NotificationDispatcher can store the entry after successful Telegram delivery.
+ *   editMessageId — If non-null, edit this existing Telegram message instead of sending a new one.
+ *                   Used when the same match appears under a different event ID within the dedup TTL.
  */
 public record UserNotificationRequestMessage(
         String notificationLogId,
@@ -21,5 +27,16 @@ public record UserNotificationRequestMessage(
         String eventId,
         String quickAddKey,
         String eventUrl,
-        String betKey
-) {}
+        String betKey,
+        String dedupKey,
+        Integer editMessageId
+) {
+    /** Backward-compatible constructor for callers that don't use dedup (e.g. DLQ retry). */
+    public UserNotificationRequestMessage(
+            String notificationLogId, String userId, Long telegramId,
+            String channel, String messageText, String eventId,
+            String quickAddKey, String eventUrl, String betKey) {
+        this(notificationLogId, userId, telegramId, channel, messageText,
+             eventId, quickAddKey, eventUrl, betKey, null, null);
+    }
+}

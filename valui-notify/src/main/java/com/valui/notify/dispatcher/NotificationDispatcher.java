@@ -3,6 +3,8 @@ package com.valui.notify.dispatcher;
 import com.valui.common.domain.TokenReasonCode;
 import com.valui.common.kafka.KafkaTopics;
 import com.valui.common.kafka.UserNotificationRequestMessage;
+import com.valui.notify.dedup.TitleDedupCacheService;
+import com.valui.notify.dedup.TitleDedupEntry;
 import com.valui.notify.exception.RetryableNotificationException;
 import com.valui.notify.log.NotificationLogService;
 import com.valui.notify.retry.DeadLetterPublisher;
@@ -33,6 +35,7 @@ public class NotificationDispatcher {
     private final DeadLetterPublisher         deadLetterPublisher;
     private final NotificationRetryPolicy     retryPolicy;
     private final TokenLedgerService          tokenLedgerService;
+    private final TitleDedupCacheService      titleDedupCache;
 
     @KafkaListener(
         topics           = KafkaTopics.USER_NOTIFICATIONS_PENDING,
@@ -42,6 +45,16 @@ public class NotificationDispatcher {
     public void onNotificationPending(ConsumerRecord<String, Object> record) {
         if (!(record.value() instanceof UserNotificationRequestMessage request)) {
             log.warn("[DISPATCH] Unexpected payload type, skipping");
+            return;
+        }
+
+        // ── Edit path: update existing Telegram message, no token cost, no log entry ──
+        // Telegram editMessageText is idempotent, so replaying this record (Kafka rebalance
+        // before offset commit) just re-edits the same message — safe.
+        if (request.editMessageId() != null) {
+            dispatchService.edit(request);
+            log.debug("[DISPATCH] Отредактировано [chatId={} messageId={}]",
+                    request.telegramId(), request.editMessageId());
             return;
         }
 
@@ -65,9 +78,20 @@ public class NotificationDispatcher {
         }
 
         try {
-            dispatchService.dispatch(request);
-            if (logId != null) logService.markSent(logId);
+            Integer telegramMessageId = dispatchService.dispatch(request);
+            if (logId != null) logService.markSent(logId, telegramMessageId);
             log.debug("[DISPATCH] Отправлено [logId={} channel={}]", logId, request.channel());
+
+            // After successful Telegram delivery: populate dedup cache so subsequent
+            // duplicates (same match, different event ID) edit this message instead.
+            if (telegramMessageId != null && request.dedupKey() != null
+                    && request.telegramId() != null) {
+                titleDedupCache.store(request.dedupKey(), new TitleDedupEntry(
+                        telegramMessageId,
+                        request.telegramId(),
+                        request.betKey(),
+                        request.quickAddKey()));
+            }
 
             // Списываем токен за успешное уведомление
             if (userId != null) {

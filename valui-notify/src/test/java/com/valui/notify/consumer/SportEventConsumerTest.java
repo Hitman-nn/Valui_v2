@@ -11,6 +11,7 @@ import com.valui.common.entity.UserEntity;
 import com.valui.common.kafka.KafkaTopics;
 import com.valui.common.kafka.SportEventDetectedMessage;
 import com.valui.common.kafka.UserNotificationRequestMessage;
+import com.valui.notify.dedup.TitleDedupCacheService;
 import com.valui.notify.formatter.NotificationFormatter;
 import com.valui.notify.log.NotificationLogService;
 import com.valui.betting.cache.BetNotifCacheService;
@@ -55,6 +56,7 @@ class SportEventConsumerTest {
     @Mock KafkaTemplate<String, Object>  kafkaTemplate;
     @Mock QuickAddCacheService           quickAddCacheService;
     @Mock BetNotifCacheService           betNotifCacheService;
+    @Mock TitleDedupCacheService         titleDedupCache;
 
     @InjectMocks SportEventConsumer consumer;
 
@@ -103,6 +105,9 @@ class SportEventConsumerTest {
                 .willReturn("🔔 *FONBET*\nSpartak - CSKA\nhttps://...");
         given(kafkaTemplate.send(anyString(), anyString(), any()))
                 .willReturn(CompletableFuture.completedFuture(null));
+        // Default: no dedup cache hit — events pass through normally
+        given(titleDedupCache.computeKey(anyLong(), any(), any(), any())).willReturn("dedup-key");
+        given(titleDedupCache.find(any())).willReturn(Optional.empty());
     }
 
     // ── filter rule ───────────────────────────────────────────────────────────
@@ -251,5 +256,45 @@ class SportEventConsumerTest {
         consumer.onSportEventDetected(event);
 
         verifyNoInteractions(kafkaTemplate);
+    }
+
+    // ── title-based dedup ─────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("dedup cache hit → edit-request sent, no new log entry, no createPending")
+    void dedupCacheHit_sendsEditRequest_noNewLogEntry() {
+        com.valui.notify.dedup.TitleDedupEntry existing =
+                new com.valui.notify.dedup.TitleDedupEntry(
+                        555,        // telegramMessageId
+                        TG_ID,      // chatId
+                        "old-bet",  // betKey
+                        null);      // quickAddKey
+        given(titleDedupCache.find(any())).willReturn(Optional.of(existing));
+
+        consumer.onSportEventDetected(event);
+
+        // Must forward an edit-request (editMessageId != null)
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(kafkaTemplate).send(anyString(), anyString(), captor.capture());
+
+        com.valui.common.kafka.UserNotificationRequestMessage msg =
+                (com.valui.common.kafka.UserNotificationRequestMessage) captor.getValue();
+        assertThat(msg.editMessageId()).isEqualTo(555);
+        assertThat(msg.notificationLogId()).isNull();
+
+        // Must NOT create a new log entry
+        verifyNoInteractions(notificationLogService);
+    }
+
+    @Test
+    @DisplayName("dedup cache hit → bet Redis key updated with new URL")
+    void dedupCacheHit_updatesBetCacheEntry() {
+        com.valui.notify.dedup.TitleDedupEntry existing =
+                new com.valui.notify.dedup.TitleDedupEntry(555, TG_ID, "old-bet", null);
+        given(titleDedupCache.find(any())).willReturn(Optional.of(existing));
+
+        consumer.onSportEventDetected(event);
+
+        verify(betNotifCacheService).store(eq("old-bet"), any());
     }
 }

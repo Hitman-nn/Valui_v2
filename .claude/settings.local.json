@@ -75,7 +75,12 @@
       "Bash(python3 -c ' *)",
       "Bash(xargs -I {} bash -c 'echo \"=== {} ===\" && head -20 \"{}\"')",
       "Bash(xargs -I {} bash -c 'echo \"File: {}\" && head -25 {}')",
-      "Bash(grep -v \"Skipped: 0$\")"
+      "Bash(grep -v \"Skipped: 0$\")",
+      "Bash(sort -t'|' -k3 -nr)",
+      "Bash(mvn -pl valui-notify test -q)",
+      "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml install -DskipTests -q)",
+      "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml test -q)",
+      "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml test)"
     ]
   }
 }

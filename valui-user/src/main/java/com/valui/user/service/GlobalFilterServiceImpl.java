@@ -7,7 +7,7 @@ import com.valui.common.exception.UserNotFoundException;
 import com.valui.user.repository.GlobalFilterRepository;
 import com.valui.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +24,7 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
     private final GlobalFilterRepository globalFilterRepository;
     private final UserRepository         userRepository;
     private final TokenLedgerService     tokenLedgerService;
+    private final CacheManager           cacheManager;
 
     @Override
     public List<GlobalFilterEntity> getFilters(Long telegramId) {
@@ -39,7 +40,6 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
 
     @Override
     @Transactional
-    @CacheEvict(value = "globalFilters", allEntries = true)
     public void addFilter(Long telegramId, String rule) {
         UserEntity user = requireUser(telegramId);
         int cost = tokenLedgerService.getCost("FILTER_MONTHLY");
@@ -51,29 +51,35 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
             .filterRule(rule)
             .createdAt(OffsetDateTime.now())
             .build());
+        evictFilterCache(user.getId());
     }
 
     @Override
     @Transactional
-    @CacheEvict(value = "globalFilters", allEntries = true)
     public void deleteFilter(Long telegramId, UUID filterId) {
         UserEntity user = requireUser(telegramId);
         globalFilterRepository.deleteByIdAndUserId(filterId, user.getId());
+        evictFilterCache(user.getId());
     }
 
     @Override
     @Transactional
-    @CacheEvict(value = "globalFilters", allEntries = true)
     public void updateFilter(Long telegramId, UUID filterId, String newRule) {
         UserEntity user = requireUser(telegramId);
         globalFilterRepository.findByIdAndUserId(filterId, user.getId()).ifPresent(f -> {
             f.setFilterRule(newRule);
             globalFilterRepository.save(f);
         });
+        evictFilterCache(user.getId());
     }
 
     private UserEntity requireUser(Long telegramId) {
         return userRepository.findByTelegramId(telegramId)
             .orElseThrow(() -> new UserNotFoundException(telegramId));
+    }
+
+    private void evictFilterCache(UUID userId) {
+        var cache = cacheManager.getCache("globalFilters");
+        if (cache != null) cache.evict(userId);
     }
 }

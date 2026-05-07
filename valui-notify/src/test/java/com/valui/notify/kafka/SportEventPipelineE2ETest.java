@@ -61,6 +61,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -198,6 +199,16 @@ class SportEventPipelineE2ETest {
         @Bean
         public BetNotifCacheService betNotifCacheService() {
             return mock(BetNotifCacheService.class);
+        }
+
+        @Bean
+        public com.valui.notify.dedup.TitleDedupCacheService titleDedupCacheService() {
+            com.valui.notify.dedup.TitleDedupCacheService svc =
+                    mock(com.valui.notify.dedup.TitleDedupCacheService.class);
+            // Default: no dedup hit — all events go through normally
+            given(svc.computeKey(anyLong(), any(), any(), any())).willReturn("e2e-dedup-key");
+            given(svc.find(any())).willReturn(Optional.empty());
+            return svc;
         }
     }
 

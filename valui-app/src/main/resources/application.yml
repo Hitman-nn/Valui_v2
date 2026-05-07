@@ -124,6 +124,12 @@ management:
 
 # Valui custom config
 valui:
+  notifications:
+    # Title-based dedup TTL: within this window a duplicate event (same match, different
+    # bookmaker event ID) will edit the already-sent Telegram message instead of sending
+    # a new notification. Set to 0 to disable.
+    dedup-ttl-minutes: ${NOTIFICATIONS_DEDUP_TTL_MINUTES:60}
+
   bot:
     token: ${TELEGRAM_BOT_TOKEN:change-me}
     username: ${TELEGRAM_BOT_USERNAME:ValuiForRelease_bot}

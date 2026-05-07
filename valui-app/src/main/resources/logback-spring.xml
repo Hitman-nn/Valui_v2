@@ -21,7 +21,7 @@
          ═══════════════════════════════════════════════════════════════════════ -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%gray(%d{HH:mm:ss.SSS})  %highlight(%-5level)  %subsystem  %-30(%cyan(%logger{0}))  %gray(▸)  %msg%n%rootException{full}</pattern>
+            <pattern>%white(%d{HH:mm:ss.SSS})  %highlight(%-5level)  %subsystem  %-30(%cyan(%logger{0}))  %white(▸)  %msg%n%rootException{full}</pattern>
         </encoder>
     </appender>
 

@@ -23,11 +23,26 @@ public class NotificationDispatchService {
     private final EmailNotificationSender    emailSender;
     private final WebhookNotificationSender  webhookSender;
 
-    public void dispatch(UserNotificationRequestMessage request) throws Exception {
-        switch (NotificationChannel.valueOf(request.channel())) {
+    /**
+     * Dispatches a new notification.
+     *
+     * @return Telegram message_id for TELEGRAM channel (used for dedup cache); null for other channels.
+     */
+    public Integer dispatch(UserNotificationRequestMessage request) throws Exception {
+        return switch (NotificationChannel.valueOf(request.channel())) {
             case TELEGRAM -> telegramSender.sendNotification(request);
-            case EMAIL    -> emailSender.send(Long.parseLong(request.userId()), request.messageText());
-            case WEBHOOK  -> webhookSender.send(Long.parseLong(request.userId()), request.messageText());
-        }
+            case EMAIL    -> { emailSender.send(Long.parseLong(request.userId()), request.messageText()); yield null; }
+            case WEBHOOK  -> { webhookSender.send(Long.parseLong(request.userId()), request.messageText()); yield null; }
+        };
+    }
+
+    /**
+     * Edits an already-sent Telegram message in-place (best-effort, no exception thrown).
+     * Only applicable to TELEGRAM channel.
+     */
+    public void edit(UserNotificationRequestMessage request) {
+        if (!NotificationChannel.TELEGRAM.name().equals(request.channel())) return;
+        if (request.editMessageId() == null || request.telegramId() == null) return;
+        telegramSender.editNotification(request.telegramId(), request.editMessageId(), request);
     }
 }

@@ -72,7 +72,7 @@ class DlqConsumerTest {
     @Test
     @DisplayName("Dispatch succeeds → markSent, no DLQ routing")
     void dispatchSucceeds_marksSent() throws Exception {
-        willDoNothing().given(dispatchService).dispatch(request);
+        given(dispatchService.dispatch(request)).willReturn(null);
 
         consumer.handleDlq(record(request));
 
