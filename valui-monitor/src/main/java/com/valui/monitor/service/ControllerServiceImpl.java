@@ -30,8 +30,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -107,28 +110,32 @@ public class ControllerServiceImpl implements ControllerService {
     @Override
     public List<ControllerDto> getUserControllers(Long telegramId) {
         UserEntity user = requireUser(telegramId);
-        return controllerPort.findAllActiveByUserId(user.getId())
-            .stream().map(this::toDto).toList();
+        List<ControllerEntity> entities = controllerPort.findAllActiveByUserId(user.getId());
+        Map<UUID, Long> counts = eventCountsFor(entities);
+        return entities.stream().map(e -> toDto(e, counts)).toList();
     }
 
     @Override
     public List<ControllerDto> getUserControllersForChat(Long telegramId, Long chatId) {
         UserEntity user = requireUser(telegramId);
-        return controllerPort.findAllActiveByUserId(user.getId())
-            .stream().map(e -> toDtoForChat(e, chatId)).toList();
+        List<ControllerEntity> entities = controllerPort.findAllActiveByUserId(user.getId());
+        Map<UUID, Long> counts = eventCountsFor(entities);
+        return entities.stream().map(e -> toDtoForChat(e, chatId, counts)).toList();
     }
 
     @Override
     public List<ControllerDto> getGroupControllers(Long notificationChatId) {
-        return controllerPort.findAllActiveByNotificationChatId(notificationChatId)
-            .stream().map(e -> toDtoForChat(e, notificationChatId)).toList();
+        List<ControllerEntity> entities = controllerPort.findAllActiveByNotificationChatId(notificationChatId);
+        Map<UUID, Long> counts = eventCountsFor(entities);
+        return entities.stream().map(e -> toDtoForChat(e, notificationChatId, counts)).toList();
     }
 
     @Override
     public Page<ControllerDto> getUserControllers(Long telegramId, Pageable pageable) {
         UserEntity user = requireUser(telegramId);
-        return controllerPort.findByUserIdPageable(user.getId(), pageable)
-            .map(this::toDto);
+        Page<ControllerEntity> page = controllerPort.findByUserIdPageable(user.getId(), pageable);
+        Map<UUID, Long> counts = eventCountsFor(page.getContent());
+        return page.map(e -> toDto(e, counts));
     }
 
     @Override
@@ -202,13 +209,17 @@ public class ControllerServiceImpl implements ControllerService {
 
     @Override
     public Page<ControllerDto> getAllControllers(Pageable pageable) {
-        return controllerPort.findAllPageable(pageable).map(this::toDto);
+        Page<ControllerEntity> page = controllerPort.findAllPageable(pageable);
+        Map<UUID, Long> counts = eventCountsFor(page.getContent());
+        return page.map(e -> toDto(e, counts));
     }
 
     @Override
     public Page<ControllerDto> getAllControllers(String bookmaker, Boolean isActive, Boolean isMuted, Pageable pageable) {
         BookmakerType bm = bookmaker != null ? BookmakerType.valueOf(bookmaker.toUpperCase()) : null;
-        return controllerPort.findAllFiltered(bm, isActive, isMuted, pageable).map(this::toDto);
+        Page<ControllerEntity> page = controllerPort.findAllFiltered(bm, isActive, isMuted, pageable);
+        Map<UUID, Long> counts = eventCountsFor(page.getContent());
+        return page.map(e -> toDto(e, counts));
     }
 
     @Override
@@ -343,11 +354,16 @@ public class ControllerServiceImpl implements ControllerService {
             .orElseThrow(() -> new ControllerAccessException(controllerId));
     }
 
-    private ControllerDto toDtoForChat(ControllerEntity e, Long chatId) {
+    private Map<UUID, Long> eventCountsFor(Collection<ControllerEntity> entities) {
+        List<UUID> ids = entities.stream().map(ControllerEntity::getId).toList();
+        return detectedEventPort.countByControllerIdIn(ids);
+    }
+
+    private ControllerDto toDtoForChat(ControllerEntity e, Long chatId, Map<UUID, Long> counts) {
         boolean isMuted = controllerPort.findSubscription(e.getId(), chatId)
             .map(s -> s.isMuted() || s.isPausedByTokens())
             .orElse(false);
-        long eventCount = detectedEventPort.countByControllerId(e.getId());
+        long eventCount = counts.getOrDefault(e.getId(), 0L);
         Long ownerTelegramId = e.getUser() != null ? e.getUser().getTelegramId() : null;
         return new ControllerDto(
             e.getId(), e.getBookmaker().name(), e.getUrl(), e.getTitle(),
@@ -358,8 +374,8 @@ public class ControllerServiceImpl implements ControllerService {
         );
     }
 
-    private ControllerDto toDto(ControllerEntity e) {
-        long eventCount = detectedEventPort.countByControllerId(e.getId());
+    private ControllerDto toDto(ControllerEntity e, Map<UUID, Long> counts) {
+        long eventCount = counts.getOrDefault(e.getId(), 0L);
         Long ownerTelegramId = e.getUser() != null ? e.getUser().getTelegramId() : null;
         return new ControllerDto(
             e.getId(),
@@ -376,6 +392,11 @@ public class ControllerServiceImpl implements ControllerService {
             e.getNotificationChatId(),
             ownerTelegramId
         );
+    }
+
+    /** Single-entity shortcut: fetches the event count for one controller (no N+1 concern). */
+    private ControllerDto toDto(ControllerEntity e) {
+        return toDto(e, Map.of(e.getId(), detectedEventPort.countByControllerId(e.getId())));
     }
 
     private static BookmakerType resolveBookmaker(CreateControllerRequest req) {

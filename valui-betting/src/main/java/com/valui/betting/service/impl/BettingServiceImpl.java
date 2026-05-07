@@ -18,7 +18,9 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
@@ -237,15 +239,21 @@ public class BettingServiceImpl implements BettingService {
     @Override
     @Transactional(readOnly = true)
     public BetStatsDto getStats(long chatId) {
-        long open      = betRepo.countByChatIdAndStatus(chatId, BetStatus.OPEN);
-        long won       = betRepo.countByChatIdAndStatus(chatId, BetStatus.WON);
-        long lost      = betRepo.countByChatIdAndStatus(chatId, BetStatus.LOST);
-        long returned  = betRepo.countByChatIdAndStatus(chatId, BetStatus.RETURNED);
-        long cancelled = betRepo.countByChatIdAndStatus(chatId, BetStatus.CANCELLED);
+        List<BetRepository.BetStatRow> rows = betRepo.aggregateStatsByChatId(chatId);
+        Map<BetStatus, BetRepository.BetStatRow> byStatus = new EnumMap<>(BetStatus.class);
+        for (BetRepository.BetStatRow row : rows) byStatus.put(row.getStatus(), row);
+
+        long open      = countFrom(byStatus, BetStatus.OPEN);
+        long won       = countFrom(byStatus, BetStatus.WON);
+        long lost      = countFrom(byStatus, BetStatus.LOST);
+        long returned  = countFrom(byStatus, BetStatus.RETURNED);
+        long cancelled = countFrom(byStatus, BetStatus.CANCELLED);
         long total     = open + won + lost + returned + cancelled;
 
-        BigDecimal staked = betRepo.sumTotalStakeByChatId(chatId);
-        BigDecimal payout = betRepo.sumActualPayoutByChatId(chatId);
+        BigDecimal staked = rows.stream().map(BetRepository.BetStatRow::getTotalStake)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal payout = rows.stream().map(BetRepository.BetStatRow::getTotalPayout)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal pl     = payout.subtract(staked);
         double roi = staked.compareTo(BigDecimal.ZERO) == 0 ? 0.0
                 : pl.divide(staked, 4, RoundingMode.HALF_UP)
@@ -253,6 +261,11 @@ public class BettingServiceImpl implements BettingService {
                      .round(new MathContext(4)).doubleValue();
 
         return new BetStatsDto(total, open, won, lost, returned, cancelled, staked, payout, pl, roi);
+    }
+
+    private static long countFrom(Map<BetStatus, BetRepository.BetStatRow> map, BetStatus status) {
+        BetRepository.BetStatRow row = map.get(status);
+        return row == null ? 0L : row.getCnt();
     }
 
     @Override
@@ -399,9 +412,9 @@ public class BettingServiceImpl implements BettingService {
     private BetEntity requireAccessible(UUID betId, long telegramId) {
         BetEntity bet = betRepo.findWithDetailById(betId)
                 .orElseThrow(() -> new NoSuchElementException("Ставка не найдена"));
-        boolean isOwner       = bet.getTelegramId() == telegramId;
+        boolean isOwner       = Long.valueOf(telegramId).equals(bet.getTelegramId());
         boolean isParticipant = bet.getParticipants().stream()
-                .anyMatch(p -> p.getTelegramId() != null && p.getTelegramId() == telegramId);
+                .anyMatch(p -> Long.valueOf(telegramId).equals(p.getTelegramId()));
         if (!isOwner && !isParticipant) {
             throw new SecurityException("Ставка недоступна этому пользователю");
         }

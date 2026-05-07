@@ -112,11 +112,10 @@ public class MonitorScheduler {
     // ── Public API ────────────────────────────────────────────────────────────
 
     public void scheduleController(UUID controllerId, UUID userId, int pollIntervalSec) {
-        if (scheduled.containsKey(controllerId)) {
-            log.debug("Контроллер {} уже запланирован — дубликат проигнорирован", controllerId);
-            return;
-        }
-        doSchedule(controllerId, userId, pollIntervalSec);
+        // computeIfAbsent is atomic on ConcurrentHashMap: exactly one thread will build
+        // the future for a given key; concurrent callers for the same id are no-ops.
+        scheduled.computeIfAbsent(controllerId,
+                id -> buildFuture(id, userId, pollIntervalSec));
     }
 
     public void unscheduleController(UUID controllerId) {
@@ -190,8 +189,19 @@ public class MonitorScheduler {
 
     // ── internals ─────────────────────────────────────────────────────────────
 
+    /**
+     * Creates and registers a scheduled future. Must only be called when the key
+     * is NOT already in {@code scheduled} (used by init, rescheduleAll, rescheduleUser).
+     */
     private void doSchedule(UUID controllerId, UUID userId, int pollIntervalSec) {
-        // Seed Redis dedup SET from DB (only if the key doesn't exist yet)
+        scheduled.put(controllerId, buildFuture(controllerId, userId, pollIntervalSec));
+    }
+
+    /**
+     * Builds and starts a {@link ScheduledFuture} without touching the {@code scheduled} map.
+     * Safe to call inside {@code computeIfAbsent} because it does not modify the map.
+     */
+    private ScheduledFuture<?> buildFuture(UUID controllerId, UUID userId, int pollIntervalSec) {
         try {
             dedup.seedIfAbsent(controllerId);
         } catch (Exception e) {
@@ -209,12 +219,16 @@ public class MonitorScheduler {
                 pollIntervalSec,
                 TimeUnit.SECONDS);
 
-        scheduled.put(controllerId, future);
         metrics.onControllerScheduled();
         log.debug("▶  Контроллер {} запланирован каждые {}с", controllerId, pollIntervalSec);
+        return future;
     }
 
-    private void rescheduleUser(UUID userId) {
+    /**
+     * Synchronized to prevent a race with {@link #rescheduleAll()}: both methods
+     * read-then-modify the {@code scheduled} map as a compound operation.
+     */
+    private synchronized void rescheduleUser(UUID userId) {
         List<ControllerScheduleInfo> userControllers = taskExecutor.loadActiveForUser(userId);
         userControllers.forEach(info -> {
             unscheduleController(info.controllerId());

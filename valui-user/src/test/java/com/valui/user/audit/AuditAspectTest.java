@@ -14,6 +14,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -30,10 +31,10 @@ import static org.mockito.BDDMockito.*;
 @DisplayName("AuditAspect — unit tests")
 class AuditAspectTest {
 
-    @Mock AuditService auditService;
-    @Mock UserRepository userRepository;
-    @Mock ProceedingJoinPoint pjp;
-    @Mock MethodSignature methodSignature;
+    @Mock ApplicationEventPublisher eventPublisher;
+    @Mock UserRepository            userRepository;
+    @Mock ProceedingJoinPoint       pjp;
+    @Mock MethodSignature           methodSignature;
 
     @InjectMocks AuditAspect aspect;
 
@@ -50,7 +51,7 @@ class AuditAspectTest {
     // ── REST context ──────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("REST principal: publishes AuditEvent with userId and action after success")
+    @DisplayName("REST principal: publishes AuditApplicationEvent with userId and action after success")
     void restPrincipal_success_publishesEvent() throws Throwable {
         setRestPrincipal(userId, telegramId);
         given(pjp.getArgs()).willReturn(new Object[]{});
@@ -58,10 +59,7 @@ class AuditAspectTest {
 
         aspect.around(pjp, audit("TEST_ACTION", "Resource"));
 
-        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
-        verify(auditService).log(captor.capture());
-
-        AuditEvent event = captor.getValue();
+        AuditEvent event = captureAuditEvent();
         assertThat(event.getUserId()).isEqualTo(userId);
         assertThat(event.getTelegramId()).isEqualTo(telegramId);
         assertThat(event.getAction()).isEqualTo("TEST_ACTION");
@@ -69,7 +67,7 @@ class AuditAspectTest {
     }
 
     @Test
-    @DisplayName("REST principal: publishes AuditEvent with error details on exception")
+    @DisplayName("REST principal: publishes AuditApplicationEvent with error details on exception")
     void restPrincipal_exception_publishesErrorEvent() throws Throwable {
         setRestPrincipal(userId, telegramId);
         given(pjp.getArgs()).willReturn(new Object[]{});
@@ -78,10 +76,7 @@ class AuditAspectTest {
         assertThatThrownBy(() -> aspect.around(pjp, audit("FAIL_ACTION", "")))
                 .isInstanceOf(RuntimeException.class);
 
-        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
-        verify(auditService).log(captor.capture());
-
-        AuditEvent event = captor.getValue();
+        AuditEvent event = captureAuditEvent();
         assertThat(event.getAction()).isEqualTo("FAIL_ACTION");
         assertThat(event.getDetails()).containsKey("error");
         assertThat(event.getDetails().get("errorMessage")).isEqualTo("boom");
@@ -100,11 +95,9 @@ class AuditAspectTest {
 
         aspect.around(pjp, audit("ADD_CONTROLLER", "Controller"));
 
-        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
-        verify(auditService).log(captor.capture());
-
-        assertThat(captor.getValue().getUserId()).isEqualTo(userId);
-        assertThat(captor.getValue().getTelegramId()).isEqualTo(telegramId);
+        AuditEvent event = captureAuditEvent();
+        assertThat(event.getUserId()).isEqualTo(userId);
+        assertThat(event.getTelegramId()).isEqualTo(telegramId);
     }
 
     @Test
@@ -117,9 +110,7 @@ class AuditAspectTest {
 
         aspect.around(pjp, audit("SOME_OP", ""));
 
-        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
-        verify(auditService).log(captor.capture());
-        assertThat(captor.getValue().getUserId()).isNull();
+        assertThat(captureAuditEvent().getUserId()).isNull();
     }
 
     // ── entityId ──────────────────────────────────────────────────────────────
@@ -135,9 +126,7 @@ class AuditAspectTest {
 
         aspect.around(pjp, audit("REMOVE_CONTROLLER", "Controller"));
 
-        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
-        verify(auditService).log(captor.capture());
-        assertThat(captor.getValue().getEntityId()).isEqualTo(controllerId);
+        assertThat(captureAuditEvent().getEntityId()).isEqualTo(controllerId);
     }
 
     @Test
@@ -148,13 +137,25 @@ class AuditAspectTest {
 
         aspect.around(pjp, audit("SYSTEM_OP", ""));
 
-        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
-        verify(auditService).log(captor.capture());
-        assertThat(captor.getValue().getUserId()).isNull();
-        assertThat(captor.getValue().getTelegramId()).isNull();
+        AuditEvent event = captureAuditEvent();
+        assertThat(event.getUserId()).isNull();
+        assertThat(event.getTelegramId()).isNull();
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Captures the AuditApplicationEvent published to eventPublisher and extracts
+     * the inner AuditEvent for assertion. After M7, the aspect no longer calls
+     * auditService.log() directly — it publishes an ApplicationEvent so that
+     * AuditEventListener fires it AFTER_COMMIT via @TransactionalEventListener.
+     */
+    private AuditEvent captureAuditEvent() {
+        ArgumentCaptor<AuditApplicationEvent> captor =
+                ArgumentCaptor.forClass(AuditApplicationEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        return captor.getValue().getAuditEvent();
+    }
 
     private void setRestPrincipal(UUID uid, Long tid) {
         SecurityPrincipal principal = new SecurityPrincipal() {

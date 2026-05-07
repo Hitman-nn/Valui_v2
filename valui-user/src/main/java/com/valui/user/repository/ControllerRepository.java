@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -28,10 +29,12 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
 
     boolean existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(UUID userId, BookmakerType bookmaker, String url);
 
+    @Transactional
     @Modifying
     @Query("UPDATE ControllerEntity c SET c.lastCheckedAt = :checkedAt WHERE c.id = :id")
     int updateLastCheckedAt(@Param("id") UUID id, @Param("checkedAt") OffsetDateTime checkedAt);
 
+    @Transactional
     @Modifying
     @Query("UPDATE ControllerEntity c SET c.isActive = :active WHERE c.id = :id")
     int updateIsActive(@Param("id") UUID id, @Param("active") Boolean active);
@@ -56,6 +59,7 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
 
     List<ControllerEntity> findAllByUserIdAndPausedByTokensTrue(UUID userId);
 
+    @Transactional
     @Modifying
     @Query("UPDATE ControllerEntity c SET c.pausedByTokens = :paused, c.isActive = :active, c.isMuted = :muted WHERE c.id = :id")
     int updateTokenPauseState(@Param("id") UUID id, @Param("paused") boolean paused, @Param("active") boolean active, @Param("muted") boolean muted);

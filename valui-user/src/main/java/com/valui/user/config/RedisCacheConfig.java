@@ -56,10 +56,14 @@ public class RedisCacheConfig {
         RedisCacheConfiguration plansCacheConfig = defaults
             .entryTtl(Duration.ofMinutes(10));
 
+        RedisCacheConfiguration globalFiltersCacheConfig = defaults
+            .entryTtl(Duration.ofSeconds(30));
+
         return RedisCacheManager.builder(factory)
             .cacheDefaults(defaults.entryTtl(Duration.ofMinutes(10)))
             .withCacheConfiguration("users", usersCacheConfig)
             .withCacheConfiguration("plans", plansCacheConfig)
+            .withCacheConfiguration("globalFilters", globalFiltersCacheConfig)
             .build();
     }
 }

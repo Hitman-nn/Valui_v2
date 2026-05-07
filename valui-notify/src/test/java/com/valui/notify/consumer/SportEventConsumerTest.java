@@ -1,23 +1,24 @@
 package com.valui.notify.consumer;
 
 import com.valui.common.domain.BookmakerType;
+import com.valui.common.domain.ControllerType;
+import com.valui.common.domain.NotificationChannel;
+import com.valui.common.domain.NotificationStatus;
 import com.valui.common.domain.UserStatus;
 import com.valui.common.entity.ControllerEntity;
+import com.valui.common.entity.NotificationLogEntity;
 import com.valui.common.entity.UserEntity;
 import com.valui.common.kafka.KafkaTopics;
 import com.valui.common.kafka.SportEventDetectedMessage;
 import com.valui.common.kafka.UserNotificationRequestMessage;
-import com.valui.common.domain.NotificationChannel;
-import com.valui.common.domain.NotificationStatus;
 import com.valui.notify.formatter.NotificationFormatter;
-import com.valui.common.entity.NotificationLogEntity;
 import com.valui.notify.log.NotificationLogService;
 import com.valui.betting.cache.BetNotifCacheService;
+import com.valui.user.api.ControllerPortService;
+import com.valui.user.api.DetectedEventPortService;
+import com.valui.user.api.UserPortService;
 import com.valui.user.quickadd.QuickAddCacheService;
-import com.valui.user.repository.ControllerRepository;
-import com.valui.user.repository.DetectedEventRepository;
-import com.valui.user.repository.GlobalFilterRepository;
-import com.valui.user.repository.UserRepository;
+import com.valui.user.service.GlobalFilterService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,15 +46,15 @@ import static org.mockito.BDDMockito.*;
 @DisplayName("SportEventConsumer — unit tests")
 class SportEventConsumerTest {
 
-    @Mock ControllerRepository    controllerRepo;
-    @Mock UserRepository          userRepo;
-    @Mock DetectedEventRepository detectedEventRepo;
-    @Mock GlobalFilterRepository  globalFilterRepo;
-    @Mock NotificationLogService  notificationLogService;
-    @Mock NotificationFormatter   formatter;
-    @Mock KafkaTemplate<String, Object> kafkaTemplate;
-    @Mock QuickAddCacheService    quickAddCacheService;
-    @Mock BetNotifCacheService    betNotifCacheService;
+    @Mock ControllerPortService          controllerPort;
+    @Mock UserPortService                userPort;
+    @Mock DetectedEventPortService       detectedEventPort;
+    @Mock GlobalFilterService            globalFilterService;
+    @Mock NotificationLogService         notificationLogService;
+    @Mock NotificationFormatter          formatter;
+    @Mock KafkaTemplate<String, Object>  kafkaTemplate;
+    @Mock QuickAddCacheService           quickAddCacheService;
+    @Mock BetNotifCacheService           betNotifCacheService;
 
     @InjectMocks SportEventConsumer consumer;
 
@@ -73,7 +74,9 @@ class SportEventConsumerTest {
 
         activeController = ControllerEntity.builder()
                 .id(CTRL_ID).bookmaker(BookmakerType.FONBET)
-                .isActive(true).isMuted(false).build();
+                .isActive(true).isMuted(false)
+                .type(ControllerType.TOURNAMENT)
+                .build();
 
         event = new SportEventDetectedMessage(
                 UUID.randomUUID().toString(),
@@ -90,15 +93,14 @@ class SportEventConsumerTest {
         logEntry = NotificationLogEntity.builder()
                 .id(UUID.randomUUID()).status(NotificationStatus.PENDING).build();
 
-        given(controllerRepo.findById(CTRL_ID)).willReturn(Optional.of(activeController));
-        given(userRepo.findById(USER_ID)).willReturn(Optional.of(activeUser));
-        given(globalFilterRepo.findAllByUserIdOrderByCreatedAtAsc(USER_ID)).willReturn(List.of());
-        given(detectedEventRepo.findByControllerIdAndEventExternalId(any(), any()))
+        given(controllerPort.findById(CTRL_ID)).willReturn(Optional.of(activeController));
+        given(userPort.findById(USER_ID)).willReturn(Optional.of(activeUser));
+        given(globalFilterService.findByUserId(USER_ID)).willReturn(List.of());
+        given(detectedEventPort.findIdByControllerIdAndExternalId(any(), any()))
                 .willReturn(Optional.empty());
         given(notificationLogService.createPending(any(), any(), any(), any())).willReturn(logEntry);
         given(formatter.buildTelegramMessage(any(), any()))
                 .willReturn("🔔 *FONBET*\nSpartak - CSKA\nhttps://...");
-        // Production code calls send(topic, key, value) — the 3-arg overload, not send(ProducerRecord)
         given(kafkaTemplate.send(anyString(), anyString(), any()))
                 .willReturn(CompletableFuture.completedFuture(null));
     }
@@ -139,6 +141,41 @@ class SportEventConsumerTest {
     @DisplayName("invalid regex in filterRule → treated as pass (event not silently blocked)")
     void filterRule_invalidRegex_passes() {
         activeController.setFilterRule("[unclosed");
+
+        consumer.onSportEventDetected(event);
+
+        verify(kafkaTemplate).send(anyString(), anyString(), any());
+    }
+
+    // ── global filter ─────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("global filter drops event when title does NOT match the rule")
+    void globalFilter_noMatch_drops() {
+        // Global filter works like an inclusion filter: event passes only if title matches.
+        // Filter "zenit" does NOT match "Spartak - CSKA" → event is dropped.
+        com.valui.common.entity.GlobalFilterEntity gf =
+                com.valui.common.entity.GlobalFilterEntity.builder()
+                        .id(UUID.randomUUID())
+                        .filterRule("zenit")
+                        .build();
+        given(globalFilterService.findByUserId(USER_ID)).willReturn(List.of(gf));
+
+        consumer.onSportEventDetected(event);
+
+        verifyNoInteractions(kafkaTemplate);
+    }
+
+    @Test
+    @DisplayName("global filter passes event when title matches the rule")
+    void globalFilter_matches_passes() {
+        // Filter "spartak" DOES match "Spartak - CSKA" → event passes through.
+        com.valui.common.entity.GlobalFilterEntity gf =
+                com.valui.common.entity.GlobalFilterEntity.builder()
+                        .id(UUID.randomUUID())
+                        .filterRule("spartak")
+                        .build();
+        given(globalFilterService.findByUserId(USER_ID)).willReturn(List.of(gf));
 
         consumer.onSportEventDetected(event);
 
@@ -201,5 +238,18 @@ class SportEventConsumerTest {
         assertThat(msg.userId()).isEqualTo(USER_ID.toString());
         assertThat(msg.telegramId()).isEqualTo(TG_ID);
         assertThat(msg.notificationLogId()).isEqualTo(logEntry.getId().toString());
+    }
+
+    // ── duplicate suppression ─────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("DataIntegrityViolationException → duplicate suppressed, no Kafka send")
+    void duplicateNotification_suppressed() {
+        given(notificationLogService.createPending(any(), any(), any(), any()))
+                .willThrow(new org.springframework.dao.DataIntegrityViolationException("dup"));
+
+        consumer.onSportEventDetected(event);
+
+        verifyNoInteractions(kafkaTemplate);
     }
 }

@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -40,6 +41,28 @@ public interface BetRepository extends JpaRepository<BetEntity, UUID> {
 
     @Query("SELECT COALESCE(SUM(b.actualPayout), 0) FROM BetEntity b WHERE b.chatId = :chatId AND b.status IN ('WON', 'RETURNED')")
     BigDecimal sumActualPayoutByChatId(@Param("chatId") Long chatId);
+
+    /**
+     * Returns per-status counts and aggregated staked/payout totals in a single query,
+     * replacing 7 separate count/sum calls in getStats().
+     */
+    @Query("""
+            SELECT b.status         as status,
+                   COUNT(b)         as cnt,
+                   COALESCE(SUM(CASE WHEN b.status <> com.valui.common.domain.BetStatus.CANCELLED THEN b.totalStake  ELSE 0 END), 0) as totalStake,
+                   COALESCE(SUM(CASE WHEN b.status IN (com.valui.common.domain.BetStatus.WON, com.valui.common.domain.BetStatus.RETURNED) THEN b.actualPayout ELSE 0 END), 0) as totalPayout
+            FROM BetEntity b
+            WHERE b.chatId = :chatId
+            GROUP BY b.status
+            """)
+    List<BetStatRow> aggregateStatsByChatId(@Param("chatId") Long chatId);
+
+    interface BetStatRow {
+        BetStatus getStatus();
+        long getCnt();
+        java.math.BigDecimal getTotalStake();
+        java.math.BigDecimal getTotalPayout();
+    }
 
     // ── Account-scoped queries ────────────────────────────────────────────────
 

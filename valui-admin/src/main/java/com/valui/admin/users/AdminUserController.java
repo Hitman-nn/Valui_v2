@@ -5,6 +5,8 @@ import com.valui.admin.monitoring.dto.ControllerApiDto;
 import com.valui.admin.security.CurrentUser;
 import com.valui.admin.security.ValuiPrincipal;
 import com.valui.admin.subscriptions.dto.AdminSubscriptionDto;
+import com.valui.admin.users.dto.AdminNotificationLogDto;
+import com.valui.admin.users.dto.AdminPaymentTransactionDto;
 import com.valui.admin.users.dto.AdminUserDto;
 import com.valui.admin.users.dto.AdminUserSummaryDto;
 import com.valui.admin.users.dto.ChangeRoleRequest;
@@ -13,8 +15,6 @@ import com.valui.admin.users.dto.UpdateSubscriptionDatesRequest;
 import com.valui.common.domain.UserStatus;
 import com.valui.common.dto.ErrorResponse;
 import com.valui.admin.audit.dto.AdminAuditDto;
-import com.valui.common.entity.NotificationLogEntity;
-import com.valui.common.entity.PaymentTransactionEntity;
 import com.valui.common.entity.UserEntity;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
@@ -214,12 +214,12 @@ public class AdminUserController {
 
     @Operation(summary = "История уведомлений пользователя")
     @GetMapping(value = "/{id}/notifications", produces = {V1, MediaType.APPLICATION_JSON_VALUE})
-    public ResponseEntity<Page<NotificationLogEntity>> notifications(
+    public ResponseEntity<Page<AdminNotificationLogDto>> notifications(
             @PathVariable UUID id,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable,
             @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
         return ResponseEntity.ok(
-                notificationLogRepository.findAllByUserId(id, pageable));
+                notificationLogRepository.findAllByUserId(id, pageable).map(AdminNotificationLogDto::from));
     }
 
     // ── DELETE /api/v1/admin/users/{id} ──────────────────────────────────────
@@ -306,10 +306,12 @@ public class AdminUserController {
 
     @Operation(summary = "История платежей пользователя")
     @GetMapping(value = "/{id}/payments", produces = {V1, MediaType.APPLICATION_JSON_VALUE})
-    public ResponseEntity<List<PaymentTransactionEntity>> userPayments(
+    public ResponseEntity<List<AdminPaymentTransactionDto>> userPayments(
             @PathVariable UUID id,
             @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
-        return ResponseEntity.ok(paymentTransactionRepository.findAllByUserId(id));
+        return ResponseEntity.ok(
+                paymentTransactionRepository.findAllByUserId(id).stream()
+                        .map(AdminPaymentTransactionDto::from).toList());
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

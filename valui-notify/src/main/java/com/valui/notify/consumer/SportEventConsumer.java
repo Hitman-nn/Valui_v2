@@ -14,12 +14,12 @@ import com.valui.betting.cache.BetNotifData;
 import com.valui.common.entity.GlobalFilterEntity;
 import com.valui.notify.formatter.NotificationFormatter;
 import com.valui.notify.log.NotificationLogService;
+import com.valui.user.api.ControllerPortService;
+import com.valui.user.api.DetectedEventPortService;
+import com.valui.user.api.UserPortService;
 import com.valui.user.quickadd.QuickAddCacheService;
 import com.valui.user.quickadd.QuickAddData;
-import com.valui.user.repository.ControllerRepository;
-import com.valui.user.repository.DetectedEventRepository;
-import com.valui.user.repository.GlobalFilterRepository;
-import com.valui.user.repository.UserRepository;
+import com.valui.user.service.GlobalFilterService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -50,10 +50,10 @@ import java.util.regex.PatternSyntaxException;
 @RequiredArgsConstructor
 public class SportEventConsumer {
 
-    private final ControllerRepository    controllerRepo;
-    private final UserRepository          userRepo;
-    private final DetectedEventRepository detectedEventRepo;
-    private final GlobalFilterRepository  globalFilterRepo;
+    private final ControllerPortService   controllerPort;
+    private final UserPortService         userPort;
+    private final DetectedEventPortService detectedEventPort;
+    private final GlobalFilterService     globalFilterService;
     private final NotificationLogService  notificationLogService;
     private final NotificationFormatter   formatter;
     private final KafkaTemplate<String, Object> kafkaTemplate;
@@ -65,18 +65,13 @@ public class SportEventConsumer {
             groupId = "${spring.kafka.consumer.group-id}"
     )
     public void onSportEventDetected(SportEventDetectedMessage event) {
-        try {
-            process(event);
-        } catch (Exception e) {
-            log.error("Failed to process sport event [controllerId={} externalEventId={}]: {}",
-                    event.controllerId(), event.externalEventId(), e.getMessage(), e);
-        }
+        process(event);
     }
 
     private void process(SportEventDetectedMessage event) {
         UUID controllerId = UUID.fromString(event.controllerId());
 
-        ControllerEntity controller = controllerRepo.findById(controllerId).orElse(null);
+        ControllerEntity controller = controllerPort.findById(controllerId).orElse(null);
         if (controller == null) {
             log.debug("Controller {} not found, dropping event {}", controllerId, event.externalEventId());
             return;
@@ -91,7 +86,7 @@ public class SportEventConsumer {
         }
 
         UUID userId = UUID.fromString(event.userId());
-        UserEntity user = userRepo.findById(userId).orElse(null);
+        UserEntity user = userPort.findById(userId).orElse(null);
         if (user == null || user.getStatus() != UserStatus.ACTIVE) {
             log.debug("User {} absent or inactive, dropping", userId);
             return;
@@ -103,17 +98,16 @@ public class SportEventConsumer {
             return;
         }
 
-        // Check global exclusion filters (blacklist: event blocked if any forbidden word is found)
-        for (GlobalFilterEntity gf : globalFilterRepo.findAllByUserIdOrderByCreatedAtAsc(userId)) {
+        // Check global exclusion filters (cached, TTL 30 s)
+        for (GlobalFilterEntity gf : globalFilterService.findByUserId(userId)) {
             if (!passesFilterRule(gf.getFilterRule(), event.title())) {
                 log.debug("Event '{}' blocked by global filter for user {}", event.title(), userId);
                 return;
             }
         }
 
-        UUID detectedEventId = detectedEventRepo
-                .findByControllerIdAndEventExternalId(controllerId, event.externalEventId())
-                .map(e -> e.getId())
+        UUID detectedEventId = detectedEventPort
+                .findIdByControllerIdAndExternalId(controllerId, event.externalEventId())
                 .orElse(null);
 
         // Use chatId (subscription target) for delivery; fall back to telegramId for legacy rows

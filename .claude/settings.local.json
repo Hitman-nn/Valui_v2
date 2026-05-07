@@ -72,7 +72,10 @@
       "Bash(sed -n '284,295p' valui-bot/src/main/java/com/valui/bot/handler/callback/betting/BettingMenuCallback.java)",
       "Bash(sed -n '429,438p' valui-bot/src/main/java/com/valui/bot/handler/callback/betting/BettingMenuCallback.java)",
       "Bash(sed -n '459,468p' valui-bot/src/main/java/com/valui/bot/handler/callback/betting/BettingMenuCallback.java)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(xargs -I {} bash -c 'echo \"=== {} ===\" && head -20 \"{}\"')",
+      "Bash(xargs -I {} bash -c 'echo \"File: {}\" && head -25 {}')",
+      "Bash(grep -v \"Skipped: 0$\")"
     ]
   }
 }

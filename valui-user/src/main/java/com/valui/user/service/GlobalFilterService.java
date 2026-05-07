@@ -9,6 +9,9 @@ public interface GlobalFilterService {
 
     List<GlobalFilterEntity> getFilters(Long telegramId);
 
+    /** Cached variant for high-frequency callers (e.g. Kafka consumer). TTL 30 s. */
+    List<GlobalFilterEntity> findByUserId(UUID userId);
+
     void addFilter(Long telegramId, String rule);
 
     void deleteFilter(Long telegramId, UUID filterId);

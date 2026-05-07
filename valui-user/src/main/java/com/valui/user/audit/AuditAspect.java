@@ -12,6 +12,7 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -37,7 +38,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuditAspect {
 
-    private final AuditService auditService;
+    private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
 
     @Around("@annotation(audit)")
@@ -161,7 +162,7 @@ public class AuditAspect {
                     .ipAddress(ipAddress)
                     .occurredAt(Instant.now())
                     .build();
-            auditService.log(event);
+            eventPublisher.publishEvent(new AuditApplicationEvent(this, event));
         } catch (Exception e) {
             log.error("[AUDIT] Failed to publish audit for action={}: {}", audit.action(), e.getMessage());
         }

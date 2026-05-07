@@ -30,6 +30,7 @@ import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -236,7 +237,7 @@ class ControllerServiceTest {
         c2.setBookmaker(BookmakerType.OLIMP);
         given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
         given(controllerPort.findAllActiveByUserId(USER_ID)).willReturn(List.of(c1, c2));
-        given(detectedEventPort.countByControllerId(any())).willReturn(0L);
+        given(detectedEventPort.countByControllerIdIn(any())).willReturn(Map.of());
 
         List<ControllerDto> result = service.getUserControllers(TG_ID);
 

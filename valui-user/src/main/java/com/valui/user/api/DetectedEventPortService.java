@@ -3,7 +3,9 @@ package com.valui.user.api;
 import com.valui.common.entity.DetectedEventEntity;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -23,6 +25,21 @@ public interface DetectedEventPortService {
     boolean insertIfAbsent(UUID id, UUID controllerId, String externalId, String title, String url);
 
     long countByControllerId(UUID controllerId);
+
+    /**
+     * Looks up the detected-event ID by its natural key.
+     * Returns empty if the event hasn't been persisted yet (rare replay scenario).
+     */
+    java.util.Optional<UUID> findIdByControllerIdAndExternalId(UUID controllerId, String externalId);
+
+    /**
+     * Returns a JPA proxy reference. Must only be used to establish a FK association
+     * on a new entity within an active transaction — never dereference the proxy.
+     */
+    DetectedEventEntity getReferenceById(UUID id);
+
+    /** Returns a map of controllerId → event count for all given IDs in a single query. */
+    Map<UUID, Long> countByControllerIdIn(Collection<UUID> controllerIds);
 
     List<String> findExternalIdsByControllerIdSince(UUID controllerId, OffsetDateTime cutoff);
 

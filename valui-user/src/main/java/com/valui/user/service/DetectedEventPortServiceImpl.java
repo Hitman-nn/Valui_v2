@@ -3,13 +3,18 @@ package com.valui.user.service;
 import com.valui.common.entity.DetectedEventEntity;
 import com.valui.user.api.DetectedEventPortService;
 import com.valui.user.repository.DetectedEventRepository;
+import com.valui.user.repository.DetectedEventRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +39,26 @@ public class DetectedEventPortServiceImpl implements DetectedEventPortService {
     @Override
     public long countByControllerId(UUID controllerId) {
         return repository.countByControllerId(controllerId);
+    }
+
+    @Override
+    public Optional<UUID> findIdByControllerIdAndExternalId(UUID controllerId, String externalId) {
+        return repository.findByControllerIdAndEventExternalId(controllerId, externalId)
+                .map(DetectedEventEntity::getId);
+    }
+
+    @Override
+    public DetectedEventEntity getReferenceById(UUID id) {
+        return repository.getReferenceById(id);
+    }
+
+    @Override
+    public Map<UUID, Long> countByControllerIdIn(Collection<UUID> controllerIds) {
+        if (controllerIds == null || controllerIds.isEmpty()) return Map.of();
+        return repository.countByControllerIdIn(controllerIds).stream()
+                .collect(Collectors.toMap(
+                        DetectedEventRepository.ControllerEventCount::getControllerId,
+                        DetectedEventRepository.ControllerEventCount::getEventCount));
     }
 
     @Override

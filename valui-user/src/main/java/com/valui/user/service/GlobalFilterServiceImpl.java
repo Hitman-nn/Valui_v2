@@ -7,6 +7,8 @@ import com.valui.common.exception.UserNotFoundException;
 import com.valui.user.repository.GlobalFilterRepository;
 import com.valui.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,7 +32,14 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
     }
 
     @Override
+    @Cacheable(value = "globalFilters", key = "#userId")
+    public List<GlobalFilterEntity> findByUserId(UUID userId) {
+        return globalFilterRepository.findAllByUserIdOrderByCreatedAtAsc(userId);
+    }
+
+    @Override
     @Transactional
+    @CacheEvict(value = "globalFilters", allEntries = true)
     public void addFilter(Long telegramId, String rule) {
         UserEntity user = requireUser(telegramId);
         int cost = tokenLedgerService.getCost("FILTER_MONTHLY");
@@ -46,6 +55,7 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "globalFilters", allEntries = true)
     public void deleteFilter(Long telegramId, UUID filterId) {
         UserEntity user = requireUser(telegramId);
         globalFilterRepository.deleteByIdAndUserId(filterId, user.getId());
@@ -53,6 +63,7 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "globalFilters", allEntries = true)
     public void updateFilter(Long telegramId, UUID filterId, String newRule) {
         UserEntity user = requireUser(telegramId);
         globalFilterRepository.findByIdAndUserId(filterId, user.getId()).ifPresent(f -> {

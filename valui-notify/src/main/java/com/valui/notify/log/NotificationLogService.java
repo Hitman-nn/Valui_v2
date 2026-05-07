@@ -5,9 +5,9 @@ import com.valui.common.domain.NotificationStatus;
 import com.valui.common.entity.DetectedEventEntity;
 import com.valui.common.entity.NotificationLogEntity;
 import com.valui.common.entity.UserEntity;
-import com.valui.user.repository.DetectedEventRepository;
+import com.valui.user.api.DetectedEventPortService;
+import com.valui.user.api.UserPortService;
 import com.valui.user.repository.NotificationLogRepository;
-import com.valui.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,15 +20,15 @@ import java.util.UUID;
 public class NotificationLogService {
 
     private final NotificationLogRepository repo;
-    private final UserRepository userRepo;
-    private final DetectedEventRepository detectedEventRepo;
+    private final UserPortService userPort;
+    private final DetectedEventPortService detectedEventPort;
 
     @Transactional
     public NotificationLogEntity createPending(UUID userId, UUID detectedEventId,
                                                NotificationChannel channel, Long chatId) {
-        UserEntity user = userId != null ? userRepo.getReferenceById(userId) : null;
+        UserEntity user = userId != null ? userPort.getReferenceById(userId) : null;
         DetectedEventEntity event = detectedEventId != null
-                ? detectedEventRepo.getReferenceById(detectedEventId)
+                ? detectedEventPort.getReferenceById(detectedEventId)
                 : null;
 
         return repo.save(NotificationLogEntity.builder()
