@@ -33,6 +33,7 @@ public class AdminEventsController {
     private final ControllerRepository    controllerRepository;
 
     @GetMapping
+    @Transactional(readOnly = true)
     @Operation(summary = "Список событий с пагинацией")
     public ResponseEntity<Page<AdminEventDto>> listEvents(
             @RequestParam(required = false) UUID controllerId,
@@ -46,6 +47,7 @@ public class AdminEventsController {
     }
 
     @GetMapping("/{id}")
+    @Transactional(readOnly = true)
     @Operation(summary = "Детали события")
     public ResponseEntity<AdminEventDto> getEvent(@PathVariable UUID id) {
         return eventRepository.findById(id)
