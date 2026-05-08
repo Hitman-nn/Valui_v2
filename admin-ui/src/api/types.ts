@@ -86,6 +86,13 @@ export interface Controller {
   pollIntervalSec: number | null;
 }
 
+export interface PollHistoryEntry {
+  startedAt: string;
+  durationMs: number;
+  eventsFound: number;  // -1 = error
+  status: 'ok' | 'error';
+}
+
 export interface UpdateControllerRequest {
   title?: string | null;
   filterRule?: string | null;

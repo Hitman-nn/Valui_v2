@@ -111,7 +111,7 @@ class MenuSnapshotTest {
     private static ControllerDto ctrl(UUID id, String title, String bookmaker,
                                       ControllerType type, boolean active, boolean muted) {
         return new ControllerDto(id, bookmaker, "https://example.com", title,
-                null, muted, active, Instant.now(), null, 0, type, null, null);
+                null, muted, active, Instant.now(), null, 0, type, null, null, 20);
     }
 
     @Test

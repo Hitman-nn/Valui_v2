@@ -9,6 +9,7 @@ import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.ControllerAccessException;
 import com.valui.common.exception.InsufficientTokensException;
 import com.valui.common.exception.ValuiException;
+import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.dedup.EventDeduplicationService;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.dto.CreateControllerRequest;
@@ -26,6 +27,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.OffsetDateTime;
@@ -40,6 +43,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("ControllerService — unit tests")
 class ControllerServiceTest {
 
@@ -50,6 +54,7 @@ class ControllerServiceTest {
     @Mock ApplicationEventPublisher eventPublisher;
     @Mock EventDeduplicationService dedup;
     @Mock MonitorScheduler monitorScheduler;
+    @Mock MonitorProperties monitorProps;
 
     @InjectMocks ControllerServiceImpl service;
 
@@ -65,6 +70,7 @@ class ControllerServiceTest {
             .id(USER_ID).telegramId(TG_ID)
             .role(UserRole.USER).status(UserStatus.ACTIVE)
             .build();
+        given(monitorProps.getDefaultPollIntervalSec()).willReturn(20);
     }
 
     // ── addController ─────────────────────────────────────────────────────────

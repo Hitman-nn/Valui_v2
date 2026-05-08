@@ -2,6 +2,7 @@ package com.valui.monitor.scheduler;
 
 import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.event.ControllerAddedEvent;
+import com.valui.monitor.history.PollHistoryService;
 import com.valui.monitor.event.ControllerRemovedEvent;
 import com.valui.monitor.event.SubscriptionChangedEvent;
 import com.valui.monitor.scheduler.ControllerTaskExecutor.ControllerScheduleInfo;
@@ -38,6 +39,7 @@ class MonitorSchedulerTest {
     @Mock MonitorMetrics metrics;
     @Mock com.valui.monitor.dedup.EventDeduplicationService dedup;
     @Mock ControllerPortService controllerPort;
+    @Mock PollHistoryService pollHistory;
 
     MonitorProperties props;
     MonitorScheduler scheduler;
@@ -65,7 +67,7 @@ class MonitorSchedulerTest {
                 .willAnswer(inv -> mock(ScheduledFuture.class));
 
         given(taskExecutor.loadAllActiveForScheduling()).willReturn(List.of());
-        scheduler = new MonitorScheduler(taskExecutor, props, metrics, dedup, controllerPort, stubTriggerPool, stubTaskPool);
+        scheduler = new MonitorScheduler(taskExecutor, props, metrics, dedup, controllerPort, pollHistory, stubTriggerPool, stubTaskPool);
         scheduler.init();
     }
 

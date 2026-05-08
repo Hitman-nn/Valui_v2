@@ -9,6 +9,7 @@ import com.valui.common.exception.ControllerAccessException;
 import com.valui.common.exception.ControllerNotFoundException;
 import com.valui.common.exception.UserNotFoundException;
 import com.valui.common.exception.ValuiException;
+import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.dedup.EventDeduplicationService;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.dto.CreateControllerRequest;
@@ -49,6 +50,7 @@ public class ControllerServiceImpl implements ControllerService {
     private final ApplicationEventPublisher  eventPublisher;
     private final EventDeduplicationService  dedup;
     private final MonitorScheduler           monitorScheduler;
+    private final MonitorProperties          monitorProps;
 
     @Override
     @Transactional
@@ -261,11 +263,21 @@ public class ControllerServiceImpl implements ControllerService {
     public ControllerDto updateAdmin(UUID controllerId, String title, String filterRule, Integer pollIntervalSec) {
         ControllerEntity e = controllerPort.findById(controllerId)
             .orElseThrow(() -> new ControllerNotFoundException(controllerId));
-        if (title != null)          e.setTitle(title);
-        if (filterRule != null)     e.setFilterRule(filterRule.isBlank() ? null : filterRule);
+        if (title != null)           e.setTitle(title);
+        if (filterRule != null)      e.setFilterRule(filterRule.isBlank() ? null : filterRule);
         if (pollIntervalSec != null) e.setPollIntervalSec(pollIntervalSec);
         ControllerEntity saved = controllerPort.save(e);
         log.info("[CONTROLLER] Updated (admin): id={}", controllerId);
+
+        // Reschedule immediately if interval changed and controller is active with subscriptions.
+        if (pollIntervalSec != null && Boolean.TRUE.equals(saved.getIsActive())
+                && controllerPort.hasActiveSubscriptions(controllerId)) {
+            monitorScheduler.unscheduleController(controllerId);
+            monitorScheduler.scheduleController(
+                    controllerId, saved.getUser().getId(), resolvedPollInterval(saved));
+            log.info("[CONTROLLER] Rescheduled: id={} interval={}s", controllerId, resolvedPollInterval(saved));
+        }
+
         return toDto(saved);
     }
 
@@ -298,7 +310,8 @@ public class ControllerServiceImpl implements ControllerService {
             e.getFilterRule(), isMuted, Boolean.TRUE.equals(e.getIsActive()),
             e.getLastCheckedAt() != null ? e.getLastCheckedAt().toInstant() : null,
             e.getLastEventAt()   != null ? e.getLastEventAt().toInstant()   : null,
-            (int) eventCount, e.getType(), e.getNotificationChatId(), ownerTelegramId
+            (int) eventCount, e.getType(), e.getNotificationChatId(), ownerTelegramId,
+            resolvedPollInterval(e)
         );
     }
 
@@ -370,7 +383,8 @@ public class ControllerServiceImpl implements ControllerService {
             e.getFilterRule(), isMuted, Boolean.TRUE.equals(e.getIsActive()),
             e.getLastCheckedAt() != null ? e.getLastCheckedAt().toInstant() : null,
             e.getLastEventAt()   != null ? e.getLastEventAt().toInstant()   : null,
-            (int) eventCount, e.getType(), e.getNotificationChatId(), ownerTelegramId
+            (int) eventCount, e.getType(), e.getNotificationChatId(), ownerTelegramId,
+            resolvedPollInterval(e)
         );
     }
 
@@ -390,8 +404,15 @@ public class ControllerServiceImpl implements ControllerService {
             (int) eventCount,
             e.getType(),
             e.getNotificationChatId(),
-            ownerTelegramId
+            ownerTelegramId,
+            resolvedPollInterval(e)
         );
+    }
+
+    private int resolvedPollInterval(ControllerEntity e) {
+        return e.getPollIntervalSec() != null
+                ? e.getPollIntervalSec()
+                : monitorProps.getDefaultPollIntervalSec();
     }
 
     /** Single-entity shortcut: fetches the event count for one controller (no N+1 concern). */

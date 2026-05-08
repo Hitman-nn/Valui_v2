@@ -18,8 +18,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Size;
+import com.valui.monitor.history.PollHistoryEntry;
+import com.valui.monitor.history.PollHistoryService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -29,8 +33,10 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Tag(name = "Admin — Controllers", description = "Управление контроллерами всех пользователей (только ADMIN)")
 @RestController
 @RequestMapping("/api/v1/admin/controllers")
@@ -43,6 +49,7 @@ public class AdminMonitoringController {
     private final ControllerAssembler controllerAssembler;
     private final PagedResourcesAssembler<ControllerDto> pagedAssembler;
     private final DetectedEventRepository detectedEventRepository;
+    private final PollHistoryService pollHistoryService;
 
     // ── GET /api/v1/admin/controllers ────────────────────────────────────────
 
@@ -165,6 +172,7 @@ public class AdminMonitoringController {
 
     @Operation(summary = "События контроллера")
     @GetMapping(value = "/{id}/events", produces = {V1, MediaType.APPLICATION_JSON_VALUE})
+    @Transactional(readOnly = true)
     public ResponseEntity<Page<AdminEventDto>> controllerEvents(
             @PathVariable UUID id,
             @ParameterObject @PageableDefault(size = 25) Pageable pageable,
@@ -174,5 +182,29 @@ public class AdminMonitoringController {
         return ResponseEntity.ok(page.map(AdminEventDto::from));
     }
 
+    // ── GET /api/v1/admin/controllers/{id}/poll-history ───────────────────────
+
+    @Operation(summary = "История последних 5 опросов контроллера")
+    @GetMapping("/{id}/poll-history")
+    public ResponseEntity<java.util.List<PollHistoryEntry>> pollHistory(@PathVariable UUID id) {
+        return ResponseEntity.ok(pollHistoryService.getLast(id));
+    }
+
+    // ── PATCH /api/v1/admin/controllers/bulk-interval ────────────────────────
+
+    @Operation(summary = "Массовое обновление интервала опроса")
+    @PatchMapping("/bulk-interval")
+    public ResponseEntity<Void> bulkUpdateInterval(@RequestBody BulkIntervalRequest req) {
+        req.ids().forEach(id -> {
+            try {
+                controllerService.updateAdmin(id, null, null, req.pollIntervalSec());
+            } catch (Exception e) {
+                log.warn("[BULK] Failed to update interval for controller {}: {}", id, e.getMessage());
+            }
+        });
+        return ResponseEntity.noContent().build();
+    }
+
     public record AdminUpdateControllerRequest(String title, String filterRule, Integer pollIntervalSec) {}
+    public record BulkIntervalRequest(List<UUID> ids, int pollIntervalSec) {}
 }

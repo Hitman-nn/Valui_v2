@@ -10,6 +10,7 @@ import type {
   UserDetail,
   Controller,
   UpdateControllerRequest,
+  PollHistoryEntry,
   Subscription,
   SubscriptionStats,
   GrantPlanRequest,
@@ -172,6 +173,16 @@ export const controllersApi = {
   events: (id: string, params: { page?: number; size?: number }) =>
     apiClient
       .get<SpringPage<AdminEvent>>(`/api/v1/admin/controllers/${id}/events`, { params })
+      .then((r) => r.data),
+
+  pollHistory: (id: string) =>
+    apiClient
+      .get<PollHistoryEntry[]>(`/api/v1/admin/controllers/${id}/poll-history`)
+      .then((r) => r.data),
+
+  bulkSetInterval: (ids: string[], pollIntervalSec: number) =>
+    apiClient
+      .patch<void>('/api/v1/admin/controllers/bulk-interval', { ids, pollIntervalSec })
       .then((r) => r.data),
 };
 

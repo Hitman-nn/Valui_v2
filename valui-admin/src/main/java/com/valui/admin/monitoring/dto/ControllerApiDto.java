@@ -56,6 +56,9 @@ public final class ControllerApiDto extends RepresentationModel<ControllerApiDto
     @Schema(description = "Telegram ID владельца", example = "123456789")
     public final Long ownerTelegramId;
 
+    @Schema(description = "Интервал опроса в секундах", example = "20")
+    public final int pollIntervalSec;
+
     public ControllerApiDto(ControllerDto dto) {
         this.id                  = dto.id();
         this.bookmaker           = dto.bookmaker();
@@ -70,5 +73,6 @@ public final class ControllerApiDto extends RepresentationModel<ControllerApiDto
         this.type                = dto.type();
         this.notificationChatId  = dto.notificationChatId();
         this.ownerTelegramId     = dto.ownerTelegramId();
+        this.pollIntervalSec     = dto.pollIntervalSec();
     }
 }

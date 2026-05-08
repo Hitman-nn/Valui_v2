@@ -1,10 +1,12 @@
 package com.valui.monitor.scheduler;
 
+import com.valui.monitor.history.PollHistoryService;
 import com.valui.monitor.scheduler.ControllerTaskExecutor.ParsedItem;
 import com.valui.monitor.scheduler.ControllerTaskExecutor.TaskContext;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,6 +35,7 @@ public class ControllerTask implements Runnable {
     private final ConcurrentHashMap<UUID, AtomicInteger> perUserCounter;
     private final int maxTasksPerUser;
     private final MonitorMetrics metrics;
+    private final PollHistoryService pollHistory;
 
     ControllerTask(UUID controllerId,
                    UUID userId,
@@ -40,7 +43,8 @@ public class ControllerTask implements Runnable {
                    Semaphore globalSemaphore,
                    ConcurrentHashMap<UUID, AtomicInteger> perUserCounter,
                    int maxTasksPerUser,
-                   MonitorMetrics metrics) {
+                   MonitorMetrics metrics,
+                   PollHistoryService pollHistory) {
         this.controllerId   = controllerId;
         this.userId         = userId;
         this.executor       = executor;
@@ -48,6 +52,7 @@ public class ControllerTask implements Runnable {
         this.perUserCounter = perUserCounter;
         this.maxTasksPerUser = maxTasksPerUser;
         this.metrics        = metrics;
+        this.pollHistory    = pollHistory;
     }
 
     @Override
@@ -94,24 +99,38 @@ public class ControllerTask implements Runnable {
             return;
         }
 
+        // ── Poll starts here — from this point we record history ─────────────
+        Instant startedAt = Instant.now();
+        long startNs = System.nanoTime();
+
         // External HTTP call (outside any transaction)
         List<ParsedItem> fetched;
         try {
             fetched = executor.fetch(ctx);
         } catch (Exception e) {
             log.warn("⚠️  Ошибка парсера для контроллера {} ({}): {}", controllerId, ctx.bookmaker(), e.getMessage());
+            pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "error");
             return;
         }
 
         // TX 2: dedup, persist, update timestamps, publish domain events
+        int eventsFound = 0;
+        String status = "ok";
         try {
-            int newCount = executor.persistNewEvents(ctx, fetched);
-            if (newCount > 0) {
-                metrics.onEventsDetected(newCount);
-                log.debug("🔔 Контроллер {}: {} новых событий обнаружено", controllerId, newCount);
+            eventsFound = executor.persistNewEvents(ctx, fetched);
+            if (eventsFound > 0) {
+                metrics.onEventsDetected(eventsFound);
+                log.debug("🔔 Контроллер {}: {} новых событий обнаружено", controllerId, eventsFound);
             }
         } catch (Exception e) {
             log.error("❌ Ошибка сохранения событий для контроллера {}: {}", controllerId, e.getMessage(), e);
+            eventsFound = -1;
+            status = "error";
         }
+        pollHistory.record(controllerId, startedAt, msElapsed(startNs), eventsFound, status);
+    }
+
+    private static long msElapsed(long startNs) {
+        return (System.nanoTime() - startNs) / 1_000_000;
     }
 }

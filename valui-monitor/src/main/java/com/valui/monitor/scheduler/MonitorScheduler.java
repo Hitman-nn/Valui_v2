@@ -2,6 +2,7 @@ package com.valui.monitor.scheduler;
 
 import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.dedup.EventDeduplicationService;
+import com.valui.monitor.history.PollHistoryService;
 import com.valui.monitor.event.ControllerAddedEvent;
 import com.valui.monitor.event.ControllerRemovedEvent;
 import com.valui.monitor.event.SubscriptionChangedEvent;
@@ -50,6 +51,7 @@ public class MonitorScheduler {
     private final MonitorMetrics metrics;
     private final EventDeduplicationService dedup;
     private final ControllerPortService controllerPort;
+    private final PollHistoryService pollHistory;
 
     private final ScheduledExecutorService triggerPool;
     private final ExecutorService taskPool;
@@ -65,8 +67,9 @@ public class MonitorScheduler {
                             MonitorProperties props,
                             MonitorMetrics metrics,
                             EventDeduplicationService dedup,
-                            ControllerPortService controllerPort) {
-        this(taskExecutor, props, metrics, dedup, controllerPort,
+                            ControllerPortService controllerPort,
+                            PollHistoryService pollHistory) {
+        this(taskExecutor, props, metrics, dedup, controllerPort, pollHistory,
                 Executors.newScheduledThreadPool(
                         Math.max(2, Runtime.getRuntime().availableProcessors() / 2),
                         Thread.ofPlatform().name("monitor-trigger-", 0).factory()),
@@ -80,6 +83,7 @@ public class MonitorScheduler {
                      MonitorMetrics metrics,
                      EventDeduplicationService dedup,
                      ControllerPortService controllerPort,
+                     PollHistoryService pollHistory,
                      ScheduledExecutorService triggerPool,
                      ExecutorService taskPool) {
         this.taskExecutor    = taskExecutor;
@@ -87,6 +91,7 @@ public class MonitorScheduler {
         this.metrics         = metrics;
         this.dedup           = dedup;
         this.controllerPort  = controllerPort;
+        this.pollHistory     = pollHistory;
         this.triggerPool     = triggerPool;
         this.taskPool        = taskPool;
         this.globalSemaphore = new Semaphore(props.getMaxConcurrentTasks());
@@ -224,7 +229,7 @@ public class MonitorScheduler {
         ControllerTask task = new ControllerTask(
                 controllerId, userId, taskExecutor,
                 globalSemaphore, perUserCounter,
-                props.getMaxTasksPerUser(), metrics);
+                props.getMaxTasksPerUser(), metrics, pollHistory);
 
         ScheduledFuture<?> future = triggerPool.scheduleWithFixedDelay(
                 () -> taskPool.submit(task),

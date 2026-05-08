@@ -1,5 +1,6 @@
 package com.valui.monitor.scheduler;
 
+import com.valui.monitor.history.PollHistoryService;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,6 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests that ControllerTask correctly enforces the global and per-user concurrency limits.
@@ -152,6 +154,6 @@ class ConcurrencyLimitTest {
         return new ControllerTask(
                 controllerId, userId, taskExecutor,
                 globalSemaphore, perUserCounter,
-                MAX_PER_USER, metrics);
+                MAX_PER_USER, metrics, mock(PollHistoryService.class));
     }
 }

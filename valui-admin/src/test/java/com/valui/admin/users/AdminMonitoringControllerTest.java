@@ -11,6 +11,7 @@ import com.valui.admin.support.TestJwtConfig;
 import com.valui.common.domain.ControllerType;
 import com.valui.common.exception.ControllerNotFoundException;
 import com.valui.monitor.dto.ControllerDto;
+import com.valui.monitor.history.PollHistoryService;
 import com.valui.monitor.service.ControllerService;
 import com.valui.user.repository.DetectedEventRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +54,7 @@ class AdminMonitoringControllerTest {
     @MockBean ControllerService controllerService;
     @MockBean AuthProperties authProperties;
     @MockBean DetectedEventRepository detectedEventRepository;
+    @MockBean PollHistoryService pollHistoryService;
 
     static final UUID ADMIN_ID = UUID.fromString("aaaaaaaa-1111-0000-0000-000000000001");
     static final Long ADMIN_TG = 100000001L;
@@ -77,7 +79,7 @@ class AdminMonitoringControllerTest {
                 Instant.now().minusSeconds(600),
                 Instant.now().minusSeconds(60),
                 12, ControllerType.TOURNAMENT,
-                USER_TG, USER_TG);
+                USER_TG, USER_TG, 20);
     }
 
     // ── GET /api/v1/admin/controllers ────────────────────────────────────────

@@ -18,5 +18,6 @@ public record ControllerDto(
         int detectedEventsCount,
         ControllerType type,
         Long notificationChatId,
-        Long ownerTelegramId
+        Long ownerTelegramId,
+        int pollIntervalSec
 ) {}

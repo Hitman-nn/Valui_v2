@@ -28,7 +28,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { controllersApi } from '../../api/endpoints';
-import type { AdminEvent, Controller, HalPage, UpdateControllerRequest } from '../../api/types';
+import type { AdminEvent, Controller, HalPage, PollHistoryEntry, UpdateControllerRequest } from '../../api/types';
 
 export default function ControllerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -49,6 +49,13 @@ export default function ControllerDetailPage() {
     queryKey: ['controller-events', id, eventsPage],
     queryFn: () => controllersApi.events(id!, { page: eventsPage, size: 20 }),
     enabled: !!id,
+  });
+
+  const { data: pollHistory } = useQuery({
+    queryKey: ['controller-poll-history', id],
+    queryFn: () => controllersApi.pollHistory(id!),
+    enabled: !!id,
+    refetchInterval: 30_000,
   });
 
   const applyUpdate = (updated: Controller) => {
@@ -252,7 +259,9 @@ export default function ControllerDetailPage() {
               : <Typography.Text type="secondary">—</Typography.Text>}
           </Descriptions.Item>
           <Descriptions.Item label="Интервал опроса">
-            {controller.pollIntervalSec != null ? `${controller.pollIntervalSec} сек` : <Typography.Text type="secondary">—</Typography.Text>}
+            {controller.pollIntervalSec != null
+              ? <Tag color="blue">каждые {controller.pollIntervalSec} сек</Tag>
+              : <Typography.Text type="secondary">—</Typography.Text>}
           </Descriptions.Item>
           <Descriptions.Item label="Владелец (Telegram ID)">
             {controller.ownerTelegramId ?? <Typography.Text type="secondary">—</Typography.Text>}
@@ -266,12 +275,63 @@ export default function ControllerDetailPage() {
               ? dayjs(controller.lastEventAt).format('DD.MM.YYYY HH:mm')
               : <Typography.Text type="secondary">—</Typography.Text>}
           </Descriptions.Item>
-          <Descriptions.Item label="Последняя проверка">
+          <Descriptions.Item label="Последний опрос">
             {controller.lastCheckedAt
-              ? dayjs(controller.lastCheckedAt).format('DD.MM.YYYY HH:mm')
-              : <Typography.Text type="secondary">—</Typography.Text>}
+              ? <Tooltip title={dayjs(controller.lastCheckedAt).format('DD.MM.YYYY HH:mm:ss')}>
+                  <span>{dayjs(controller.lastCheckedAt).format('DD.MM.YYYY HH:mm:ss')}</span>
+                </Tooltip>
+              : <Typography.Text type="secondary">ещё не запускался</Typography.Text>}
           </Descriptions.Item>
         </Descriptions>
+      </Card>
+
+      <Card title="История опросов" size="small" style={{ marginBottom: 16 }}>
+        {pollHistory && pollHistory.length > 0 ? (
+          <Table<PollHistoryEntry>
+            dataSource={pollHistory}
+            rowKey="startedAt"
+            size="small"
+            pagination={false}
+            columns={[
+              {
+                title: 'Время',
+                dataIndex: 'startedAt',
+                key: 'startedAt',
+                width: 170,
+                render: (v: string) => dayjs(v).format('DD.MM.YY HH:mm:ss'),
+              },
+              {
+                title: 'Длительность',
+                dataIndex: 'durationMs',
+                key: 'durationMs',
+                width: 130,
+                render: (v: number) => (
+                  <Tag color={v > 3000 ? 'warning' : v > 1000 ? 'default' : 'success'}>
+                    {v < 1000 ? `${v} мс` : `${(v / 1000).toFixed(1)} с`}
+                  </Tag>
+                ),
+              },
+              {
+                title: 'Событий',
+                dataIndex: 'eventsFound',
+                key: 'eventsFound',
+                width: 110,
+                render: (v: number, row: PollHistoryEntry) =>
+                  row.status === 'error' ? (
+                    <Tag color="error">Ошибка</Tag>
+                  ) : v > 0 ? (
+                    <Tag color="success">+{v} новых</Tag>
+                  ) : (
+                    <Typography.Text type="secondary">нет новых</Typography.Text>
+                  ),
+              },
+            ]}
+          />
+        ) : (
+          <Typography.Text type="secondary">
+            История появится после первого опроса
+          </Typography.Text>
+        )}
       </Card>
 
       <Tabs

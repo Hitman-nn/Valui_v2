@@ -14,6 +14,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 
+import java.time.Duration;
+import java.time.Instant;
+
 import java.util.UUID;
 
 @Slf4j
@@ -70,7 +73,9 @@ public class ControllerDetailCallback implements CallbackHandler {
         sb.append("\n");
         sb.append("Тип: ").append(typeLabel).append("\n");
         sb.append("Статус: ").append(status).append("\n");
-        sb.append("📊 Событий: ").append(c.detectedEventsCount());
+        sb.append("📊 Событий: ").append(c.detectedEventsCount()).append("\n");
+        sb.append("🔄 Интервал: каждые ").append(c.pollIntervalSec()).append(" сек\n");
+        sb.append("⏱ Последний опрос: ").append(formatLastChecked(c.lastCheckedAt()));
         if (c.type() == ControllerType.SPORT) {
             sb.append("\n🔍 Фильтр: ");
             sb.append(c.filterRule() != null && !c.filterRule().isBlank()
@@ -104,5 +109,13 @@ public class ControllerDetailCallback implements CallbackHandler {
 
         builder.button("← К списку", CallbackData.ctrlByBookmaker(c.bookmaker()));
         return builder.build();
+    }
+
+    private static String formatLastChecked(Instant lastCheckedAt) {
+        if (lastCheckedAt == null) return "ещё не запускался";
+        long secs = Duration.between(lastCheckedAt, Instant.now()).getSeconds();
+        if (secs < 60)  return secs + " сек назад";
+        if (secs < 3600) return (secs / 60) + " мин назад";
+        return (secs / 3600) + " ч назад";
     }
 }
