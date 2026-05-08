@@ -243,7 +243,8 @@ public class SportEventConsumer {
         if (filterRule == null || filterRule.isBlank()) return true;
         if (title == null) return false;
         try {
-            return Pattern.compile(filterRule, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE)
+            return Pattern.compile(filterRule, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE |
+                    Pattern.UNICODE_CHARACTER_CLASS)
                     .matcher(title).find();
         } catch (PatternSyntaxException e) {
             log.warn("Invalid filterRule regex '{}': {}", filterRule, e.getMessage());
