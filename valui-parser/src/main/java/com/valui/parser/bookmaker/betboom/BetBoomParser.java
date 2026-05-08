@@ -39,12 +39,14 @@ import java.util.function.Predicate;
 @RequiredArgsConstructor
 public class BetBoomParser implements BookmakerParser {
 
-    private static final long WS_TIMEOUT_MS    = 3_000L;
-    private static final long WARN_THROTTLE_MS = 60 * 60 * 1_000L; // 1 hour per tournament
+    private static final long WS_TIMEOUT_MS = 3_000L;
+    // First N consecutive timeouts for the same tournament are logged WARN; after that → DEBUG.
+    // Counter resets when the tournament returns data successfully.
+    private static final int TIMEOUT_WARN_THRESHOLD = 3;
     private static final Current.TypeLine LINE = Current.TypeLine.LINE;
 
     private final WsRequestService ws;
-    private final ConcurrentHashMap<String, Long> lastMatchesWarnAt = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Integer> tournamentTimeoutCount = new ConcurrentHashMap<>();
     final AtomicLong wsTimeoutTotal = new AtomicLong();
 
     @Override
@@ -109,7 +111,10 @@ public class BetBoomParser implements BookmakerParser {
 
         MatchesFrame mf = parseMatches(resp).orElseThrow(() ->
                 new IllegalStateException("Cannot parse MatchesFrame"));
-        if (!mf.hasSection()) return ParseResult.ok(List.of(), ms() - start);
+        if (!mf.hasSection()) {
+            tournamentConsecutiveTimeouts(tournamentId, 0); // WS responded — reset timeout counter
+            return ParseResult.ok(List.of(), ms() - start);
+        }
 
         String sportAlias = mf.hasSport() && mf.getSport().hasSport()
                 ? mf.getSport().getSport().getAlias() : "";
@@ -134,6 +139,7 @@ public class BetBoomParser implements BookmakerParser {
             matches.add(new ParsedMatchDto(String.valueOf(eid), title, tournamentId, url,
                     parseInstant(match.getHeader().getStartsAt()), match.getHeader().getLive() == 1));
         }
+        tournamentConsecutiveTimeouts(tournamentId, 0); // WS responded — reset timeout counter
         return ParseResult.ok(matches, ms() - start);
     }
 
@@ -156,16 +162,28 @@ public class BetBoomParser implements BookmakerParser {
     }
 
     private ParseResult<List<ParsedMatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
-        wsTimeoutTotal.incrementAndGet();
-        long now = ms();
-        Long last = lastMatchesWarnAt.get(tournamentId);
-        if (last == null || now - last >= WARN_THROTTLE_MS) {
-            log.warn("betboom fetchMatches tournamentId={}: {} — no data returned (total timeouts: {})",
-                    tournamentId, fallbackReason(t), wsTimeoutTotal.get());
-            if (lastMatchesWarnAt.size() > 2000) lastMatchesWarnAt.clear();
-            lastMatchesWarnAt.put(tournamentId, now);
+        long total = wsTimeoutTotal.incrementAndGet();
+        int consecutive = tournamentConsecutiveTimeouts(tournamentId, 1);
+        String reason = fallbackReason(t);
+        if (consecutive <= TIMEOUT_WARN_THRESHOLD) {
+            log.warn("betboom fetchMatches tournamentId={}: {} — no data returned (consecutive={}, total={})",
+                    tournamentId, reason, consecutive, total);
+        } else {
+            log.debug("betboom fetchMatches tournamentId={}: {} — no data (consecutive={}, total={})",
+                    tournamentId, reason, consecutive, total);
         }
         return ParseResult.error("betboom-cb: " + t.getMessage());
+    }
+
+    // delta=1 to increment, delta=0 to reset
+    private int tournamentConsecutiveTimeouts(String tournamentId, int delta) {
+        if (delta == 0) {
+            tournamentTimeoutCount.remove(tournamentId);
+            return 0;
+        }
+        int count = tournamentTimeoutCount.merge(tournamentId, delta, Integer::sum);
+        if (tournamentTimeoutCount.size() > 5000) tournamentTimeoutCount.clear();
+        return count;
     }
 
     private static String fallbackReason(Throwable t) {

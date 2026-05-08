@@ -72,6 +72,10 @@
     <logger name="org.apache.kafka.common.telemetry.internals"       level="WARN"/>
     <logger name="org.springframework.kafka.listener.KafkaMessageListenerContainer" level="WARN"/>
 
+    <!-- Telegram long-polling transport: 502/NoHttpResponse are transient network hiccups
+         that DefaultBotSession handles internally (retries). Downgrade to WARN. -->
+    <logger name="org.telegram.telegrambots.updatesreceivers.DefaultBotSession" level="WARN"/>
+
     <!-- ═══════════════════════════════════════════════════════════════════════
          local — подробный вывод с цветами
          ═══════════════════════════════════════════════════════════════════════ -->

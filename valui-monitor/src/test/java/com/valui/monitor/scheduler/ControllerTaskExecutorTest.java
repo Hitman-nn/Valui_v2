@@ -102,7 +102,8 @@ class ControllerTaskExecutorTest {
 
         given(props.getDefaultPollIntervalSec()).willReturn(60);
         given(outboxSenderService.buildOutboxEvent(any(), any(), any(), any(), any(), any(), any(), any()))
-                .willReturn(OutboxEvent.builder().externalEventId("stub").build());
+                .willReturn(OutboxEvent.builder().externalEventId("stub").chatId(TG_ID).build());
+        given(outboxRepo.existsByExternalEventIdAndChatId(any(), any())).willReturn(false);
         given(outboxRepo.save(any())).willAnswer(inv -> inv.getArgument(0));
     }
 

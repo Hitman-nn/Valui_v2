@@ -36,4 +36,11 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> 
     @Transactional
     @Query("UPDATE OutboxEvent o SET o.lockedAt = :now WHERE o.id = :id AND o.sentAt IS NULL AND o.lockedAt IS NULL")
     int tryLock(@Param("id") Long id, @Param("now") OffsetDateTime now);
+
+    boolean existsByExternalEventIdAndChatId(String externalEventId, Long chatId);
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM OutboxEvent o WHERE o.sentAt IS NOT NULL AND o.sentAt < :cutoff")
+    int deleteSentBefore(@Param("cutoff") OffsetDateTime cutoff);
 }

@@ -156,13 +156,13 @@ valui:
       - "91.108.0.0/16"    # Telegram MTProto
     stale-threshold-days: ${BOT_STALE_THRESHOLD_DAYS:30}
     wizard:
-      sport-page-size: ${BOT_WIZARD_SPORT_PAGE_SIZE:10}
-      tournament-page-size: ${BOT_WIZARD_TOURN_PAGE_SIZE:15}
+      sport-page-size: ${BOT_WIZARD_SPORT_PAGE_SIZE:15}
+      tournament-page-size: ${BOT_WIZARD_TOURN_PAGE_SIZE:40}
   monitor:
     poll-interval-ms: 30000         # legacy — kept for reference
-    max-concurrent-tasks: 50        # global VT task cap
-    max-tasks-per-user: 5           # anti-abuse per-user cap
-    default-poll-interval-sec: 60   # fallback when controller.pollIntervalSec is null
+    max-concurrent-tasks: 100        # global VT task cap
+    max-tasks-per-user: 30           # anti-abuse per-user cap
+    default-poll-interval-sec: 20   # fallback when controller.pollIntervalSec is null
   admin:
     api-key: ${ADMIN_API_KEY:change-me}
   jwt:

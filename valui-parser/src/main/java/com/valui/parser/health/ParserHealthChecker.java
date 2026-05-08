@@ -8,8 +8,10 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -23,6 +25,10 @@ public class ParserHealthChecker {
     private final ApplicationEventPublisher eventPublisher;
 
     private final Map<BookmakerType, Integer> consecutiveFailures = new ConcurrentHashMap<>();
+    // Tracks parsers for which ParserUnavailableEvent was already published so we don't re-publish
+    // until the parser recovers and fails again in a new incident.
+    private final Set<BookmakerType> notifiedUnavailable =
+            Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     @Scheduled(fixedDelay = 300_000) // every 5 minutes
     public void checkAll() {
@@ -36,8 +42,13 @@ public class ParserHealthChecker {
             boolean available = parser.isAvailable();
             if (available) {
                 int prev = consecutiveFailures.getOrDefault(type, 0);
+                boolean wasNotified = notifiedUnavailable.remove(type);
                 consecutiveFailures.put(type, 0);
-                if (prev > 0) log.info("Parser {} recovered after {} failures", type, prev);
+                if (wasNotified) {
+                    log.info("Parser {} recovered after extended unavailability", type);
+                } else if (prev > 0) {
+                    log.info("Parser {} recovered after {} consecutive failures", type, prev);
+                }
             } else {
                 recordFailure(type, "isAvailable() returned false");
             }
@@ -49,10 +60,11 @@ public class ParserHealthChecker {
     private void recordFailure(BookmakerType type, String reason) {
         int failures = consecutiveFailures.merge(type, 1, Integer::sum);
         log.warn("Parser {} unavailable: {} (consecutive={})", type, reason, failures);
-        if (failures >= FAILURE_THRESHOLD) {
+        if (failures >= FAILURE_THRESHOLD && !notifiedUnavailable.contains(type)) {
             log.error("Parser {} exceeded failure threshold — publishing ParserUnavailableEvent", type);
             eventPublisher.publishEvent(new ParserUnavailableEvent(this, type, failures));
-            consecutiveFailures.put(type, 0); // reset to avoid repeated flood
+            notifiedUnavailable.add(type);
+            consecutiveFailures.put(type, 0); // reset so consecutive counter stays meaningful
         }
     }
 }

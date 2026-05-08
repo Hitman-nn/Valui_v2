@@ -225,6 +225,14 @@ public class ControllerTaskExecutor {
             List<ControllerSubscriptionEntity> subs = controllerPort.findActiveSubscriptions(ctx.controllerId());
             saved.forEach(e -> {
                 for (ControllerSubscriptionEntity sub : subs) {
+                    // Guard against uq_outbox_event_chat violation: if the nightly DedupSyncScheduler
+                    // removed this event from Redis (because detected_events was cleaned), the next poll
+                    // re-detects the event and tries to re-insert an outbox row that was already sent.
+                    if (outboxRepo.existsByExternalEventIdAndChatId(e.getEventExternalId(), sub.getChatId())) {
+                        log.warn("[CTRL] Outbox duplicate skipped: event={} chat={} ctrl={}",
+                                e.getEventExternalId(), sub.getChatId(), ctx.controllerId());
+                        continue;
+                    }
                     outboxRepo.save(outboxSenderService.buildOutboxEvent(
                             e.getEventExternalId(),
                             ctx.controllerId().toString(),

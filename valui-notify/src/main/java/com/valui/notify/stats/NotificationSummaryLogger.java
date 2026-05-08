@@ -26,9 +26,12 @@ public class NotificationSummaryLogger {
         long rateLimit = stats.drainRateLimitBackoff();
 
         boolean hasProblems = dlqRetry > 0 || dlqFinal > 0 || rateLimit > 0;
+        boolean allZero     = sent == 0 && !hasProblems;
 
         String msg = "[SUMMARY 10m] отправлено={} DLQ-retry={} DLQ-final={} rate-limit-backoff={}";
-        if (hasProblems) {
+        if (allZero) {
+            log.debug(msg, sent, dlqRetry, dlqFinal, rateLimit);
+        } else if (hasProblems) {
             log.warn(msg, sent, dlqRetry, dlqFinal, rateLimit);
         } else {
             log.info(msg, sent, dlqRetry, dlqFinal, rateLimit);
