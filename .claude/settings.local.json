@@ -86,7 +86,10 @@
       "Bash(grep *)",
       "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml dependency:tree -Dincludes=commons-logging)",
       "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml dependency:tree -Dincludes=commons-logging -pl valui-app)",
-      "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml dependency:tree -Dincludes=commons-logging -pl valui-app -q)"
+      "Bash(mvn -f /Users/danilabogatyrev/Documents/java/Valui_v2/pom.xml dependency:tree -Dincludes=commons-logging -pl valui-app -q)",
+      "Bash(mkdir -p /Users/danilabogatyrev/Documents/java/Valui_v2/valui-monitor/src/main/java/com/valui/monitor/scheduler/job)",
+      "Bash(mkdir -p /Users/danilabogatyrev/Documents/java/Valui_v2/valui-monitor/src/main/java/com/valui/monitor/scheduler/state)",
+      "Bash(mkdir -p /Users/danilabogatyrev/Documents/java/Valui_v2/valui-monitor/src/main/java/com/valui/monitor/scheduler/drr)"
     ]
   }
 }

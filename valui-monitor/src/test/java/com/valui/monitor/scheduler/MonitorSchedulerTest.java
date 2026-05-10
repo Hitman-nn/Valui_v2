@@ -1,12 +1,16 @@
 package com.valui.monitor.scheduler;
 
+import com.valui.common.domain.BookmakerType;
 import com.valui.monitor.config.MonitorProperties;
+import com.valui.monitor.dedup.EventDeduplicationService;
 import com.valui.monitor.event.ControllerAddedEvent;
-import com.valui.monitor.history.PollHistoryService;
 import com.valui.monitor.event.ControllerRemovedEvent;
 import com.valui.monitor.event.SubscriptionChangedEvent;
 import com.valui.monitor.scheduler.ControllerTaskExecutor.ControllerScheduleInfo;
-import com.valui.common.domain.BookmakerType;
+import com.valui.monitor.scheduler.drr.DrrDispatcher;
+import com.valui.monitor.scheduler.job.ControllerJob;
+import com.valui.monitor.scheduler.job.JobRegistry;
+import com.valui.monitor.scheduler.state.SchedulerStateStore;
 import com.valui.user.api.ControllerPortService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,94 +18,90 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.*;
-
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("MonitorScheduler — unit tests")
 class MonitorSchedulerTest {
 
-    @Mock ControllerTaskExecutor taskExecutor;
-    @Mock MonitorMetrics metrics;
-    @Mock com.valui.monitor.dedup.EventDeduplicationService dedup;
-    @Mock ControllerPortService controllerPort;
-    @Mock PollHistoryService pollHistory;
+    @Mock ControllerTaskExecutor    taskExecutor;
+    @Mock MonitorMetrics            metrics;
+    @Mock EventDeduplicationService dedup;
+    @Mock ControllerPortService     controllerPort;
+    @Mock DrrDispatcher             dispatcher;
+    @Mock SchedulerStateStore       stateStore;
+    @Mock com.valui.monitor.scheduler.SchedulerConfigStore configStore;
 
     MonitorProperties props;
-    MonitorScheduler scheduler;
-
-    /** Stub trigger pool: scheduleWithFixedDelay returns a cancellable future but never actually fires. */
-    private ScheduledExecutorService stubTriggerPool;
-    private ExecutorService stubTaskPool;
+    JobRegistry       jobRegistry;
+    MonitorScheduler  scheduler;
 
     static final UUID CTRL_ID = UUID.randomUUID();
     static final UUID USER_ID = UUID.randomUUID();
     static final long TG_ID   = 42L;
 
-    @SuppressWarnings("unchecked")
     @BeforeEach
     void setUp() {
-        props = new MonitorProperties();
-        props.setMaxConcurrentTasks(5);
-        props.setMaxTasksPerUser(2);
+        props       = new MonitorProperties();
         props.setDefaultPollIntervalSec(10);
-
-        stubTriggerPool = mock(ScheduledExecutorService.class);
-        stubTaskPool    = mock(ExecutorService.class);
-        // scheduleWithFixedDelay must return a non-null ScheduledFuture
-        given(stubTriggerPool.scheduleWithFixedDelay(any(), anyLong(), anyLong(), any()))
-                .willAnswer(inv -> mock(ScheduledFuture.class));
+        jobRegistry = new JobRegistry(stateStore);
 
         given(taskExecutor.loadAllActiveForScheduling()).willReturn(List.of());
-        scheduler = new MonitorScheduler(taskExecutor, props, metrics, dedup, controllerPort, pollHistory, stubTriggerPool, stubTaskPool);
+        given(stateStore.loadNextRunAt(any())).willReturn(Optional.empty());
+        // don't throw on controllerPort.hasActiveSubscriptions — returns false by default
+
+        scheduler = new MonitorScheduler(
+                taskExecutor, props, metrics, dedup, controllerPort,
+                jobRegistry, dispatcher, stateStore, configStore);
         scheduler.init();
     }
 
     // ── scheduleController ────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("scheduleController: adds controller id to scheduled set")
-    void scheduleController_addsToScheduled() {
+    @DisplayName("scheduleController: adds controller to registry")
+    void scheduleController_addsToRegistry() {
         scheduler.scheduleController(CTRL_ID, USER_ID, 30);
 
         assertThat(scheduler.getScheduledControllerIds()).contains(CTRL_ID);
         verify(metrics).onControllerScheduled();
+        verify(dispatcher).enqueue(any(ControllerJob.class));
     }
 
     @Test
-    @DisplayName("scheduleController: duplicate call is ignored")
+    @DisplayName("scheduleController: duplicate call is idempotent")
     void scheduleController_duplicate_ignored() {
         scheduler.scheduleController(CTRL_ID, USER_ID, 30);
         scheduler.scheduleController(CTRL_ID, USER_ID, 30); // second call
 
         assertThat(scheduler.getScheduledControllerIds()).hasSize(1);
-        verify(metrics, times(1)).onControllerScheduled(); // only once
+        verify(metrics, times(1)).onControllerScheduled();
+        verify(dispatcher, times(1)).enqueue(any(ControllerJob.class));
     }
 
     // ── unscheduleController ──────────────────────────────────────────────────
 
     @Test
-    @DisplayName("unscheduleController: removes from scheduled set")
-    void unscheduleController_removesFromScheduled() {
+    @DisplayName("unscheduleController: removes from registry and cancels in dispatcher")
+    void unscheduleController_removesAndCancels() {
         scheduler.scheduleController(CTRL_ID, USER_ID, 30);
         scheduler.unscheduleController(CTRL_ID);
 
         assertThat(scheduler.getScheduledControllerIds()).doesNotContain(CTRL_ID);
         verify(metrics).onControllerUnscheduled();
+        verify(dispatcher).cancel(CTRL_ID);
     }
 
     @Test
@@ -109,6 +109,7 @@ class MonitorSchedulerTest {
     void unscheduleController_unknown_noop() {
         scheduler.unscheduleController(UUID.randomUUID());
         verify(metrics, never()).onControllerUnscheduled();
+        verify(dispatcher, never()).cancel(any());
     }
 
     // ── Event listeners ───────────────────────────────────────────────────────
@@ -133,19 +134,16 @@ class MonitorSchedulerTest {
     @Test
     @DisplayName("SubscriptionChangedEvent listener reschedules user's controllers")
     void on_subscriptionChanged_reschedulesUser() {
-        // seed two controllers for USER_ID
         UUID ctrl2 = UUID.randomUUID();
         scheduler.scheduleController(CTRL_ID, USER_ID, 30);
         scheduler.scheduleController(ctrl2, USER_ID, 30);
 
-        // after plan change the poll interval halves
         given(taskExecutor.loadActiveForUser(USER_ID)).willReturn(List.of(
                 new ControllerScheduleInfo(CTRL_ID, USER_ID, TG_ID, 15, BookmakerType.FONBET),
-                new ControllerScheduleInfo(ctrl2, USER_ID, TG_ID, 15, BookmakerType.FONBET)));
+                new ControllerScheduleInfo(ctrl2,   USER_ID, TG_ID, 15, BookmakerType.FONBET)));
 
         scheduler.on(new SubscriptionChangedEvent(USER_ID, TG_ID, "PRO", 15));
 
-        // Both controllers must still be in the scheduled set
         assertThat(scheduler.getScheduledControllerIds()).contains(CTRL_ID, ctrl2);
     }
 

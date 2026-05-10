@@ -2,113 +2,126 @@ package com.valui.monitor.scheduler;
 
 import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.dedup.EventDeduplicationService;
-import com.valui.monitor.history.PollHistoryService;
 import com.valui.monitor.event.ControllerAddedEvent;
 import com.valui.monitor.event.ControllerRemovedEvent;
 import com.valui.monitor.event.SubscriptionChangedEvent;
 import com.valui.monitor.scheduler.ControllerTaskExecutor.ControllerScheduleInfo;
+import com.valui.monitor.scheduler.drr.DrrDispatcher;
+import com.valui.monitor.scheduler.SchedulerConfigStore;
+import com.valui.monitor.scheduler.job.ControllerJob;
+import com.valui.monitor.scheduler.job.JobRegistry;
+import com.valui.monitor.scheduler.state.SchedulerStateStore;
 import com.valui.user.api.ControllerPortService;
 import com.valui.user.event.ControllerResumedEvent;
 import com.valui.user.event.ControllerSuspendedEvent;
 import com.valui.user.event.SubscriptionExpiredEvent;
 import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Central scheduler for all active controller monitoring tasks.
+ * Lifecycle coordinator for the controller monitoring scheduler.
  *
- * Architecture:
- *  - triggerPool: small platform-thread pool that fires tasks on schedule
- *  - taskPool:    virtual-thread-per-task executor that actually runs task bodies
- *  - globalSemaphore + perUserCounter: concurrency limits
+ * <p>Responsibilities:
+ * <ul>
+ *   <li>On startup: load all active controllers, restore per-controller {@code nextRunAt}
+ *       from Redis (crash recovery), enqueue them into {@link DrrDispatcher}.
+ *   <li>Spring event listeners: translate domain events into registry + dispatcher calls.
+ *   <li>Public API: {@link #scheduleController}, {@link #unscheduleController},
+ *       {@link #rescheduleAll}, {@link #getScheduledControllerIds}.
+ * </ul>
  *
- * Lifecycle:
- *  - @PostConstruct: loads all active controllers from DB, schedules them
- *  - ControllerAddedEvent → scheduleController
- *  - ControllerRemovedEvent → unscheduleController
- *  - SubscriptionChangedEvent / SubscriptionExpiredEvent → reschedule user's controllers
- *  - @PreDestroy: cancels all futures, shuts down pools
+ * <p>Dispatch, fairness, and backpressure are handled entirely by {@link DrrDispatcher}.
  */
 @Slf4j
 @Component
 public class MonitorScheduler {
 
-    private final ControllerTaskExecutor taskExecutor;
-    private final MonitorProperties props;
-    private final MonitorMetrics metrics;
+    private final ControllerTaskExecutor    taskExecutor;
+    private final MonitorProperties         props;
+    private final MonitorMetrics            metrics;
     private final EventDeduplicationService dedup;
-    private final ControllerPortService controllerPort;
-    private final PollHistoryService pollHistory;
+    private final ControllerPortService     controllerPort;
+    private final JobRegistry               jobRegistry;
+    private final DrrDispatcher             dispatcher;
+    private final SchedulerStateStore       stateStore;
+    // Declared as dependency so Spring calls its @PostConstruct (loadFromDb) before our init().
+    @SuppressWarnings("unused")
+    private final SchedulerConfigStore      configStore;
 
-    private final ScheduledExecutorService triggerPool;
-    private final ExecutorService taskPool;
-    private final Semaphore globalSemaphore;
-    private final ConcurrentHashMap<UUID, AtomicInteger> perUserCounter = new ConcurrentHashMap<>();
-
-    /** controllerId → scheduled trigger future. */
-    private final ConcurrentHashMap<UUID, ScheduledFuture<?>> scheduled = new ConcurrentHashMap<>();
-
-    /** Production constructor — creates real virtual-thread pools. */
+    /** Production constructor — all dependencies via Spring. */
     @Autowired
     public MonitorScheduler(ControllerTaskExecutor taskExecutor,
                             MonitorProperties props,
                             MonitorMetrics metrics,
                             EventDeduplicationService dedup,
                             ControllerPortService controllerPort,
-                            PollHistoryService pollHistory) {
-        this(taskExecutor, props, metrics, dedup, controllerPort, pollHistory,
-                Executors.newScheduledThreadPool(
-                        Math.max(2, Runtime.getRuntime().availableProcessors() / 2),
-                        Thread.ofPlatform().name("monitor-trigger-", 0).factory()),
-                Executors.newThreadPerTaskExecutor(
-                        Thread.ofVirtual().name("monitor-task-", 0).factory()));
-    }
-
-    /** Package-private constructor for tests — allows injecting stub executors. */
-    MonitorScheduler(ControllerTaskExecutor taskExecutor,
-                     MonitorProperties props,
-                     MonitorMetrics metrics,
-                     EventDeduplicationService dedup,
-                     ControllerPortService controllerPort,
-                     PollHistoryService pollHistory,
-                     ScheduledExecutorService triggerPool,
-                     ExecutorService taskPool) {
-        this.taskExecutor    = taskExecutor;
-        this.props           = props;
-        this.metrics         = metrics;
-        this.dedup           = dedup;
-        this.controllerPort  = controllerPort;
-        this.pollHistory     = pollHistory;
-        this.triggerPool     = triggerPool;
-        this.taskPool        = taskPool;
-        this.globalSemaphore = new Semaphore(props.getMaxConcurrentTasks());
+                            JobRegistry jobRegistry,
+                            DrrDispatcher dispatcher,
+                            SchedulerStateStore stateStore,
+                            SchedulerConfigStore configStore) {
+        this.taskExecutor   = taskExecutor;
+        this.props          = props;
+        this.metrics        = metrics;
+        this.dedup          = dedup;
+        this.controllerPort = controllerPort;
+        this.jobRegistry    = jobRegistry;
+        this.dispatcher     = dispatcher;
+        this.stateStore     = stateStore;
+        this.configStore    = configStore;
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     @PostConstruct
     void init() {
+        dispatcher.start();
+
         List<ControllerScheduleInfo> controllers = taskExecutor.loadAllActiveForScheduling();
         Map<com.valui.common.domain.BookmakerType, Long> byBk = new LinkedHashMap<>();
+
         for (ControllerScheduleInfo info : controllers) {
-            if (controllerPort.hasActiveSubscriptions(info.controllerId())) {
-                doSchedule(info.controllerId(), info.userId(), info.pollIntervalSec());
-                byBk.merge(info.bookmaker(), 1L, Long::sum);
-            }
+            if (!controllerPort.hasActiveSubscriptions(info.controllerId())) continue;
+
+            seedDedup(info.controllerId());
+
+            // Recovery: restore nextRunAt from Redis. If persisted time is in the past or absent,
+            // use a random startup jitter spread over [0, pollInterval) seconds to avoid a thundering herd.
+            Instant nextRunAt = stateStore.loadNextRunAt(info.controllerId())
+                    .filter(t -> t.isAfter(Instant.now()))
+                    .orElseGet(() -> Instant.now().plusSeconds(
+                            ThreadLocalRandom.current().nextInt(info.pollIntervalSec())));
+
+            stateStore.clearInFlight(info.controllerId()); // discard any crashed inFlight flag
+
+            ControllerJob job = ControllerJob.initial(
+                    info.controllerId(), info.userId(), info.pollIntervalSec(), nextRunAt);
+            jobRegistry.put(job);
+            dispatcher.enqueue(job);
+            byBk.merge(info.bookmaker(), 1L, Long::sum);
         }
+
+        // Register starvation gauge (max seconds since any controller last ran).
+        metrics.registerStarvationGauge(() -> {
+            Instant now = Instant.now();
+            return jobRegistry.all().stream()
+                    .filter(j -> j.lastStartedAt() != null)
+                    .mapToLong(j -> java.time.Duration.between(j.lastStartedAt(), now).toSeconds())
+                    .max()
+                    .orElse(0L);
+        });
+
         long scheduled = byBk.values().stream().mapToLong(Long::longValue).sum();
         String breakdown = byBk.entrySet().stream()
                 .sorted(Map.Entry.<com.valui.common.domain.BookmakerType, Long>comparingByValue().reversed())
@@ -118,49 +131,48 @@ public class MonitorScheduler {
                 scheduled, breakdown.isEmpty() ? "нет активных" : breakdown);
     }
 
-    @PreDestroy
-    void shutdown() {
-        scheduled.values().forEach(f -> f.cancel(false));
-        scheduled.clear();
-        triggerPool.shutdownNow();
-        taskPool.shutdownNow();
-        log.info("🛑 Монитор остановлен. Все задачи отменены.");
-    }
-
     // ── Public API ────────────────────────────────────────────────────────────
 
     public void scheduleController(UUID controllerId, UUID userId, int pollIntervalSec) {
-        // computeIfAbsent is atomic on ConcurrentHashMap: exactly one thread will build
-        // the future for a given key; concurrent callers for the same id are no-ops.
-        scheduled.computeIfAbsent(controllerId,
-                id -> buildFuture(id, userId, pollIntervalSec));
+        if (jobRegistry.contains(controllerId)) return; // idempotent
+
+        seedDedup(controllerId);
+        ControllerJob job = ControllerJob.initial(controllerId, userId, pollIntervalSec, Instant.now());
+        jobRegistry.put(job);
+        dispatcher.enqueue(job);
+        metrics.onControllerScheduled();
+        log.debug("▶  Контроллер {} запланирован каждые {}с", controllerId, pollIntervalSec);
     }
 
     public void unscheduleController(UUID controllerId) {
-        ScheduledFuture<?> future = scheduled.remove(controllerId);
-        if (future != null) {
-            future.cancel(false);
-            metrics.onControllerUnscheduled();
-            log.debug("⏹  Контроллер {} снят с расписания", controllerId);
-        }
+        if (!jobRegistry.contains(controllerId)) return;
+        dispatcher.cancel(controllerId);
+        jobRegistry.remove(controllerId);
+        metrics.onControllerUnscheduled();
+        log.debug("⏹  Контроллер {} снят с расписания", controllerId);
     }
 
-    /**
-     * Cancels all futures, reloads from DB, and reschedules.
-     * Meant for admin actions or bulk plan changes.
-     */
+    /** Cancels all jobs, reloads from DB, and re-enqueues. For admin actions / bulk plan changes. */
     public synchronized void rescheduleAll() {
-        log.info("🔄 Перезапуск расписания: отменяем {} задач", scheduled.size());
-        scheduled.values().forEach(f -> f.cancel(false));
-        scheduled.clear();
+        log.info("🔄 Перезапуск расписания: отменяем {} задач", jobRegistry.size());
+        Set<UUID> ids = Set.copyOf(jobRegistry.controllerIds());
+        ids.forEach(id -> {
+            dispatcher.cancel(id);
+            jobRegistry.remove(id);
+        });
 
         List<ControllerScheduleInfo> all = taskExecutor.loadAllActiveForScheduling();
-        all.forEach(info -> doSchedule(info.controllerId(), info.userId(), info.pollIntervalSec()));
+        all.forEach(info -> {
+            ControllerJob job = ControllerJob.initial(
+                    info.controllerId(), info.userId(), info.pollIntervalSec(), Instant.now());
+            jobRegistry.put(job);
+            dispatcher.enqueue(job);
+        });
         log.info("🔄 Перезапуск расписания завершён: {} задач запланировано", all.size());
     }
 
     public Set<UUID> getScheduledControllerIds() {
-        return Set.copyOf(scheduled.keySet());
+        return jobRegistry.controllerIds();
     }
 
     // ── ApplicationEvent listeners ────────────────────────────────────────────
@@ -199,58 +211,27 @@ public class MonitorScheduler {
 
     @EventListener
     public void on(ControllerResumedEvent e) {
-        if (!scheduled.containsKey(e.controllerId())) {
-            doSchedule(e.controllerId(), e.userId(), e.pollIntervalSec());
+        if (!jobRegistry.contains(e.controllerId())) {
+            scheduleController(e.controllerId(), e.userId(), e.pollIntervalSec());
             log.info("Контроллер {} возобновлён (токены)", e.controllerId());
         }
     }
 
-    // ── internals ─────────────────────────────────────────────────────────────
+    // ── helpers ───────────────────────────────────────────────────────────────
 
-    /**
-     * Creates and registers a scheduled future. Must only be called when the key
-     * is NOT already in {@code scheduled} (used by init, rescheduleAll, rescheduleUser).
-     */
-    private void doSchedule(UUID controllerId, UUID userId, int pollIntervalSec) {
-        scheduled.put(controllerId, buildFuture(controllerId, userId, pollIntervalSec));
-    }
-
-    /**
-     * Builds and starts a {@link ScheduledFuture} without touching the {@code scheduled} map.
-     * Safe to call inside {@code computeIfAbsent} because it does not modify the map.
-     */
-    private ScheduledFuture<?> buildFuture(UUID controllerId, UUID userId, int pollIntervalSec) {
-        try {
-            dedup.seedIfAbsent(controllerId);
-        } catch (Exception e) {
-            log.warn("⚠️  Инициализация дедупликации для контроллера {} не удалась (продолжаем): {}", controllerId, e.getMessage());
-        }
-
-        ControllerTask task = new ControllerTask(
-                controllerId, userId, taskExecutor,
-                globalSemaphore, perUserCounter,
-                props.getMaxTasksPerUser(), metrics, pollHistory);
-
-        ScheduledFuture<?> future = triggerPool.scheduleWithFixedDelay(
-                () -> taskPool.submit(task),
-                0,
-                pollIntervalSec,
-                TimeUnit.SECONDS);
-
-        metrics.onControllerScheduled();
-        log.debug("▶  Контроллер {} запланирован каждые {}с", controllerId, pollIntervalSec);
-        return future;
-    }
-
-    /**
-     * Synchronized to prevent a race with {@link #rescheduleAll()}: both methods
-     * read-then-modify the {@code scheduled} map as a compound operation.
-     */
     private synchronized void rescheduleUser(UUID userId) {
         List<ControllerScheduleInfo> userControllers = taskExecutor.loadActiveForUser(userId);
         userControllers.forEach(info -> {
             unscheduleController(info.controllerId());
-            doSchedule(info.controllerId(), info.userId(), info.pollIntervalSec());
+            scheduleController(info.controllerId(), info.userId(), info.pollIntervalSec());
         });
+    }
+
+    private void seedDedup(UUID controllerId) {
+        try {
+            dedup.seedIfAbsent(controllerId);
+        } catch (Exception e) {
+            log.warn("⚠️  Инициализация дедупликации для {} не удалась (продолжаем): {}", controllerId, e.getMessage());
+        }
     }
 }

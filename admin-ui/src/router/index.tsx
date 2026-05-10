@@ -11,6 +11,7 @@ import SubscriptionsPage from '../pages/subscriptions/SubscriptionsPage';
 import ParsersPage from '../pages/parsers/ParsersPage';
 import AuditPage from '../pages/audit/AuditPage';
 import BroadcastPage from '../pages/broadcast/BroadcastPage';
+import SchedulerPage from '../pages/scheduler/SchedulerPage';
 import { useAuthStore } from '../store/authStore';
 import type { ReactNode } from 'react';
 
@@ -46,6 +47,7 @@ export const router = createBrowserRouter(
         { path: 'audit',        element: <AuditPage /> },
 
         { path: 'broadcast',    element: <BroadcastPage /> },
+        { path: 'scheduler',    element: <SchedulerPage /> },
       ],
     },
     { path: '*', element: <Navigate to="/" replace /> },

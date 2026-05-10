@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 public class MonitorProperties {
     /** Hard cap on parallel controller tasks across all users. */
     private int maxConcurrentTasks = 50;
-    /** Per-user cap to prevent one user from hogging all task slots. */
+    /** Per-user cap (legacy, kept for backward compat — DRR weight is the primary fairness knob). */
     private int maxTasksPerUser = 5;
     /** Fallback poll interval when controller.pollIntervalSec is null. */
     private int defaultPollIntervalSec = 60;
@@ -18,4 +18,15 @@ public class MonitorProperties {
     private int dedupTtlDays = 7;
     /** Cron expression for the nightly dedup sync job. */
     private String dedupSyncCron = "0 0 3 * * *";
+
+    // ── DRR dispatcher ────────────────────────────────────────────────────────
+
+    /** Hard wall-clock budget for one parser fetch call (ms). Enforced on top of WebClient timeouts. */
+    private int fetchBudgetMs = 8_000;
+    /** Minimum re-queue delay (ms) when the global pool is full (throttle, not drop). */
+    private int deferBaseMs = 100;
+    /** Maximum extra random jitter (ms) added to deferBaseMs on each defer. */
+    private int deferJitterMs = 400;
+    /** DRR weight assigned to users without an explicit plan mapping. */
+    private int defaultUserWeight = 1;
 }

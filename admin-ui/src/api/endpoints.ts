@@ -32,6 +32,14 @@ import type {
   AdminEvent,
   EventStats,
   Payment,
+  SchedulerConfig,
+  SchedulerConfigUpdateRequest,
+  SchedulerStats,
+  ControllerJobDto,
+  ControllerJobDetail,
+  SchedulerOverview,
+  SchedulerMetricsSnapshot,
+  PollHistoryHourlyDto,
 } from './types';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -283,6 +291,38 @@ export const systemApi = {
 
   db: () =>
     apiClient.get<DbPool>('/api/v1/admin/system/db').then((r) => r.data),
+};
+
+// ─── Scheduler ────────────────────────────────────────────────────────────────
+
+export const schedulerApi = {
+  overview: () =>
+    apiClient.get<SchedulerOverview>('/api/v1/admin/scheduler/overview').then((r) => r.data),
+
+  config: () =>
+    apiClient.get<SchedulerConfig>('/api/v1/admin/scheduler/config').then((r) => r.data),
+
+  updateConfig: (data: SchedulerConfigUpdateRequest) =>
+    apiClient.patch<SchedulerConfig>('/api/v1/admin/scheduler/config', data).then((r) => r.data),
+
+  stats: () =>
+    apiClient.get<SchedulerStats>('/api/v1/admin/scheduler/stats').then((r) => r.data),
+
+  jobs: () =>
+    apiClient.get<ControllerJobDto[]>('/api/v1/admin/scheduler/jobs').then((r) => r.data),
+
+  jobDetail: (controllerId: string) =>
+    apiClient.get<ControllerJobDetail>(`/api/v1/admin/scheduler/jobs/${controllerId}`).then((r) => r.data),
+
+  metricsHistory: (range: '1h' | '6h' | '24h') =>
+    apiClient.get<SchedulerMetricsSnapshot[]>('/api/v1/admin/scheduler/metrics-history', {
+      params: { range },
+    }).then((r) => r.data),
+
+  jobHourlyStats: (controllerId: string, hours = 24) =>
+    apiClient.get<PollHistoryHourlyDto[]>(`/api/v1/admin/scheduler/jobs/${controllerId}/hourly-stats`, {
+      params: { hours },
+    }).then((r) => r.data),
 };
 
 // ─── Broadcast ────────────────────────────────────────────────────────────────

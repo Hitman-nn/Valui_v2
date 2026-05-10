@@ -23,6 +23,7 @@ import {
   ThunderboltOutlined,
   AuditOutlined,
   BarChartOutlined,
+  FieldTimeOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -37,8 +38,9 @@ const MENU_ITEMS = [
   { key: '/controllers', icon: <ApiOutlined />,     label: 'Controllers' },
   { key: '/events',    icon: <ThunderboltOutlined />, label: 'Events' },
   { key: '/subscriptions', icon: <CreditCardOutlined />, label: 'Subscriptions' },
-  { key: '/parsers',   icon: <DashboardOutlined />, label: 'Parsers' },
-  { key: '/audit',     icon: <AuditOutlined />,     label: 'Audit Log' },
+  { key: '/parsers',   icon: <DashboardOutlined />,   label: 'Parsers' },
+  { key: '/scheduler', icon: <FieldTimeOutlined />,   label: 'Scheduler' },
+  { key: '/audit',     icon: <AuditOutlined />,       label: 'Audit Log' },
   { key: '/broadcast', icon: <NotificationOutlined />, label: 'Broadcast' },
 ];
 
@@ -49,6 +51,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   events:        'Events',
   subscriptions: 'Subscriptions',
   parsers:       'Parsers',
+  scheduler:     'Scheduler',
   audit:         'Audit Log',
   broadcast:     'Broadcast',
 };

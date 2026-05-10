@@ -316,6 +316,89 @@ export interface EventStats {
   byBookmaker: Array<{ bookmaker: string; count: number }>;
 }
 
+// ─── Scheduler ───────────────────────────────────────────────────────────────
+
+export interface SchedulerConfig {
+  maxConcurrentTasks: number;
+  defaultPollIntervalSec: number;
+  fetchBudgetMs: number;
+  deferBaseMs: number;
+  deferJitterMs: number;
+  defaultUserWeight: number;
+}
+
+export interface SchedulerConfigUpdateRequest {
+  maxConcurrentTasks?: number;
+  defaultPollIntervalSec?: number;
+  fetchBudgetMs?: number;
+  deferBaseMs?: number;
+  deferJitterMs?: number;
+  defaultUserWeight?: number;
+}
+
+export interface SchedulerStats {
+  scheduledJobs: number;
+  queueDepth: number;
+  availableSlots: number;
+  maxSlots: number;
+  starvationSec: number;
+  tasksDeferred: number;
+  tasksSkipped: number;
+  eventsDetected: number;
+  lagP50Ms: number;
+  lagP95Ms: number;
+  lagP99Ms: number;
+  taskDurP50Ms: number;
+  taskDurP95Ms: number;
+  taskDurP99Ms: number;
+}
+
+export interface ControllerJobDto {
+  controllerId: string;
+  userId: string;
+  pollIntervalSec: number;
+  nextRunAt: string;
+  lastStartedAt: string | null;
+  lastFinishedAt: string | null;
+  inFlight: boolean;
+  overdueSec: number;
+  status: 'IDLE' | 'IN_FLIGHT' | 'LATE';
+  bookmaker: string | null;
+  controllerTitle: string | null;
+  username: string | null;
+}
+
+export interface ControllerJobDetail {
+  job: ControllerJobDto;
+  pollHistory: PollHistoryEntry[];
+}
+
+export interface SchedulerOverview {
+  config: SchedulerConfig;
+  stats: SchedulerStats;
+  jobs: ControllerJobDto[];
+}
+
+export interface SchedulerMetricsSnapshot {
+  ts: number;           // epoch millis
+  queueDepth: number;
+  inFlight: number;
+  availableSlots: number;
+  lagP95Ms: number;
+  taskDurP95Ms: number;
+  deferredTotal: number;
+  eventsTotal: number;
+}
+
+export interface PollHistoryHourlyDto {
+  hour: string;         // ISO instant
+  totalPolls: number;
+  avgDurationMs: number;
+  okCount: number;
+  errorCount: number;
+  totalEvents: number;
+}
+
 // ─── Payments ─────────────────────────────────────────────────────────────────
 
 export interface Payment {

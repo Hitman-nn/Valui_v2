@@ -10,77 +10,46 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.*;
 
 /**
- * Virtual Thread task that polls one controller per iteration.
- * Not a Spring bean — instantiated and held by MonitorScheduler.
+ * Virtual-thread task that polls one controller per execution.
+ * Not a Spring bean — instantiated by {@link com.valui.monitor.scheduler.drr.DrrDispatcher}.
  *
- * Concurrency guards:
- *  - globalSemaphore: system-wide cap (monitor.max-concurrent-tasks)
- *  - perUserCounter: per-user cap (monitor.max-tasks-per-user)
- *
- * If either guard rejects, the iteration is skipped silently; the next
- * scheduled tick will retry.
+ * <p>Concurrency guards (global semaphore, per-user counter) were removed and are now
+ * the responsibility of the dispatcher. This class only performs the actual poll work:
+ * load context → fetch (with budget timeout) → persist.
  */
 @Slf4j
 public class ControllerTask implements Runnable {
 
-    private final UUID controllerId;
-    private final UUID userId;
+    private final UUID                   controllerId;
+    private final UUID                   userId;
     private final ControllerTaskExecutor executor;
-    private final Semaphore globalSemaphore;
-    private final ConcurrentHashMap<UUID, AtomicInteger> perUserCounter;
-    private final int maxTasksPerUser;
-    private final MonitorMetrics metrics;
-    private final PollHistoryService pollHistory;
+    private final MonitorMetrics         metrics;
+    private final PollHistoryService     pollHistory;
+    private final int                    fetchBudgetMs;
 
-    ControllerTask(UUID controllerId,
+    public ControllerTask(UUID controllerId,
                    UUID userId,
                    ControllerTaskExecutor executor,
-                   Semaphore globalSemaphore,
-                   ConcurrentHashMap<UUID, AtomicInteger> perUserCounter,
-                   int maxTasksPerUser,
                    MonitorMetrics metrics,
-                   PollHistoryService pollHistory) {
-        this.controllerId   = controllerId;
-        this.userId         = userId;
-        this.executor       = executor;
-        this.globalSemaphore = globalSemaphore;
-        this.perUserCounter = perUserCounter;
-        this.maxTasksPerUser = maxTasksPerUser;
-        this.metrics        = metrics;
-        this.pollHistory    = pollHistory;
+                   PollHistoryService pollHistory,
+                   int fetchBudgetMs) {
+        this.controllerId  = controllerId;
+        this.userId        = userId;
+        this.executor      = executor;
+        this.metrics       = metrics;
+        this.pollHistory   = pollHistory;
+        this.fetchBudgetMs = fetchBudgetMs;
     }
 
     @Override
     public void run() {
-        // ── Global concurrency guard ──────────────────────────────────────────
-        if (!globalSemaphore.tryAcquire()) {
-            metrics.onTaskSkipped();
-            log.debug("⏸  Глобальный лимит задач достигнут — контроллер {} пропущен", controllerId);
-            return;
-        }
         Timer.Sample sample = Timer.start();
         try {
-            // ── Per-user concurrency guard ────────────────────────────────────
-            AtomicInteger userSlots = perUserCounter.computeIfAbsent(userId, k -> new AtomicInteger(0));
-            int current = userSlots.incrementAndGet();
-            if (current > maxTasksPerUser) {
-                userSlots.decrementAndGet();
-                metrics.onTaskSkipped();
-                log.debug("⏸  Лимит пользователя userId={} достигнут — контроллер {} пропущен", userId, controllerId);
-                return;
-            }
-            try {
-                executeTask();
-            } finally {
-                userSlots.decrementAndGet();
-            }
+            executeTask();
         } finally {
-            globalSemaphore.release();
             sample.stop(metrics.taskTimer());
         }
     }
@@ -99,14 +68,17 @@ public class ControllerTask implements Runnable {
             return;
         }
 
-        // ── Poll starts here — from this point we record history ─────────────
         Instant startedAt = Instant.now();
-        long startNs = System.nanoTime();
+        long    startNs   = System.nanoTime();
 
-        // External HTTP call (outside any transaction)
+        // External HTTP call wrapped with a hard budget timeout.
         List<ParsedItem> fetched;
         try {
-            fetched = executor.fetch(ctx);
+            fetched = fetchWithBudget(ctx);
+        } catch (TimeoutException e) {
+            log.warn("⏱  Fetch budget exceeded ({}ms) for controller {} ({})", fetchBudgetMs, controllerId, ctx.bookmaker());
+            pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "timeout");
+            return;
         } catch (Exception e) {
             log.warn("⚠️  Ошибка парсера для контроллера {} ({}): {}", controllerId, ctx.bookmaker(), e.getMessage());
             pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "error");
@@ -114,8 +86,8 @@ public class ControllerTask implements Runnable {
         }
 
         // TX 2: dedup, persist, update timestamps, publish domain events
-        int eventsFound = 0;
-        String status = "ok";
+        int    eventsFound = 0;
+        String status      = "ok";
         try {
             eventsFound = executor.persistNewEvents(ctx, fetched);
             if (eventsFound > 0) {
@@ -125,9 +97,28 @@ public class ControllerTask implements Runnable {
         } catch (Exception e) {
             log.error("❌ Ошибка сохранения событий для контроллера {}: {}", controllerId, e.getMessage(), e);
             eventsFound = -1;
-            status = "error";
+            status      = "error";
         }
         pollHistory.record(controllerId, startedAt, msElapsed(startNs), eventsFound, status);
+    }
+
+    /**
+     * Wraps {@link ControllerTaskExecutor#fetch} with a wall-clock budget.
+     * Uses {@link CompletableFuture#orTimeout} so that a stuck HTTP call cannot
+     * hold a worker-pool slot indefinitely (WebClient read/connect timeouts are a
+     * first line of defence; this is the final backstop).
+     */
+    private List<ParsedItem> fetchWithBudget(TaskContext ctx) throws TimeoutException {
+        try {
+            return CompletableFuture
+                    .supplyAsync(() -> executor.fetch(ctx))
+                    .orTimeout(fetchBudgetMs, TimeUnit.MILLISECONDS)
+                    .join();
+        } catch (CompletionException ce) {
+            Throwable cause = ce.getCause();
+            if (cause instanceof TimeoutException te) throw te;
+            throw ce; // rethrown as RuntimeException, caught above
+        }
     }
 
     private static long msElapsed(long startNs) {
