@@ -39,7 +39,6 @@ public class DashboardController {
     private final ControllerRepository         controllerRepository;
     private final DetectedEventRepository      eventRepository;
     private final NotificationLogRepository    notifRepository;
-    private final SubscriptionRepository       subscriptionRepository;
     private final MeterRegistry                meterRegistry;
     private final KafkaAdmin                   kafkaAdmin;
     private final RedisConnectionFactory       redisConnectionFactory;
@@ -160,15 +159,7 @@ public class DashboardController {
             notifRepository.count()
         );
 
-        List<Object[]> planRows = subscriptionRepository.countActiveGroupedByPlan();
-        List<DashboardSummaryDto.PlanCount> byPlan = planRows.stream()
-            .map(r -> new DashboardSummaryDto.PlanCount(
-                (String) r[0], (String) r[1], ((Number) r[2]).longValue()))
-            .toList();
-        long expiringIn7d = subscriptionRepository.countExpiringSoon(now, now.plusDays(7));
-
-        return new DashboardSummaryDto(users, controllers, events, notifications,
-            new DashboardSummaryDto.SubStats(byPlan, expiringIn7d));
+        return new DashboardSummaryDto(users, controllers, events, notifications);
     }
 
     private List<BookmakerStatusDto> buildParsers() {
@@ -190,12 +181,13 @@ public class DashboardController {
             long usedBytes   = parseLong(info, "used_memory");
             String usedHuman = info.getProperty("used_memory_human", "n/a");
             long peakBytes   = parseLong(info, "used_memory_peak");
+            long maxBytes    = parseLong(info, "maxmemory");
             Properties ks    = redisConnectionFactory.getConnection().serverCommands().info("keyspace");
             long totalKeys   = parseKeyCount(ks);
-            return new RedisInfoDto(usedBytes, usedHuman, peakBytes, totalKeys);
+            return new RedisInfoDto(usedBytes, usedHuman, peakBytes, maxBytes, totalKeys);
         } catch (Exception e) {
             log.warn("[DASHBOARD] Redis info error: {}", e.getMessage());
-            return new RedisInfoDto(0, "unavailable", 0, 0);
+            return new RedisInfoDto(0, "unavailable", 0, 0, 0);
         }
     }
 

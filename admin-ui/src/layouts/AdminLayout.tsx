@@ -37,9 +37,10 @@ const MENU_ITEMS = [
   { key: '/users',     icon: <UserOutlined />,      label: 'Users' },
   { key: '/controllers', icon: <ApiOutlined />,     label: 'Controllers' },
   { key: '/events',    icon: <ThunderboltOutlined />, label: 'Events' },
-  { key: '/subscriptions', icon: <CreditCardOutlined />, label: 'Subscriptions' },
+  { key: '/subscriptions', icon: <CreditCardOutlined />, label: 'Tokens' },
   { key: '/parsers',   icon: <DashboardOutlined />,   label: 'Parsers' },
   { key: '/scheduler', icon: <FieldTimeOutlined />,   label: 'Scheduler' },
+  { key: '/migration', icon: <ThunderboltOutlined />,  label: 'Migration' },
   { key: '/audit',     icon: <AuditOutlined />,       label: 'Audit Log' },
   { key: '/broadcast', icon: <NotificationOutlined />, label: 'Broadcast' },
 ];
@@ -49,9 +50,10 @@ const BREADCRUMB_MAP: Record<string, string> = {
   users:         'Users',
   controllers:   'Controllers',
   events:        'Events',
-  subscriptions: 'Subscriptions',
+  subscriptions: 'Tokens',
   parsers:       'Parsers',
   scheduler:     'Scheduler',
+  migration:     'Migration',
   audit:         'Audit Log',
   broadcast:     'Broadcast',
 };

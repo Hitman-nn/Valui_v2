@@ -12,14 +12,11 @@ import com.valui.common.domain.UserRole;
 import com.valui.common.domain.UserStatus;
 import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.UserNotFoundException;
-import com.valui.user.dto.UserWithSubscriptionDto;
 import com.valui.admin.monitoring.ControllerAssembler;
 import com.valui.user.repository.AuditLogRepository;
 import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.NotificationLogRepository;
 import com.valui.user.repository.PaymentTransactionRepository;
-import com.valui.user.repository.SubscriptionRepository;
-import com.valui.user.service.SubscriptionService;
 import com.valui.user.service.UserService;
 import com.valui.monitor.service.ControllerService;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,7 +35,6 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
-import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.*;
@@ -65,12 +61,10 @@ class AdminUserControllerTest {
     @MockBean AuthProperties authProperties;
     @MockBean AuditLogRepository auditLogRepository;
     @MockBean NotificationLogRepository notificationLogRepository;
-    @MockBean SubscriptionService subscriptionService;
     @MockBean ControllerService controllerService;
     @MockBean ControllerAssembler controllerAssembler;
     @MockBean PaymentTransactionRepository paymentTransactionRepository;
     @MockBean ControllerRepository controllerRepository;
-    @MockBean SubscriptionRepository subscriptionRepository;
 
     static final UUID ADMIN_ID   = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
     static final Long ADMIN_TG   = 111111111L;
@@ -95,7 +89,7 @@ class AdminUserControllerTest {
                 .role(UserRole.USER)
                 .status(UserStatus.ACTIVE)
                 .tokenBalance(100)
-                .tokenLowThresholdPct(20)
+                .tokenLowThreshold(50)
                 .tokenMonthlyGrantRef(200)
                 .createdAt(OffsetDateTime.now())
                 .updatedAt(OffsetDateTime.now())
@@ -110,8 +104,6 @@ class AdminUserControllerTest {
         var page = new PageImpl<>(List.of(targetUser), PageRequest.of(0, 20), 1);
         given(userService.findAllUsers(any(), any())).willReturn(page);
         given(controllerRepository.countByUserId(any())).willReturn(0L);
-        given(subscriptionRepository.findTopByUserIdAndStatusOrderByStartedAtDesc(any(), any()))
-                .willReturn(java.util.Optional.empty());
 
         mockMvc.perform(get("/api/v1/admin/users")
                         .header("Authorization", adminBearer)
@@ -145,8 +137,6 @@ class AdminUserControllerTest {
     @DisplayName("GET /admin/users/{id} — ADMIN → 200 с полными данными и _links")
     void getUser_admin_returns200() throws Exception {
         given(userService.findById(USER_ID)).willReturn(targetUser);
-        given(userService.getUserWithSubscription(USER_TG))
-                .willReturn(new UserWithSubscriptionDto(targetUser, null, null));
 
         mockMvc.perform(get("/api/v1/admin/users/{id}", USER_ID)
                         .header("Authorization", adminBearer)
@@ -203,7 +193,7 @@ class AdminUserControllerTest {
     }
 
     @Test
-    @DisplayName("POST /admin/users/{id}/ban — USER → 403 (Kafka-событие не публикуется)")
+    @DisplayName("POST /admin/users/{id}/ban — USER → 403")
     void banUser_user_returns403() throws Exception {
         mockMvc.perform(post("/api/v1/admin/users/{id}/ban", USER_ID)
                         .header("Authorization", userBearer))
@@ -319,8 +309,6 @@ class AdminUserControllerTest {
     void getUser_banned_hasUnbanLink() throws Exception {
         targetUser.setStatus(UserStatus.BANNED);
         given(userService.findById(USER_ID)).willReturn(targetUser);
-        given(userService.getUserWithSubscription(USER_TG))
-                .willThrow(new RuntimeException("no sub"));
 
         mockMvc.perform(get("/api/v1/admin/users/{id}", USER_ID)
                         .header("Authorization", adminBearer)

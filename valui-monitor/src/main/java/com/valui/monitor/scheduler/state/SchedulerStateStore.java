@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -15,7 +16,8 @@ import java.util.UUID;
 /**
  * Redis persistence for scheduler job state.
  * Key format: {@code sch:job:{controllerId}} (Hash with fields nextRunAt, inFlight, version, …).
- * No TTL — entries are deleted explicitly when a controller is unscheduled.
+ * TTL: 48 h, refreshed on every save — guards against leaks when a controller is deleted
+ * during downtime (explicit delete still works for normal removal).
  *
  * All methods swallow Redis errors (state store is best-effort; in-memory registry is authoritative).
  */
@@ -24,7 +26,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SchedulerStateStore {
 
-    private static final String PREFIX = "sch:job:";
+    private static final String  PREFIX = "sch:job:";
+    private static final Duration TTL   = Duration.ofHours(48);
 
     private final StringRedisTemplate redis;
 
@@ -38,6 +41,7 @@ public class SchedulerStateStore {
             if (job.lastStartedAt()  != null) fields.put("lastStartedAt",  job.lastStartedAt().toString());
             if (job.lastFinishedAt() != null) fields.put("lastFinishedAt", job.lastFinishedAt().toString());
             redis.opsForHash().putAll(key, fields);
+            redis.expire(key, TTL);
         } catch (Exception e) {
             log.warn("[SchedulerState] save failed for {}: {}", job.controllerId(), e.getMessage());
         }

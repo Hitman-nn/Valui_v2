@@ -50,20 +50,21 @@ export interface UserSummary {
   status: 'ACTIVE' | 'BANNED' | 'PENDING';
   tokenBalance: number;
   controllersCount: number;
-  planCode: string | null;
-  subscriptionExpiresAt: string | null;
   createdAt: string;
 }
 
-export interface UserDetail extends UserSummary {
+export interface UserDetail {
+  id: string;
+  telegramId: number;
+  username: string | null;
+  firstName: string | null;
   languageCode: string;
+  role: 'USER' | 'ADMIN';
+  status: 'ACTIVE' | 'BANNED' | 'PENDING';
+  tokenBalance: number;
   tokenMonthlyGrantRef: number;
-  tokenLowThresholdPct: number;
-  planCode: string | null;
-  planName: string | null;
-  maxControllers: number;
-  subscriptionExpiresAt: string | null;
-  subscriptionStartedAt: string | null;
+  tokenLowThreshold: number | null;
+  createdAt: string;
   updatedAt: string;
 }
 
@@ -97,31 +98,6 @@ export interface UpdateControllerRequest {
   title?: string | null;
   filterRule?: string | null;
   pollIntervalSec?: number | null;
-}
-
-// ─── Subscriptions ────────────────────────────────────────────────────────────
-
-export interface Subscription {
-  id: string;
-  userId: string;
-  telegramId: number;
-  username: string | null;
-  planCode: string;
-  planName: string;
-  status: string;
-  startedAt: string;
-  expiresAt: string | null;
-  paymentRef: string | null;
-}
-
-export interface SubscriptionStats {
-  totalActive: number;
-  expiringIn24h: number;
-  byPlan: Array<{ planCode: string; planName: string; activeCount: number }>;
-}
-
-export interface GrantPlanRequest {
-  planCode: string;
 }
 
 // ─── Parsers ─────────────────────────────────────────────────────────────────
@@ -191,6 +167,7 @@ export interface RedisInfo {
   usedMemoryBytes: number;
   usedMemoryHuman: string;
   usedMemoryPeakBytes: number;
+  maxMemoryBytes: number;
   totalKeys: number;
 }
 
@@ -206,21 +183,15 @@ export interface DbPool {
 
 export interface BroadcastRequest {
   text: string;
-  planCode: 'ALL' | 'FREE' | 'PRO' | 'PREMIUM' | null;
+  status: 'ALL' | 'ACTIVE' | 'BANNED' | null;
 }
 
 export interface BroadcastResult {
   recipientCount: number;
-  planFilter: string | null;
+  statusFilter: string | null;
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-
-export interface PlanCount {
-  planCode: string;
-  planName: string;
-  count: number;
-}
 
 export interface DashboardSummary {
   users: {
@@ -249,10 +220,6 @@ export interface DashboardSummary {
     thisMonth: number;
     thisYear: number;
     total: number;
-  };
-  subscriptions: {
-    byPlan: PlanCount[];
-    expiringIn7d: number;
   };
 }
 
@@ -399,12 +366,70 @@ export interface PollHistoryHourlyDto {
   totalEvents: number;
 }
 
+// ─── Migration ───────────────────────────────────────────────────────────────
+
+export interface LegacyControllerPreview {
+  link: string;
+  originalTitle: string | null;
+  cleanTitle: string | null;
+  bookmaker: string | null;
+  controllerType: string;
+  eventCount: number;
+  ruleFilter: string | null;
+}
+
+export interface ChatGroup {
+  chatId: string;
+  controllerCount: number;
+  controllers: LegacyControllerPreview[];
+}
+
+export interface ParsedMigration {
+  groups: ChatGroup[];
+  totalControllers: number;
+  unknownBookmakerCount: number;
+}
+
+export interface ChatMapping {
+  chatId: string;
+  userId: string;
+  notificationChatId: number;
+}
+
+export interface MigrationControllerEntry {
+  chatId: string;
+  link: string;
+  title: string;
+  ruleFilter: string | null;
+  eventIds: string[];
+}
+
+export interface MigrationRequest {
+  controllers: MigrationControllerEntry[];
+  chatMappings: ChatMapping[];
+  pollIntervalSec: number;
+}
+
+export interface DryRunResult {
+  toImport: number;
+  toSkip: number;
+  toFail: number;
+  byBookmaker: Record<string, number>;
+}
+
+export interface MigrationResult {
+  imported: number;
+  skipped: number;
+  failed: number;
+  dedupSeeded: number;
+  byBookmaker: Record<string, number>;
+}
+
 // ─── Payments ─────────────────────────────────────────────────────────────────
 
 export interface Payment {
   id: string;
   paymentId: string;
-  planCode: string;
   amount: number;
   currency: string;
   status: string;

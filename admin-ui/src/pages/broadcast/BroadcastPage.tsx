@@ -19,23 +19,20 @@ import { useMutation } from '@tanstack/react-query';
 import { broadcastApi } from '../../api/endpoints';
 import type { BroadcastRequest } from '../../api/types';
 
-const PLAN_OPTIONS = [
-  { label: 'All Users', value: 'ALL' },
-  { label: 'FREE', value: 'FREE' },
-  { label: 'PRO', value: 'PRO' },
-  { label: 'PREMIUM', value: 'PREMIUM' },
+const STATUS_OPTIONS = [
+  { label: 'Все пользователи', value: 'ALL' },
+  { label: 'Активные (ACTIVE)', value: 'ACTIVE' },
+  { label: 'Заблокированные (BANNED)', value: 'BANNED' },
 ];
 
-function planTagColor(plan: string | null): string {
-  switch (plan) {
-    case 'PREMIUM': return 'gold';
-    case 'PRO': return 'blue';
-    case 'FREE': return 'default';
-    default: return 'purple';
+function statusTagColor(status: string | null): string {
+  switch (status) {
+    case 'ACTIVE': return 'success';
+    case 'BANNED': return 'error';
+    default: return 'processing';
   }
 }
 
-// Very simple markdown-like preview (bold, italic, code)
 function renderTelegramPreview(text: string): string {
   return text
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -46,16 +43,16 @@ function renderTelegramPreview(text: string): string {
 
 interface FormValues {
   text: string;
-  planCode: 'ALL' | 'FREE' | 'PRO' | 'PREMIUM';
+  status: 'ALL' | 'ACTIVE' | 'BANNED';
 }
 
 export default function BroadcastPage() {
   const [form] = Form.useForm<FormValues>();
   const [previewText, setPreviewText] = useState('');
-  const [previewPlan, setPreviewPlan] = useState<string>('ALL');
+  const [previewStatus, setPreviewStatus] = useState<string>('ALL');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingValues, setPendingValues] = useState<BroadcastRequest | null>(null);
-  const [sentResult, setSentResult] = useState<{ recipientCount: number; planFilter: string | null } | null>(null);
+  const [sentResult, setSentResult] = useState<{ recipientCount: number; statusFilter: string | null } | null>(null);
   const { notification } = App.useApp();
 
   const sendMutation = useMutation({
@@ -73,31 +70,29 @@ export default function BroadcastPage() {
   });
 
   const handleConfirm = () => {
-    if (pendingValues) {
-      sendMutation.mutate(pendingValues);
-    }
+    if (pendingValues) sendMutation.mutate(pendingValues);
   };
 
   const handleSubmit = (values: FormValues) => {
     const payload: BroadcastRequest = {
       text: values.text,
-      planCode: values.planCode === 'ALL' ? null : values.planCode,
+      status: values.status === 'ALL' ? null : values.status,
     };
     setPendingValues(payload);
     setConfirmOpen(true);
   };
 
-  const recipientLabel = previewPlan === 'ALL' ? 'all users' : `${previewPlan} plan users`;
+  const recipientLabel = previewStatus === 'ALL' ? 'все пользователи' : `пользователи со статусом ${previewStatus}`;
 
   if (sentResult) {
     return (
       <Result
         status="success"
-        title="Broadcast Sent!"
-        subTitle={`Message delivered to ${sentResult.recipientCount} recipient(s)${sentResult.planFilter ? ` (${sentResult.planFilter} plan)` : ''}.`}
+        title="Рассылка отправлена!"
+        subTitle={`Сообщение поставлено в очередь для ${sentResult.recipientCount} получателей${sentResult.statusFilter ? ` (статус: ${sentResult.statusFilter})` : ''}.`}
         extra={
           <Button type="primary" onClick={() => setSentResult(null)}>
-            Send Another
+            Новая рассылка
           </Button>
         }
       />
@@ -107,42 +102,38 @@ export default function BroadcastPage() {
   return (
     <>
       <Row gutter={24}>
-        {/* Left: form */}
         <Col xs={24} lg={12}>
-          <Card title="Compose Broadcast Message" size="small">
+          <Card title="Составить рассылку" size="small">
             <Form<FormValues>
               form={form}
               layout="vertical"
-              initialValues={{ planCode: 'ALL' }}
+              initialValues={{ status: 'ALL' }}
               onFinish={handleSubmit}
               onValuesChange={(_, values) => {
                 setPreviewText(values.text ?? '');
-                setPreviewPlan(values.planCode ?? 'ALL');
+                setPreviewStatus(values.status ?? 'ALL');
               }}
             >
               <Form.Item
                 name="text"
-                label="Message Text"
+                label="Текст сообщения"
                 rules={[
-                  { required: true, message: 'Enter message text' },
-                  { min: 5, message: 'Message must be at least 5 characters' },
-                  { max: 4096, message: 'Telegram limit: 4096 characters' },
+                  { required: true, message: 'Введите текст' },
+                  { min: 5, message: 'Минимум 5 символов' },
+                  { max: 4096, message: 'Лимит Telegram: 4096 символов' },
                 ]}
-                extra="Supports Telegram markdown: **bold**, *italic*, `code`"
+                extra="Поддерживается Telegram Markdown: **жирный**, *курсив*, `код`"
               >
                 <Input.TextArea
                   rows={10}
-                  placeholder="Enter your broadcast message here..."
+                  placeholder="Введите текст рассылки..."
                   showCount
                   maxLength={4096}
                 />
               </Form.Item>
 
-              <Form.Item
-                name="planCode"
-                label="Target Audience"
-              >
-                <Select options={PLAN_OPTIONS} />
+              <Form.Item name="status" label="Получатели">
+                <Select options={STATUS_OPTIONS} />
               </Form.Item>
 
               <Form.Item style={{ marginBottom: 0 }}>
@@ -153,32 +144,19 @@ export default function BroadcastPage() {
                   block
                   size="large"
                 >
-                  Send Broadcast
+                  Отправить рассылку
                 </Button>
               </Form.Item>
             </Form>
           </Card>
         </Col>
 
-        {/* Right: preview */}
         <Col xs={24} lg={12}>
           <Card
-            title={
-              <Space>
-                <EyeOutlined />
-                <span>Telegram Preview</span>
-              </Space>
-            }
+            title={<Space><EyeOutlined /><span>Превью Telegram</span></Space>}
             size="small"
           >
-            <div
-              style={{
-                background: '#1a1a2e',
-                borderRadius: 12,
-                padding: 16,
-                minHeight: 200,
-              }}
-            >
+            <div style={{ background: '#1a1a2e', borderRadius: 12, padding: 16, minHeight: 200 }}>
               {previewText ? (
                 <div
                   style={{
@@ -189,22 +167,21 @@ export default function BroadcastPage() {
                     color: '#fff',
                     fontSize: 14,
                     lineHeight: 1.5,
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
                   }}
                   dangerouslySetInnerHTML={{ __html: renderTelegramPreview(previewText) }}
                 />
               ) : (
                 <Typography.Text type="secondary" style={{ color: '#666' }}>
-                  Message preview will appear here...
+                  Превью появится здесь...
                 </Typography.Text>
               )}
             </div>
 
             <div style={{ marginTop: 12 }}>
               <Space>
-                <Typography.Text type="secondary">Target:</Typography.Text>
-                <Tag color={planTagColor(previewPlan === 'ALL' ? null : previewPlan)}>
-                  {previewPlan === 'ALL' ? 'All Users' : `${previewPlan} Plan`}
+                <Typography.Text type="secondary">Получатели:</Typography.Text>
+                <Tag color={statusTagColor(previewStatus === 'ALL' ? null : previewStatus)}>
+                  {previewStatus === 'ALL' ? 'Все' : previewStatus}
                 </Tag>
               </Space>
             </div>
@@ -213,21 +190,20 @@ export default function BroadcastPage() {
       </Row>
 
       <Modal
-        title="Confirm Broadcast"
+        title="Подтвердить рассылку"
         open={confirmOpen}
         onCancel={() => setConfirmOpen(false)}
         onOk={handleConfirm}
-        okText="Send"
+        okText="Отправить"
         okButtonProps={{ danger: true, loading: sendMutation.isPending }}
-        cancelText="Cancel"
+        cancelText="Отмена"
       >
         <Space direction="vertical">
           <Typography.Text>
-            You are about to send a broadcast message to{' '}
-            <strong>{recipientLabel}</strong>.
+            Вы собираетесь отправить рассылку <strong>{recipientLabel}</strong>.
           </Typography.Text>
           <Typography.Text type="secondary">
-            This action cannot be undone. Make sure your message is correct before proceeding.
+            Действие необратимо. Убедитесь в правильности текста перед отправкой.
           </Typography.Text>
           <Card size="small" style={{ marginTop: 8 }}>
             <Typography.Text style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>

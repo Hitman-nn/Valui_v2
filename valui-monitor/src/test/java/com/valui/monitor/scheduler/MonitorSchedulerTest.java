@@ -5,7 +5,6 @@ import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.dedup.EventDeduplicationService;
 import com.valui.monitor.event.ControllerAddedEvent;
 import com.valui.monitor.event.ControllerRemovedEvent;
-import com.valui.monitor.event.SubscriptionChangedEvent;
 import com.valui.monitor.scheduler.ControllerTaskExecutor.ControllerScheduleInfo;
 import com.valui.monitor.scheduler.drr.DrrDispatcher;
 import com.valui.monitor.scheduler.job.ControllerJob;
@@ -129,22 +128,6 @@ class MonitorSchedulerTest {
         scheduler.on(new ControllerRemovedEvent(CTRL_ID, USER_ID));
 
         assertThat(scheduler.getScheduledControllerIds()).doesNotContain(CTRL_ID);
-    }
-
-    @Test
-    @DisplayName("SubscriptionChangedEvent listener reschedules user's controllers")
-    void on_subscriptionChanged_reschedulesUser() {
-        UUID ctrl2 = UUID.randomUUID();
-        scheduler.scheduleController(CTRL_ID, USER_ID, 30);
-        scheduler.scheduleController(ctrl2, USER_ID, 30);
-
-        given(taskExecutor.loadActiveForUser(USER_ID)).willReturn(List.of(
-                new ControllerScheduleInfo(CTRL_ID, USER_ID, TG_ID, 15, BookmakerType.FONBET),
-                new ControllerScheduleInfo(ctrl2,   USER_ID, TG_ID, 15, BookmakerType.FONBET)));
-
-        scheduler.on(new SubscriptionChangedEvent(USER_ID, TG_ID, "PRO", 15));
-
-        assertThat(scheduler.getScheduledControllerIds()).contains(CTRL_ID, ctrl2);
     }
 
     // ── rescheduleAll ─────────────────────────────────────────────────────────

@@ -7,7 +7,6 @@ import java.time.OffsetDateTime;
 
 public record PaymentHistoryDto(
     String paymentId,
-    String planCode,
     BigDecimal amount,
     String currency,
     String status,
@@ -17,7 +16,6 @@ public record PaymentHistoryDto(
     public static PaymentHistoryDto from(PaymentTransactionEntity tx) {
         return new PaymentHistoryDto(
             tx.getPaymentId(),
-            tx.getPlanCode(),
             tx.getAmount(),
             tx.getCurrency(),
             tx.getStatus(),

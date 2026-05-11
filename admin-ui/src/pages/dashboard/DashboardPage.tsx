@@ -22,7 +22,6 @@ import {
   DatabaseOutlined,
   CloudServerOutlined,
   MonitorOutlined,
-  ClockCircleOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -44,14 +43,6 @@ function fmtUptime(sec: number): string {
   const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
   return d > 0 ? `${d}d ${h}h` : `${h}h ${m}m`;
-}
-
-function planColor(code: string): string {
-  switch (code.toUpperCase()) {
-    case 'PREMIUM': return 'gold';
-    case 'PRO':     return 'blue';
-    default:        return 'default';
-  }
 }
 
 export default function DashboardPage() {
@@ -228,29 +219,6 @@ export default function DashboardPage() {
         </Col>
       </Row>
 
-      {/* ── 1а. Subscriptions ───────────────────────────────────────────── */}
-      <Card title={<Space><ClockCircleOutlined /><span>Подписки</span></Space>} size="small">
-        <Row gutter={[16, 8]} align="middle">
-          <Col>
-            <Space wrap>
-              {summary.subscriptions.byPlan.map((p) => (
-                <Tag key={p.planCode} color={planColor(p.planCode)}
-                  style={{ fontSize: 14, padding: '4px 12px' }}>
-                  {p.planName}: <strong>{p.count}</strong>
-                </Tag>
-              ))}
-            </Space>
-          </Col>
-          <Col>
-            <Statistic
-              title={<Tooltip title="Активные подписки с истечением ≤ 7 дней">Истекают через 7д</Tooltip>}
-              value={summary.subscriptions.expiringIn7d}
-              valueStyle={{ color: summary.subscriptions.expiringIn7d > 0 ? '#faad14' : undefined }}
-            />
-          </Col>
-        </Row>
-      </Card>
-
       {/* ── 1б. Parsers ─────────────────────────────────────────────────── */}
       <Card title={<Space><MonitorOutlined /><span>Парсеры</span></Space>} size="small">
         <Row gutter={[8, 8]}>
@@ -282,8 +250,15 @@ export default function DashboardPage() {
         <Col xs={24} md={8}>
           <Card title={<Space><DatabaseOutlined /><span>Redis</span></Space>} size="small">
             <Statistic title="Используется" value={redis.usedMemoryHuman} />
-            <Progress percent={jvm.heapUsedBytes > 0 ? Math.min(99, Math.round((redis.usedMemoryBytes / redis.usedMemoryPeakBytes) * 100)) : 0}
-              strokeColor={redis.usedMemoryBytes / redis.usedMemoryPeakBytes > 0.8 ? '#ff4d4f' : '#1668dc'}
+            <Progress
+              percent={redis.maxMemoryBytes > 0
+                ? Math.min(99, Math.round((redis.usedMemoryBytes / redis.maxMemoryBytes) * 100))
+                : redis.usedMemoryPeakBytes > 0
+                  ? Math.min(99, Math.round((redis.usedMemoryBytes / redis.usedMemoryPeakBytes) * 100))
+                  : 0}
+              strokeColor={(redis.maxMemoryBytes > 0
+                ? redis.usedMemoryBytes / redis.maxMemoryBytes
+                : redis.usedMemoryBytes / redis.usedMemoryPeakBytes) > 0.8 ? '#ff4d4f' : '#1668dc'}
               style={{ marginTop: 8 }} />
             <Text type="secondary" style={{ fontSize: 12 }}>Ключей: {redis.totalKeys.toLocaleString()}</Text>
           </Card>

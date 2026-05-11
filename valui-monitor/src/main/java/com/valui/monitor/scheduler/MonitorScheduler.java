@@ -4,7 +4,6 @@ import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.dedup.EventDeduplicationService;
 import com.valui.monitor.event.ControllerAddedEvent;
 import com.valui.monitor.event.ControllerRemovedEvent;
-import com.valui.monitor.event.SubscriptionChangedEvent;
 import com.valui.monitor.scheduler.ControllerTaskExecutor.ControllerScheduleInfo;
 import com.valui.monitor.scheduler.drr.DrrDispatcher;
 import com.valui.monitor.scheduler.SchedulerConfigStore;
@@ -14,7 +13,6 @@ import com.valui.monitor.scheduler.state.SchedulerStateStore;
 import com.valui.user.api.ControllerPortService;
 import com.valui.user.event.ControllerResumedEvent;
 import com.valui.user.event.ControllerSuspendedEvent;
-import com.valui.user.event.SubscriptionExpiredEvent;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -187,18 +185,6 @@ public class MonitorScheduler {
     public void on(ControllerRemovedEvent e) {
         log.debug("◼  Удалён контроллер {}: снимаем с расписания", e.controllerId());
         unscheduleController(e.controllerId());
-    }
-
-    @EventListener
-    public void on(SubscriptionChangedEvent e) {
-        log.info("🔄 Подписка изменена: перепланируем контроллеры userId={}", e.userId());
-        rescheduleUser(e.userId());
-    }
-
-    @EventListener
-    public void on(SubscriptionExpiredEvent e) {
-        log.info("Подписка истекла: перепланируем контроллеры userId={}", e.userId());
-        rescheduleUser(e.userId());
     }
 
     @EventListener

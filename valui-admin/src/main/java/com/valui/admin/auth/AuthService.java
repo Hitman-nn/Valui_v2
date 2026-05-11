@@ -12,7 +12,6 @@ import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.UserNotFoundException;
 import com.valui.common.exception.ValuiException;
 import com.valui.user.dto.TelegramUserDto;
-import com.valui.user.service.SubscriptionService;
 import com.valui.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +28,6 @@ public class AuthService {
     private final JwtProperties jwtProperties;
     private final JwtService jwtService;
     private final UserService userService;
-    private final SubscriptionService subscriptionService;
     private final RefreshTokenRepository refreshTokenRepository;
 
     /**
@@ -45,9 +43,8 @@ public class AuthService {
             new TelegramUserDto(request.telegramId(), null, null, null)
         );
 
-        String planCode = resolvePlanCode(request.telegramId());
         String accessToken = jwtService.generateAccessToken(
-            user.getId(), request.telegramId(), user.getRole().name(), planCode
+            user.getId(), request.telegramId(), user.getRole().name(), null
         );
         String refreshTokenValue = UUID.randomUUID().toString();
 
@@ -58,7 +55,7 @@ public class AuthService {
             user.getRole().name()
         ));
 
-        log.info("Issued tokens for telegramId={} userId={} plan={}", request.telegramId(), user.getId(), planCode);
+        log.info("Issued tokens for telegramId={} userId={}", request.telegramId(), user.getId());
         return new AuthResponse(accessToken, refreshTokenValue, jwtProperties.accessTokenTtlSeconds());
     }
 
@@ -73,17 +70,15 @@ public class AuthService {
         UserEntity user = userService.findByTelegramId(rt.getTelegramId())
             .orElseThrow(() -> new UserNotFoundException(UUID.fromString(rt.getUserId())));
 
-        String planCode = resolvePlanCode(rt.getTelegramId());
         String newAccessToken = jwtService.generateAccessToken(
-            user.getId(), rt.getTelegramId(), user.getRole().name(), planCode
+            user.getId(), rt.getTelegramId(), user.getRole().name(), null
         );
 
         return new AuthResponse(newAccessToken, refreshToken, jwtProperties.accessTokenTtlSeconds());
     }
 
     /**
-     * Admin panel login: validates adminPassword from config, checks ADMIN role,
-     * and issues JWT tokens identically to {@link #authenticate}.
+     * Admin panel login: validates adminPassword from config, checks ADMIN role.
      */
     public AuthResponse authenticateAdmin(AdminLoginRequest request) {
         if (authProperties.adminPassword() == null ||
@@ -98,9 +93,8 @@ public class AuthService {
             throw new ValuiException("Access denied: not an admin", 403);
         }
 
-        String planCode = resolvePlanCode(request.telegramId());
         String accessToken = jwtService.generateAccessToken(
-            user.getId(), request.telegramId(), user.getRole().name(), planCode
+            user.getId(), request.telegramId(), user.getRole().name(), null
         );
         String refreshTokenValue = java.util.UUID.randomUUID().toString();
 
@@ -119,13 +113,5 @@ public class AuthService {
     public void logout(String refreshToken) {
         refreshTokenRepository.deleteById(refreshToken);
         log.debug("Refresh token invalidated: {}", refreshToken.substring(0, 8) + "...");
-    }
-
-    private String resolvePlanCode(Long telegramId) {
-        try {
-            return subscriptionService.getUserPlan(telegramId).code();
-        } catch (Exception e) {
-            return "FREE";
-        }
     }
 }

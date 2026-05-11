@@ -68,7 +68,7 @@ public class ControllerServiceImpl implements ControllerService {
         planLimitFacade.debitForBkSlotIfNew(telegramId, bookmaker.name());
 
         ControllerType type = (req.typeHint() != null) ? req.typeHint() : resolveType(req.url(), bookmaker);
-        int pollIntervalSec = planLimitFacade.getLimitInfo(telegramId).pollIntervalSec();
+        int pollIntervalSec = monitorProps.getDefaultPollIntervalSec();
 
         ControllerEntity saved = controllerPort.save(
             ControllerEntity.builder()
@@ -305,9 +305,10 @@ public class ControllerServiceImpl implements ControllerService {
             .orElse(false);
         long eventCount = detectedEventPort.countByControllerId(e.getId());
         Long ownerTelegramId = e.getUser() != null ? e.getUser().getTelegramId() : null;
+        String effectiveFilter = Boolean.TRUE.equals(e.getFilterPausedByTokens()) ? null : e.getFilterRule();
         return new ControllerDto(
             e.getId(), e.getBookmaker().name(), e.getUrl(), e.getTitle(),
-            e.getFilterRule(), isMuted, Boolean.TRUE.equals(e.getIsActive()),
+            effectiveFilter, isMuted, Boolean.TRUE.equals(e.getIsActive()),
             e.getLastCheckedAt() != null ? e.getLastCheckedAt().toInstant() : null,
             e.getLastEventAt()   != null ? e.getLastEventAt().toInstant()   : null,
             (int) eventCount, e.getType(), e.getNotificationChatId(), ownerTelegramId,
@@ -378,9 +379,10 @@ public class ControllerServiceImpl implements ControllerService {
             .orElse(false);
         long eventCount = counts.getOrDefault(e.getId(), 0L);
         Long ownerTelegramId = e.getUser() != null ? e.getUser().getTelegramId() : null;
+        String effectiveFilter = Boolean.TRUE.equals(e.getFilterPausedByTokens()) ? null : e.getFilterRule();
         return new ControllerDto(
             e.getId(), e.getBookmaker().name(), e.getUrl(), e.getTitle(),
-            e.getFilterRule(), isMuted, Boolean.TRUE.equals(e.getIsActive()),
+            effectiveFilter, isMuted, Boolean.TRUE.equals(e.getIsActive()),
             e.getLastCheckedAt() != null ? e.getLastCheckedAt().toInstant() : null,
             e.getLastEventAt()   != null ? e.getLastEventAt().toInstant()   : null,
             (int) eventCount, e.getType(), e.getNotificationChatId(), ownerTelegramId,

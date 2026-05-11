@@ -29,38 +29,26 @@ class MenuSnapshotTest {
     // ─── MainMenuBuilder ─────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("MainMenuBuilder: text contains plan info; keyboard has 3 rows")
+    @DisplayName("MainMenuBuilder: text shows controllers and tokens; keyboard has 3 rows")
     void mainMenu_structure() {
-        var limits = new LimitInfoDto(2, 5, 1, 3,
-            List.of("XBET", "FONBET"), 60, "PRO",
-            OffsetDateTime.now().plusDays(30), 0, 200, 10);
+        var limits = new LimitInfoDto(2, 150, 200);
 
         MenuMessage menu = MainMenuBuilder.build(limits);
 
-        assertThat(menu.text()).contains("PRO", "2 / 5", "1 / 3", "60 сек");
+        assertThat(menu.text()).contains("2", "150", "200");
 
         InlineKeyboardMarkup kb = menu.keyboard();
         assertThat(kb.getKeyboard()).hasSize(3);
         assertThat(kb.getKeyboard().get(0).get(0).getCallbackData()).isEqualTo(CallbackData.CTRL_LIST);
         assertThat(kb.getKeyboard().get(1).get(0).getCallbackData()).isEqualTo(CallbackData.FILTER_LIST);
-        assertThat(kb.getKeyboard().get(2)).hasSize(2);
+        assertThat(kb.getKeyboard().get(2).get(0).getCallbackData()).isEqualTo(CallbackData.BET_MENU);
     }
 
     @Test
-    @DisplayName("MainMenuBuilder: FREE plan (no expiry) — no expiry line in text")
-    void mainMenu_freePlan_noExpiryLine() {
-        var limits = new LimitInfoDto(0, 1, 0, 1,
-            List.of("XBET"), 120, "FREE", null, 0, 0, 0);
-        assertThat(MainMenuBuilder.build(limits).text()).doesNotContain("Действует до");
-    }
-
-    @Test
-    @DisplayName("MainMenuBuilder: with expiry — text contains expiry date")
-    void mainMenu_withExpiry_containsDate() {
-        var limits = new LimitInfoDto(1, 5, 0, 3,
-            List.of(), 60, "PRO",
-            OffsetDateTime.parse("2026-12-31T00:00:00+03:00"), 0, 200, 10);
-        assertThat(MainMenuBuilder.build(limits).text()).contains("31.12.2026");
+    @DisplayName("MainMenuBuilder: zero balance — shows zeros")
+    void mainMenu_zeroBalance() {
+        var limits = new LimitInfoDto(0, 0, 0);
+        assertThat(MainMenuBuilder.build(limits).text()).contains("0");
     }
 
     // ─── BookmakerMenuBuilder ────────────────────────────────────────────────

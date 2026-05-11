@@ -14,8 +14,8 @@ import java.util.Optional;
  * Redis-backed store for "quick-add controller" data attached to notification buttons.
  *
  * Key scheme: {@code qadd:{notificationLogId}}
- * TTL: 30 days — notifications live in chat history indefinitely,
- *       so the button must remain functional long after delivery.
+ * TTL: 14 days — достаточно для кнопок в истории чата; после двух недель
+ *       пользователь вряд ли вернётся к старому уведомлению.
  *
  * Written by {@code SportEventConsumer} (valui-notify) when a SPORT-type controller
  * detects a new tournament. Read by {@code QuickAddControllerCallback} (valui-bot)
@@ -27,7 +27,7 @@ import java.util.Optional;
 public class QuickAddCacheService {
 
     static final String KEY_PREFIX = "qadd:";
-    private static final Duration TTL = Duration.ofDays(30);
+    private static final Duration TTL = Duration.ofDays(14);
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;

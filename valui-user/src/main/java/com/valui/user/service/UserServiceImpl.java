@@ -1,31 +1,26 @@
 package com.valui.user.service;
 
 import com.valui.common.annotation.Audit;
-import com.valui.common.domain.SubscriptionStatus;
 import com.valui.common.domain.UserRole;
 import com.valui.common.domain.UserStatus;
-import com.valui.common.entity.SubscriptionEntity;
-import com.valui.common.entity.SubscriptionPlanEntity;
 import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.UserNotFoundException;
 import com.valui.user.dto.TelegramUserDto;
-import com.valui.user.dto.UserWithSubscriptionDto;
 import com.valui.user.event.UserBanEvent;
-import com.valui.user.repository.SubscriptionPlanRepository;
-import com.valui.user.repository.SubscriptionRepository;
 import com.valui.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -35,12 +30,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
-    private static final String FREE_PLAN_CODE = "FREE";
-    private static final String USERS_CACHE   = "users";
+    private static final String USERS_CACHE = "users";
 
     private final UserRepository userRepository;
-    private final SubscriptionRepository subscriptionRepository;
-    private final SubscriptionPlanRepository subscriptionPlanRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
@@ -51,7 +43,6 @@ public class UserServiceImpl implements UserService {
                 try {
                     return createNewUser(dto);
                 } catch (DataIntegrityViolationException e) {
-                    // Concurrent registration of the same telegramId — return the winner's record
                     log.warn("Race condition on registerOrGetUser for telegramId={}", dto.telegramId());
                     return userRepository.findByTelegramId(dto.telegramId())
                         .orElseThrow(() -> new IllegalStateException(
@@ -63,8 +54,6 @@ public class UserServiceImpl implements UserService {
     @Override
     @Cacheable(value = USERS_CACHE, key = "#telegramId", unless = "#result == null")
     public Optional<UserEntity> findByTelegramId(Long telegramId) {
-        // Spring Cache unwraps Optional<T> before evaluating SpEL, so #result is UserEntity (or null
-        // for empty). unless="#result == null" skips caching of Optional.empty() correctly.
         return userRepository.findByTelegramId(telegramId);
     }
 
@@ -117,20 +106,6 @@ public class UserServiceImpl implements UserService {
         log.info("✅ Пользователь разблокирован: userId={}", userId);
     }
 
-    @Override
-    public UserWithSubscriptionDto getUserWithSubscription(Long telegramId) {
-        UserEntity user = userRepository.findByTelegramId(telegramId)
-            .orElseThrow(() -> new UserNotFoundException(telegramId));
-
-        SubscriptionEntity subscription = subscriptionRepository
-            .findTopByUserIdAndStatusOrderByStartedAtDesc(user.getId(), SubscriptionStatus.ACTIVE)
-            .orElseThrow(() -> new IllegalStateException(
-                "No active subscription found for telegramId=" + telegramId));
-
-        SubscriptionPlanEntity plan = subscription.getPlan();
-        return new UserWithSubscriptionDto(user, plan, subscription);
-    }
-
     // ─── Admin-only operations ────────────────────────────────────────────────
 
     @Override
@@ -167,13 +142,36 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     @CacheEvict(value = USERS_CACHE, allEntries = true)
-    public UserEntity updateProfile(UUID userId, Integer tokenBalance, Integer tokenLowThresholdPct, Integer tokenMonthlyGrantRef) {
+    public UserEntity updateProfile(UUID userId, Integer tokenBalance, Integer tokenLowThreshold, Integer tokenMonthlyGrantRef) {
         UserEntity user = userRepository.findById(userId)
             .orElseThrow(() -> new UserNotFoundException(userId));
-        if (tokenBalance != null)           user.setTokenBalance(tokenBalance);
-        if (tokenLowThresholdPct != null)   user.setTokenLowThresholdPct(tokenLowThresholdPct);
-        if (tokenMonthlyGrantRef != null)   user.setTokenMonthlyGrantRef(tokenMonthlyGrantRef);
+        if (tokenBalance != null)        user.setTokenBalance(tokenBalance);
+        if (tokenLowThreshold != null)   user.setTokenLowThreshold(tokenLowThreshold);
+        if (tokenMonthlyGrantRef != null) user.setTokenMonthlyGrantRef(tokenMonthlyGrantRef);
         return userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = USERS_CACHE, allEntries = true)
+    @Audit(action = "USER_DELETE", entityType = "User")
+    public void deleteUser(UUID userId) {
+        UserEntity user = userRepository.findById(userId)
+            .orElseThrow(() -> new UserNotFoundException(userId));
+        userRepository.delete(user);
+        log.info("[ADMIN] User deleted: userId={} telegramId={}", userId, user.getTelegramId());
+    }
+
+    @Override
+    public List<Long> findTelegramIdsByStatus(String status) {
+        if (status == null || status.isBlank() || status.equalsIgnoreCase("ALL")) {
+            return userRepository.findAllTelegramIds();
+        }
+        try {
+            return userRepository.findTelegramIdsByStatus(UserStatus.valueOf(status.toUpperCase()));
+        } catch (IllegalArgumentException e) {
+            return userRepository.findAllTelegramIds();
+        }
     }
 
     // ─── private helpers ─────────────────────────────────────────────────────
@@ -188,31 +186,8 @@ public class UserServiceImpl implements UserService {
             .status(UserStatus.ACTIVE)
             .build();
         user = userRepository.save(user);
-
-        SubscriptionPlanEntity freePlan = subscriptionPlanRepository.findByCode(FREE_PLAN_CODE)
-            .orElseThrow(() -> new IllegalStateException(
-                "FREE plan not found — check V2__seed_plans.sql migration"));
-
-        SubscriptionEntity subscription = SubscriptionEntity.builder()
-            .user(user)
-            .plan(freePlan)
-            .status(SubscriptionStatus.ACTIVE)
-            .build();
-        subscriptionRepository.save(subscription);
-
         log.info("✅ Зарегистрирован пользователь: telegramId={} userId={}", dto.telegramId(), user.getId());
         return user;
-    }
-
-    @Override
-    @Transactional
-    @CacheEvict(value = USERS_CACHE, allEntries = true)
-    @Audit(action = "USER_DELETE", entityType = "User")
-    public void deleteUser(UUID userId) {
-        UserEntity user = userRepository.findById(userId)
-            .orElseThrow(() -> new UserNotFoundException(userId));
-        userRepository.delete(user);
-        log.info("[ADMIN] User deleted: userId={} telegramId={}", userId, user.getTelegramId());
     }
 
     private UUID resolveCurrentAdminId() {

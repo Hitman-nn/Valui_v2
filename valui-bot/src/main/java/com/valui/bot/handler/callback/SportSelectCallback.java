@@ -80,10 +80,9 @@ public class SportSelectCallback implements CallbackHandler {
 
     private void handleBackToBookmakers(BotUpdateContext ctx, int messageId) {
         sessionService.setStateWithContext(ctx.fromId(), BotState.SELECTING_BOOKMAKER, new HashMap<>());
-        List<String> allowed = planLimitFacade.getLimitInfo(ctx.fromId()).allowedBookmakers();
         var kb = InlineKeyboardBuilder.create().columns(2);
-        for (String bm : allowed) {
-            kb.button(bm, CallbackData.bookmakerSelect(bm));
+        for (com.valui.common.domain.BookmakerType bm : com.valui.common.domain.BookmakerType.values()) {
+            kb.button(bm.name(), CallbackData.bookmakerSelect(bm.name()));
         }
         MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_bookmaker", ctx.fromId()),
@@ -94,6 +93,9 @@ public class SportSelectCallback implements CallbackHandler {
         int page = parsePageNum(data.substring("SPORT:PAGE:".length()));
         Optional<String> bm = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
         if (bm.isEmpty()) return;
+
+        sessionService.setStateAndMergeContext(ctx.fromId(), BotState.SELECTING_SPORT,
+            Map.of(UserBotSession.CTX_SPORT_PAGE, String.valueOf(page)));
 
         // Use cache — avoids HTTP round-trip on every page click
         List<SportDto> sports;

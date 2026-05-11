@@ -4,25 +4,21 @@ import com.valui.admin.monitoring.ControllerAssembler;
 import com.valui.admin.monitoring.dto.ControllerApiDto;
 import com.valui.admin.security.CurrentUser;
 import com.valui.admin.security.ValuiPrincipal;
-import com.valui.admin.subscriptions.dto.AdminSubscriptionDto;
 import com.valui.admin.users.dto.AdminNotificationLogDto;
 import com.valui.admin.users.dto.AdminPaymentTransactionDto;
 import com.valui.admin.users.dto.AdminUserDto;
 import com.valui.admin.users.dto.AdminUserSummaryDto;
 import com.valui.admin.users.dto.ChangeRoleRequest;
 import com.valui.admin.users.dto.UpdateUserProfileRequest;
-import com.valui.admin.users.dto.UpdateSubscriptionDatesRequest;
 import com.valui.common.domain.UserStatus;
 import com.valui.common.dto.ErrorResponse;
 import com.valui.admin.audit.dto.AdminAuditDto;
 import com.valui.common.entity.UserEntity;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
-import com.valui.user.dto.UserWithSubscriptionDto;
 import com.valui.user.repository.AuditLogRepository;
 import com.valui.user.repository.NotificationLogRepository;
 import com.valui.user.repository.PaymentTransactionRepository;
-import com.valui.user.service.SubscriptionService;
 import com.valui.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -55,7 +51,6 @@ public class AdminUserController {
     private static final String V1 = "application/vnd.valui.v1+json";
 
     private final UserService userService;
-    private final SubscriptionService subscriptionService;
     private final ControllerService controllerService;
     private final ControllerAssembler controllerAssembler;
     private final AdminUserAssembler assembler;
@@ -66,8 +61,7 @@ public class AdminUserController {
 
     // ── GET /api/v1/admin/users ───────────────────────────────────────────────
 
-    @Operation(summary = "Список пользователей",
-               description = "Постраничный список всех пользователей. Только для ADMIN.")
+    @Operation(summary = "Список пользователей")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Список получен"),
             @ApiResponse(responseCode = "401", description = "Требуется аутентификация",
@@ -91,58 +85,29 @@ public class AdminUserController {
 
     // ── GET /api/v1/admin/users/{id} ──────────────────────────────────────────
 
-    @Operation(summary = "Получить пользователя",
-               description = "Полная информация о пользователе по UUID. Только для ADMIN.")
+    @Operation(summary = "Получить пользователя")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Пользователь найден"),
-            @ApiResponse(responseCode = "401", description = "Требуется аутентификация",
-                         content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Требуется роль ADMIN",
-                         content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Пользователь не найден",
                          content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping(value = "/{id}", produces = {V1, MediaType.APPLICATION_JSON_VALUE})
     public ResponseEntity<AdminUserDto> getUser(
-            @Parameter(description = "UUID пользователя") @PathVariable UUID id,
+            @PathVariable UUID id,
             @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
 
         UserEntity user = userService.findById(id);
-
-        UserWithSubscriptionDto withSub = null;
-        try {
-            withSub = userService.getUserWithSubscription(user.getTelegramId());
-        } catch (Exception ignored) {
-            // Нет активной подписки — возвращаем без плана
-        }
-
-        AdminUserDto dto = withSub != null
-                ? new AdminUserDto(user, withSub.plan(), withSub.subscription())
-                : new AdminUserDto(user, null, null);
-
+        AdminUserDto dto = new AdminUserDto(user);
         enrichWithLinks(dto, user);
         return ResponseEntity.ok(dto);
     }
 
     // ── POST /api/v1/admin/users/{id}/ban ────────────────────────────────────
 
-    @Operation(summary = "Заблокировать пользователя",
-               description = """
-                       Устанавливает статус пользователя в BANNED и публикует Kafka-событие.
-                       Только для ADMIN.
-                       """)
-    @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Пользователь заблокирован"),
-            @ApiResponse(responseCode = "401", description = "Требуется аутентификация",
-                         content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Требуется роль ADMIN",
-                         content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Пользователь не найден",
-                         content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    })
+    @Operation(summary = "Заблокировать пользователя")
     @PostMapping("/{id}/ban")
     public ResponseEntity<Void> banUser(
-            @Parameter(description = "UUID пользователя") @PathVariable UUID id,
+            @PathVariable UUID id,
             @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
 
         userService.banUser(id);
@@ -151,20 +116,10 @@ public class AdminUserController {
 
     // ── DELETE /api/v1/admin/users/{id}/ban ──────────────────────────────────
 
-    @Operation(summary = "Разблокировать пользователя",
-               description = "Снимает бан с пользователя. Только для ADMIN.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Пользователь разблокирован"),
-            @ApiResponse(responseCode = "401", description = "Требуется аутентификация",
-                         content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Требуется роль ADMIN",
-                         content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Пользователь не найден",
-                         content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    })
+    @Operation(summary = "Разблокировать пользователя")
     @DeleteMapping("/{id}/ban")
     public ResponseEntity<Void> unbanUser(
-            @Parameter(description = "UUID пользователя") @PathVariable UUID id,
+            @PathVariable UUID id,
             @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
 
         userService.unbanUser(id);
@@ -173,23 +128,10 @@ public class AdminUserController {
 
     // ── PATCH /api/v1/admin/users/{id}/role ──────────────────────────────────
 
-    @Operation(summary = "Изменить роль пользователя",
-               description = "Меняет роль между USER и ADMIN. Только для ADMIN.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Роль изменена"),
-            @ApiResponse(responseCode = "400", description = "Ошибка валидации",
-                         content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "401", description = "Требуется аутентификация",
-                         content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Требуется роль ADMIN",
-                         content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Пользователь не найден",
-                         content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    @PatchMapping(value = "/{id}/role",
-                  consumes = {V1, MediaType.APPLICATION_JSON_VALUE})
+    @Operation(summary = "Изменить роль пользователя")
+    @PatchMapping(value = "/{id}/role", consumes = {V1, MediaType.APPLICATION_JSON_VALUE})
     public ResponseEntity<Void> changeRole(
-            @Parameter(description = "UUID пользователя") @PathVariable UUID id,
+            @PathVariable UUID id,
             @Valid @RequestBody ChangeRoleRequest req,
             @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
 
@@ -245,32 +187,6 @@ public class AdminUserController {
         return ResponseEntity.ok(list.stream().map(controllerAssembler::toModel).toList());
     }
 
-    // ── GET /api/v1/admin/users/{id}/subscription ─────────────────────────────
-
-    @Operation(summary = "Текущая подписка пользователя")
-    @GetMapping(value = "/{id}/subscription", produces = {V1, MediaType.APPLICATION_JSON_VALUE})
-    public ResponseEntity<AdminSubscriptionDto> userSubscription(
-            @PathVariable UUID id,
-            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
-        UserEntity user = userService.findById(id);
-        return subscriptionService.findActiveByUserId(user.getId())
-            .map(s -> ResponseEntity.ok(AdminSubscriptionDto.from(s)))
-            .orElse(ResponseEntity.notFound().build());
-    }
-
-    // ── PATCH /api/v1/admin/users/{id}/subscription ───────────────────────────
-
-    @Operation(summary = "Изменить тарифный план пользователя")
-    @PostMapping(value = "/{id}/subscription",
-                 consumes = {V1, MediaType.APPLICATION_JSON_VALUE})
-    public ResponseEntity<Void> grantPlan(
-            @PathVariable UUID id,
-            @Valid @RequestBody com.valui.admin.subscriptions.dto.GrantPlanRequest req,
-            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
-        subscriptionService.grantPlan(id, req.planCode());
-        return ResponseEntity.noContent().build();
-    }
-
     // ── PATCH /api/v1/admin/users/{id}/profile ───────────────────────────────
 
     @Operation(summary = "Обновить профиль пользователя (токены, пороги)")
@@ -279,27 +195,10 @@ public class AdminUserController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateUserProfileRequest req,
             @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
-        UserEntity user = userService.updateProfile(id, req.tokenBalance(), req.tokenLowThresholdPct(), req.tokenMonthlyGrantRef());
-        UserWithSubscriptionDto withSub = null;
-        try { withSub = userService.getUserWithSubscription(user.getTelegramId()); } catch (Exception ignored) {}
-        AdminUserDto dto = withSub != null
-            ? new AdminUserDto(user, withSub.plan(), withSub.subscription())
-            : new AdminUserDto(user, null, null);
+        UserEntity user = userService.updateProfile(id, req.tokenBalance(), req.tokenLowThreshold(), req.tokenMonthlyGrantRef());
+        AdminUserDto dto = new AdminUserDto(user);
         enrichWithLinks(dto, user);
         return ResponseEntity.ok(dto);
-    }
-
-    // ── PATCH /api/v1/admin/users/{id}/subscription/dates ─────────────────────
-
-    @Operation(summary = "Изменить даты подписки пользователя")
-    @PatchMapping(value = "/{id}/subscription/dates", consumes = {V1, MediaType.APPLICATION_JSON_VALUE})
-    public ResponseEntity<AdminSubscriptionDto> updateSubscriptionDates(
-            @PathVariable UUID id,
-            @Valid @RequestBody UpdateSubscriptionDatesRequest req,
-            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
-        UserEntity user = userService.findById(id);
-        return ResponseEntity.ok(AdminSubscriptionDto.from(
-            subscriptionService.updateSubscriptionDates(user.getId(), req.startedAt(), req.expiresAt())));
     }
 
     // ── GET /api/v1/admin/users/{id}/payments ─────────────────────────────────

@@ -11,9 +11,6 @@ import type {
   Controller,
   UpdateControllerRequest,
   PollHistoryEntry,
-  Subscription,
-  SubscriptionStats,
-  GrantPlanRequest,
   BookmakerStatus,
   TestParseRequest,
   TestParseResult,
@@ -115,22 +112,11 @@ export const usersApi = {
   controllers: (id: string) =>
     apiClient.get<Controller[]>(`/api/v1/admin/users/${id}/controllers`).then((r) => r.data),
 
-  subscription: (id: string) =>
-    apiClient.get<Subscription>(`/api/v1/admin/users/${id}/subscription`).then((r) => r.data),
-
-  grantPlan: (id: string, data: GrantPlanRequest) =>
-    apiClient
-      .post<void>(`/api/v1/admin/users/${id}/subscription`, data)
-      .then((r) => r.data),
-
   payments: (id: string) =>
     apiClient.get<Payment[]>(`/api/v1/admin/users/${id}/payments`).then((r) => r.data),
 
-  updateProfile: (id: string, data: { tokenBalance?: number; tokenLowThresholdPct?: number; tokenMonthlyGrantRef?: number }) =>
-    apiClient.patch<import('./types').UserDetail>(`/api/v1/admin/users/${id}/profile`, data).then((r) => r.data),
-
-  updateSubscriptionDates: (id: string, data: { startedAt?: string | null; expiresAt?: string | null }) =>
-    apiClient.patch<Subscription>(`/api/v1/admin/users/${id}/subscription/dates`, data).then((r) => r.data),
+  updateProfile: (id: string, data: { tokenBalance?: number; tokenLowThreshold?: number | null; tokenMonthlyGrantRef?: number }) =>
+    apiClient.patch<UserDetail>(`/api/v1/admin/users/${id}/profile`, data).then((r) => r.data),
 
   auditLog: (id: string, params: { page?: number; size?: number }) =>
     apiClient
@@ -213,30 +199,6 @@ export const eventsApi = {
 
   stats: () =>
     apiClient.get<EventStats>('/api/v1/admin/events/stats').then((r) => r.data),
-};
-
-// ─── Subscriptions ────────────────────────────────────────────────────────────
-
-export const subscriptionsApi = {
-  list: (params: { page?: number; size?: number }) =>
-    apiClient
-      .get<SpringPage<Subscription>>('/api/v1/admin/subscriptions', { params })
-      .then((r) => r.data),
-
-  expiring: () =>
-    apiClient
-      .get<Subscription[]>('/api/v1/admin/subscriptions/expiring')
-      .then((r) => r.data),
-
-  stats: () =>
-    apiClient
-      .get<SubscriptionStats>('/api/v1/admin/subscriptions/stats')
-      .then((r) => r.data),
-
-  grant: (userId: string, data: GrantPlanRequest) =>
-    apiClient
-      .post<void>(`/api/v1/admin/subscriptions/users/${userId}/grant`, data)
-      .then((r) => r.data),
 };
 
 // ─── Parsers ─────────────────────────────────────────────────────────────────
@@ -325,6 +287,20 @@ export const schedulerApi = {
     }).then((r) => r.data),
 };
 
+// ─── Migration ────────────────────────────────────────────────────────────────
+
+export const migrationApi = {
+  dryRun: (body: import('./types').MigrationRequest) =>
+    apiClient
+      .post<import('./types').DryRunResult>('/api/v1/admin/migration/dry-run', body)
+      .then((r) => r.data),
+
+  execute: (body: import('./types').MigrationRequest) =>
+    apiClient
+      .post<import('./types').MigrationResult>('/api/v1/admin/migration/execute', body)
+      .then((r) => r.data),
+};
+
 // ─── Broadcast ────────────────────────────────────────────────────────────────
 
 export const broadcastApi = {
@@ -333,10 +309,10 @@ export const broadcastApi = {
       .post<BroadcastResult>('/api/v1/admin/broadcast', data)
       .then((r) => r.data),
 
-  preview: (planCode?: string) =>
+  preview: (status?: string) =>
     apiClient
       .get<BroadcastResult>('/api/v1/admin/broadcast/preview', {
-        params: planCode ? { planCode } : {},
+        params: status ? { status } : {},
       })
       .then((r) => r.data),
 };

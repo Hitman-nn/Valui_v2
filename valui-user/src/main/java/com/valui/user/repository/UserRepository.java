@@ -48,4 +48,10 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
 
     @Query("SELECT COUNT(u) FROM UserEntity u WHERE u.role = :role")
     long countByRole(@Param("role") com.valui.common.domain.UserRole role);
+
+    @Query("SELECT u.telegramId FROM UserEntity u")
+    List<Long> findAllTelegramIds();
+
+    @Query("SELECT u.telegramId FROM UserEntity u WHERE u.status = :status")
+    List<Long> findTelegramIdsByStatus(@Param("status") UserStatus status);
 }

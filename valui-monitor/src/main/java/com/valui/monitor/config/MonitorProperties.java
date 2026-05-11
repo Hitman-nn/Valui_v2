@@ -14,8 +14,10 @@ public class MonitorProperties {
     private int maxTasksPerUser = 5;
     /** Fallback poll interval when controller.pollIntervalSec is null. */
     private int defaultPollIntervalSec = 60;
-    /** How long to keep event IDs in the Redis dedup SET (days). */
-    private int dedupTtlDays = 7;
+    /** How long to keep event IDs in the Redis dedup SET (days).
+     *  Covers Kafka replay window only — matches can live months but dedup only needs
+     *  to catch duplicates from rebalance/retry, not the full event lifetime. */
+    private int dedupTtlDays = 3;
     /** Cron expression for the nightly dedup sync job. */
     private String dedupSyncCron = "0 0 3 * * *";
 

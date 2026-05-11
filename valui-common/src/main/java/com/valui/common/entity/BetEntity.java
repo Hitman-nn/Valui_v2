@@ -28,7 +28,7 @@ public class BetEntity implements HasUpdatedAt {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "telegram_id", nullable = false)
+    @Column(name = "telegram_id")
     private Long telegramId;
 
     @Column(name = "chat_id", nullable = false)

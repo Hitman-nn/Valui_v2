@@ -9,6 +9,6 @@ public record BroadcastRequest(
         @NotBlank @Size(max = 4096)
         @Schema(description = "Текст сообщения (Markdown)") String text,
 
-        @Schema(description = "Фильтр по плану: ALL/FREE/PRO/PREMIUM (null = ALL)", example = "FREE")
-        String planCode
+        @Schema(description = "Фильтр по статусу: ACTIVE/BANNED/null = всем", example = "ACTIVE")
+        String status
 ) {}

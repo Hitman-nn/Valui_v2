@@ -5,16 +5,13 @@ import {
   Tabs,
   Table,
   Button,
-  Modal,
   Form,
-  Select,
   InputNumber,
   Space,
   Typography,
   Tag,
   Spin,
   App,
-  DatePicker,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -27,22 +24,14 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { usersApi, subscriptionsApi } from '../../api/endpoints';
+import { usersApi } from '../../api/endpoints';
 import { StatusBadge, RoleBadge } from '../../components/StatusBadge';
 import type { AuditLog, NotificationLog, Controller, UserDetail } from '../../api/types';
 
-const PLAN_OPTIONS = [
-  { label: 'FREE', value: 'FREE' },
-  { label: 'PRO', value: 'PRO' },
-  { label: 'PREMIUM', value: 'PREMIUM' },
-];
-
 interface ProfileDraft {
   tokenBalance: number;
-  tokenLowThresholdPct: number;
+  tokenLowThreshold: number | null;
   tokenMonthlyGrantRef: number;
-  startedAt: ReturnType<typeof dayjs> | null;
-  expiresAt: ReturnType<typeof dayjs> | null;
 }
 
 export default function UserDetailPage() {
@@ -52,10 +41,7 @@ export default function UserDetailPage() {
   const qc = useQueryClient();
   const [auditPage, setAuditPage] = useState(0);
   const [notifPage, setNotifPage] = useState(0);
-  const [ctrlPage] = useState(0);
-  const [grantOpen, setGrantOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [grantForm] = Form.useForm<{ planCode: string }>();
   const [editForm] = Form.useForm<ProfileDraft>();
 
   const { data: user, isLoading: userLoading } = useQuery({
@@ -77,7 +63,7 @@ export default function UserDetailPage() {
   });
 
   const { data: ctrlData, isLoading: ctrlLoading } = useQuery({
-    queryKey: ['user-controllers', id, ctrlPage],
+    queryKey: ['user-controllers', id],
     queryFn: () => usersApi.controllers(id!),
     enabled: !!id,
   });
@@ -95,31 +81,13 @@ export default function UserDetailPage() {
     onError: (err: Error) => notification.error({ message: err.message }),
   });
 
-  const grantMutation = useMutation({
-    mutationFn: (planCode: string) => subscriptionsApi.grant(id!, { planCode }),
-    onSuccess: () => {
-      notification.success({ message: 'План выдан' });
-      setGrantOpen(false);
-      grantForm.resetFields();
-      refetchUser();
-    },
-    onError: (err: Error) => notification.error({ message: err.message }),
-  });
-
   const saveMutation = useMutation({
-    mutationFn: async (values: ProfileDraft) => {
-      await usersApi.updateProfile(id!, {
+    mutationFn: (values: ProfileDraft) =>
+      usersApi.updateProfile(id!, {
         tokenBalance: values.tokenBalance,
-        tokenLowThresholdPct: values.tokenLowThresholdPct,
+        tokenLowThreshold: values.tokenLowThreshold,
         tokenMonthlyGrantRef: values.tokenMonthlyGrantRef,
-      });
-      if (user?.subscriptionStartedAt || values.startedAt || values.expiresAt) {
-        await usersApi.updateSubscriptionDates(id!, {
-          startedAt: values.startedAt?.toISOString() ?? null,
-          expiresAt: values.expiresAt?.toISOString() ?? null,
-        });
-      }
-    },
+      }),
     onSuccess: () => {
       notification.success({ message: 'Сохранено' });
       setEditing(false);
@@ -131,10 +99,8 @@ export default function UserDetailPage() {
   const startEditing = (u: UserDetail) => {
     editForm.setFieldsValue({
       tokenBalance: u.tokenBalance,
-      tokenLowThresholdPct: u.tokenLowThresholdPct,
+      tokenLowThreshold: u.tokenLowThreshold,
       tokenMonthlyGrantRef: u.tokenMonthlyGrantRef,
-      startedAt: u.subscriptionStartedAt ? dayjs(u.subscriptionStartedAt) : null,
-      expiresAt: u.subscriptionExpiresAt ? dayjs(u.subscriptionExpiresAt) : null,
     });
     setEditing(true);
   };
@@ -224,9 +190,6 @@ export default function UserDetailPage() {
         >
           {user.status === 'BANNED' ? 'Разбан' : 'Бан'}
         </Button>
-        <Button type="primary" onClick={() => setGrantOpen(true)}>
-          Выдать план
-        </Button>
         {!editing ? (
           <Button icon={<EditOutlined />} onClick={() => startEditing(user)}>
             Изменить профиль
@@ -271,9 +234,6 @@ export default function UserDetailPage() {
               <Descriptions.Item label="Username">{user.username ?? '—'}</Descriptions.Item>
               <Descriptions.Item label="Имя">{user.firstName ?? '—'}</Descriptions.Item>
               <Descriptions.Item label="Язык">{user.languageCode}</Descriptions.Item>
-              <Descriptions.Item label="Макс. контроллеров">
-                <Typography.Text title="Ограничение по плану подписки">{user.maxControllers}</Typography.Text>
-              </Descriptions.Item>
               <Descriptions.Item label="Баланс токенов">
                 <Form.Item name="tokenBalance" style={{ margin: 0 }} rules={[{ required: true }]}>
                   <InputNumber min={0} style={{ width: 120 }} />
@@ -289,29 +249,13 @@ export default function UserDetailPage() {
                   <InputNumber min={0} style={{ width: 120 }} />
                 </Form.Item>
               </Descriptions.Item>
-              <Descriptions.Item label="Порог низкого баланса %">
+              <Descriptions.Item label="Порог уведомления (токены)">
                 <Form.Item
-                  name="tokenLowThresholdPct"
+                  name="tokenLowThreshold"
                   style={{ margin: 0 }}
-                  tooltip="Бот предупредит когда баланс упадёт ниже этого порога"
-                  rules={[{ required: true }]}
+                  tooltip="Последний уведомлённый порог: 100 (инфо), 50 (предупреждение), 10 (критический). null — сбросить"
                 >
-                  <InputNumber min={0} max={100} addonAfter="%" style={{ width: 120 }} />
-                </Form.Item>
-              </Descriptions.Item>
-              <Descriptions.Item label="План">
-                {user.planCode
-                  ? <Tag color={user.planCode === 'PREMIUM' ? 'gold' : user.planCode === 'PRO' ? 'blue' : 'default'}>{user.planName}</Tag>
-                  : <Typography.Text type="secondary">Нет плана</Typography.Text>}
-              </Descriptions.Item>
-              <Descriptions.Item label="Начало подписки">
-                <Form.Item name="startedAt" style={{ margin: 0 }}>
-                  <DatePicker showTime format="DD.MM.YYYY HH:mm" style={{ width: 180 }} />
-                </Form.Item>
-              </Descriptions.Item>
-              <Descriptions.Item label="Окончание подписки">
-                <Form.Item name="expiresAt" style={{ margin: 0 }}>
-                  <DatePicker showTime format="DD.MM.YYYY HH:mm" style={{ width: 180 }} allowClear />
+                  <InputNumber min={0} placeholder="null = сброс" style={{ width: 160 }} />
                 </Form.Item>
               </Descriptions.Item>
             </Descriptions>
@@ -336,36 +280,20 @@ export default function UserDetailPage() {
             <Descriptions.Item label="Username">{user.username ?? '—'}</Descriptions.Item>
             <Descriptions.Item label="Имя">{user.firstName ?? '—'}</Descriptions.Item>
             <Descriptions.Item label="Язык">{user.languageCode}</Descriptions.Item>
-            <Descriptions.Item label="Баланс токенов">{user.tokenBalance}</Descriptions.Item>
+            <Descriptions.Item label="Баланс токенов">
+              <Typography.Text strong style={{ color: user.tokenBalance > 0 ? '#52c41a' : '#ff4d4f' }}>
+                {user.tokenBalance}
+              </Typography.Text>
+            </Descriptions.Item>
             <Descriptions.Item label="Ежемесячный грант токенов">
               <Typography.Text title="Сколько токенов начисляется автоматически каждый месяц">
                 {user.tokenMonthlyGrantRef}
               </Typography.Text>
             </Descriptions.Item>
-            <Descriptions.Item label="Порог низкого баланса %">
-              <Typography.Text title="Бот предупредит когда баланс упадёт ниже этого порога">
-                {user.tokenLowThresholdPct}%
+            <Descriptions.Item label="Порог уведомления (токены)">
+              <Typography.Text title="Последний уведомлённый порог: 100 / 50 / 10 или null">
+                {user.tokenLowThreshold ?? '—'}
               </Typography.Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="Макс. контроллеров">
-              <Typography.Text title="Ограничение по плану подписки">
-                {user.maxControllers}
-              </Typography.Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="План">
-              {user.planCode
-                ? <Tag color={user.planCode === 'PREMIUM' ? 'gold' : user.planCode === 'PRO' ? 'blue' : 'default'}>{user.planName}</Tag>
-                : <Typography.Text type="secondary">Нет плана</Typography.Text>}
-            </Descriptions.Item>
-            <Descriptions.Item label="Начало подписки">
-              {user.subscriptionStartedAt ? dayjs(user.subscriptionStartedAt).format('DD.MM.YYYY HH:mm') : '—'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Окончание подписки">
-              {user.subscriptionExpiresAt
-                ? <Tag color={dayjs(user.subscriptionExpiresAt).isBefore(dayjs()) ? 'default' : 'processing'}>
-                    {dayjs(user.subscriptionExpiresAt).format('DD.MM.YYYY HH:mm')}
-                  </Tag>
-                : <Typography.Text type="secondary">Бессрочно</Typography.Text>}
             </Descriptions.Item>
             <Descriptions.Item label="Регистрация">{dayjs(user.createdAt).format('DD.MM.YYYY HH:mm')}</Descriptions.Item>
             <Descriptions.Item label="Обновлён">{dayjs(user.updatedAt).format('DD.MM.YYYY HH:mm')}</Descriptions.Item>
@@ -433,26 +361,6 @@ export default function UserDetailPage() {
           },
         ]}
       />
-
-      {/* Grant plan */}
-      <Modal
-        title="Выдать план"
-        open={grantOpen}
-        onCancel={() => { setGrantOpen(false); grantForm.resetFields(); }}
-        onOk={() => grantForm.submit()}
-        okText="Выдать"
-        confirmLoading={grantMutation.isPending}
-      >
-        <Form<{ planCode: string }>
-          form={grantForm}
-          layout="vertical"
-          onFinish={(values) => grantMutation.mutate(values.planCode)}
-        >
-          <Form.Item name="planCode" label="Выберите план" rules={[{ required: true }]}>
-            <Select options={PLAN_OPTIONS} />
-          </Form.Item>
-        </Form>
-      </Modal>
     </>
   );
 }

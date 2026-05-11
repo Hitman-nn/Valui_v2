@@ -48,10 +48,9 @@ public class WizardBackNavigator {
 
     public void returnToBookmakerSelection(AbsSender sender, long fromId, long chatId, int messageId) {
         sessionService.setStateWithContext(fromId, BotState.SELECTING_BOOKMAKER, new HashMap<>());
-        List<String> allowed = planLimitFacade.getLimitInfo(fromId).allowedBookmakers();
         var kb = InlineKeyboardBuilder.create().columns(2);
-        for (String bm : allowed) {
-            kb.button(bm, CallbackData.bookmakerSelect(bm));
+        for (com.valui.common.domain.BookmakerType bm : com.valui.common.domain.BookmakerType.values()) {
+            kb.button(bm.name(), CallbackData.bookmakerSelect(bm.name()));
         }
         MessageSend.replaceWithKeyboard(sender, chatId, messageId,
                 messageSource.getMessage("wizard.select_bookmaker", fromId),
@@ -95,8 +94,12 @@ public class WizardBackNavigator {
         sessionService.setStateAndMergeContext(fromId, BotState.SELECTING_SPORT,
                 Map.of(UserBotSession.CTX_BOOKMAKER, bm));
 
+        int savedPage = sessionService.getContext(fromId, UserBotSession.CTX_SPORT_PAGE)
+            .map(s -> { try { return Integer.parseInt(s); } catch (NumberFormatException e) { return 0; } })
+            .orElse(0);
+
         InlineKeyboardMarkup keyboard = BookmakerSelectCallback.buildSportsKeyboard(
-                sports, 0,
+                sports, savedPage,
                 messageSource.getMessage("menu.back", fromId),
                 wizardProps.getSportPageSize());
         MessageSend.replaceWithKeyboard(sender, chatId, messageId,
@@ -166,11 +169,15 @@ public class WizardBackNavigator {
         BookmakerType bmType = BookmakerType.valueOf(bm.toUpperCase());
         String sportUrl = TournamentSelectCallback.buildSportUrl(bmType, sportId, sportAlias);
 
+        int savedPage = sessionService.getContext(fromId, UserBotSession.CTX_TOURNAMENT_PAGE)
+            .map(s -> { try { return Integer.parseInt(s); } catch (NumberFormatException e) { return 0; } })
+            .orElse(0);
+
         String monitorAllText = messageSource.getMessage("wizard.monitor_all_sport", fromId, sportName);
         String backText   = messageSource.getMessage("menu.back",   fromId);
         String cancelText = messageSource.getMessage("menu.cancel", fromId);
         InlineKeyboardMarkup keyboard = SportSelectCallback.buildTournamentKeyboard(
-            tournaments, 0, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
+            tournaments, savedPage, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
             wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
 
         MessageSend.replaceWithKeyboard(sender, chatId, messageId,

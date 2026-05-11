@@ -34,8 +34,11 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
 
     @Override
     @Cacheable(value = "globalFilters", key = "#userId")
-    public List<GlobalFilterEntity> findByUserId(UUID userId) {
-        return globalFilterRepository.findAllByUserIdOrderByCreatedAtAsc(userId);
+    public List<String> findByUserId(UUID userId) {
+        return globalFilterRepository.findAllByUserIdAndPausedByTokensFalseOrderByCreatedAtAsc(userId)
+                .stream()
+                .map(GlobalFilterEntity::getFilterRule)
+                .toList();
     }
 
     @Override

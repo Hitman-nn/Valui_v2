@@ -70,8 +70,11 @@ export default function SystemPage() {
     : 0;
 
   const redisUtilization = redis
-    ? Math.round((redis.usedMemoryBytes / redis.usedMemoryPeakBytes) * 100)
+    ? redis.maxMemoryBytes > 0
+      ? Math.round((redis.usedMemoryBytes / redis.maxMemoryBytes) * 100)
+      : Math.round((redis.usedMemoryBytes / redis.usedMemoryPeakBytes) * 100)
     : 0;
+  const redisLabel = redis && redis.maxMemoryBytes > 0 ? 'Memory Usage (of limit)' : 'Memory Usage (vs peak)';
 
   return (
     <>
@@ -155,7 +158,7 @@ export default function SystemPage() {
             {redis && (
               <Space direction="vertical" style={{ width: '100%' }} size="small">
                 <div>
-                  <Typography.Text type="secondary">Memory Usage</Typography.Text>
+                  <Typography.Text type="secondary">{redisLabel}</Typography.Text>
                   <Progress
                     percent={redisUtilization}
                     format={() => redis.usedMemoryHuman}

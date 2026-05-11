@@ -9,7 +9,6 @@ import java.util.UUID;
 public record AdminPaymentTransactionDto(
         UUID id,
         String paymentId,
-        String planCode,
         BigDecimal amount,
         String currency,
         String status,
@@ -22,7 +21,6 @@ public record AdminPaymentTransactionDto(
         return new AdminPaymentTransactionDto(
                 e.getId(),
                 e.getPaymentId(),
-                e.getPlanCode(),
                 e.getAmount(),
                 e.getCurrency(),
                 e.getStatus(),

@@ -39,6 +39,8 @@ services:
       --requirepass ${REDIS_PASSWORD}
       --appendonly yes
       --appendfsync everysec
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:

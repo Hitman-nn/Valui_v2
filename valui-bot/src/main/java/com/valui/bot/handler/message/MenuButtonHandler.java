@@ -76,7 +76,7 @@ public class MenuButtonHandler implements BotUpdateHandler {
 
     @Override
     public void handle(BotUpdateContext ctx) {
-        if (ctx.userInfo() == null) {
+        if (ctx.user() == null) {
             MessageSend.text(ctx.sender(), ctx.chatId(),
                 messageSource.getMessage("bot.user_not_registered", ctx.fromId()));
             return;

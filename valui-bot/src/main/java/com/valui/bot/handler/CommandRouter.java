@@ -2,7 +2,7 @@ package com.valui.bot.handler;
 
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.state.UserBotSession;
-import com.valui.user.dto.UserWithSubscriptionDto;
+import com.valui.common.entity.UserEntity;
 import com.valui.user.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -17,10 +17,6 @@ import java.util.List;
 /**
  * Central dispatcher: extracts context, selects the matching {@link BotUpdateHandler}
  * with the lowest {@link BotUpdateHandler#order()}, and delegates.
- *
- * <p>Spring injects all {@link BotUpdateHandler} implementations automatically.
- * {@link com.valui.bot.handler.command.UnknownUpdateHandler} (order=999, canHandle=true)
- * acts as the always-present fallback.
  */
 @Slf4j
 @Component
@@ -49,15 +45,9 @@ public class CommandRouter {
                 handlers.size(), commands, callbacks);
     }
 
-    /**
-     * Routes the update to the first matching handler (lowest order).
-     *
-     * @param update raw Telegram update
-     * @param sender bot's AbsSender for sending replies
-     */
     public void route(Update update, AbsSender sender) {
-        Long chatId  = extractChatId(update);   // destination chat (may be a group)
-        Long fromId  = extractFromId(update);   // the individual user's Telegram ID
+        Long chatId = extractChatId(update);
+        Long fromId = extractFromId(update);
 
         if (chatId == null || fromId == null) {
             log.warn("Не удалось извлечь chatId/fromId из апдейта — пропускаем");
@@ -66,12 +56,12 @@ public class CommandRouter {
 
         String username = extractUsername(update);
         UserBotSession session = sessionService.getSession(fromId);
-        UserWithSubscriptionDto userInfo = loadUserInfo(fromId);
+        UserEntity user = loadUser(fromId);
         String updateType = resolveUpdateType(update);
 
         BotUpdateHandler handler = handlers.stream()
             .filter(h -> h.canHandle(update))
-            .findFirst()   // already sorted by order in constructor
+            .findFirst()
             .orElse(null);
 
         if (handler == null) {
@@ -79,7 +69,7 @@ public class CommandRouter {
             return;
         }
 
-        BotUpdateContext context = new BotUpdateContext(update, chatId, fromId, username, session, userInfo, sender);
+        BotUpdateContext context = new BotUpdateContext(update, chatId, fromId, username, session, user, sender);
 
         long started = System.currentTimeMillis();
         String handlerName = handler.getClass().getSimpleName();
@@ -96,7 +86,6 @@ public class CommandRouter {
 
     // ─── helpers ─────────────────────────────────────────────────────────────
 
-    /** Destination chat: where the update originated (group or private). */
     private Long extractChatId(Update update) {
         if (update.hasMessage())           return update.getMessage().getChatId();
         if (update.hasCallbackQuery())     return update.getCallbackQuery().getMessage().getChatId();
@@ -106,7 +95,6 @@ public class CommandRouter {
         return null;
     }
 
-    /** The individual user who triggered the update — always a personal Telegram ID. */
     private Long extractFromId(Update update) {
         if (update.hasMessage() && update.getMessage().getFrom() != null)
             return update.getMessage().getFrom().getId();
@@ -131,13 +119,11 @@ public class CommandRouter {
         return null;
     }
 
-    private UserWithSubscriptionDto loadUserInfo(Long chatId) {
+    private UserEntity loadUser(Long fromId) {
         try {
-            return userService.findByTelegramId(chatId)
-                .map(u -> userService.getUserWithSubscription(chatId))
-                .orElse(null);
+            return userService.findByTelegramId(fromId).orElse(null);
         } catch (Exception e) {
-            log.debug("User info unavailable for chatId={}: {}", chatId, e.getMessage());
+            log.debug("User unavailable for fromId={}: {}", fromId, e.getMessage());
             return null;
         }
     }

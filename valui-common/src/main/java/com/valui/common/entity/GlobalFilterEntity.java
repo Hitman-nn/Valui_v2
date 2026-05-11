@@ -27,6 +27,10 @@ public class GlobalFilterEntity {
     @Column(name = "filter_rule", nullable = false, columnDefinition = "TEXT")
     private String filterRule;
 
+    @Column(name = "paused_by_tokens", nullable = false)
+    @Builder.Default
+    private Boolean pausedByTokens = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 }

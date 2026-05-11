@@ -38,8 +38,8 @@ public final class UserProfileDto extends RepresentationModel<UserProfileDto> {
     @Schema(description = "Текущий баланс токенов", example = "150")
     public final int tokenBalance;
 
-    @Schema(description = "Процент порога низкого баланса токенов", example = "20")
-    public final int tokenLowThresholdPct;
+    @Schema(description = "Последний уведомлённый абсолютный порог токенов (100/50/10)", example = "50")
+    public final Integer tokenLowThreshold;
 
     @Schema(description = "Эталонное значение ежемесячного гранта токенов", example = "200")
     public final int tokenMonthlyGrantRef;
@@ -56,7 +56,7 @@ public final class UserProfileDto extends RepresentationModel<UserProfileDto> {
         this.role                = u.getRole();
         this.status              = u.getStatus();
         this.tokenBalance        = u.getTokenBalance() != null ? u.getTokenBalance() : 0;
-        this.tokenLowThresholdPct = u.getTokenLowThresholdPct() != null ? u.getTokenLowThresholdPct() : 100;
+        this.tokenLowThreshold    = u.getTokenLowThreshold();
         this.tokenMonthlyGrantRef = u.getTokenMonthlyGrantRef() != null ? u.getTokenMonthlyGrantRef() : 0;
         this.createdAt           = u.getCreatedAt();
     }

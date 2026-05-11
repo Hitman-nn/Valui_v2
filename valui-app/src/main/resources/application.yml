@@ -15,6 +15,12 @@ spring:
     virtual:
       enabled: true
 
+  # File upload (migration endpoint uploads up to ~5 MB)
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
+
   # Jackson
   jackson:
     default-property-inclusion: non_null

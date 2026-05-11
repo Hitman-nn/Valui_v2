@@ -4,17 +4,17 @@ import com.valui.common.domain.UserRole;
 import com.valui.common.domain.UserStatus;
 import com.valui.common.entity.UserEntity;
 import com.valui.user.dto.TelegramUserDto;
-import com.valui.user.dto.UserWithSubscriptionDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface UserService {
 
     /**
-     * Returns existing user or registers a new one with FREE plan.
+     * Returns existing user or registers a new one.
      * Idempotent: calling with the same telegramId always returns the same user.
      */
     UserEntity registerOrGetUser(TelegramUserDto dto);
@@ -31,8 +31,6 @@ public interface UserService {
 
     /** Only ADMIN role. */
     void unbanUser(UUID userId);
-
-    UserWithSubscriptionDto getUserWithSubscription(Long telegramId);
 
     // ── Admin-only ────────────────────────────────────────────────────────────
 
@@ -51,6 +49,9 @@ public interface UserService {
     /** Delete user and all associated data (admin only). DB cascades handle related rows. */
     void deleteUser(UUID userId);
 
-    /** Update token balance, low threshold %, and monthly grant reference (admin only). */
-    UserEntity updateProfile(UUID userId, Integer tokenBalance, Integer tokenLowThresholdPct, Integer tokenMonthlyGrantRef);
+    /** Update token balance, low threshold (absolute), and monthly grant reference (admin only). */
+    UserEntity updateProfile(UUID userId, Integer tokenBalance, Integer tokenLowThreshold, Integer tokenMonthlyGrantRef);
+
+    /** Returns telegramIds of users with the given status. Null or "ALL" returns all users. */
+    List<Long> findTelegramIdsByStatus(String status);
 }

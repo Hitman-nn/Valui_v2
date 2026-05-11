@@ -99,16 +99,17 @@ public class SystemMetricsController {
             long usedBytes     = parseLong(info, "used_memory");
             String usedHuman   = info.getProperty("used_memory_human", "n/a");
             long peakBytes     = parseLong(info, "used_memory_peak");
+            long maxBytes      = parseLong(info, "maxmemory");
 
             Properties keyspaceInfo = redisConnectionFactory.getConnection()
                     .serverCommands()
                     .info("keyspace");
             long totalKeys = parseKeyCount(keyspaceInfo);
 
-            return ResponseEntity.ok(new RedisInfoDto(usedBytes, usedHuman, peakBytes, totalKeys));
+            return ResponseEntity.ok(new RedisInfoDto(usedBytes, usedHuman, peakBytes, maxBytes, totalKeys));
         } catch (Exception e) {
             log.error("[SYSTEM] Redis info error: {}", e.getMessage());
-            return ResponseEntity.ok(new RedisInfoDto(0, "unavailable", 0, 0));
+            return ResponseEntity.ok(new RedisInfoDto(0, "unavailable", 0, 0, 0));
         }
     }
 

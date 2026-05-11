@@ -45,7 +45,8 @@ public class HttpClientConfig {
 
     @Bean @Qualifier("olimpHttpClient")
     public BookmakerHttpClient olimpHttpClient() {
-        return new BookmakerHttpClient(buildWebClient(null));
+        // planned-events fallback response regularly exceeds the default 10 MB limit
+        return new BookmakerHttpClient(buildWebClient(null, 32 * 1024 * 1024));
     }
 
     @Bean @Qualifier("betcityHttpClient")

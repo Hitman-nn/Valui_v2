@@ -22,7 +22,6 @@ import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
 import com.valui.common.exception.InsufficientTokensException;
-import com.valui.user.api.PlanLimitFacade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -43,7 +42,6 @@ public class TournamentSelectCallback implements CallbackHandler {
     private final BotMessageSource    messageSource;
     private final ParserFactory       parserFactory;
     private final ControllerService   controllerService;
-    private final PlanLimitFacade     planLimitFacade;
     private final WizardBackNavigator backNavigator;
     private final WizardCacheService  wizardCache;
     private final BotWizardProperties wizardProps;
@@ -91,6 +89,8 @@ public class TournamentSelectCallback implements CallbackHandler {
 
     private void handleTournamentPage(BotUpdateContext ctx, String data, int messageId) {
         int page = parsePageNum(data.substring("TOURN:PAGE:".length()));
+        sessionService.setStateAndMergeContext(ctx.fromId(), BotState.SELECTING_TOURNAMENT,
+            Map.of(UserBotSession.CTX_TOURNAMENT_PAGE, String.valueOf(page)));
         Optional<String> bm         = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
         Optional<String> sportId    = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_ID);
         Optional<String> sportName  = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_NAME);

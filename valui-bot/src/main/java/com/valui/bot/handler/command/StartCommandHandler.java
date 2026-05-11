@@ -29,7 +29,7 @@ public class StartCommandHandler implements CommandHandler {
 
     @Override
     public void handle(BotUpdateContext ctx) {
-        if (ctx.userInfo() == null) {
+        if (ctx.user() == null) {
             User from = ctx.update().getMessage().getFrom();
             userService.registerOrGetUser(new TelegramUserDto(
                 ctx.fromId(),

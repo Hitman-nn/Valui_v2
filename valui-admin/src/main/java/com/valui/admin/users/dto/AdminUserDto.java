@@ -2,8 +2,6 @@ package com.valui.admin.users.dto;
 
 import com.valui.common.domain.UserRole;
 import com.valui.common.domain.UserStatus;
-import com.valui.common.entity.SubscriptionEntity;
-import com.valui.common.entity.SubscriptionPlanEntity;
 import com.valui.common.entity.UserEntity;
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.hateoas.RepresentationModel;
@@ -43,23 +41,8 @@ public final class AdminUserDto extends RepresentationModel<AdminUserDto> {
     @Schema(description = "Ежемесячный грант токенов", example = "200")
     public final int tokenMonthlyGrantRef;
 
-    @Schema(description = "Порог низкого баланса токенов в %", example = "20")
-    public final int tokenLowThresholdPct;
-
-    @Schema(description = "Код активного плана", example = "PRO", nullable = true)
-    public final String planCode;
-
-    @Schema(description = "Название активного плана", example = "Pro", nullable = true)
-    public final String planName;
-
-    @Schema(description = "Максимальное число контроллеров по плану", example = "10")
-    public final int maxControllers;
-
-    @Schema(description = "Дата окончания подписки (null = бессрочно)", nullable = true)
-    public final OffsetDateTime subscriptionExpiresAt;
-
-    @Schema(description = "Дата начала подписки", nullable = true)
-    public final OffsetDateTime subscriptionStartedAt;
+    @Schema(description = "Последний уведомлённый абсолютный порог токенов (100/50/10)", example = "50")
+    public final Integer tokenLowThreshold;
 
     @Schema(description = "Дата регистрации")
     public final OffsetDateTime createdAt;
@@ -67,7 +50,7 @@ public final class AdminUserDto extends RepresentationModel<AdminUserDto> {
     @Schema(description = "Дата последнего обновления профиля")
     public final OffsetDateTime updatedAt;
 
-    public AdminUserDto(UserEntity u, SubscriptionPlanEntity plan, SubscriptionEntity sub) {
+    public AdminUserDto(UserEntity u) {
         this.id                   = u.getId();
         this.telegramId           = u.getTelegramId();
         this.username             = u.getUsername();
@@ -77,26 +60,8 @@ public final class AdminUserDto extends RepresentationModel<AdminUserDto> {
         this.status               = u.getStatus();
         this.tokenBalance         = u.getTokenBalance()         != null ? u.getTokenBalance()         : 0;
         this.tokenMonthlyGrantRef = u.getTokenMonthlyGrantRef() != null ? u.getTokenMonthlyGrantRef() : 0;
-        this.tokenLowThresholdPct = u.getTokenLowThresholdPct() != null ? u.getTokenLowThresholdPct() : 100;
+        this.tokenLowThreshold    = u.getTokenLowThreshold();
         this.createdAt            = u.getCreatedAt();
         this.updatedAt            = u.getUpdatedAt();
-
-        if (plan != null) {
-            this.planCode      = plan.getCode();
-            this.planName      = plan.getName();
-            this.maxControllers = plan.getMaxControllers();
-        } else {
-            this.planCode       = null;
-            this.planName       = null;
-            this.maxControllers = 0;
-        }
-
-        if (sub != null) {
-            this.subscriptionStartedAt = sub.getStartedAt();
-            this.subscriptionExpiresAt = sub.getExpiresAt();
-        } else {
-            this.subscriptionStartedAt = null;
-            this.subscriptionExpiresAt = null;
-        }
     }
 }

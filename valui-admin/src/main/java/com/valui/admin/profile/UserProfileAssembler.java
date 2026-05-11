@@ -18,8 +18,6 @@ public class UserProfileAssembler
         return EntityModel.of(dto,
                 linkTo(methodOn(UserProfileController.class).getProfile(null))
                         .withSelfRel(),
-                linkTo(methodOn(UserProfileController.class).getSubscription(null))
-                        .withRel("subscription"),
                 linkTo(methodOn(UserProfileController.class).getTokens(null))
                         .withRel("tokens")
         );

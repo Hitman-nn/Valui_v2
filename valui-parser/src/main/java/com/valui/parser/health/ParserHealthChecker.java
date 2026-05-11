@@ -20,6 +20,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ParserHealthChecker {
 
     private static final int FAILURE_THRESHOLD = 3;
+    // Re-alert every N failures while still unavailable (~60 min at 5-min check interval)
+    private static final int REPEAT_INTERVAL   = 12;
 
     private final List<BookmakerParser> parsers;
     private final ApplicationEventPublisher eventPublisher;
@@ -60,11 +62,13 @@ public class ParserHealthChecker {
     private void recordFailure(BookmakerType type, String reason) {
         int failures = consecutiveFailures.merge(type, 1, Integer::sum);
         log.warn("Parser {} unavailable: {} (consecutive={})", type, reason, failures);
-        if (failures >= FAILURE_THRESHOLD && !notifiedUnavailable.contains(type)) {
+        if (failures == FAILURE_THRESHOLD && !notifiedUnavailable.contains(type)) {
             log.error("Parser {} exceeded failure threshold — publishing ParserUnavailableEvent", type);
             eventPublisher.publishEvent(new ParserUnavailableEvent(this, type, failures));
             notifiedUnavailable.add(type);
-            consecutiveFailures.put(type, 0); // reset so consecutive counter stays meaningful
+        } else if (notifiedUnavailable.contains(type) && failures % REPEAT_INTERVAL == 0) {
+            log.error("Parser {} still unavailable (consecutive={}) — re-publishing ParserUnavailableEvent", type, failures);
+            eventPublisher.publishEvent(new ParserUnavailableEvent(this, type, failures));
         }
     }
 }

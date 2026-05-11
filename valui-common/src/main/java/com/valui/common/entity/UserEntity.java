@@ -53,10 +53,9 @@ public class UserEntity implements HasUpdatedAt {
     @Builder.Default
     private Integer tokenBalance = 0;
 
-    /** Порог уведомления о низком балансе (100 = не уведомлялся, 20/10/5 = порог %). Сбрасывается ежемесячно. */
-    @Column(name = "token_low_threshold_pct", nullable = false)
-    @Builder.Default
-    private Integer tokenLowThresholdPct = 100;
+    /** Последний абсолютный порог уведомления о балансе (100/50/10 токенов). null = ещё не уведомлялся. Сбрасывается ежемесячно. */
+    @Column(name = "token_low_threshold")
+    private Integer tokenLowThreshold;
 
     /** Ежемесячный грант плана — используется для расчёта порогов. Обновляется при начислении гранта. */
     @Column(name = "token_monthly_grant_ref", nullable = false)

@@ -5,16 +5,12 @@ import com.valui.admin.auth.AuthProperties;
 import com.valui.admin.auth.jwt.JwtAuthenticationFilter;
 import com.valui.admin.auth.jwt.JwtService;
 import com.valui.admin.config.WebSecurityConfig;
-import com.valui.admin.profile.dto.SubscriptionInfoDto;
 import com.valui.admin.security.CurrentUserArgumentResolver;
 import com.valui.admin.security.CurrentUserUtil;
 import com.valui.admin.support.TestJwtConfig;
 import com.valui.common.domain.UserRole;
 import com.valui.common.domain.UserStatus;
-import com.valui.common.entity.SubscriptionEntity;
-import com.valui.common.entity.SubscriptionPlanEntity;
 import com.valui.common.entity.UserEntity;
-import com.valui.user.dto.UserWithSubscriptionDto;
 import com.valui.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,12 +22,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
@@ -57,7 +51,7 @@ class UserProfileControllerTest {
     @Autowired JwtService jwtService;
 
     @MockBean UserService userService;
-    @MockBean AuthProperties authProperties;   // needed by WebSecurityConfig
+    @MockBean AuthProperties authProperties;
 
     static final UUID   USER_ID    = UUID.fromString("11111111-0000-0000-0000-000000000001");
     static final Long   TELEGRAM   = 123456789L;
@@ -79,7 +73,7 @@ class UserProfileControllerTest {
                 .role(UserRole.USER)
                 .status(UserStatus.ACTIVE)
                 .tokenBalance(150)
-                .tokenLowThresholdPct(20)
+                .tokenLowThreshold(50)
                 .tokenMonthlyGrantRef(200)
                 .createdAt(OffsetDateTime.now())
                 .updatedAt(OffsetDateTime.now())
@@ -101,7 +95,6 @@ class UserProfileControllerTest {
                 .andExpect(jsonPath("$.username").value("john_doe"))
                 .andExpect(jsonPath("$.tokenBalance").value(150))
                 .andExpect(jsonPath("$._links.self.href").exists())
-                .andExpect(jsonPath("$._links.subscription.href").exists())
                 .andExpect(jsonPath("$._links.tokens.href").exists());
     }
 
@@ -159,7 +152,7 @@ class UserProfileControllerTest {
     }
 
     @Test
-    @DisplayName("PATCH /profile — невалидный username (спецсимволы) → 400")
+    @DisplayName("PATCH /profile — невалидный username → 400")
     void updateProfile_invalidUsername_returns400() throws Exception {
         String body = """
                 {"username": "bad name!@#"}
@@ -195,36 +188,6 @@ class UserProfileControllerTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    // ── GET /api/v1/profile/subscription ─────────────────────────────────────
-
-    @Test
-    @DisplayName("GET /profile/subscription → 200 с данными подписки")
-    void getSubscription_active_returns200() throws Exception {
-        SubscriptionPlanEntity plan = new SubscriptionPlanEntity();
-        plan.setCode("PRO");
-        plan.setName("Pro");
-        plan.setPriceRub(BigDecimal.valueOf(299));
-        plan.setMaxControllers(10);
-        plan.setPollIntervalSec(60);
-        plan.setMonthlyTokenGrant(200);
-
-        SubscriptionEntity sub = new SubscriptionEntity();
-        sub.setId(UUID.randomUUID());
-        sub.setStartedAt(OffsetDateTime.now().minusDays(5));
-        sub.setExpiresAt(OffsetDateTime.now().plusDays(25));
-
-        given(userService.getUserWithSubscription(TELEGRAM))
-                .willReturn(new UserWithSubscriptionDto(user, plan, sub));
-
-        mockMvc.perform(get("/api/v1/profile/subscription")
-                        .header("Authorization", bearer)
-                        .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.planCode").value("PRO"))
-                .andExpect(jsonPath("$.maxControllers").value(10))
-                .andExpect(jsonPath("$.monthlyTokenGrant").value(200));
-    }
-
     // ── GET /api/v1/profile/tokens ────────────────────────────────────────────
 
     @Test
@@ -238,7 +201,7 @@ class UserProfileControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.balance").value(150))
                 .andExpect(jsonPath("$.monthlyGrant").value(200))
-                .andExpect(jsonPath("$.lowThresholdPct").value(20));
+                .andExpect(jsonPath("$.lowThreshold").value(50));
     }
 
     @Test

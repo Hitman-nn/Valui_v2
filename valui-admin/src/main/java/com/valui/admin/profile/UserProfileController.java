@@ -1,15 +1,12 @@
 package com.valui.admin.profile;
 
-import com.valui.admin.profile.dto.SubscriptionInfoDto;
 import com.valui.admin.profile.dto.UpdateProfileRequest;
 import com.valui.admin.profile.dto.UserProfileDto;
 import com.valui.admin.security.CurrentUser;
 import com.valui.admin.security.ValuiPrincipal;
 import com.valui.common.dto.ErrorResponse;
 import com.valui.common.entity.UserEntity;
-import com.valui.common.domain.UserStatus;
 import com.valui.common.exception.UserNotFoundException;
-import com.valui.user.dto.UserWithSubscriptionDto;
 import com.valui.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -38,8 +35,7 @@ public class UserProfileController {
 
     // ── GET /api/v1/profile ───────────────────────────────────────────────────
 
-    @Operation(summary = "Получить профиль",
-               description = "Возвращает профиль текущего аутентифицированного пользователя.")
+    @Operation(summary = "Получить профиль")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Профиль получен"),
             @ApiResponse(responseCode = "401", description = "Требуется аутентификация",
@@ -57,15 +53,7 @@ public class UserProfileController {
 
     // ── PATCH /api/v1/profile ─────────────────────────────────────────────────
 
-    @Operation(summary = "Обновить профиль",
-               description = "Обновляет username и/или languageCode. Null-поля игнорируются.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Профиль обновлён"),
-            @ApiResponse(responseCode = "400", description = "Ошибка валидации",
-                         content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "401", description = "Требуется аутентификация",
-                         content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    })
+    @Operation(summary = "Обновить профиль")
     @PatchMapping(
             consumes = {V1, MediaType.APPLICATION_JSON_VALUE},
             produces = {V1, MediaType.APPLICATION_JSON_VALUE})
@@ -86,32 +74,9 @@ public class UserProfileController {
         return ResponseEntity.ok(assembler.toModel(updated));
     }
 
-    // ── GET /api/v1/profile/subscription ─────────────────────────────────────
-
-    @Operation(summary = "Текущая подписка",
-               description = "Возвращает план и параметры активной подписки пользователя.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Подписка получена"),
-            @ApiResponse(responseCode = "401", description = "Требуется аутентификация",
-                         content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    @GetMapping(value = "/subscription", produces = {V1, MediaType.APPLICATION_JSON_VALUE})
-    public ResponseEntity<SubscriptionInfoDto> getSubscription(
-            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
-
-        UserWithSubscriptionDto dto = userService.getUserWithSubscription(principal.telegramId());
-
-        if (dto.subscription() == null || dto.plan() == null) {
-            return ResponseEntity.ok(null);
-        }
-
-        return ResponseEntity.ok(SubscriptionInfoDto.from(dto.subscription(), dto.plan()));
-    }
-
     // ── GET /api/v1/profile/tokens ────────────────────────────────────────────
 
-    @Operation(summary = "Баланс токенов",
-               description = "Текущий баланс, эталонный грант и порог оповещения о низком балансе.")
+    @Operation(summary = "Баланс токенов")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Данные о токенах получены"),
             @ApiResponse(responseCode = "401", description = "Требуется аутентификация",
@@ -123,9 +88,9 @@ public class UserProfileController {
 
         UserEntity user = requireUser(principal);
         return ResponseEntity.ok(new TokenSummaryDto(
-                user.getTokenBalance()        != null ? user.getTokenBalance()        : 0,
+                user.getTokenBalance()         != null ? user.getTokenBalance()         : 0,
                 user.getTokenMonthlyGrantRef() != null ? user.getTokenMonthlyGrantRef() : 0,
-                user.getTokenLowThresholdPct() != null ? user.getTokenLowThresholdPct() : 100
+                user.getTokenLowThreshold()
         ));
     }
 

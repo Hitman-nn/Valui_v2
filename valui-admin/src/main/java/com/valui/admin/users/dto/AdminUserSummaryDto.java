@@ -38,26 +38,18 @@ public final class AdminUserSummaryDto extends RepresentationModel<AdminUserSumm
     @Schema(description = "Количество контроллеров пользователя")
     public final long controllersCount;
 
-    @Schema(description = "Код активного плана", nullable = true, example = "PRO")
-    public final String planCode;
-
-    @Schema(description = "Дата окончания активной подписки", nullable = true)
-    public final OffsetDateTime subscriptionExpiresAt;
-
     @Schema(description = "Дата регистрации")
     public final OffsetDateTime createdAt;
 
-    public AdminUserSummaryDto(UserEntity u, long controllersCount, String planCode, OffsetDateTime subscriptionExpiresAt) {
-        this.id                    = u.getId();
-        this.telegramId            = u.getTelegramId();
-        this.username              = u.getUsername();
-        this.firstName             = u.getFirstName();
-        this.role                  = u.getRole();
-        this.status                = u.getStatus();
-        this.tokenBalance          = u.getTokenBalance() != null ? u.getTokenBalance() : 0;
-        this.controllersCount      = controllersCount;
-        this.planCode              = planCode;
-        this.subscriptionExpiresAt = subscriptionExpiresAt;
-        this.createdAt             = u.getCreatedAt();
+    public AdminUserSummaryDto(UserEntity u, long controllersCount) {
+        this.id               = u.getId();
+        this.telegramId       = u.getTelegramId();
+        this.username         = u.getUsername();
+        this.firstName        = u.getFirstName();
+        this.role             = u.getRole();
+        this.status           = u.getStatus();
+        this.tokenBalance     = u.getTokenBalance() != null ? u.getTokenBalance() : 0;
+        this.controllersCount = controllersCount;
+        this.createdAt        = u.getCreatedAt();
     }
 }

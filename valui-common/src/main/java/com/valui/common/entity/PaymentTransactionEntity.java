@@ -31,9 +31,6 @@ public class PaymentTransactionEntity implements HasUpdatedAt {
     @Column(name = "payment_id", nullable = false, unique = true, length = 255)
     private String paymentId;
 
-    @Column(name = "plan_code", nullable = false, length = 32)
-    private String planCode;
-
     @Column(name = "amount", nullable = false, precision = 10, scale = 2)
     private BigDecimal amount;
 

@@ -1,16 +1,13 @@
 package com.valui.user.scheduler;
 
 import com.valui.common.domain.BookmakerType;
-import com.valui.common.domain.SubscriptionStatus;
 import com.valui.common.domain.TokenReasonCode;
 import com.valui.common.entity.ControllerEntity;
 import com.valui.common.entity.GlobalFilterEntity;
-import com.valui.common.entity.SubscriptionEntity;
 import com.valui.common.entity.UserBkSlotEntity;
 import com.valui.common.entity.UserEntity;
 import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.GlobalFilterRepository;
-import com.valui.user.repository.SubscriptionRepository;
 import com.valui.user.repository.UserBkSlotRepository;
 import com.valui.user.repository.UserRepository;
 import com.valui.user.service.TokenLedgerService;
@@ -34,7 +31,6 @@ import java.util.UUID;
 public class UserBillingProcessor {
 
     private final UserRepository         userRepository;
-    private final SubscriptionRepository subscriptionRepository;
     private final ControllerRepository   controllerRepository;
     private final GlobalFilterRepository globalFilterRepository;
     private final UserBkSlotRepository   userBkSlotRepository;
@@ -44,29 +40,14 @@ public class UserBillingProcessor {
     public MonthlyTokenBillingScheduler.BillingResult process(UserEntity user, YearMonth billingMonth) {
         int granted = 0, bkCharged = 0, filterCharged = 0;
 
-        // 1. Начисляем план-грант
-        SubscriptionEntity activeSub = subscriptionRepository
-            .findTopByUserIdAndStatusOrderByStartedAtDesc(user.getId(), SubscriptionStatus.ACTIVE)
-            .orElse(null);
-
-        if (activeSub != null) {
-            int grant = activeSub.getPlan().getMonthlyTokenGrant() != null
-                ? activeSub.getPlan().getMonthlyTokenGrant() : 0;
-
-            if (grant > 0) {
-                user.setTokenMonthlyGrantRef(grant);
-                user.setTokenLowThresholdPct(100);
-                userRepository.save(user);
-
-                tokenLedgerService.credit(user.getId(), grant, TokenReasonCode.PLAN_GRANT, null);
-                granted = grant;
-                log.debug("[BILLING] Грант userId={} +{}", user.getId(), grant);
-            }
-        }
-
-        // 2. Восстанавливаем паузу если грант пополнил баланс
-        if (granted > 0) {
-            tokenLedgerService.restoreTokenPausedControllers(user.getId());
+        // 1. Начисляем ежемесячный грант (задаётся админом через tokenMonthlyGrantRef)
+        int grant = user.getTokenMonthlyGrantRef() != null ? user.getTokenMonthlyGrantRef() : 0;
+        if (grant > 0) {
+            user.setTokenLowThreshold(null);
+            userRepository.save(user);
+            tokenLedgerService.credit(user.getId(), grant, TokenReasonCode.PLAN_GRANT, null);
+            granted = grant;
+            log.debug("[BILLING] Грант userId={} +{}", user.getId(), grant);
         }
 
         // 3. Списываем за БК-слоты
@@ -74,7 +55,6 @@ public class UserBillingProcessor {
         List<UserBkSlotEntity> bkSlots = userBkSlotRepository.findAllByUserId(user.getId());
 
         for (UserBkSlotEntity slot : bkSlots) {
-            // Пропускаем: первый месяц уже оплачен при добавлении
             if (YearMonth.from(slot.getFirstChargedAt()).equals(billingMonth)) {
                 log.debug("[BILLING] БК-слот {} userId={} пропущен (текущий месяц)", slot.getBookmaker(), user.getId());
                 continue;
@@ -87,10 +67,8 @@ public class UserBillingProcessor {
                 continue;
             }
 
-            // Проверяем, есть ли ещё активные контроллеры этой БК
             int activeCount = controllerRepository.countByUserIdAndBookmakerAndIsActiveTrue(user.getId(), bk);
             if (activeCount == 0) {
-                // БК-слот более не нужен — удаляем запись
                 userBkSlotRepository.delete(slot);
                 continue;
             }
@@ -105,13 +83,12 @@ public class UserBillingProcessor {
             }
         }
 
-        // 4. Списываем за глобальные фильтры
+        // 4. Списываем за глобальные фильтры (только активные — паузированные не трогаем)
         int filterCost = tokenLedgerService.getCost("FILTER_MONTHLY");
         List<GlobalFilterEntity> filters = globalFilterRepository
-            .findAllByUserIdOrderByCreatedAtAsc(user.getId());
+            .findAllByUserIdAndPausedByTokensFalseOrderByCreatedAtAsc(user.getId());
 
         for (GlobalFilterEntity filter : filters) {
-            // Пропускаем: создан в текущем месяце — уже оплачен при добавлении
             if (YearMonth.from(filter.getCreatedAt()).equals(billingMonth)) {
                 log.debug("[BILLING] Фильтр {} userId={} пропущен (текущий месяц)", filter.getId(), user.getId());
                 continue;
@@ -120,22 +97,23 @@ public class UserBillingProcessor {
             boolean ok = tokenLedgerService.tryDebit(
                 user.getId(), filterCost, TokenReasonCode.MONTHLY_FILTER_CHARGE, filter.getId());
             if (!ok) {
-                globalFilterRepository.delete(filter);
-                log.info("[BILLING] Нет токенов для фильтра {} userId={} → удалён", filter.getId(), user.getId());
+                filter.setPausedByTokens(true);
+                globalFilterRepository.save(filter);
+                log.info("[BILLING] Нет токенов для фильтра {} userId={} → пауза", filter.getId(), user.getId());
             } else {
                 filterCharged++;
             }
         }
 
-        // 5. Списываем за фильтры на контроллерах
+        // 5. Списываем за фильтры на контроллерах (только не приостановленные)
         int ctrlFilterCost = tokenLedgerService.getCost("CONTROLLER_FILTER_MONTHLY");
         List<ControllerEntity> controllersWithFilter = controllerRepository
             .findAllByUserIdAndIsActiveTrue(user.getId()).stream()
-            .filter(c -> c.getFilterRule() != null && !c.getFilterRule().isBlank())
+            .filter(c -> c.getFilterRule() != null && !c.getFilterRule().isBlank()
+                      && !Boolean.TRUE.equals(c.getFilterPausedByTokens()))
             .toList();
 
         for (ControllerEntity c : controllersWithFilter) {
-            // Пропускаем: фильтр установлен в текущем месяце — уже оплачен при добавлении
             if (c.getFilterSetAt() != null
                     && YearMonth.from(c.getFilterSetAt()).equals(billingMonth)) {
                 log.debug("[BILLING] Фильтр контроллера {} userId={} пропущен (текущий месяц)", c.getId(), user.getId());
@@ -145,10 +123,9 @@ public class UserBillingProcessor {
             boolean ok = tokenLedgerService.tryDebit(
                 user.getId(), ctrlFilterCost, TokenReasonCode.MONTHLY_CONTROLLER_FILTER_CHARGE, c.getId());
             if (!ok) {
-                c.setFilterRule(null);
-                c.setFilterSetAt(null);
+                c.setFilterPausedByTokens(true);
                 controllerRepository.save(c);
-                log.info("[BILLING] Нет токенов для фильтра контроллера {} userId={} → удалён", c.getId(), user.getId());
+                log.info("[BILLING] Нет токенов для фильтра контроллера {} userId={} → пауза", c.getId(), user.getId());
             } else {
                 filterCharged++;
             }

@@ -13,6 +13,7 @@ import com.valui.user.event.ControllerSuspendedEvent;
 import com.valui.user.event.TokenThresholdEvent;
 import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.ControllerSubscriptionRepository;
+import com.valui.user.repository.GlobalFilterRepository;
 import com.valui.user.repository.TokenActionCostRepository;
 import com.valui.user.repository.TokenTransactionRepository;
 import com.valui.user.repository.UserRepository;
@@ -32,10 +33,12 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TokenLedgerServiceImpl implements TokenLedgerService {
 
-    private static final int[] THRESHOLDS = {5, 10, 20};
+    /** Абсолютные пороги (токены): информационный → предупреждение → критический */
+    private static final int[] THRESHOLDS = {10, 50, 100};
 
     private final UserRepository                  userRepository;
     private final ControllerRepository            controllerRepository;
+    private final GlobalFilterRepository          globalFilterRepository;
     private final ControllerSubscriptionRepository subscriptionRepository;
     private final TokenActionCostRepository       costRepository;
     private final TokenTransactionRepository      txRepository;
@@ -74,7 +77,8 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
     @Transactional
     public int credit(UUID userId, int amount, TokenReasonCode reason, UUID refId) {
         UserEntity user = lockUser(userId);
-        int newBalance = user.getTokenBalance() + amount;
+        int current = user.getTokenBalance() != null ? user.getTokenBalance() : 0;
+        int newBalance = current + amount;
         user.setTokenBalance(newBalance);
         userRepository.save(user);
         recordTransaction(user, amount, reason, refId, newBalance);
@@ -82,6 +86,11 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
 
         if (newBalance > 0) {
             restoreTokenPausedControllers(userId);
+            // Сбрасываем порог уведомлений, если баланс снова выше всех порогов
+            if (newBalance >= THRESHOLDS[THRESHOLDS.length - 1]) {
+                user.setTokenLowThreshold(null);
+                userRepository.save(user);
+            }
         }
         return newBalance;
     }
@@ -100,7 +109,7 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
     @Transactional
     public int debit(UUID userId, int amount, TokenReasonCode reason, UUID refId) {
         UserEntity user = lockUser(userId);
-        int balance = user.getTokenBalance();
+        int balance = user.getTokenBalance() != null ? user.getTokenBalance() : 0;
         if (balance < amount) {
             throw new InsufficientTokensException(amount, balance);
         }
@@ -170,7 +179,6 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
         List<ControllerSubscriptionEntity> paused = subscriptionRepository.findAllByUserIdAndPausedByTokensTrue(userId);
         subscriptionRepository.updatePausedByTokensForUser(userId, false);
 
-        // For each affected controller: publish resume event
         paused.stream()
             .map(ControllerSubscriptionEntity::getControllerId)
             .distinct()
@@ -178,7 +186,15 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
                 int pollInterval = c.getPollIntervalSec() != null ? c.getPollIntervalSec() : 60;
                 eventPublisher.publishEvent(new ControllerResumedEvent(c.getId(), c.getUser().getId(), pollInterval));
             }));
-        log.info("[TOKEN] Восстановили подписки userId={}", userId);
+
+        // Восстанавливаем паузу на фильтрах
+        int restoredCtrlFilters = controllerRepository.restoreFilterPauseForUser(userId);
+        globalFilterRepository.findAllByUserIdAndPausedByTokensTrue(userId).forEach(f -> {
+            f.setPausedByTokens(false);
+            globalFilterRepository.save(f);
+        });
+
+        log.info("[TOKEN] Восстановили подписки+фильтры userId={} ctrlFilters={}", userId, restoredCtrlFilters);
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────────
@@ -200,19 +216,15 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
     }
 
     private void checkAndNotifyThresholds(UserEntity user, int newBalance) {
-        int grantRef = user.getTokenMonthlyGrantRef() != null ? user.getTokenMonthlyGrantRef() : 0;
-        if (grantRef <= 0) return;
-
-        int pct = (newBalance * 100) / grantRef;
-        int lastNotified = user.getTokenLowThresholdPct() != null ? user.getTokenLowThresholdPct() : 100;
+        int lastNotified = user.getTokenLowThreshold() != null ? user.getTokenLowThreshold() : Integer.MAX_VALUE;
 
         for (int threshold : THRESHOLDS) {
-            if (pct <= threshold && lastNotified > threshold) {
-                user.setTokenLowThresholdPct(threshold);
+            if (newBalance < threshold && lastNotified > threshold) {
+                user.setTokenLowThreshold(threshold);
                 userRepository.save(user);
                 eventPublisher.publishEvent(
                     new TokenThresholdEvent(this, user.getTelegramId(), newBalance, threshold));
-                log.info("[TOKEN] Порог {}% для userId={} balance={}", threshold, user.getId(), newBalance);
+                log.info("[TOKEN] Порог {} токенов для userId={} balance={}", threshold, user.getId(), newBalance);
                 break;
             }
         }

@@ -11,9 +11,8 @@ public final class CallbackData {
     private CallbackData() {}
 
     // ─── Global navigation ────────────────────────────────────────────────────
-    public static final String MENU_MAIN         = "MENU:MAIN";
-    public static final String MENU_SUBSCRIPTION = "MENU:SUBS";
-    public static final String MENU_HELP         = "MENU:HELP";
+    public static final String MENU_MAIN = "MENU:MAIN";
+    public static final String MENU_HELP = "MENU:HELP";
     public static final String CANCEL            = "CANCEL";
 
     /** Display-only button that must not trigger logic. */
@@ -64,10 +63,6 @@ public final class CallbackData {
     // ─── Language ─────────────────────────────────────────────────────────────
     public static final String LANG_SET_PREFIX = "LANG:SET:";
     public static String langSet(String code) { return LANG_SET_PREFIX + code; }
-
-    // ─── Plans ────────────────────────────────────────────────────────────────
-    public static final String PLANS_VIEW = "PLANS:VIEW";
-    public static String plansSelect(String code) { return "PLANS:SELECT:" + code; }
 
     // ─── Wizard search ────────────────────────────────────────────────────────
     public static final String SEARCH_SPORT = "SEARCH:SPORT";

@@ -45,6 +45,8 @@ public class UserBotSession {
     public static final String CTX_SEARCH_TARGET          = "searchTarget";
     public static final String CTX_CACHED_SPORTS_JSON     = "cachedSportsJson";
     public static final String CTX_CACHED_TOURNAMENTS_JSON = "cachedTournamentsJson";
+    public static final String CTX_SPORT_PAGE             = "sportPage";
+    public static final String CTX_TOURNAMENT_PAGE        = "tournamentPage";
 
     // ── Betting wizard keys ───────────────────────────────────────────────────
     public static final String CTX_BET_NOTIF_KEY     = "betNotifKey";

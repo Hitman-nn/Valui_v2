@@ -11,6 +11,6 @@ public record TokenSummaryDto(
         @Schema(description = "Ежемесячный грант токенов по плану", example = "200")
         int monthlyGrant,
 
-        @Schema(description = "Порог низкого баланса в процентах от ежемесячного гранта", example = "20")
-        int lowThresholdPct
+        @Schema(description = "Последний уведомлённый абсолютный порог (100/50/10 токенов), null = не уведомлялся", example = "50")
+        Integer lowThreshold
 ) {}

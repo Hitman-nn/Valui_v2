@@ -157,14 +157,7 @@ class SportEventConsumerTest {
     @Test
     @DisplayName("global filter drops event when title does NOT match the rule")
     void globalFilter_noMatch_drops() {
-        // Global filter works like an inclusion filter: event passes only if title matches.
-        // Filter "zenit" does NOT match "Spartak - CSKA" → event is dropped.
-        com.valui.common.entity.GlobalFilterEntity gf =
-                com.valui.common.entity.GlobalFilterEntity.builder()
-                        .id(UUID.randomUUID())
-                        .filterRule("zenit")
-                        .build();
-        given(globalFilterService.findByUserId(USER_ID)).willReturn(List.of(gf));
+        given(globalFilterService.findByUserId(USER_ID)).willReturn(List.of("zenit"));
 
         consumer.onSportEventDetected(event);
 
@@ -174,13 +167,7 @@ class SportEventConsumerTest {
     @Test
     @DisplayName("global filter passes event when title matches the rule")
     void globalFilter_matches_passes() {
-        // Filter "spartak" DOES match "Spartak - CSKA" → event passes through.
-        com.valui.common.entity.GlobalFilterEntity gf =
-                com.valui.common.entity.GlobalFilterEntity.builder()
-                        .id(UUID.randomUUID())
-                        .filterRule("spartak")
-                        .build();
-        given(globalFilterService.findByUserId(USER_ID)).willReturn(List.of(gf));
+        given(globalFilterService.findByUserId(USER_ID)).willReturn(List.of("spartak"));
 
         consumer.onSportEventDetected(event);
 

@@ -59,10 +59,17 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
 
     List<ControllerEntity> findAllByUserIdAndPausedByTokensTrue(UUID userId);
 
+    List<ControllerEntity> findAllByUserIdAndFilterPausedByTokensTrue(UUID userId);
+
     @Transactional
     @Modifying
     @Query("UPDATE ControllerEntity c SET c.pausedByTokens = :paused, c.isActive = :active, c.isMuted = :muted WHERE c.id = :id")
     int updateTokenPauseState(@Param("id") UUID id, @Param("paused") boolean paused, @Param("active") boolean active, @Param("muted") boolean muted);
+
+    @Transactional
+    @Modifying
+    @Query("UPDATE ControllerEntity c SET c.filterPausedByTokens = false WHERE c.user.id = :userId AND c.filterPausedByTokens = true")
+    int restoreFilterPauseForUser(@Param("userId") java.util.UUID userId);
 
     long countByUserId(UUID userId);
 

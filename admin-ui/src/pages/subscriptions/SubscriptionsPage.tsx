@@ -1,38 +1,29 @@
+import { Table, Card, Row, Col, Typography, Tag, Space, TablePaginationConfig } from 'antd';
 import { useState } from 'react';
-import { Table, Alert, Tag, Space, Card, Row, Col, Typography, TablePaginationConfig } from 'antd';
-import { WarningOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { subscriptionsApi } from '../../api/endpoints';
+import { usersApi } from '../../api/endpoints';
 import StatCard from '../../components/StatCard';
-import type { Subscription } from '../../api/types';
+import type { UserSummary } from '../../api/types';
+import { useNavigate } from 'react-router-dom';
 
-function planColor(planCode: string): string {
-  switch (planCode.toUpperCase()) {
-    case 'PREMIUM': return 'gold';
-    case 'PRO': return 'blue';
-    case 'FREE': return 'default';
-    default: return 'purple';
-  }
-}
+const { Text } = Typography;
 
-export default function SubscriptionsPage() {
+export default function TokensPage() {
+  const navigate = useNavigate();
   const [page, setPage] = useState(0);
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['subscription-stats'],
-    queryFn: subscriptionsApi.stats,
+  const { data: usersPage, isLoading } = useQuery({
+    queryKey: ['token-users', page],
+    queryFn: () => usersApi.list({ page, size: 20, sort: 'tokenBalance,desc' }),
   });
 
-  const { data: expiring, isLoading: expiringLoading } = useQuery({
-    queryKey: ['subscriptions-expiring'],
-    queryFn: subscriptionsApi.expiring,
-  });
+  const users = usersPage?._embedded?.users ?? [];
+  const totalElements = usersPage?.page?.totalElements ?? 0;
 
-  const { data: paged, isLoading: pagedLoading } = useQuery({
-    queryKey: ['subscriptions', page],
-    queryFn: () => subscriptionsApi.list({ page, size: 20 }),
-  });
+  const totalBalance = users.reduce((sum, u) => sum + (u.tokenBalance ?? 0), 0);
+  const zeroBalance  = users.filter(u => (u.tokenBalance ?? 0) === 0).length;
+  const avgBalance   = users.length > 0 ? Math.round(totalBalance / users.length) : 0;
 
   const handleTableChange = (pagination: TablePaginationConfig) => {
     setPage((pagination.current ?? 1) - 1);
@@ -49,54 +40,40 @@ export default function SubscriptionsPage() {
       title: 'Username',
       dataIndex: 'username',
       key: 'username',
-      render: (v: string | null) => v ?? <Typography.Text type="secondary">—</Typography.Text>,
+      render: (v: string | null) => v ? `@${v}` : <Text type="secondary">—</Text>,
     },
     {
-      title: 'Plan',
-      dataIndex: 'planCode',
-      key: 'planCode',
-      render: (code: string, record: Subscription) => (
-        <Tag color={planColor(code)}>{record.planName}</Tag>
-      ),
-    },
-    {
-      title: 'Status',
+      title: 'Статус',
       dataIndex: 'status',
       key: 'status',
+      width: 100,
       render: (v: string) => (
-        <Tag color={v === 'ACTIVE' ? 'success' : 'default'}>{v}</Tag>
+        <Tag color={v === 'ACTIVE' ? 'success' : v === 'BANNED' ? 'error' : 'default'}>{v}</Tag>
       ),
     },
     {
-      title: 'Started',
-      dataIndex: 'startedAt',
-      key: 'startedAt',
-      render: (v: string) => dayjs(v).format('DD.MM.YYYY HH:mm'),
-    },
-    {
-      title: 'Expires',
-      dataIndex: 'expiresAt',
-      key: 'expiresAt',
-      render: (v: string | null) => (v ? dayjs(v).format('DD.MM.YYYY HH:mm') : '—'),
-    },
-  ];
-
-  const expiringColumns = [
-    { title: 'Telegram ID', dataIndex: 'telegramId', key: 'telegramId' },
-    { title: 'Username', dataIndex: 'username', key: 'username', render: (v: string | null) => v ?? '—' },
-    {
-      title: 'Plan',
-      dataIndex: 'planCode',
-      key: 'planCode',
-      render: (code: string, record: Subscription) => (
-        <Tag color={planColor(code)}>{record.planName}</Tag>
+      title: 'Баланс токенов',
+      dataIndex: 'tokenBalance',
+      key: 'tokenBalance',
+      width: 140,
+      render: (v: number) => (
+        <Space>
+          <Text strong style={{ color: v > 0 ? '#52c41a' : '#ff4d4f' }}>{v}</Text>
+          {v === 0 && <Tag color="error">Нет токенов</Tag>}
+        </Space>
       ),
     },
     {
-      title: 'Expires',
-      dataIndex: 'expiresAt',
-      key: 'expiresAt',
-      render: (v: string | null) => (v ? dayjs(v).format('DD.MM.YYYY HH:mm') : '—'),
+      title: 'Контроллеры',
+      dataIndex: 'controllersCount',
+      key: 'controllersCount',
+      width: 120,
+    },
+    {
+      title: 'Регистрация',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (v: string) => dayjs(v).format('DD.MM.YYYY'),
     },
   ];
 
@@ -105,87 +82,44 @@ export default function SubscriptionsPage() {
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col xs={24} sm={8}>
           <StatCard
-            title="Total Active"
-            value={stats?.totalActive ?? 0}
-            loading={statsLoading}
-            color="#52c41a"
+            title="Всего пользователей"
+            value={totalElements}
+            loading={isLoading}
           />
         </Col>
         <Col xs={24} sm={8}>
           <StatCard
-            title="Expiring in 24h"
-            value={stats?.expiringIn24h ?? 0}
-            loading={statsLoading}
-            color={(stats?.expiringIn24h ?? 0) > 0 ? '#faad14' : undefined}
+            title="Ср. баланс (страница)"
+            value={avgBalance}
+            loading={isLoading}
+            color="#1677ff"
           />
         </Col>
         <Col xs={24} sm={8}>
           <StatCard
-            title="Active Plans"
-            value={stats?.byPlan?.length ?? 0}
-            loading={statsLoading}
+            title="Без токенов (страница)"
+            value={zeroBalance}
+            loading={isLoading}
+            color={zeroBalance > 0 ? '#ff4d4f' : undefined}
           />
         </Col>
       </Row>
 
-      {/* Plan distribution */}
-      {stats?.byPlan && stats.byPlan.length > 0 && (
-        <Card title="Plan Distribution" style={{ marginBottom: 16 }} size="small">
-          <Space wrap>
-            {stats.byPlan.map((p) => (
-              <Tag key={p.planCode} color={planColor(p.planCode)} style={{ fontSize: 14, padding: '4px 12px' }}>
-                {p.planName}: <strong>{p.activeCount}</strong>
-              </Tag>
-            ))}
-          </Space>
-        </Card>
-      )}
-
-      {/* Expiring soon alert */}
-      {(stats?.expiringIn24h ?? 0) > 0 && (
-        <Alert
-          type="warning"
-          icon={<WarningOutlined />}
-          showIcon
-          message={`${stats!.expiringIn24h} subscription(s) expiring in the next 24 hours`}
-          style={{ marginBottom: 16 }}
-        />
-      )}
-
-      {/* Expiring subscriptions compact table */}
-      {(expiring?.length ?? 0) > 0 && (
-        <Card
-          title="Expiring Soon"
-          size="small"
-          style={{ marginBottom: 16 }}
-          extra={<Tag color="warning">{expiring?.length} subscriptions</Tag>}
-        >
-          <Table<Subscription>
-            dataSource={expiring}
-            columns={expiringColumns}
-            rowKey="id"
-            loading={expiringLoading}
-            size="small"
-            pagination={false}
-          />
-        </Card>
-      )}
-
-      {/* Main subscriptions table */}
-      <Card title="All Active Subscriptions" size="small">
-        <Table<Subscription>
-          dataSource={paged?.content ?? []}
+      <Card title="Балансы токенов" size="small">
+        <Table<UserSummary>
+          dataSource={users}
           columns={columns}
           rowKey="id"
-          loading={pagedLoading}
+          loading={isLoading}
           pagination={{
             current: page + 1,
             pageSize: 20,
-            total: paged?.totalElements ?? 0,
+            total: totalElements,
             showSizeChanger: false,
-            showTotal: (t) => `Total ${t} subscriptions`,
+            showTotal: (t) => `Всего ${t} пользователей`,
           }}
           onChange={handleTableChange}
+          onRow={(u) => ({ onClick: () => navigate(`/users/${u.id}`), style: { cursor: 'pointer' } })}
           size="middle"
         />
       </Card>

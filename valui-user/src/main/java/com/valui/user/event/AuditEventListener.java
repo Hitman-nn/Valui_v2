@@ -1,7 +1,6 @@
 package com.valui.user.event;
 
 import com.valui.common.entity.AuditLogEntity;
-import com.valui.user.event.SubscriptionExpiredEvent;
 import com.valui.user.repository.AuditLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,23 +14,6 @@ import org.springframework.stereotype.Component;
 public class AuditEventListener {
 
     private final AuditLogRepository auditLogRepository;
-
-    @Async
-    @EventListener
-    public void onSubscriptionExpired(SubscriptionExpiredEvent event) {
-        try {
-            AuditLogEntity entry = AuditLogEntity.builder()
-                .action("SUBSCRIPTION_EXPIRED")
-                .entityType("User")
-                .entityId(event.userId())
-                .details("{\"oldPlan\":\"" + event.oldPlanCode() + "\",\"downgradedTo\":\"FREE\"}")
-                .build();
-            auditLogRepository.save(entry);
-            log.info("Subscription expired audit: userId={} oldPlan={}", event.userId(), event.oldPlanCode());
-        } catch (Exception e) {
-            log.error("Failed to persist subscription-expired audit for userId={}", event.userId(), e);
-        }
-    }
 
     @Async
     @EventListener

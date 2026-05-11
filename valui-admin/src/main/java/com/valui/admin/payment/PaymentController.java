@@ -6,7 +6,6 @@ import com.valui.admin.security.ValuiPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -16,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @Slf4j
-@Tag(name = "Payment", description = "Subscription payment and webhook endpoints")
+@Tag(name = "Payment", description = "Payment webhook and history endpoints")
 @RestController
 @RequestMapping("/api/v1/payment")
 @RequiredArgsConstructor
@@ -24,9 +23,7 @@ public class PaymentController {
 
     private final PaymentService paymentService;
     private final WebhookSignatureService signatureService;
-    private final ObjectMapper objectMapper;   // @Primary (snake_case) — Yookassa uses snake_case too
-
-    // ─── public: webhook (no JWT required, validated via HMAC) ───────────────
+    private final ObjectMapper objectMapper;
 
     @PostMapping("/webhook")
     @Operation(summary = "Payment provider webhook — validates HMAC-SHA256 signature")
@@ -54,19 +51,6 @@ public class PaymentController {
             log.error("Failed to process webhook payload", e);
             return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).build();
         }
-    }
-
-    // ─── authenticated: initiate + history ───────────────────────────────────
-
-    @PostMapping("/initiate")
-    @SecurityRequirement(name = "bearerAuth")
-    @Operation(summary = "Initiate a subscription upgrade payment")
-    public ResponseEntity<PaymentResponse> initiatePayment(
-            @CurrentUser ValuiPrincipal principal,
-            @RequestParam @NotBlank String planCode) {
-        return ResponseEntity.ok(
-            paymentService.initiateSubscriptionUpgrade(principal.telegramId(), planCode)
-        );
     }
 
     @GetMapping("/history")

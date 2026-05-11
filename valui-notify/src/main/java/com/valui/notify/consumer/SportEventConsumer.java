@@ -11,7 +11,6 @@ import com.valui.common.kafka.SportEventDetectedMessage;
 import com.valui.common.kafka.UserNotificationRequestMessage;
 import com.valui.betting.cache.BetNotifCacheService;
 import com.valui.betting.cache.BetNotifData;
-import com.valui.common.entity.GlobalFilterEntity;
 import com.valui.notify.dedup.TitleDedupCacheService;
 import com.valui.notify.dedup.TitleDedupEntry;
 import com.valui.notify.formatter.NotificationFormatter;
@@ -102,8 +101,8 @@ public class SportEventConsumer {
         }
 
         // Check global exclusion filters (cached, TTL 30 s)
-        for (GlobalFilterEntity gf : globalFilterService.findByUserId(userId)) {
-            if (!passesFilterRule(gf.getFilterRule(), event.title())) {
+        for (String globalRule : globalFilterService.findByUserId(userId)) {
+            if (!passesFilterRule(globalRule, event.title())) {
                 log.debug("Event '{}' blocked by global filter for user {}", event.title(), userId);
                 return;
             }

@@ -78,6 +78,11 @@ public class ControllerEntity implements HasUpdatedAt {
     @Builder.Default
     private Boolean pausedByTokens = false;
 
+    /** true когда фильтр приостановлен из-за нехватки токенов — filterRule сохранён, но не применяется. */
+    @Column(name = "filter_paused_by_tokens", nullable = false)
+    @Builder.Default
+    private Boolean filterPausedByTokens = false;
+
     /** Дата первой установки filter_rule. Нужна планировщику для пропуска текущего месяца. */
     @Column(name = "filter_set_at")
     private OffsetDateTime filterSetAt;

@@ -79,7 +79,6 @@ class ControllerServiceTest {
     @DisplayName("addController: happy path — saves entity and returns ControllerDto")
     void addController_happyPath_returnsDto() {
         given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(planLimitFacade.getLimitInfo(TG_ID)).willReturn(limitInfo(120));
         given(controllerPort.existsByUserAndBookmakerAndUrl(any(), any(), any())).willReturn(false);
         given(detectedEventPort.countByControllerId(any())).willReturn(0L);
         given(controllerPort.save(any())).willAnswer(inv -> {
@@ -264,9 +263,7 @@ class ControllerServiceTest {
             .build();
     }
 
-    private static LimitInfoDto limitInfo(int pollIntervalSec) {
-        return new LimitInfoDto(0, Integer.MAX_VALUE, 0, Integer.MAX_VALUE,
-            List.of("XBET", "FONBET", "OLIMP", "BETCITY", "BETBOOM"),
-            pollIntervalSec, "PRO", null, 100, 200, 10);
+    private static LimitInfoDto limitInfo(int ignored) {
+        return new LimitInfoDto(0, 100, 200);
     }
 }
