@@ -90,7 +90,7 @@ class SportEventConsumerTest {
                 "ext-match-1",
                 "Spartak - CSKA",
                 "https://fonbet.ru/1",
-                Instant.now());
+                Instant.now(), null);
 
         logEntry = NotificationLogEntity.builder()
                 .id(UUID.randomUUID()).status(NotificationStatus.PENDING).build();

@@ -103,7 +103,7 @@ public class OlimpParser implements BookmakerParser {
             if (id == null || name == null) continue;
             String url = "https://www.olimp.bet/line/" + sId + "/" + tournamentId + "/" + id;
             matches.add(new ParsedMatchDto(id, name, tournamentId, url,
-                    parseInstant(s(p, "startsAt")), p.path("isLive").asBoolean(false)));
+                    parseInstant(s(p, "startsAt")), p.path("isLive").asBoolean(false), null));
         }
         return ParseResult.ok(matches, ms() - start);
     }

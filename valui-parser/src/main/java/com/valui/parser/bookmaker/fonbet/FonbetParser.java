@@ -95,6 +95,11 @@ public class FonbetParser implements BookmakerParser {
         return ParseResult.ok(tournaments, ms() - start);
     }
 
+    // Factor IDs for 1x2 outcomes
+    private static final int F_WIN1 = 921, F_DRAW = 922, F_WIN2 = 923;
+    // Known handicap pairs: Ф1 id → Ф2 id (ordered by typical precedence on site)
+    private static final java.util.Map<Integer, Integer> HCAP_PAIRS = java.util.Map.of(910, 912, 927, 928);
+
     @CircuitBreaker(name = "fonbet-cb", fallbackMethod = "fetchMatchesFallback")
     @Retry(name = "parser-retry")
     @Override
@@ -103,6 +108,14 @@ public class FonbetParser implements BookmakerParser {
         JsonNode snap = fetchSnapshot();
         List<ParsedMatchDto> matches = new ArrayList<>();
         String parentSportId = findParentSportId(snap, tournamentId);
+
+        // Build eventId → customFactors map for quick lookup
+        java.util.Map<String, JsonNode> factorsById = new java.util.HashMap<>();
+        for (JsonNode cf : snap.path("customFactors")) {
+            String eid = cf.path("e").asText(null);
+            if (eid != null) factorsById.put(eid, cf.path("factors"));
+        }
+
         JsonNode events = snap.path("events");
         if (!events.isArray()) return ParseResult.ok(matches, ms() - start);
         for (JsonNode ev : events) {
@@ -115,10 +128,101 @@ public class FonbetParser implements BookmakerParser {
             String matchUrl = parentSportId != null
                     ? "https://fon.bet/sports/" + parentSportId + "/" + tournamentId + "/" + id
                     : "https://fon.bet/sports/" + tournamentId + "/" + id;
+            String extraData = buildExtraData(id, ev, factorsById);
             matches.add(new ParsedMatchDto(id, t1 + " - " + t2, tournamentId,
-                    matchUrl, startsAt, ev.path("live").asBoolean(false)));
+                    matchUrl, startsAt, ev.path("live").asBoolean(false), extraData));
         }
         return ParseResult.ok(matches, ms() - start);
+    }
+
+    private record HcapPair(JsonNode f1, JsonNode f2, int absP) {}
+
+    private String buildExtraData(String eventId, JsonNode ev, java.util.Map<String, JsonNode> factorsById) {
+        JsonNode factors = factorsById.get(eventId);
+
+        Double win1 = null, draw = null, win2 = null;
+        Double hcap1v = null, hcap2v = null;
+        String hcap1pt = null, hcap2pt = null;
+
+        if (factors != null && factors.isArray()) {
+            // Collect 1x2 odds
+            for (JsonNode fac : factors) {
+                int fid = fac.path("f").asInt(0);
+                double v = fac.path("v").asDouble(0);
+                if (fid == F_WIN1) win1 = v;
+                else if (fid == F_DRAW) draw = v;
+                else if (fid == F_WIN2) win2 = v;
+            }
+
+            // Build p → node map to find handicap pairs
+            java.util.Map<Integer, JsonNode> byP = new java.util.LinkedHashMap<>();
+            for (JsonNode fac : factors) {
+                JsonNode pNode = fac.path("p");
+                if (!pNode.isMissingNode()) {
+                    int p = pNode.asInt(Integer.MIN_VALUE);
+                    if (p != Integer.MIN_VALUE) byP.putIfAbsent(p, fac);
+                }
+            }
+
+            // Find all Ф1/Ф2 pairs: negative-p factor + matching positive-p factor
+            java.util.List<HcapPair> pairs = new java.util.ArrayList<>();
+            for (java.util.Map.Entry<Integer, JsonNode> entry : byP.entrySet()) {
+                int p = entry.getKey();
+                if (p >= 0) continue; // process only negative side as Ф1
+                JsonNode f2Node = byP.get(-p);
+                if (f2Node != null) pairs.add(new HcapPair(entry.getValue(), f2Node, -p));
+            }
+            // p=0 special case: use known pair IDs
+            if (byP.containsKey(0)) {
+                JsonNode f1zero = null, f2zero = null;
+                for (JsonNode fac : factors) {
+                    int fid = fac.path("f").asInt(0);
+                    int p = fac.path("p").asInt(Integer.MIN_VALUE);
+                    if (p != 0) continue;
+                    if (HCAP_PAIRS.containsKey(fid) && f1zero == null) f1zero = fac;
+                    else if (HCAP_PAIRS.containsValue(fid) && f2zero == null) f2zero = fac;
+                }
+                if (f1zero != null && f2zero != null) pairs.add(new HcapPair(f1zero, f2zero, 0));
+            }
+
+            // Find the pair where sum of |v1−2| + |v2−2| is minimised — the most "balanced" line
+            if (!pairs.isEmpty()) {
+                HcapPair main = pairs.stream()
+                        .min(java.util.Comparator.comparingDouble(p ->
+                                Math.abs(p.f1().path("v").asDouble(0) - 2.0)
+                              + Math.abs(p.f2().path("v").asDouble(0) - 2.0)))
+                        .orElse(pairs.get(0));
+                hcap1v  = main.f1().path("v").asDouble(0);
+                hcap1pt = main.f1().path("pt").asText(null);
+                hcap2v  = main.f2().path("v").asDouble(0);
+                hcap2pt = main.f2().path("pt").asText(null);
+            }
+        }
+
+        // Build compact JSON manually to avoid Jackson dependency in this module's config
+        StringBuilder sb = new StringBuilder("{");
+        long startTime = ev.path("startTime").asLong(0);
+        if (startTime > 0) sb.append("\"st\":").append(startTime).append(",");
+        if (win1 != null)  sb.append("\"w1\":").append(fmt(win1)).append(",");
+        if (draw != null)  sb.append("\"wX\":").append(fmt(draw)).append(",");
+        if (win2 != null)  sb.append("\"w2\":").append(fmt(win2)).append(",");
+        if (hcap1v != null && hcap2v != null) {
+            sb.append("\"h1\":{\"v\":").append(fmt(hcap1v))
+              .append(",\"pt\":\"").append(hcap1pt != null ? hcap1pt : "0").append("\"},");
+            sb.append("\"h2\":{\"v\":").append(fmt(hcap2v))
+              .append(",\"pt\":\"").append(hcap2pt != null ? hcap2pt : "0").append("\"},");
+        }
+        // Remove trailing comma if present
+        if (sb.charAt(sb.length() - 1) == ',') sb.setLength(sb.length() - 1);
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private static String fmt(double v) {
+        // Format as "1.9" not "1.900000" — trim trailing zeros after dot
+        String s = String.format("%.2f", v);
+        s = s.replaceAll("0+$", "").replaceAll("\\.$", "");
+        return s;
     }
 
     private String findParentSportId(JsonNode snap, String sportId) {

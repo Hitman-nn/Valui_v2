@@ -61,7 +61,7 @@ class OutboxSenderServiceTest {
                 outbox.getControllerId(), outbox.getUserId(),
                 outbox.getTelegramId(), outbox.getChatId(), outbox.getBookmaker(),
                 outbox.getExternalEventId(), outbox.getTitle(), outbox.getUrl(),
-                Instant.now());
+                Instant.now(), null);
     }
 
     // ── publishImmediate ──────────────────────────────────────────────────────
@@ -155,7 +155,7 @@ class OutboxSenderServiceTest {
         String userId = UUID.randomUUID().toString();
 
         OutboxEvent built = service.buildOutboxEvent(
-                extId, ctrlId, userId, 55L, 55L, "OLIMP", "A - B", "https://olimp.bet/1");
+                extId, ctrlId, userId, 55L, 55L, "OLIMP", "A - B", "https://olimp.bet/1", null);
 
         assertThat(built.getTopic()).isEqualTo(KafkaTopics.SPORT_EVENTS_DETECTED);
         assertThat(built.getMessageKey()).isEqualTo(ctrlId);

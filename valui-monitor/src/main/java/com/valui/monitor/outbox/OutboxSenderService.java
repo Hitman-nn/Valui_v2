@@ -92,7 +92,7 @@ public class OutboxSenderService {
     /** Builds an unsent {@link OutboxEvent} row for use inside the caller's transaction. */
     public OutboxEvent buildOutboxEvent(
             String externalEventId, String controllerId, String userId, Long telegramId, Long chatId,
-            String bookmaker, String title, String url) {
+            String bookmaker, String title, String url, String extraData) {
         return OutboxEvent.builder()
                 .topic(KafkaTopics.SPORT_EVENTS_DETECTED)
                 .messageKey(controllerId)
@@ -104,6 +104,7 @@ public class OutboxSenderService {
                 .bookmaker(bookmaker)
                 .title(title)
                 .url(url)
+                .extraData(extraData)
                 .createdAt(OffsetDateTime.now())
                 .build();
     }

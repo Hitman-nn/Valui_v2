@@ -137,7 +137,7 @@ public class BetBoomParser implements BookmakerParser {
             String url = "https://betboom.ru/sport/" + sportAlias + "/" + countryId
                     + "/" + sectionTid + "/" + eid + "?period=all";
             matches.add(new ParsedMatchDto(String.valueOf(eid), title, tournamentId, url,
-                    parseInstant(match.getHeader().getStartsAt()), match.getHeader().getLive() == 1));
+                    parseInstant(match.getHeader().getStartsAt()), match.getHeader().getLive() == 1, null));
         }
         tournamentConsecutiveTimeouts(tournamentId, 0); // WS responded — reset timeout counter
         return ParseResult.ok(matches, ms() - start);

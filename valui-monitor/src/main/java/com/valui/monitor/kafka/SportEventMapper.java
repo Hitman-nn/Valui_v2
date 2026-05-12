@@ -22,7 +22,8 @@ public class SportEventMapper {
                 event.externalEventId(),
                 event.title(),
                 event.url(),
-                Instant.now()
+                Instant.now(),
+                event.extraData()
         );
     }
 
@@ -37,7 +38,8 @@ public class SportEventMapper {
                 outbox.getExternalEventId(),
                 outbox.getTitle(),
                 outbox.getUrl(),
-                Instant.now()
+                Instant.now(),
+                outbox.getExtraData()
         );
     }
 }

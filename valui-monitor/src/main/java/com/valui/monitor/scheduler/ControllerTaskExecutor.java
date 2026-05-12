@@ -126,7 +126,7 @@ public class ControllerTaskExecutor {
     }
 
     /** Intermediate representation used to decouple the two parser DTO types. */
-    record ParsedItem(String id, String title, String url) {}
+    record ParsedItem(String id, String title, String url, String extraData) {}
 
     // ── Step 3: Fetch from parser (NO transaction — external HTTP call) ───────
 
@@ -152,7 +152,7 @@ public class ControllerTaskExecutor {
             }
             return result.data().stream()
                     .filter(m -> m.id() != null)
-                    .map(m -> new ParsedItem(m.id(), m.title(), m.url()))
+                    .map(m -> new ParsedItem(m.id(), m.title(), m.url(), m.extraData()))
                     .toList();
         }
 
@@ -165,7 +165,7 @@ public class ControllerTaskExecutor {
         }
         return result.data().stream()
                 .filter(t -> t.id() != null)
-                .map(t -> new ParsedItem(t.id(), t.title(), t.url()))
+                .map(t -> new ParsedItem(t.id(), t.title(), t.url(), null))
                 .toList();
     }
 
@@ -183,6 +183,12 @@ public class ControllerTaskExecutor {
 
         // First run (warmup): lastCheckedAt == null → mark all events as seen silently
         boolean isFirstRun = ctrl.getLastCheckedAt() == null;
+
+        // Build lookup: externalId → extraData (for passing through to outbox/events)
+        java.util.Map<String, String> extraByExternalId = new java.util.HashMap<>();
+        for (ParsedItem item : fetched) {
+            if (item.extraData() != null) extraByExternalId.put(item.id(), item.extraData());
+        }
 
         List<DetectedEventEntity> saved = new ArrayList<>();
         for (ParsedItem item : fetched) {
@@ -236,6 +242,7 @@ public class ControllerTaskExecutor {
                                 e.getEventExternalId(), sub.getChatId(), ctx.controllerId());
                         continue;
                     }
+                    String extraData = extraByExternalId.get(e.getEventExternalId());
                     outboxRepo.save(outboxSenderService.buildOutboxEvent(
                             e.getEventExternalId(),
                             ctx.controllerId().toString(),
@@ -244,7 +251,8 @@ public class ControllerTaskExecutor {
                             sub.getChatId(),
                             ctx.bookmaker().name(),
                             e.getTitle(),
-                            e.getUrl()));
+                            e.getUrl(),
+                            extraData));
                     events.publishEvent(new SportEventDetectedEvent(
                             ctrl.getId(),
                             sub.getUserId(),
@@ -253,7 +261,8 @@ public class ControllerTaskExecutor {
                             ctx.bookmaker(),
                             e.getEventExternalId(),
                             e.getTitle(),
-                            e.getUrl()));
+                            e.getUrl(),
+                            extraData));
                 }
             });
         }

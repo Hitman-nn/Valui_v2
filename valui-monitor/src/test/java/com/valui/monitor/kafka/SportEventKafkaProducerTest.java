@@ -30,7 +30,7 @@ class SportEventKafkaProducerTest {
         String externalEventId = "ext-match-42";
         SportEventDetectedEvent event = new SportEventDetectedEvent(
                 CTRL_ID, USER_ID, 99L, 99L, BookmakerType.FONBET,
-                externalEventId, "Spartak - CSKA", "https://fonbet.ru/1");
+                externalEventId, "Spartak - CSKA", "https://fonbet.ru/1", null);
 
         producer.onSportEventDetected(event);
 
@@ -42,7 +42,7 @@ class SportEventKafkaProducerTest {
     void onSportEventDetected_nullTelegramId_noException() {
         SportEventDetectedEvent event = new SportEventDetectedEvent(
                 CTRL_ID, USER_ID, null, null, BookmakerType.OLIMP,
-                "ext-99", "Match X", null);
+                "ext-99", "Match X", null, null);
 
         producer.onSportEventDetected(event);
 

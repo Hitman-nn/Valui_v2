@@ -262,7 +262,7 @@ class SportEventPipelineE2ETest {
                 "ext-match-e2e",
                 "Spartak - CSKA E2E",
                 "https://fonbet.ru/e2e",
-                Instant.now());
+                Instant.now(), null);
 
         kafkaTemplate.send(KafkaTopics.SPORT_EVENTS_DETECTED, inbound.eventId(), inbound).join();
 
@@ -285,7 +285,7 @@ class SportEventPipelineE2ETest {
                 UUID.randomUUID().toString(), // unknown controllerId — mock returns empty
                 E2E_USER_ID.toString(),
                 E2E_TG_ID, E2E_TG_ID,
-                "FONBET", "ext-unknown", "Unknown Match", "https://fonbet.ru/x", Instant.now());
+                "FONBET", "ext-unknown", "Unknown Match", "https://fonbet.ru/x", Instant.now(), null);
 
         kafkaTemplate.send(KafkaTopics.SPORT_EVENTS_DETECTED, inbound.eventId(), inbound).join();
 

@@ -8,5 +8,6 @@ public record ParsedMatchDto(
         String tournamentId,
         String url,
         Instant startsAt,
-        boolean isLive
+        boolean isLive,
+        String extraData   // nullable JSON; populated by parsers that support odds (e.g. Fonbet)
 ) {}

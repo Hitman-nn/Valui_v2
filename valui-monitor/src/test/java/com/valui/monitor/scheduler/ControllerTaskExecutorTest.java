@@ -101,7 +101,7 @@ class ControllerTaskExecutorTest {
         given(controllerPort.findActiveSubscriptions(CTRL_ID)).willReturn(List.of(sub));
 
         given(props.getDefaultPollIntervalSec()).willReturn(60);
-        given(outboxSenderService.buildOutboxEvent(any(), any(), any(), any(), any(), any(), any(), any()))
+        given(outboxSenderService.buildOutboxEvent(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .willReturn(OutboxEvent.builder().externalEventId("stub").chatId(TG_ID).build());
         given(outboxRepo.existsByExternalEventIdAndChatId(any(), any())).willReturn(false);
         given(outboxRepo.save(any())).willAnswer(inv -> inv.getArgument(0));
@@ -112,7 +112,7 @@ class ControllerTaskExecutorTest {
     @Test
     @DisplayName("persistNewEvents: new match is saved and SportEventDetectedEvent published")
     void persistNewEvents_newMatch_savesAndPublishes() {
-        ParsedItem item = new ParsedItem("evt1", "Zenit - CSKA", "https://1xstavka.ru/evt1");
+        ParsedItem item = new ParsedItem("evt1", "Zenit - CSKA", "https://1xstavka.ru/evt1", null);
         given(controllerPort.findById(CTRL_ID)).willReturn(Optional.of(controller));
         given(dedup.claimIfNew(CTRL_ID, "evt1")).willReturn(true);
         given(detectedEventPort.insertIfAbsent(any(), any(), any(), any(), any())).willReturn(true);
@@ -136,7 +136,7 @@ class ControllerTaskExecutorTest {
     @Test
     @DisplayName("persistNewEvents: duplicate match is skipped, no event published")
     void persistNewEvents_duplicateMatch_noEvent() {
-        ParsedItem item = new ParsedItem("evt1", "Zenit - CSKA", null);
+        ParsedItem item = new ParsedItem("evt1", "Zenit - CSKA", null, null);
         given(controllerPort.findById(CTRL_ID)).willReturn(Optional.of(controller));
         given(dedup.claimIfNew(CTRL_ID, "evt1")).willReturn(false);
         given(controllerPort.save(any())).willReturn(controller);
@@ -151,8 +151,8 @@ class ControllerTaskExecutorTest {
     @Test
     @DisplayName("persistNewEvents: mixed list — only non-duplicates persisted")
     void persistNewEvents_mixed_persistsOnlyNew() {
-        ParsedItem old = new ParsedItem("evtOld", "A - B", null);
-        ParsedItem fresh = new ParsedItem("evtNew", "C - D", null);
+        ParsedItem old = new ParsedItem("evtOld", "A - B", null, null);
+        ParsedItem fresh = new ParsedItem("evtNew", "C - D", null, null);
         given(controllerPort.findById(CTRL_ID)).willReturn(Optional.of(controller));
         given(dedup.claimIfNew(CTRL_ID, "evtOld")).willReturn(false);
         given(dedup.claimIfNew(CTRL_ID, "evtNew")).willReturn(true);
@@ -183,7 +183,7 @@ class ControllerTaskExecutorTest {
         given(parserFactory.getParser(eq(BookmakerType.XBET))).willReturn(parser);
         given(parser.fetchMatches(TOURNAMENT_ID)).willReturn(
                 ParseResult.ok(List.of(
-                        new ParsedMatchDto("m1", "A - B", TOURNAMENT_ID, "https://...", Instant.now(), false)
+                        new ParsedMatchDto("m1", "A - B", TOURNAMENT_ID, "https://...", Instant.now(), false, null)
                 ), 50L));
 
         List<ParsedItem> items = executor.fetch(ctx);

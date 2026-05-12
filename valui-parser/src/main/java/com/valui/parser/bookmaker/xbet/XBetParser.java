@@ -96,6 +96,10 @@ public class XBetParser implements BookmakerParser {
         return ParseResult.ok(tournaments, ms() - start);
     }
 
+    // E entry group/type IDs for odds parsing
+    private static final int E_G_1X2 = 1, E_T_W1 = 1, E_T_DRAW = 2, E_T_W2 = 3;
+    private static final int E_G_HCAP = 2, E_T_H1 = 7, E_T_H2 = 8;
+
     @CircuitBreaker(name = "xbet-cb", fallbackMethod = "fetchMatchesFallback")
     @Retry(name = "parser-retry")
     @Override
@@ -113,10 +117,70 @@ public class XBetParser implements BookmakerParser {
             if (ci == null || o1 == null || o2 == null) continue;
             String url = "https://1xstavka.ru/line/" + slug(s(v, "SE"))
                     + "/" + tournamentId + "/" + ci + "-" + slug(o1e) + "-" + slug(o2e);
+            // Fix: use S (Unix timestamp) for startTime, not T (which is a count field)
+            Instant startsAt = parseInstant(s(v, "S"));
+            String extraData = buildExtraData(v);
             matches.add(new ParsedMatchDto(ci, o1 + " - " + o2, tournamentId, url,
-                    parseInstant(s(v, "T")), "1".equals(s(v, "CL"))));
+                    startsAt, "1".equals(s(v, "CL")), extraData));
         }
         return ParseResult.ok(matches, ms() - start);
+    }
+
+    private String buildExtraData(JsonNode match) {
+        JsonNode eArr = match.path("E");
+        if (!eArr.isArray() || eArr.isEmpty()) return null;
+
+        Double win1 = null, draw = null, win2 = null;
+        Double hcap1v = null, hcap2v = null;
+        String hcap1pt = null, hcap2pt = null;
+
+        for (JsonNode e : eArr) {
+            int g = e.path("G").asInt(-1);
+            int t = e.path("T").asInt(-1);
+            int ce = e.path("CE").asInt(0);
+            double c = e.path("C").asDouble(0);
+
+            if (g == E_G_1X2) {
+                if (t == E_T_W1)   win1 = c;
+                else if (t == E_T_DRAW) draw = c;
+                else if (t == E_T_W2)  win2 = c;
+            } else if (g == E_G_HCAP && ce == 1) {
+                JsonNode pNode = e.path("P");
+                String pt = pNode.isNull() || pNode.isMissingNode()
+                        ? "0"
+                        : formatPt(pNode.asDouble(0));
+                if (t == E_T_H1) { hcap1v = c; hcap1pt = pt; }
+                else if (t == E_T_H2) { hcap2v = c; hcap2pt = pt; }
+            }
+        }
+
+        StringBuilder sb = new StringBuilder("{");
+        long st = match.path("S").asLong(0);
+        if (st > 0)   sb.append("\"st\":").append(st).append(",");
+        if (win1 != null) sb.append("\"w1\":").append(fmt(win1)).append(",");
+        if (draw != null) sb.append("\"wX\":").append(fmt(draw)).append(",");
+        if (win2 != null) sb.append("\"w2\":").append(fmt(win2)).append(",");
+        if (hcap1v != null && hcap2v != null) {
+            sb.append("\"h1\":{\"v\":").append(fmt(hcap1v))
+              .append(",\"pt\":\"").append(hcap1pt).append("\"},");
+            sb.append("\"h2\":{\"v\":").append(fmt(hcap2v))
+              .append(",\"pt\":\"").append(hcap2pt).append("\"},");
+        }
+        if (sb.charAt(sb.length() - 1) == ',') sb.setLength(sb.length() - 1);
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private static String formatPt(double p) {
+        if (p == 0.0) return "0";
+        String s = p % 1 == 0 ? String.valueOf((long) p) : String.valueOf(p);
+        return p > 0 ? "+" + s : s;
+    }
+
+    private static String fmt(double v) {
+        String s = String.format("%.2f", v);
+        s = s.replaceAll("0+$", "").replaceAll("\\.$", "");
+        return s;
     }
 
     @Override

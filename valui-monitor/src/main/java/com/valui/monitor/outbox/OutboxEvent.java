@@ -54,6 +54,9 @@ public class OutboxEvent {
     @Column(columnDefinition = "text")
     private String url;
 
+    @Column(name = "extra_data", columnDefinition = "text")
+    private String extraData;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 

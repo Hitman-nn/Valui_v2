@@ -16,5 +16,6 @@ public record SportEventDetectedEvent(
         BookmakerType bookmaker,
         String externalEventId,
         String title,
-        String url
+        String url,
+        String extraData
 ) {}

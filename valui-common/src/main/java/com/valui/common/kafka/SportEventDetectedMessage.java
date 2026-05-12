@@ -17,5 +17,6 @@ public record SportEventDetectedMessage(
         String externalEventId,
         String title,
         String url,
-        Instant detectedAt
+        Instant detectedAt,
+        String extraData   // nullable JSON; contains odds + startTime when available
 ) {}

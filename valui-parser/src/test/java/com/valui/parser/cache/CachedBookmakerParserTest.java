@@ -134,7 +134,7 @@ class CachedBookmakerParserTest {
     @Test
     void fetchMatches_cacheHit_doesNotCallDelegate() {
         List<ParsedMatchDto> data = List.of(
-                new ParsedMatchDto("500", "A - B", "100", "/match/500", Instant.EPOCH, false));
+                new ParsedMatchDto("500", "A - B", "100", "/match/500", Instant.EPOCH, false, null));
         when(cache.getMatches(BookmakerType.XBET, "100")).thenReturn(Optional.of(data));
 
         ParseResult<List<ParsedMatchDto>> result = cachedParser.fetchMatches(BookmakerType.XBET, "100");
@@ -147,7 +147,7 @@ class CachedBookmakerParserTest {
     @Test
     void fetchMatches_cacheMiss_callsDelegateAndStores() {
         List<ParsedMatchDto> fresh = List.of(
-                new ParsedMatchDto("500", "A - B", "100", "/match/500", Instant.EPOCH, false));
+                new ParsedMatchDto("500", "A - B", "100", "/match/500", Instant.EPOCH, false, null));
         when(cache.getMatches(BookmakerType.XBET, "100"))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.empty());

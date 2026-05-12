@@ -111,7 +111,7 @@ public class BetCityParser implements BookmakerParser {
                 if (t1 == null || t2 == null) return;
                 String url = "https://betcity.ru/ru/line/" + alias + "/" + tournamentId + "/" + id;
                 matches.add(new ParsedMatchDto(id, t1 + " - " + t2, tournamentId, url,
-                        parseInstant(s(evtEntry.getValue(), "date_dt")), false));
+                        parseInstant(s(evtEntry.getValue(), "date_dt")), false, null));
             });
         });
         return ParseResult.ok(matches, ms() - start);
