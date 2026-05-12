@@ -162,15 +162,20 @@ public class BetBoomParser implements BookmakerParser {
     }
 
     private ParseResult<List<ParsedMatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
-        long total = wsTimeoutTotal.incrementAndGet();
-        int consecutive = tournamentConsecutiveTimeouts(tournamentId, 1);
         String reason = fallbackReason(t);
-        if (consecutive <= TIMEOUT_WARN_THRESHOLD) {
-            log.warn("betboom fetchMatches tournamentId={}: {} — no data returned (consecutive={}, total={})",
-                    tournamentId, reason, consecutive, total);
+        if (t instanceof CallNotPermittedException) {
+            // CB is OPEN — not a WS problem, don't pollute the per-tournament timeout counter
+            log.debug("betboom fetchMatches tournamentId={}: circuit breaker OPEN — skipped", tournamentId);
         } else {
-            log.debug("betboom fetchMatches tournamentId={}: {} — no data (consecutive={}, total={})",
-                    tournamentId, reason, consecutive, total);
+            long total = wsTimeoutTotal.incrementAndGet();
+            int consecutive = tournamentConsecutiveTimeouts(tournamentId, 1);
+            if (consecutive <= TIMEOUT_WARN_THRESHOLD) {
+                log.warn("betboom fetchMatches tournamentId={}: {} — no data returned (consecutive={}, total={})",
+                        tournamentId, reason, consecutive, total);
+            } else {
+                log.debug("betboom fetchMatches tournamentId={}: {} — no data (consecutive={}, total={})",
+                        tournamentId, reason, consecutive, total);
+            }
         }
         return ParseResult.error("betboom-cb: " + t.getMessage());
     }
@@ -204,7 +209,10 @@ public class BetBoomParser implements BookmakerParser {
             byte[] body = firstBody(sf);
             if (body == null) return false;
             MatchesFrame mf = MatchesFrame.parseFrom(body);
-            return mf.hasSection() && mf.getSection().hasTournament()
+            // No section = empty response (no active LINE events). This is a valid reply
+            // from the server; fetchMatches handles it by returning an empty list.
+            if (!mf.hasSection()) return true;
+            return mf.getSection().hasTournament()
                     && mf.getSection().getTournament().getId() == expectedTid;
         } catch (Exception e) { return false; }
     }

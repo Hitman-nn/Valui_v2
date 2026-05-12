@@ -45,7 +45,7 @@ public class WsClientBorrowingPool implements SmartLifecycle {
             log.warn("Pool: Connection #{} not ready after {} ms", id, leftMs);
             throw new TimeoutException("Connection #" + id + " not ready");
         }
-        return new WsLease(id, s.client, () -> free.offer(id));
+        return new WsLease(id, s.client, () -> free.offer(id), () -> reconnectClean(id));
     }
 
     public int size()      { return props.getMaxSize(); }
@@ -87,6 +87,18 @@ public class WsClientBorrowingPool implements SmartLifecycle {
 
     private void connectSlot(int idx) {
         slots.get(idx).connect(0);
+    }
+
+    /**
+     * Reconnects a slot without counting it as a failure.
+     * Called when a lease is returned after use — resets server-side subscriptions
+     * that BetBoom keeps alive on the connection indefinitely.
+     */
+    void reconnectClean(int slotId) {
+        if (!running.get()) return;
+        Slot s = slots.get(slotId);
+        s.failures = 0;
+        s.connect(0);
     }
 
     // ── Slot ─────────────────────────────────────────────────────────────────

@@ -58,7 +58,10 @@ public class WsRequestService {
                             cid, bin.length, base64Safe(bin), e);
                 }
             }
-            log.debug("[cid={}] sendAndAwaitFiltered: timeout {} ms, no match", cid, awaitMs);
+            // Timeout: the server sent frames but none matched the predicate.
+            // Reconnect to clear server-side subscriptions that may have accumulated.
+            log.debug("[cid={}] sendAndAwaitFiltered: timeout {} ms, no match — reconnecting slot", cid, awaitMs);
+            lease.markForReconnect();
             return null;
         } finally {
             globalRps.release();

@@ -15,6 +15,7 @@ import com.valui.monitor.outbox.OutboxSenderService;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
+import com.valui.parser.health.ParserHealthService;
 import com.valui.parser.util.ParsedUrlIds;
 import com.valui.parser.util.UrlParser;
 import com.valui.user.api.ControllerPortService;
@@ -43,6 +44,7 @@ public class ControllerTaskExecutor {
     private final ControllerPortService controllerPort;
     private final DetectedEventPortService detectedEventPort;
     private final ParserFactory parserFactory;
+    private final ParserHealthService parserHealthService;
     private final ApplicationEventPublisher events;
     private final MonitorProperties props;
     private final EventDeduplicationService dedup;
@@ -129,7 +131,8 @@ public class ControllerTaskExecutor {
     // ── Step 3: Fetch from parser (NO transaction — external HTTP call) ───────
 
     public boolean isParserAvailable(BookmakerType bookmaker) {
-        return parserFactory.getParser(bookmaker).isConnectionReady();
+        return parserHealthService.isAvailable(bookmaker)
+            && parserFactory.getParser(bookmaker).isConnectionReady();
     }
 
     public List<ParsedItem> fetch(TaskContext ctx) {

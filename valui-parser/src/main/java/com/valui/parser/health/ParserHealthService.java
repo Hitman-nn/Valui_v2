@@ -35,6 +35,11 @@ public class ParserHealthService {
 
     @PostConstruct
     void bindMetrics() {
+        // Proactively create CB instances from config so they exist at startup.
+        // Without this, @CircuitBreaker proxies create CBs lazily on first invocation,
+        // leaving the registry empty when bindTo() runs.
+        parsers.forEach(p -> cbRegistry.circuitBreaker(p.getBookmaker().name().toLowerCase() + "-cb"));
+
         TaggedCircuitBreakerMetrics.ofCircuitBreakerRegistry(cbRegistry).bindTo(meterRegistry);
         List<String> cbNames = cbRegistry.getAllCircuitBreakers().stream()
                 .map(CircuitBreaker::getName)
