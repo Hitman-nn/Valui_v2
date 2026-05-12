@@ -44,6 +44,6 @@ public class GlobalFilterDeleteCallback implements CallbackHandler {
 
         List<GlobalFilterEntity> filters = globalFilterService.getFilters(ctx.fromId());
         var menu = FilterMenuBuilder.build(filters);
-        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
+        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
     }
 }

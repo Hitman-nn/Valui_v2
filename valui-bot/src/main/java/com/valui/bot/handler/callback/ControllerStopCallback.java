@@ -57,13 +57,13 @@ public class ControllerStopCallback implements CallbackHandler {
                 .filter(c -> removedId == null || !c.id().equals(removedId))
                 .toList();
             var menu = BookmakerMenuBuilder.buildControllerList(bookmaker, remaining, 0, botProperties.staleThresholdDays());
-            MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
+            ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
         } else {
             List<ControllerDto> all = ctx.isGroupChat()
                 ? controllerService.getGroupControllers(ctx.chatId())
                 : controllerService.getUserControllersForChat(ctx.fromId(), ctx.chatId());
             var menu = BookmakerMenuBuilder.buildSelection(all);
-            MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
+            ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
         }
     }
 }

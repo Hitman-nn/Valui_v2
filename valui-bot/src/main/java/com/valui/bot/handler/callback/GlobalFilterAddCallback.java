@@ -43,7 +43,7 @@ public class GlobalFilterAddCallback implements CallbackHandler {
             .cancelButton()
             .build();
 
-        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("filter.enter_rule", ctx.fromId()),
             keyboard);
     }

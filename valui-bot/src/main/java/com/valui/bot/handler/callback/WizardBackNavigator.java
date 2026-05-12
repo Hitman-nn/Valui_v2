@@ -9,6 +9,7 @@ import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.bot.keyboard.menu.MainMenuKeyboard;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.service.WizardCacheService;
+import com.valui.bot.service.WizardMessageTracker;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
 import com.valui.common.domain.BookmakerType;
@@ -37,14 +38,15 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class WizardBackNavigator {
 
-    private final BotSessionService   sessionService;
-    private final BotMessageSource    messageSource;
-    private final ControllerService   controllerService;
-    private final ParserFactory       parserFactory;
-    private final PlanLimitFacade     planLimitFacade;
-    private final WizardCacheService  wizardCache;
-    private final BotWizardProperties wizardProps;
-    private final BotProperties       botProperties;
+    private final BotSessionService      sessionService;
+    private final BotMessageSource       messageSource;
+    private final ControllerService      controllerService;
+    private final ParserFactory          parserFactory;
+    private final PlanLimitFacade        planLimitFacade;
+    private final WizardCacheService     wizardCache;
+    private final BotWizardProperties    wizardProps;
+    private final BotProperties          botProperties;
+    private final WizardMessageTracker   tracker;
 
     public void returnToBookmakerSelection(AbsSender sender, long fromId, long chatId, int messageId) {
         sessionService.setStateWithContext(fromId, BotState.SELECTING_BOOKMAKER, new HashMap<>());
@@ -52,7 +54,7 @@ public class WizardBackNavigator {
         for (com.valui.common.domain.BookmakerType bm : com.valui.common.domain.BookmakerType.values()) {
             kb.button(bm.name(), CallbackData.bookmakerSelect(bm.name()));
         }
-        MessageSend.replaceWithKeyboard(sender, chatId, messageId,
+        tracker.replaceAndTrack(sender, chatId, messageId,
                 messageSource.getMessage("wizard.select_bookmaker", fromId),
                 kb.build());
     }
@@ -102,7 +104,7 @@ public class WizardBackNavigator {
                 sports, savedPage,
                 messageSource.getMessage("menu.back", fromId),
                 wizardProps.getSportPageSize());
-        MessageSend.replaceWithKeyboard(sender, chatId, messageId,
+        tracker.replaceAndTrack(sender, chatId, messageId,
                 messageSource.getMessage("wizard.select_sport", fromId, bm),
                 keyboard);
     }
@@ -115,9 +117,9 @@ public class WizardBackNavigator {
 
         if (bmOpt.isEmpty() || sportIdOpt.isEmpty()) {
             sessionService.clearSession(fromId);
-            MessageSend.textWithKeyboard(sender, chatId,
-                    messageSource.getMessage("menu.main", fromId),
-                    MainMenuKeyboard.build(fromId, messageSource));
+            int id = MessageSend.sendGetId(sender, chatId,
+                    messageSource.getMessage("menu.main", fromId));
+            if (id > 0) tracker.track(chatId, id);
             return;
         }
 
@@ -180,14 +182,14 @@ public class WizardBackNavigator {
             tournaments, savedPage, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
             wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
 
-        MessageSend.replaceWithKeyboard(sender, chatId, messageId,
+        tracker.replaceAndTrack(sender, chatId, messageId,
             messageSource.getMessage("wizard.select_tournament", fromId, sportName), keyboard);
     }
 
     private void fallbackToMainMenu(AbsSender sender, long fromId, long chatId) {
         sessionService.clearSession(fromId);
-        MessageSend.textWithKeyboard(sender, chatId,
-            messageSource.getMessage("menu.main", fromId),
-            MainMenuKeyboard.build(fromId, messageSource));
+        int id = MessageSend.sendGetId(sender, chatId,
+            messageSource.getMessage("menu.main", fromId));
+        if (id > 0) tracker.track(chatId, id);
     }
 }

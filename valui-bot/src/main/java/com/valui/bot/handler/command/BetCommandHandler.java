@@ -27,8 +27,9 @@ public class BetCommandHandler implements CommandHandler {
     @Override
     public void handle(BotUpdateContext ctx) {
         sessionService.clearSession(ctx.fromId());
-        MessageSend.textMarkdownWithKeyboard(ctx.sender(), ctx.chatId(),
+        int id = MessageSend.sendMarkdownGetId(ctx.sender(), ctx.chatId(),
                 BettingMenuCallback.buildMenuText(ctx),
                 BettingMenuCallback.buildMenuKeyboard());
+        if (id > 0) ctx.tracker().track(ctx.chatId(), id);
     }
 }

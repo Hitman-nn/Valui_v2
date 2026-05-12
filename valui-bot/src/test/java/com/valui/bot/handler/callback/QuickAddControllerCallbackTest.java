@@ -157,6 +157,6 @@ class QuickAddControllerCallbackTest {
         update.setCallbackQuery(cbq);
 
         return new BotUpdateContext(update, CHAT_ID, CHAT_ID, "testuser",
-                new UserBotSession(), null, sender);
+                new UserBotSession(), null, sender, null);
     }
 }

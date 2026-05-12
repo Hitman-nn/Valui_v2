@@ -5,7 +5,6 @@ import com.valui.bot.handler.CommandHandler;
 import com.valui.bot.handler.MessageSend;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.menu.BookmakerMenuBuilder;
-import com.valui.bot.keyboard.menu.MainMenuKeyboard;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
 import lombok.RequiredArgsConstructor;
@@ -40,13 +39,13 @@ public class ListCommandHandler implements CommandHandler {
             : controllerService.getUserControllersForChat(ctx.fromId(), ctx.chatId());
 
         if (controllers.isEmpty()) {
-            MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("controller.list_empty", ctx.fromId()),
-                MainMenuKeyboard.build(ctx.fromId(), messageSource));
+            int id = MessageSend.sendGetId(ctx.sender(), ctx.chatId(),
+                messageSource.getMessage("controller.list_empty", ctx.fromId()));
+            if (id > 0) ctx.tracker().track(ctx.chatId(), id);
             return;
         }
 
         var menu = BookmakerMenuBuilder.buildSelection(controllers);
-        MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(), menu.text(), menu.keyboard());
+        ctx.tracker().sendAndTrack(ctx.sender(), ctx.chatId(), menu.text(), menu.keyboard());
     }
 }

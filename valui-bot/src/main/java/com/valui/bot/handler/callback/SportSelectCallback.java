@@ -84,7 +84,7 @@ public class SportSelectCallback implements CallbackHandler {
         for (com.valui.common.domain.BookmakerType bm : com.valui.common.domain.BookmakerType.values()) {
             kb.button(bm.name(), CallbackData.bookmakerSelect(bm.name()));
         }
-        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_bookmaker", ctx.fromId()),
             kb.build());
     }
@@ -115,7 +115,7 @@ public class SportSelectCallback implements CallbackHandler {
             sports, page,
             messageSource.getMessage("menu.back", ctx.fromId()),
             wizardProps.getSportPageSize());
-        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_sport", ctx.fromId(), bm.get()), keyboard);
     }
 
@@ -180,7 +180,7 @@ public class SportSelectCallback implements CallbackHandler {
         InlineKeyboardMarkup keyboard = buildTournamentKeyboard(
             tournsResult.data(), 0, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
             wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
-        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_tournament", ctx.fromId(), sportName),
             keyboard);
     }

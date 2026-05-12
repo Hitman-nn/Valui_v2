@@ -36,7 +36,7 @@ public class FilterSkipCallback implements CallbackHandler {
         MessageSend.answerCallback(ctx.sender(), callbackId);
         sessionService.setState(ctx.fromId(), BotState.WAITING_CONFIRM_CREATE);
         String text = ControllerConfirmCallback.buildConfirmText(ctx.fromId(), sessionService, messageSource);
-        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, text,
+        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId, text,
                 ControllerConfirmCallback.buildConfirmKeyboard(ctx.fromId(), messageSource));
     }
 }

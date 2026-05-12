@@ -54,6 +54,8 @@ public class BettingTextHandler implements BotUpdateHandler {
 
     @Override
     public void handle(BotUpdateContext ctx) {
+        MessageSend.deleteMessage(ctx.sender(), ctx.chatId(),
+                ctx.update().getMessage().getMessageId());
         String text    = ctx.update().getMessage().getText().trim();
         BotState state = ctx.session().getState();
 

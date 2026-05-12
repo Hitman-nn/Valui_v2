@@ -86,6 +86,11 @@ public class MenuButtonHandler implements BotUpdateHandler {
             return;
         }
 
+        // Delete the user's button-press message and the previous bot menu message.
+        MessageSend.deleteMessage(ctx.sender(), ctx.chatId(),
+                ctx.update().getMessage().getMessageId());
+        ctx.tracker().deleteStale(ctx.chatId(), ctx.sender());
+
         String text = ctx.update().getMessage().getText();
 
         if (text.startsWith(BTN_ADD))      { addControllerHandler.handle(ctx);      return; }

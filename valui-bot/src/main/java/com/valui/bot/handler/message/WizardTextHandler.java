@@ -68,6 +68,7 @@ public class WizardTextHandler implements BotUpdateHandler {
         BotState state = ctx.session().getState();
 
         if (state == BotState.WAITING_WIZARD_SEARCH) {
+            deleteTriggerMessage(ctx);
             handleWizardSearch(ctx, ctx.update().getMessage().getText().trim());
             return;
         }
@@ -84,11 +85,11 @@ public class WizardTextHandler implements BotUpdateHandler {
         }
 
         if (state != BotState.WAITING_FILTER_RULE) {
-            MessageSend.text(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("bot.unknown_command", ctx.fromId()));
+            log.debug("WizardTextHandler: text ignored in state={} chatId={}", state, ctx.chatId());
             return;
         }
 
+        deleteTriggerMessage(ctx);
         String filterText = ctx.update().getMessage().getText().trim();
 
         String mode = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_FILTER_MODE)
@@ -174,17 +175,7 @@ public class WizardTextHandler implements BotUpdateHandler {
             controllerService.updateFilterRule(controllerId, ctx.fromId(), filterText);
             ControllerDto c = controllerService.getControllerForChat(controllerId, ctx.chatId());
 
-            Optional<String> msgIdOpt = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_WIZARD_MSG_ID);
-            if (msgIdOpt.isPresent()) {
-                try {
-                    int msgId = Integer.parseInt(msgIdOpt.get());
-                    MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), msgId,
-                        ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
-                        ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
-                    return;
-                } catch (NumberFormatException ignored) {}
-            }
-            MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(),
+            replaceOrSend(ctx,
                 ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
                 ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
 
@@ -196,10 +187,7 @@ public class WizardTextHandler implements BotUpdateHandler {
     }
 
     private void handleWizardSearch(BotUpdateContext ctx, String query) {
-        String target  = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SEARCH_TARGET).orElse("SPORT");
-        int    msgId   = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_WIZARD_MSG_ID)
-                .map(s -> { try { return Integer.parseInt(s); } catch (NumberFormatException e) { return 0; } })
-                .orElse(0);
+        String target = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SEARCH_TARGET).orElse("SPORT");
 
         String lower = query.toLowerCase();
 
@@ -241,11 +229,7 @@ public class WizardTextHandler implements BotUpdateHandler {
             String text = filtered.isEmpty()
                 ? "🔍 По запросу «" + query + "» ничего не найдено."
                 : messageSource.getMessage("wizard.select_tournament", ctx.fromId(), sName);
-            if (msgId > 0) {
-                MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), msgId, text, keyboard);
-            } else {
-                MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(), text, keyboard);
-            }
+            replaceOrSend(ctx, text, keyboard);
 
         } else { // SPORT
             sessionService.setState(ctx.fromId(), BotState.SELECTING_SPORT);
@@ -266,39 +250,30 @@ public class WizardTextHandler implements BotUpdateHandler {
             String text = filtered.isEmpty()
                 ? "🔍 По запросу «" + query + "» ничего не найдено."
                 : messageSource.getMessage("wizard.select_sport", ctx.fromId(), bm.get());
-            if (msgId > 0) {
-                MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), msgId, text, keyboard);
-            } else {
-                MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(), text, keyboard);
-            }
+            replaceOrSend(ctx, text, keyboard);
         }
     }
 
     private void showFilterList(BotUpdateContext ctx) {
         List<GlobalFilterEntity> filters = globalFilterService.getFilters(ctx.fromId());
         var menu = FilterMenuBuilder.build(filters);
-
-        Optional<String> msgIdOpt = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_WIZARD_MSG_ID);
-        if (msgIdOpt.isPresent()) {
-            try {
-                int msgId = Integer.parseInt(msgIdOpt.get());
-                MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), msgId, menu.text(), menu.keyboard());
-                return;
-            } catch (NumberFormatException ignored) {}
-        }
-        MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(), menu.text(), menu.keyboard());
+        replaceOrSend(ctx, menu.text(), menu.keyboard());
     }
 
     private void replaceOrSend(BotUpdateContext ctx, String text,
                                org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup kb) {
-        Optional<String> msgIdOpt = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_WIZARD_MSG_ID);
-        if (msgIdOpt.isPresent()) {
-            try {
-                int msgId = Integer.parseInt(msgIdOpt.get());
-                MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), msgId, text, kb);
-                return;
-            } catch (NumberFormatException ignored) {}
+        int trackedId = ctx.tracker().getTrackedId(ctx.chatId());
+        if (trackedId > 0) {
+            ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), trackedId, text, kb);
+        } else {
+            ctx.tracker().sendAndTrack(ctx.sender(), ctx.chatId(), text, kb);
         }
-        MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(), text, kb);
+    }
+
+    private void deleteTriggerMessage(BotUpdateContext ctx) {
+        if (ctx.update().hasMessage()) {
+            MessageSend.deleteMessage(ctx.sender(), ctx.chatId(),
+                ctx.update().getMessage().getMessageId());
+        }
     }
 }

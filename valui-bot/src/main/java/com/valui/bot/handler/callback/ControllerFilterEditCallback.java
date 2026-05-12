@@ -47,7 +47,7 @@ public class ControllerFilterEditCallback implements CallbackHandler {
                 .button(messageSource.getMessage("menu.cancel", ctx.fromId()), CallbackData.CANCEL)
                 .build();
 
-        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
                 messageSource.getMessage("filter.enter_rule", ctx.fromId()),
                 keyboard);
     }

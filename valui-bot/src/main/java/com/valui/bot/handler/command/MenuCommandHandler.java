@@ -24,9 +24,9 @@ public class MenuCommandHandler implements CommandHandler {
     @Override
     public void handle(BotUpdateContext ctx) {
         sessionService.clearSession(ctx.fromId());
-        com.valui.bot.handler.MessageSend.textMarkdownWithKeyboard(
-            ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("menu.main", ctx.fromId()),
-            MainMenuKeyboard.build(ctx.fromId(), messageSource));
+        ctx.tracker().deleteStale(ctx.chatId(), ctx.sender());
+        int id = com.valui.bot.handler.MessageSend.sendGetId(ctx.sender(), ctx.chatId(),
+            messageSource.getMessage("menu.main", ctx.fromId()));
+        if (id > 0) ctx.tracker().track(ctx.chatId(), id);
     }
 }

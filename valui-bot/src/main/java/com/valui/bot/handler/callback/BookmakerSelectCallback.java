@@ -92,7 +92,7 @@ public class BookmakerSelectCallback implements CallbackHandler {
         InlineKeyboardMarkup keyboard = buildSportsKeyboard(result.data(), 0,
             messageSource.getMessage("menu.back", ctx.fromId()),
             wizardProps.getSportPageSize());
-        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_sport", ctx.fromId(), bookmakerCode),
             keyboard);
     }

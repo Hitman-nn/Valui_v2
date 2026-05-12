@@ -95,7 +95,10 @@
       "Bash(mkdir -p /Users/danilabogatyrev/Documents/java/Valui_v2/valui-admin/src/main/java/com/valui/admin/migration)",
       "Bash(sed -n '88,115p' /Users/danilabogatyrev/Documents/java/Valui_v2/valui-bot/src/main/resources/messages_en.properties)",
       "Bash(sed -n '88,115p' /Users/danilabogatyrev/Documents/java/Valui_v2/valui-bot/src/main/resources/messages_ru.properties)",
-      "Bash(xargs basename -a)"
+      "Bash(xargs basename -a)",
+      "Bash(xargs -I{} javap -p {})",
+      "Bash(cat)",
+      "Read(//tmp/**)"
     ]
   }
 }

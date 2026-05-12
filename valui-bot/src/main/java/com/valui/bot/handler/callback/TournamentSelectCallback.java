@@ -124,7 +124,7 @@ public class TournamentSelectCallback implements CallbackHandler {
         InlineKeyboardMarkup keyboard = SportSelectCallback.buildTournamentKeyboard(
             tournaments, page, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
             wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
-        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_tournament", ctx.fromId(), sName), keyboard);
     }
 
@@ -223,7 +223,7 @@ public class TournamentSelectCallback implements CallbackHandler {
             .row()
             .button(backText, CallbackData.CANCEL)  // CancelCallback: INDIVIDUAL → список турниров
             .build();
-        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.enter_filter", ctx.fromId()),
             keyboard);
     }

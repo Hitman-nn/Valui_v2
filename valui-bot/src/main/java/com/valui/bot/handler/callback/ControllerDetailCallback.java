@@ -51,7 +51,7 @@ public class ControllerDetailCallback implements CallbackHandler {
             return;
         }
 
-        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
             buildDetailText(c, ctx.chatId()),
             buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
     }

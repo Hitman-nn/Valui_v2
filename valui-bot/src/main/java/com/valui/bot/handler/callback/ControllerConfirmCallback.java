@@ -120,7 +120,7 @@ public class ControllerConfirmCallback implements CallbackHandler {
                 .row()
                 .button(backText, CallbackData.CANCEL)
                 .build();
-            MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+            ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
                 messageSource.getMessage("wizard.enter_filter", ctx.fromId()), keyboard);
         } else {
             backNavigator.returnToTournamentList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);

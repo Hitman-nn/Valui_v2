@@ -130,6 +130,46 @@ public final class MessageSend {
         tryDelete(sender, chatId, oldMessageId);
     }
 
+    /**
+     * Same as {@link #replaceWithKeyboard} but returns the new message ID (0 on failure).
+     * Use when the caller needs to update a message tracker with the new active message.
+     */
+    public static int replaceWithKeyboardGetId(AbsSender sender, long chatId, int oldMessageId,
+                                               String text, InlineKeyboardMarkup keyboard) {
+        int newId = sendInlineKeyboardGetId(sender, chatId, text, keyboard);
+        tryDelete(sender, chatId, oldMessageId);
+        return newId;
+    }
+
+    /** Sends a plain text message and returns its ID (0 on failure). */
+    public static int sendGetId(AbsSender sender, long chatId, String text) {
+        try {
+            org.telegram.telegrambots.meta.api.objects.Message msg = sender.execute(
+                SendMessage.builder().chatId(chatId).text(text).build());
+            return msg != null ? msg.getMessageId() : 0;
+        } catch (TelegramApiException e) {
+            log.error("Send failed chatId={}: {}", chatId, e.getMessage());
+            return 0;
+        }
+    }
+
+    /** Sends a plain text message with an inline keyboard and returns its ID (0 on failure). */
+    public static int sendGetId(AbsSender sender, long chatId, String text, InlineKeyboardMarkup keyboard) {
+        return sendInlineKeyboardGetId(sender, chatId, text, keyboard);
+    }
+
+    private static int sendInlineKeyboardGetId(AbsSender sender, long chatId,
+                                               String text, InlineKeyboardMarkup keyboard) {
+        try {
+            org.telegram.telegrambots.meta.api.objects.Message msg = sender.execute(
+                SendMessage.builder().chatId(chatId).text(text).replyMarkup(keyboard).build());
+            return msg != null ? msg.getMessageId() : 0;
+        } catch (TelegramApiException e) {
+            log.error("Send failed chatId={}: {}", chatId, e.getMessage());
+            return 0;
+        }
+    }
+
     private static void textWithInlineKeyboard(AbsSender sender, long chatId,
                                                 String text, InlineKeyboardMarkup keyboard) {
         try {

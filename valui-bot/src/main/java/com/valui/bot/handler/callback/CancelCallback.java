@@ -80,7 +80,7 @@ public class CancelCallback implements CallbackHandler {
                     try {
                         ControllerDto c = controllerService.getControllerForChat(
                                 UUID.fromString(idStr), ctx.chatId());
-                        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+                        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
                                 ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
                                 ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
                     } catch (Exception e) {
@@ -92,7 +92,7 @@ public class CancelCallback implements CallbackHandler {
                 sessionService.setState(ctx.fromId(), BotState.IDLE);
                 List<GlobalFilterEntity> filters = globalFilterService.getFilters(ctx.fromId());
                 var menu = FilterMenuBuilder.build(filters);
-                MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+                ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
                         menu.text(), menu.keyboard());
             }
             return;
@@ -104,8 +104,8 @@ public class CancelCallback implements CallbackHandler {
             return;
         }
         sessionService.clearSession(ctx.fromId());
-        MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("menu.main", ctx.fromId()),
-            MainMenuKeyboard.build(ctx.fromId(), messageSource));
+        int id = MessageSend.sendGetId(ctx.sender(), ctx.chatId(),
+            messageSource.getMessage("menu.main", ctx.fromId()));
+        if (id > 0) ctx.tracker().track(ctx.chatId(), id);
     }
 }

@@ -51,6 +51,7 @@ public class InfoCommandHandler implements CommandHandler {
             info.tokenBalance(),
             info.monthlyTokenGrant());
 
-        MessageSend.textMarkdown(ctx.sender(), ctx.chatId(), text);
+        int id = MessageSend.sendGetId(ctx.sender(), ctx.chatId(), text);
+        if (id > 0) ctx.tracker().track(ctx.chatId(), id);
     }
 }

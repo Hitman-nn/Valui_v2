@@ -43,7 +43,7 @@ public class ControllerByBookmakerCallback implements CallbackHandler {
 
         if (CallbackData.CTRL_BK_LIST.equals(data)) {
             var menu = BookmakerMenuBuilder.buildSelection(all);
-            MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+            ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
                 menu.text(), menu.keyboard());
             return;
         }
@@ -64,7 +64,7 @@ public class ControllerByBookmakerCallback implements CallbackHandler {
             .toList();
 
         var menu = BookmakerMenuBuilder.buildControllerList(bm, filtered, page, botProperties.staleThresholdDays());
-        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
             menu.text(), menu.keyboard());
     }
 

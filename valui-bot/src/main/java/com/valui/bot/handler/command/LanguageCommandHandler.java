@@ -2,7 +2,6 @@ package com.valui.bot.handler.command;
 
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CommandHandler;
-import com.valui.bot.handler.MessageSend;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
@@ -28,7 +27,7 @@ public class LanguageCommandHandler implements CommandHandler {
             .button("🇬🇧 English", CallbackData.langSet("en"))
             .build();
 
-        MessageSend.textWithKeyboard(ctx.sender(), ctx.chatId(),
+        ctx.tracker().sendAndTrack(ctx.sender(), ctx.chatId(),
             messageSource.getMessage("bot.select_language", ctx.fromId()),
             keyboard);
     }

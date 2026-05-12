@@ -43,6 +43,6 @@ public class ControllerListCallback implements CallbackHandler {
             ? controllerService.getGroupControllers(ctx.chatId())
             : controllerService.getUserControllersForChat(ctx.fromId(), ctx.chatId());
         var menu = ControllerMenuBuilder.build(controllers, page, botProperties.staleThresholdDays());
-        MessageSend.replaceWithKeyboard(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
+        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
     }
 }

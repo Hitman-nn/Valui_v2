@@ -2,6 +2,7 @@ package com.valui.bot.handler;
 
 import com.valui.bot.handler.message.MenuButtonHandler;
 import com.valui.bot.service.BotSessionService;
+import com.valui.bot.service.WizardMessageTracker;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
 import com.valui.common.entity.UserEntity;
@@ -27,15 +28,18 @@ public class CommandRouter {
     private final List<BotUpdateHandler> handlers;
     private final BotSessionService sessionService;
     private final UserService userService;
+    private final WizardMessageTracker tracker;
 
     public CommandRouter(List<BotUpdateHandler> handlers,
                          BotSessionService sessionService,
-                         UserService userService) {
+                         UserService userService,
+                         WizardMessageTracker tracker) {
         this.handlers = handlers.stream()
             .sorted(Comparator.comparingInt(BotUpdateHandler::order))
             .toList();
         this.sessionService = sessionService;
         this.userService = userService;
+        this.tracker = tracker;
         long callbacks = this.handlers.stream()
                 .filter(h -> h.getClass().getSimpleName().endsWith("Callback"))
                 .count();
@@ -84,7 +88,7 @@ public class CommandRouter {
             return;
         }
 
-        BotUpdateContext context = new BotUpdateContext(update, chatId, fromId, username, session, user, sender);
+        BotUpdateContext context = new BotUpdateContext(update, chatId, fromId, username, session, user, sender, tracker);
 
         long started = System.currentTimeMillis();
         String handlerName = handler.getClass().getSimpleName();

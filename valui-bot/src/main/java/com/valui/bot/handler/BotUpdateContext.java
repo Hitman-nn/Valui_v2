@@ -1,5 +1,6 @@
 package com.valui.bot.handler;
 
+import com.valui.bot.service.WizardMessageTracker;
 import com.valui.bot.state.UserBotSession;
 import com.valui.common.entity.UserEntity;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -26,7 +27,8 @@ public record BotUpdateContext(
     String username,
     UserBotSession session,
     UserEntity user,
-    AbsSender sender
+    AbsSender sender,
+    WizardMessageTracker tracker
 ) {
     /** True when the originating chat is a Telegram group or supergroup. */
     public boolean isGroupChat() {

@@ -5,6 +5,7 @@ import com.valui.bot.handler.CommandHandler;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.menu.MainMenuKeyboard;
 import com.valui.bot.service.BotSessionService;
+import com.valui.bot.state.BotState;
 import com.valui.user.dto.TelegramUserDto;
 import com.valui.user.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,11 @@ public class StartCommandHandler implements CommandHandler {
 
     @Override
     public void handle(BotUpdateContext ctx) {
+        if (ctx.session().getState() != BotState.IDLE) {
+            log.debug("/start ignored — user in wizard state={} fromId={}", ctx.session().getState(), ctx.fromId());
+            return;
+        }
+
         if (ctx.user() == null) {
             User from = ctx.update().getMessage().getFrom();
             userService.registerOrGetUser(new TelegramUserDto(
@@ -41,10 +47,11 @@ public class StartCommandHandler implements CommandHandler {
         }
 
         sessionService.clearSession(ctx.fromId());
+        ctx.tracker().deleteStale(ctx.chatId(), ctx.sender());
 
         String name = ctx.username() != null ? "@" + ctx.username() : "друг";
-        com.valui.bot.handler.MessageSend.textMarkdownWithKeyboard(ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("bot.welcome", ctx.fromId(), name),
-            MainMenuKeyboard.build(ctx.fromId(), messageSource));
+        int id = com.valui.bot.handler.MessageSend.sendGetId(ctx.sender(), ctx.chatId(),
+            messageSource.getMessage("bot.welcome", ctx.fromId(), name));
+        if (id > 0) ctx.tracker().track(ctx.chatId(), id);
     }
 }
