@@ -7,6 +7,8 @@
     <!-- ─── Custom converter: [BOT] / [MON] / [PAR] / [USR] colored tags ─── -->
     <conversionRule conversionWord="subsystem"
                     class="com.valui.app.logging.SubsystemConverter"/>
+    <conversionRule conversionWord="mdc_ctx"
+                    class="com.valui.app.logging.MdcContextConverter"/>
 
     <springProperty scope="context" name="appName"
                     source="spring.application.name" defaultValue="valui"/>
@@ -22,7 +24,7 @@
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <withJansi>true</withJansi>
         <encoder>
-            <pattern>%white(%d{HH:mm:ss.SSS})  %highlight(%-5level)  %subsystem  %-30(%cyan(%logger{0}))  %white(▸)  %msg [u=%mdc{userId} c=%mdc{chatId} r=%mdc{requestId}]%n%rootException{full}</pattern>
+            <pattern>%white(%d{HH:mm:ss.SSS})  %highlight(%-5level)  %subsystem  %-30(%cyan(%logger{0}))  %white(▸)  %msg%mdc_ctx%n%rootException{full}</pattern>
         </encoder>
     </appender>
 
