@@ -29,8 +29,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AdminEventsController {
 
-    private final DetectedEventRepository eventRepository;
-    private final ControllerRepository    controllerRepository;
+    private final DetectedEventRepository     eventRepository;
+    private final ControllerRepository        controllerRepository;
+    private final DetectedEventCleanupService cleanupService;
 
     @GetMapping
     @Transactional(readOnly = true)
@@ -67,11 +68,16 @@ public class AdminEventsController {
 
     @DeleteMapping("/expired")
     @Operation(summary = "Удалить все истёкшие события")
-    @Transactional
     public ResponseEntity<Integer> deleteExpired() {
-        int deleted = eventRepository.deleteExpiredBefore(OffsetDateTime.now());
-        log.info("[EVENTS] Deleted {} expired events", deleted);
-        return ResponseEntity.ok(deleted);
+        OffsetDateTime threshold = OffsetDateTime.now();
+        int total = 0;
+        int deleted;
+        do {
+            deleted = cleanupService.deleteExpiredBatch(threshold, 1000);
+            total += deleted;
+        } while (deleted >= 1000);
+        log.info("[EVENTS] Deleted {} expired events", total);
+        return ResponseEntity.ok(total);
     }
 
     @GetMapping("/stats")

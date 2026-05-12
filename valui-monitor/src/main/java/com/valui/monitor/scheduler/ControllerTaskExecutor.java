@@ -76,7 +76,7 @@ public class ControllerTaskExecutor {
 
     @Transactional(readOnly = true)
     public List<ControllerScheduleInfo> loadAllActiveForScheduling() {
-        return controllerPort.findAllActive()
+        return controllerPort.findAllActiveWithUser()
                 .stream()
                 .map(c -> new ControllerScheduleInfo(
                         c.getId(),
@@ -89,7 +89,7 @@ public class ControllerTaskExecutor {
 
     @Transactional(readOnly = true)
     public List<ControllerScheduleInfo> loadActiveForUser(UUID userId) {
-        return controllerPort.findAllActiveByUserId(userId)
+        return controllerPort.findAllActiveByUserIdWithUser(userId)
                 .stream()
                 .map(c -> new ControllerScheduleInfo(
                         c.getId(),

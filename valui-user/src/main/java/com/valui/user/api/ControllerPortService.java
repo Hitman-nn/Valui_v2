@@ -19,7 +19,11 @@ public interface ControllerPortService {
 
     List<ControllerEntity> findAllActive();
 
+    List<ControllerEntity> findAllActiveWithUser();
+
     List<ControllerEntity> findAllActiveByUserId(UUID userId);
+
+    List<ControllerEntity> findAllActiveByUserIdWithUser(UUID userId);
 
     Optional<ControllerEntity> findById(UUID controllerId);
 

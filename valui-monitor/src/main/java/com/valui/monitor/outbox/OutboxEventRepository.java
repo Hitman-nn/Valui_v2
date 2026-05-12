@@ -43,4 +43,10 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> 
     @Transactional
     @Query("DELETE FROM OutboxEvent o WHERE o.sentAt IS NOT NULL AND o.sentAt < :cutoff")
     int deleteSentBefore(@Param("cutoff") OffsetDateTime cutoff);
+
+    @Query("SELECT COUNT(o) FROM OutboxEvent o WHERE o.sentAt IS NULL")
+    long countUnsent();
+
+    @Query("SELECT MIN(o.createdAt) FROM OutboxEvent o WHERE o.sentAt IS NULL")
+    Optional<OffsetDateTime> findOldestUnsentCreatedAt();
 }

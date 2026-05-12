@@ -26,7 +26,9 @@ public class ControllerPortServiceImpl implements ControllerPortService {
     private final ControllerSubscriptionRepository subscriptionRepository;
 
     @Override public List<ControllerEntity> findAllActive() { return repository.findAllByIsActiveTrue(); }
+    @Override public List<ControllerEntity> findAllActiveWithUser() { return repository.findAllActiveWithUser(); }
     @Override public List<ControllerEntity> findAllActiveByUserId(UUID userId) { return repository.findAllByUserIdAndIsActiveTrue(userId); }
+    @Override public List<ControllerEntity> findAllActiveByUserIdWithUser(UUID userId) { return repository.findAllActiveByUserIdWithUser(userId); }
     @Override public Optional<ControllerEntity> findById(UUID id) { return repository.findById(id); }
     @Override public Optional<ControllerEntity> findByIdAndUserId(UUID id, UUID userId) { return repository.findByIdAndUserId(id, userId); }
 

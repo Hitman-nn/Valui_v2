@@ -22,7 +22,7 @@
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <withJansi>true</withJansi>
         <encoder>
-            <pattern>%white(%d{HH:mm:ss.SSS})  %highlight(%-5level)  %subsystem  %-30(%cyan(%logger{0}))  %white(▸)  %msg%n%rootException{full}</pattern>
+            <pattern>%white(%d{HH:mm:ss.SSS})  %highlight(%-5level)  %subsystem  %-30(%cyan(%logger{0}))  %white(▸)  %msg [u=%mdc{userId} c=%mdc{chatId} r=%mdc{requestId}]%n%rootException{full}</pattern>
         </encoder>
     </appender>
 
@@ -43,6 +43,25 @@
                 <rootCauseFirst>true</rootCauseFirst>
             </throwableConverter>
         </encoder>
+    </appender>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         ASYNC wrappers — non-blocking log dispatch for prod/docker
+         discardingThreshold=20: drops TRACE/DEBUG/INFO when queue ≥80% full;
+         WARN and ERROR are always kept regardless of queue depth.
+         ═══════════════════════════════════════════════════════════════════════ -->
+    <appender name="ASYNC_CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="CONSOLE"/>
+        <queueSize>512</queueSize>
+        <discardingThreshold>20</discardingThreshold>
+        <includeCallerData>false</includeCallerData>
+    </appender>
+
+    <appender name="ASYNC_JSON" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="JSON_STDOUT"/>
+        <queueSize>512</queueSize>
+        <discardingThreshold>20</discardingThreshold>
+        <includeCallerData>false</includeCallerData>
     </appender>
 
     <!-- ═══════════════════════════════════════════════════════════════════════
@@ -116,7 +135,7 @@
         <logger name="org.springframework"  level="WARN"/>
         <logger name="org.telegram"         level="WARN"/>
         <root level="INFO">
-            <appender-ref ref="JSON_STDOUT"/>
+            <appender-ref ref="ASYNC_JSON"/>
         </root>
     </springProfile>
 
@@ -129,8 +148,7 @@
         <logger name="org.springframework"  level="WARN"/>
         <logger name="org.telegram"         level="WARN"/>
         <root level="WARN">
-            <appender-ref ref="CONSOLE"/>
-            <!--<appender-ref ref="JSON_STDOUT"/>-->
+            <appender-ref ref="ASYNC_CONSOLE"/>
         </root>
     </springProfile>
 

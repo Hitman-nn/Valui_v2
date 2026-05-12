@@ -19,8 +19,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Central dispatch engine for the controller monitoring scheduler.
@@ -51,6 +53,9 @@ public class DrrDispatcher {
 
     /** Global time-ordered queue; entries become available when nextRunAt is reached. */
     private final DelayQueue<ControllerJobEntry> delayQueue = new DelayQueue<>();
+
+    /** Tracks which controllers are currently in delayQueue; prevents phantom duplicates. */
+    private final Set<UUID> queued = ConcurrentHashMap.newKeySet();
 
     /** Per-user DRR state. LinkedHashMap preserves round-robin insertion order. */
     private final LinkedHashMap<UUID, UserSchedulingState> userStates = new LinkedHashMap<>();
@@ -95,14 +100,18 @@ public class DrrDispatcher {
 
     // ── Public API ────────────────────────────────────────────────────────────
 
-    /** Enqueue a job. Safe to call from any thread. */
+    /** Enqueue a job. Safe to call from any thread. No-op if already queued. */
     public void enqueue(ControllerJob job) {
-        delayQueue.put(new ControllerJobEntry(job.controllerId(), job.nextRunAt()));
+        if (queued.add(job.controllerId())) {
+            delayQueue.put(new ControllerJobEntry(job.controllerId(), job.nextRunAt()));
+        }
     }
 
-    /** Enqueue at a specific time (used internally for deferred/re-queued entries). */
+    /** Enqueue at a specific time (used internally for deferred/re-queued entries). No-op if already queued. */
     public void enqueueAt(UUID controllerId, Instant nextRunAt) {
-        delayQueue.put(new ControllerJobEntry(controllerId, nextRunAt));
+        if (queued.add(controllerId)) {
+            delayQueue.put(new ControllerJobEntry(controllerId, nextRunAt));
+        }
     }
 
     /**
@@ -111,6 +120,7 @@ public class DrrDispatcher {
      * {@link JobRegistry}, the dispatcher skips it when it dequeues.
      */
     public void cancel(UUID controllerId) {
+        queued.remove(controllerId);
         delayQueue.removeIf(e -> e.controllerId().equals(controllerId));
     }
 
@@ -136,6 +146,7 @@ public class DrrDispatcher {
                 List<ControllerJobEntry> batch = new ArrayList<>();
                 batch.add(head);
                 delayQueue.drainTo(batch);
+                batch.forEach(e -> queued.remove(e.controllerId()));
 
                 metrics.updateQueueDepth(delayQueue.size());
 

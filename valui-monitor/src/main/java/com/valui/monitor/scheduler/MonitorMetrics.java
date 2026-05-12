@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 @Component
@@ -26,6 +27,11 @@ public class MonitorMetrics {
     private final Counter dedupHit;
     private final Counter dedupMiss;
     private final ConcurrentHashMap<UUID, AtomicInteger> dedupSetSizes = new ConcurrentHashMap<>();
+
+    // Drainable window counters for log summaries (reset every 10 min by MonitorSummaryLogger)
+    private final AtomicLong windowPollsOk    = new AtomicLong();
+    private final AtomicLong windowPollsError = new AtomicLong();
+    private final AtomicLong windowEvents     = new AtomicLong();
 
     public MonitorMetrics(MeterRegistry registry) {
         this.registry = registry;
@@ -70,7 +76,7 @@ public class MonitorMetrics {
 
     public void onControllerScheduled()   { scheduledCount.incrementAndGet(); }
     public void onControllerUnscheduled() { scheduledCount.decrementAndGet(); }
-    public void onEventsDetected(int n)   { eventsDetected.increment(n); }
+    public void onEventsDetected(int n)   { eventsDetected.increment(n); windowEvents.addAndGet(n); }
     public void onTaskSkipped()           { tasksSkipped.increment(); }
     public void onTaskDeferred()          { tasksDeferred.increment(); }
     public void onDispatchLag(long ms)    { dispatchLag.record(ms); }
@@ -78,6 +84,15 @@ public class MonitorMetrics {
     public void onDedupHit()              { dedupHit.increment(); }
     public void onDedupMiss()             { dedupMiss.increment(); }
     public Timer taskTimer()              { return taskTimer; }
+
+    public void onPollOk()    { windowPollsOk.incrementAndGet(); }
+    public void onPollError() { windowPollsError.incrementAndGet(); }
+
+    public long drainPollsOk()    { return windowPollsOk.getAndSet(0); }
+    public long drainPollsError() { return windowPollsError.getAndSet(0); }
+    public long drainWindowEvents() { return windowEvents.getAndSet(0); }
+    public int  currentQueueDepth() { return queueDepth != null ? queueDepth.get() : 0; }
+    public long currentScheduled()  { return scheduledCount != null ? scheduledCount.get() : 0; }
 
     /**
      * Registers a gauge that reports the maximum seconds since any controller last started.

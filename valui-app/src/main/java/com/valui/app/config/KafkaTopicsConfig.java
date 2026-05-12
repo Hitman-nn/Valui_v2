@@ -35,15 +35,19 @@ public class KafkaTopicsConfig {
 
     /**
      * Explicit KafkaAdmin bean so we can set fatalIfBrokerNotAvailable=false:
-     * the application starts even when Kafka is temporarily unavailable, and
-     * topic creation is retried on reconnect. Inherits all bootstrap/SASL/SSL
-     * settings from Spring Boot's KafkaProperties (covers local, docker, prod profiles).
+     * the application starts even when Kafka is temporarily unavailable.
+     * autoCreate — creates declared topics on startup if absent (set false to let infra own topics).
+     * modifyTopicConfigs — applies config changes (retention etc.) to existing topics on restart.
      */
     @Bean
-    public KafkaAdmin kafkaAdmin(KafkaProperties kafkaProperties) {
+    public KafkaAdmin kafkaAdmin(
+            KafkaProperties kafkaProperties,
+            @Value("${kafka.admin.auto-create:true}") boolean autoCreate,
+            @Value("${kafka.admin.modify-topic-configs:false}") boolean modifyTopicConfigs) {
         KafkaAdmin admin = new KafkaAdmin(kafkaProperties.buildAdminProperties(null));
         admin.setFatalIfBrokerNotAvailable(false);
-        admin.setAutoCreate(true);
+        admin.setAutoCreate(autoCreate);
+        admin.setModifyTopicConfigs(modifyTopicConfigs);
         return admin;
     }
 

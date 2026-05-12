@@ -1,5 +1,6 @@
 package com.valui.app.logging;
 
+import com.valui.monitor.outbox.OutboxEventRepository;
 import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.UserRepository;
 import com.zaxxer.hikari.HikariDataSource;
@@ -13,6 +14,8 @@ import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -34,19 +37,22 @@ public class StartupLogger {
     private final ControllerRepository           controllerRepository;
     private final DataSource                     dataSource;
     private final KafkaListenerEndpointRegistry  kafkaRegistry;
+    private final OutboxEventRepository          outboxRepository;
 
     public StartupLogger(Environment env,
                          Flyway flyway,
                          UserRepository userRepository,
                          ControllerRepository controllerRepository,
                          DataSource dataSource,
-                         KafkaListenerEndpointRegistry kafkaRegistry) {
+                         KafkaListenerEndpointRegistry kafkaRegistry,
+                         OutboxEventRepository outboxRepository) {
         this.env                  = env;
         this.flyway               = flyway;
         this.userRepository       = userRepository;
         this.controllerRepository = controllerRepository;
         this.dataSource           = dataSource;
         this.kafkaRegistry        = kafkaRegistry;
+        this.outboxRepository     = outboxRepository;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -71,6 +77,7 @@ public class StartupLogger {
         String usersCount    = activeUsersCount();
         String controllers   = controllersBreakdown();
         String kafkaGroups   = kafkaConsumerGroups();
+        String outboxInfo    = outboxPending();
 
         log.info("\n" + CYAN + BOLD + LINE + RESET
             + "\n" + CYAN + BOLD + "  ✅  VALUI READY" + RESET
@@ -87,6 +94,7 @@ public class StartupLogger {
             + "\n  " + GREEN + "Telegram     " + RESET + "@" + botUser + " [" + botMode + "]"
             + "\n  " + GREEN + "Пользователи " + RESET + usersCount + " активных"
             + "\n  " + GREEN + "Контроллеры  " + RESET + controllers
+            + "\n  " + GREEN + "Outbox       " + RESET + outboxInfo
             + "\n  " + GREEN + "Dedup TTL    " + RESET + dedupTtl + " мин"
             + "\n  " + GREEN + "Swagger      " + RESET + "http://localhost:" + port + "/swagger-ui.html"
             + "\n" + CYAN + LINE + RESET);
@@ -146,6 +154,20 @@ public class StartupLogger {
             return total + " (" + detail + ")";
         } catch (Exception e) {
             log.debug("Controller count unavailable: {}", e.getMessage());
+            return "—";
+        }
+    }
+
+    private String outboxPending() {
+        try {
+            long count = outboxRepository.countUnsent();
+            if (count == 0) return "0 pending";
+            String age = outboxRepository.findOldestUnsentCreatedAt()
+                    .map(t -> Duration.between(t.toInstant(), Instant.now()).toSeconds() + "s ago")
+                    .orElse("?");
+            return YELLOW + count + " pending (oldest: " + age + ")" + RESET;
+        } catch (Exception e) {
+            log.debug("Outbox pending unavailable: {}", e.getMessage());
             return "—";
         }
     }

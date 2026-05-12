@@ -57,6 +57,18 @@ public interface DetectedEventRepository extends JpaRepository<DetectedEventEnti
     @Query("DELETE FROM DetectedEventEntity e WHERE e.expiresAt IS NOT NULL AND e.expiresAt < :threshold")
     int deleteExpiredBefore(@Param("threshold") OffsetDateTime threshold);
 
+    @Modifying
+    @Query(value = """
+            DELETE FROM detected_events
+            WHERE id IN (
+                SELECT id FROM detected_events
+                WHERE expires_at IS NOT NULL AND expires_at < :threshold
+                LIMIT :batchSize
+            )
+            """, nativeQuery = true)
+    int deleteExpiredBatch(@Param("threshold") OffsetDateTime threshold,
+                           @Param("batchSize") int batchSize);
+
     @Query("SELECT e.controller.id as controllerId, COUNT(e) as eventCount FROM DetectedEventEntity e WHERE e.controller.id IN :ids GROUP BY e.controller.id")
     List<com.valui.user.repository.DetectedEventRepository.ControllerEventCount> countByControllerIdIn(@Param("ids") java.util.Collection<UUID> ids);
 

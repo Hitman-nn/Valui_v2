@@ -78,10 +78,12 @@ public class ControllerTask implements Runnable {
         } catch (TimeoutException e) {
             log.warn("⏱  Fetch budget exceeded ({}ms) for controller {} ({})", fetchBudgetMs, controllerId, ctx.bookmaker());
             pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "timeout");
+            metrics.onPollError();
             return;
         } catch (Exception e) {
             log.warn("⚠️  Ошибка парсера для контроллера {} ({}): {}", controllerId, ctx.bookmaker(), e.getMessage());
             pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "error");
+            metrics.onPollError();
             return;
         }
 
@@ -100,6 +102,7 @@ public class ControllerTask implements Runnable {
             status      = "error";
         }
         pollHistory.record(controllerId, startedAt, msElapsed(startNs), eventsFound, status);
+        if ("ok".equals(status)) metrics.onPollOk(); else metrics.onPollError();
     }
 
     /**

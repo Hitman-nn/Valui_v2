@@ -23,6 +23,12 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
 
     List<ControllerEntity> findAllByIsActiveTrue();
 
+    @Query("SELECT c FROM ControllerEntity c JOIN FETCH c.user WHERE c.isActive = true")
+    List<ControllerEntity> findAllActiveWithUser();
+
+    @Query("SELECT c FROM ControllerEntity c JOIN FETCH c.user WHERE c.user.id = :userId AND c.isActive = true")
+    List<ControllerEntity> findAllActiveByUserIdWithUser(@Param("userId") UUID userId);
+
     List<ControllerEntity> findAllByUserIdAndBookmaker(UUID userId, BookmakerType bookmaker);
 
     int countByUserIdAndIsActiveTrue(UUID userId);

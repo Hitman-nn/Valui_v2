@@ -37,6 +37,7 @@ public class ControllerMuteCallback implements CallbackHandler {
 
         try {
             controllerService.muteForChat(id, ctx.fromId(), ctx.chatId());
+            log.info("Controller {} muted by chatId={}", id, ctx.chatId());
         } catch (Exception e) {
             log.warn("muteForChat failed chatId={}: {}", ctx.chatId(), e.getMessage());
         }
@@ -78,6 +79,7 @@ class ControllerUnmuteCallback implements CallbackHandler {
 
         try {
             controllerService.unmuteForChat(id, ctx.fromId(), ctx.chatId());
+            log.info("Controller {} unmuted by chatId={}", id, ctx.chatId());
         } catch (Exception e) {
             log.warn("unmuteForChat failed chatId={}: {}", ctx.chatId(), e.getMessage());
         }

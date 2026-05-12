@@ -127,6 +127,9 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  health:
+    kafka:
+      enabled: false   # replaced by KafkaBrokerHealthIndicator (adds alert on state change)
   prometheus:
     metrics:
       export:

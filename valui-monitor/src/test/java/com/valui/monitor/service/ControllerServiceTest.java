@@ -241,7 +241,7 @@ class ControllerServiceTest {
         ControllerEntity c2 = controllerEntity(UUID.randomUUID(), "https://olimp.bet/line/1", true);
         c2.setBookmaker(BookmakerType.OLIMP);
         given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerPort.findAllActiveByUserId(USER_ID)).willReturn(List.of(c1, c2));
+        given(controllerPort.findAllActiveByUserIdWithUser(USER_ID)).willReturn(List.of(c1, c2));
         given(detectedEventPort.countByControllerIdIn(any())).willReturn(Map.of());
 
         List<ControllerDto> result = service.getUserControllers(TG_ID);

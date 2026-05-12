@@ -63,12 +63,16 @@ public class MenuButtonHandler implements BotUpdateHandler {
     private final HelpCommandHandler       helpCommandHandler;
     private final LanguageCommandHandler   languageCommandHandler;
 
+    public static boolean isMenuButtonText(String text) {
+        return text != null && BUTTON_EMOJIS.stream().anyMatch(text::startsWith);
+    }
+
     @Override
     public boolean canHandle(Update update) {
         if (!update.hasMessage()) return false;
         String text = update.getMessage().getText();
         if (text == null || text.isBlank()) return false;
-        return BUTTON_EMOJIS.stream().anyMatch(text::startsWith);
+        return isMenuButtonText(text);
     }
 
     @Override

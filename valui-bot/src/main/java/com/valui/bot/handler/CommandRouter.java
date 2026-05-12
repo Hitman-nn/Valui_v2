@@ -1,6 +1,8 @@
 package com.valui.bot.handler;
 
+import com.valui.bot.handler.message.MenuButtonHandler;
 import com.valui.bot.service.BotSessionService;
+import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
 import com.valui.common.entity.UserEntity;
 import com.valui.user.service.UserService;
@@ -56,6 +58,19 @@ public class CommandRouter {
 
         String username = extractUsername(update);
         UserBotSession session = sessionService.getSession(fromId);
+
+        // In group chats: ignore plain text when user has no active wizard state.
+        // Menu button presses and commands are always processed; random text is not.
+        if (chatId < 0
+                && update.hasMessage()
+                && update.getMessage().hasText()
+                && !update.getMessage().getText().startsWith("/")
+                && !MenuButtonHandler.isMenuButtonText(update.getMessage().getText())
+                && session.getState() == BotState.IDLE) {
+            log.debug("Group text ignored (state=IDLE): chatId={} fromId={}", chatId, fromId);
+            return;
+        }
+
         UserEntity user = loadUser(fromId);
         String updateType = resolveUpdateType(update);
 

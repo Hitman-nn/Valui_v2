@@ -112,7 +112,7 @@ public class ControllerServiceImpl implements ControllerService {
     @Override
     public List<ControllerDto> getUserControllers(Long telegramId) {
         UserEntity user = requireUser(telegramId);
-        List<ControllerEntity> entities = controllerPort.findAllActiveByUserId(user.getId());
+        List<ControllerEntity> entities = controllerPort.findAllActiveByUserIdWithUser(user.getId());
         Map<UUID, Long> counts = eventCountsFor(entities);
         return entities.stream().map(e -> toDto(e, counts)).toList();
     }
@@ -120,7 +120,7 @@ public class ControllerServiceImpl implements ControllerService {
     @Override
     public List<ControllerDto> getUserControllersForChat(Long telegramId, Long chatId) {
         UserEntity user = requireUser(telegramId);
-        List<ControllerEntity> entities = controllerPort.findAllActiveByUserId(user.getId());
+        List<ControllerEntity> entities = controllerPort.findAllActiveByUserIdWithUser(user.getId());
         Map<UUID, Long> counts = eventCountsFor(entities);
         return entities.stream().map(e -> toDtoForChat(e, chatId, counts)).toList();
     }
