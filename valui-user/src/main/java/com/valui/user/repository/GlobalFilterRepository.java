@@ -13,13 +13,21 @@ public interface GlobalFilterRepository extends JpaRepository<GlobalFilterEntity
 
     List<GlobalFilterEntity> findAllByUserIdOrderByCreatedAtAsc(UUID userId);
 
+    List<GlobalFilterEntity> findAllByUserIdAndChatIdOrderByCreatedAtAsc(UUID userId, Long chatId);
+
+    List<GlobalFilterEntity> findAllByChatIdOrderByCreatedAtAsc(Long chatId);
+
     List<GlobalFilterEntity> findAllByUserIdAndPausedByTokensFalseOrderByCreatedAtAsc(UUID userId);
 
     List<GlobalFilterEntity> findAllByUserIdAndPausedByTokensTrue(UUID userId);
 
+    List<GlobalFilterEntity> findAllByChatIdAndPausedByTokensFalseOrderByCreatedAtAsc(Long chatId);
+
     long countByUserId(UUID userId);
 
     Optional<GlobalFilterEntity> findByIdAndUserId(UUID id, UUID userId);
+
+    Optional<GlobalFilterEntity> findByIdAndChatId(UUID id, Long chatId);
 
     void deleteByIdAndUserId(UUID id, UUID userId);
 }

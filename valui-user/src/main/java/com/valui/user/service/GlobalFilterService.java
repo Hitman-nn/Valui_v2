@@ -7,14 +7,24 @@ import java.util.UUID;
 
 public interface GlobalFilterService {
 
-    List<GlobalFilterEntity> getFilters(Long telegramId);
+    /**
+     * В личке (chatId == telegramId) возвращает все фильтры пользователя, включая созданные в группах.
+     * В группе — только фильтры этой группы.
+     */
+    List<GlobalFilterEntity> getFilters(Long telegramId, Long chatId);
 
-    /** Cached variant for high-frequency callers (e.g. Kafka consumer). TTL 30 s. Returns filter rules only. */
-    List<String> findByUserId(UUID userId);
+    /** Cached variant for high-frequency callers (e.g. Kafka consumer). Returns active rules for the target chat. */
+    List<String> findByChatId(Long chatId);
 
-    void addFilter(Long telegramId, String rule);
+    void addFilter(Long telegramId, Long chatId, String rule);
 
-    void deleteFilter(Long telegramId, UUID filterId);
+    /**
+     * Удаляет фильтр. В группе — любой участник чата; в личке — владелец управляет всеми своими фильтрами.
+     */
+    void deleteFilter(Long telegramId, Long chatId, UUID filterId);
 
-    void updateFilter(Long telegramId, UUID filterId, String newRule);
+    /**
+     * Редактирует фильтр. В группе — любой участник чата; в личке — владелец управляет всеми своими фильтрами.
+     */
+    void updateFilter(Long telegramId, Long chatId, UUID filterId, String newRule);
 }

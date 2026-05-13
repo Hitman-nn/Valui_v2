@@ -24,8 +24,8 @@ public class ListFilterCommandHandler implements CommandHandler {
 
     @Override
     public void handle(BotUpdateContext ctx) {
-        List<GlobalFilterEntity> filters = globalFilterService.getFilters(ctx.fromId());
-        var menu = FilterMenuBuilder.build(filters);
+        List<GlobalFilterEntity> filters = globalFilterService.getFilters(ctx.fromId(), ctx.chatId());
+        var menu = FilterMenuBuilder.build(filters, ctx.chatId());
         ctx.tracker().sendAndTrack(ctx.sender(), ctx.chatId(), menu.text(), menu.keyboard());
     }
 }

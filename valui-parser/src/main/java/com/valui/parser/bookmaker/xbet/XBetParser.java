@@ -99,6 +99,7 @@ public class XBetParser implements BookmakerParser {
     // E entry group/type IDs for odds parsing
     private static final int E_G_1X2 = 1, E_T_W1 = 1, E_T_DRAW = 2, E_T_W2 = 3;
     private static final int E_G_HCAP = 2, E_T_H1 = 7, E_T_H2 = 8;
+    private static final int E_G_TOT = 17, E_T_TB = 9, E_T_TM = 10;
 
     @CircuitBreaker(name = "xbet-cb", fallbackMethod = "fetchMatchesFallback")
     @Retry(name = "parser-retry")
@@ -133,6 +134,8 @@ public class XBetParser implements BookmakerParser {
         Double win1 = null, draw = null, win2 = null;
         Double hcap1v = null, hcap2v = null;
         String hcap1pt = null, hcap2pt = null;
+        Double tbv = null, tmv = null;
+        String tbpt = null;
 
         for (JsonNode e : eArr) {
             int g = e.path("G").asInt(-1);
@@ -151,6 +154,11 @@ public class XBetParser implements BookmakerParser {
                         : formatPt(pNode.asDouble(0));
                 if (t == E_T_H1) { hcap1v = c; hcap1pt = pt; }
                 else if (t == E_T_H2) { hcap2v = c; hcap2pt = pt; }
+            } else if (g == E_G_TOT && ce == 1) {
+                JsonNode pNode = e.path("P");
+                String pt = pNode.isNull() || pNode.isMissingNode() ? "0" : fmt(pNode.asDouble(0));
+                if (t == E_T_TB) { tbv = c; tbpt = pt; }
+                else if (t == E_T_TM) tmv = c;
             }
         }
 
@@ -165,6 +173,12 @@ public class XBetParser implements BookmakerParser {
               .append(",\"pt\":\"").append(hcap1pt).append("\"},");
             sb.append("\"h2\":{\"v\":").append(fmt(hcap2v))
               .append(",\"pt\":\"").append(hcap2pt).append("\"},");
+        }
+        if (tbv != null && tmv != null) {
+            sb.append("\"tb\":{\"v\":").append(fmt(tbv))
+              .append(",\"pt\":\"").append(tbpt != null ? tbpt : "0").append("\"},");
+            sb.append("\"tm\":{\"v\":").append(fmt(tmv))
+              .append(",\"pt\":\"").append(tbpt != null ? tbpt : "0").append("\"},");
         }
         if (sb.charAt(sb.length() - 1) == ',') sb.setLength(sb.length() - 1);
         sb.append("}");

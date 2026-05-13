@@ -100,16 +100,16 @@ public class SportEventConsumer {
             return;
         }
 
-        // Check global exclusion filters (cached, TTL 30 s)
-        for (String globalRule : globalFilterService.findByUserId(userId)) {
+        // Use chatId (subscription target) for delivery; fall back to telegramId for legacy rows
+        Long targetChatId = event.chatId() != null ? event.chatId() : event.telegramId();
+
+        // Check global exclusion filters for the target chat (cached, TTL 30 s)
+        for (String globalRule : globalFilterService.findByChatId(targetChatId)) {
             if (!passesFilterRule(globalRule, event.title())) {
-                log.debug("Event '{}' blocked by global filter for user {}", event.title(), userId);
+                log.debug("Event '{}' blocked by global filter for chatId={}", event.title(), targetChatId);
                 return;
             }
         }
-
-        // Use chatId (subscription target) for delivery; fall back to telegramId for legacy rows
-        Long targetChatId = event.chatId() != null ? event.chatId() : event.telegramId();
 
         // ── Title-based deduplication ────────────────────────────────────────
         // Same match may appear under a different event ID within the TTL window

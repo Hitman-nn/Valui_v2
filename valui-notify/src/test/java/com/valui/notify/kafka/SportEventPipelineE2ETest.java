@@ -171,7 +171,7 @@ class SportEventPipelineE2ETest {
         @Bean
         public GlobalFilterService globalFilterService() {
             GlobalFilterService svc = mock(GlobalFilterService.class);
-            given(svc.findByUserId(any())).willReturn(List.of());
+            given(svc.findByChatId(anyLong())).willReturn(List.of());
             return svc;
         }
 

@@ -11,13 +11,14 @@ public final class FilterMenuBuilder {
 
     private FilterMenuBuilder() {}
 
-    public static MenuMessage build(List<GlobalFilterEntity> filters) {
+    public static MenuMessage build(List<GlobalFilterEntity> filters, Long currentChatId) {
         var builder = InlineKeyboardBuilder.create();
 
         for (GlobalFilterEntity f : filters) {
             String display = FilterWordBuilder.regexToDisplay(f.getFilterRule());
-            builder.button("🚫 " + display, CallbackData.NOOP);
-            builder.button("✏️", CallbackData.filterEdit(f.getId()));
+            boolean isGroupFilter = !f.getChatId().equals(currentChatId);
+            String label = (isGroupFilter ? "👥 " : "✏️ ") + display;
+            builder.button(label, CallbackData.filterEdit(f.getId()));
             builder.button("🗑", CallbackData.filterDelete(f.getId()));
             builder.row();
         }
@@ -27,7 +28,7 @@ public final class FilterMenuBuilder {
 
         String text = filters.isEmpty()
                 ? "🔍 Глобальных фильтров нет.\n\nНажмите «Добавить» чтобы задать фильтр, который будет применяться ко всем контроллерам."
-                : String.format("🔍 Глобальные фильтры (%d) — 🗑 удалить / ✏️ редактировать:", filters.size());
+                : String.format("🔍 Глобальные фильтры (%d) — нажмите название чтобы редактировать:\n👥 — фильтр применяется в группе", filters.size());
 
         return new MenuMessage(text, builder.build());
     }

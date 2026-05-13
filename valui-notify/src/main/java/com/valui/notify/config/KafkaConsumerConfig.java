@@ -19,6 +19,8 @@ import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Kafka consumer configuration for valui-notify.
@@ -118,20 +120,22 @@ public class KafkaConsumerConfig {
             KafkaProperties kafkaProperties) {
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
-        factory.setConsumerFactory(dlqConsumerFactory(kafkaProperties));
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-dlq-group"));
         factory.setConcurrency(1);
+        // MANUAL ack: DlqConsumer acknowledges from the scheduler thread after 5-min delay
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
         factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(0L, 0)));
         return factory;
     }
 
-    // DlqConsumer sleeps 5 min inside the poll loop → must exceed sleep + dispatch time
-    private ConsumerFactory<String, Object> dlqConsumerFactory(KafkaProperties kafkaProperties) {
-        Map<String, Object> props = new HashMap<>(
-                consumerFactory(kafkaProperties, "valui-dlq-group").getConfigurationProperties());
-        props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 660_000); // 11 min
-        return new DefaultKafkaConsumerFactory<>(props,
-                new StringDeserializer(),
-                new JsonDeserializer<>(Object.class, false));
+    /** Single-thread scheduler for DLQ delayed retries. shutdownNow on context close. */
+    @Bean(destroyMethod = "shutdownNow")
+    public ScheduledExecutorService dlqRetryScheduler() {
+        return Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "dlq-retry");
+            t.setDaemon(true);
+            return t;
+        });
     }
 
     // ── Retry factory ─────────────────────────────────────────────────────────

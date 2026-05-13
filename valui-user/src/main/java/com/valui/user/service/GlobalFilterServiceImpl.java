@@ -27,15 +27,20 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
     private final CacheManager           cacheManager;
 
     @Override
-    public List<GlobalFilterEntity> getFilters(Long telegramId) {
+    public List<GlobalFilterEntity> getFilters(Long telegramId, Long chatId) {
         UserEntity user = requireUser(telegramId);
-        return globalFilterRepository.findAllByUserIdOrderByCreatedAtAsc(user.getId());
+        // Personal chat: show all own filters (including those created in groups)
+        if (telegramId.equals(chatId)) {
+            return globalFilterRepository.findAllByUserIdOrderByCreatedAtAsc(user.getId());
+        }
+        // Group chat: show all filters for this chat regardless of who created them
+        return globalFilterRepository.findAllByChatIdOrderByCreatedAtAsc(chatId);
     }
 
     @Override
-    @Cacheable(value = "globalFilters", key = "#userId")
-    public List<String> findByUserId(UUID userId) {
-        return globalFilterRepository.findAllByUserIdAndPausedByTokensFalseOrderByCreatedAtAsc(userId)
+    @Cacheable(value = "globalFilters", key = "#chatId")
+    public List<String> findByChatId(Long chatId) {
+        return globalFilterRepository.findAllByChatIdAndPausedByTokensFalseOrderByCreatedAtAsc(chatId)
                 .stream()
                 .map(GlobalFilterEntity::getFilterRule)
                 .toList();
@@ -43,7 +48,7 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
 
     @Override
     @Transactional
-    public void addFilter(Long telegramId, String rule) {
+    public void addFilter(Long telegramId, Long chatId, String rule) {
         UserEntity user = requireUser(telegramId);
         int cost = tokenLedgerService.getCost("FILTER_MONTHLY");
         // Бросает InsufficientTokensException если токенов нет
@@ -51,29 +56,40 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
 
         globalFilterRepository.save(GlobalFilterEntity.builder()
             .user(user)
+            .chatId(chatId)
             .filterRule(rule)
             .createdAt(OffsetDateTime.now())
             .build());
-        evictFilterCache(user.getId());
+        evictFilterCache(chatId);
     }
 
     @Override
     @Transactional
-    public void deleteFilter(Long telegramId, UUID filterId) {
+    public void deleteFilter(Long telegramId, Long chatId, UUID filterId) {
         UserEntity user = requireUser(telegramId);
-        globalFilterRepository.deleteByIdAndUserId(filterId, user.getId());
-        evictFilterCache(user.getId());
+        // Group member can delete by chatId; owner can delete any of their own filters (e.g. from personal chat)
+        GlobalFilterEntity f = globalFilterRepository.findByIdAndChatId(filterId, chatId)
+                .or(() -> globalFilterRepository.findByIdAndUserId(filterId, user.getId()))
+                .orElse(null);
+        if (f != null) {
+            Long filterChatId = f.getChatId();
+            globalFilterRepository.delete(f);
+            evictFilterCache(filterChatId);
+        }
     }
 
     @Override
     @Transactional
-    public void updateFilter(Long telegramId, UUID filterId, String newRule) {
+    public void updateFilter(Long telegramId, Long chatId, UUID filterId, String newRule) {
         UserEntity user = requireUser(telegramId);
-        globalFilterRepository.findByIdAndUserId(filterId, user.getId()).ifPresent(f -> {
-            f.setFilterRule(newRule);
-            globalFilterRepository.save(f);
-        });
-        evictFilterCache(user.getId());
+        globalFilterRepository.findByIdAndChatId(filterId, chatId)
+                .or(() -> globalFilterRepository.findByIdAndUserId(filterId, user.getId()))
+                .ifPresent(f -> {
+                    Long filterChatId = f.getChatId();
+                    f.setFilterRule(newRule);
+                    globalFilterRepository.save(f);
+                    evictFilterCache(filterChatId);
+                });
     }
 
     private UserEntity requireUser(Long telegramId) {
@@ -81,8 +97,8 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
             .orElseThrow(() -> new UserNotFoundException(telegramId));
     }
 
-    private void evictFilterCache(UUID userId) {
+    private void evictFilterCache(Long chatId) {
         var cache = cacheManager.getCache("globalFilters");
-        if (cache != null) cache.evict(userId);
+        if (cache != null) cache.evict(chatId);
     }
 }

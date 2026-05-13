@@ -134,7 +134,7 @@ public class WizardTextHandler implements BotUpdateHandler {
         }
         String filterRule = FilterWordBuilder.wordsToRegex(words);
         try {
-            globalFilterService.addFilter(ctx.fromId(), filterRule);
+            globalFilterService.addFilter(ctx.fromId(), ctx.chatId(), filterRule);
         } catch (InsufficientTokensException e) {
             sessionService.setState(ctx.fromId(), BotState.IDLE);
             return;
@@ -155,7 +155,7 @@ public class WizardTextHandler implements BotUpdateHandler {
         if (filterIdOpt.isPresent()) {
             try {
                 UUID filterId = UUID.fromString(filterIdOpt.get());
-                globalFilterService.updateFilter(ctx.fromId(), filterId, filterRule);
+                globalFilterService.updateFilter(ctx.fromId(), ctx.chatId(), filterId, filterRule);
             } catch (Exception e) {
                 log.warn("Failed to update global filter: {}", e.getMessage());
             }
@@ -255,8 +255,8 @@ public class WizardTextHandler implements BotUpdateHandler {
     }
 
     private void showFilterList(BotUpdateContext ctx) {
-        List<GlobalFilterEntity> filters = globalFilterService.getFilters(ctx.fromId());
-        var menu = FilterMenuBuilder.build(filters);
+        List<GlobalFilterEntity> filters = globalFilterService.getFilters(ctx.fromId(), ctx.chatId());
+        var menu = FilterMenuBuilder.build(filters, ctx.chatId());
         replaceOrSend(ctx, menu.text(), menu.keyboard());
     }
 

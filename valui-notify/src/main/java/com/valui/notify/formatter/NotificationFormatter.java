@@ -72,12 +72,21 @@ public class NotificationFormatter {
 
             // Handicap line
             JsonNode h1 = root.path("h1"), h2 = root.path("h2");
-            if (!h1.isMissingNode() && !h2.isMissingNode()) {
+            boolean hasHcap = !h1.isMissingNode() && !h2.isMissingNode();
+            if (hasHcap) {
                 if (has1x2) sb.append("\n");
                 String pt1 = h1.path("pt").asText("0");
                 String pt2 = h2.path("pt").asText("0");
                 sb.append("Ф: (").append(pt1).append(") ").append(h1.path("v").asText())
                   .append(" / (").append(pt2).append(") ").append(h2.path("v").asText());
+            }
+
+            // Total line
+            JsonNode tb = root.path("tb"), tm = root.path("tm");
+            if (!tb.isMissingNode() && !tm.isMissingNode()) {
+                if (has1x2 || hasHcap) sb.append("\n");
+                sb.append("ТБ(").append(tb.path("pt").asText("?")).append("): ").append(tb.path("v").asText())
+                  .append("   ТМ(").append(tm.path("pt").asText("?")).append("): ").append(tm.path("v").asText());
             }
 
             String result = sb.toString().trim();

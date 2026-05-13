@@ -24,6 +24,9 @@ public class GlobalFilterEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private UserEntity user;
 
+    @Column(name = "chat_id", nullable = false)
+    private Long chatId;
+
     @Column(name = "filter_rule", nullable = false, columnDefinition = "TEXT")
     private String filterRule;
 

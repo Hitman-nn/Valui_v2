@@ -97,6 +97,8 @@ public class FonbetParser implements BookmakerParser {
 
     // Factor IDs for 1x2 outcomes
     private static final int F_WIN1 = 921, F_DRAW = 922, F_WIN2 = 923;
+    // Factor IDs for main total (Over/Under)
+    private static final int F_TOT_OVER = 930, F_TOT_UNDER = 931;
     // Known handicap pairs: Ф1 id → Ф2 id (ordered by typical precedence on site)
     private static final java.util.Map<Integer, Integer> HCAP_PAIRS = java.util.Map.of(910, 912, 927, 928);
 
@@ -143,15 +145,19 @@ public class FonbetParser implements BookmakerParser {
         Double win1 = null, draw = null, win2 = null;
         Double hcap1v = null, hcap2v = null;
         String hcap1pt = null, hcap2pt = null;
+        Double tbv = null, tmv = null;
+        String tbpt = null;
 
         if (factors != null && factors.isArray()) {
-            // Collect 1x2 odds
+            // Collect 1x2 and total odds
             for (JsonNode fac : factors) {
                 int fid = fac.path("f").asInt(0);
                 double v = fac.path("v").asDouble(0);
                 if (fid == F_WIN1) win1 = v;
                 else if (fid == F_DRAW) draw = v;
                 else if (fid == F_WIN2) win2 = v;
+                else if (fid == F_TOT_OVER) { tbv = v; tbpt = fac.path("pt").asText(null); }
+                else if (fid == F_TOT_UNDER) tmv = v;
             }
 
             // Build p → node map to find handicap pairs
@@ -211,6 +217,12 @@ public class FonbetParser implements BookmakerParser {
               .append(",\"pt\":\"").append(hcap1pt != null ? hcap1pt : "0").append("\"},");
             sb.append("\"h2\":{\"v\":").append(fmt(hcap2v))
               .append(",\"pt\":\"").append(hcap2pt != null ? hcap2pt : "0").append("\"},");
+        }
+        if (tbv != null && tmv != null) {
+            sb.append("\"tb\":{\"v\":").append(fmt(tbv))
+              .append(",\"pt\":\"").append(tbpt != null ? tbpt : "0").append("\"},");
+            sb.append("\"tm\":{\"v\":").append(fmt(tmv))
+              .append(",\"pt\":\"").append(tbpt != null ? tbpt : "0").append("\"},");
         }
         // Remove trailing comma if present
         if (sb.charAt(sb.length() - 1) == ',') sb.setLength(sb.length() - 1);

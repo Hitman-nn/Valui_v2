@@ -90,8 +90,8 @@ public class CancelCallback implements CallbackHandler {
             } else {
                 // global filter add/edit cancelled → show filter list
                 sessionService.setState(ctx.fromId(), BotState.IDLE);
-                List<GlobalFilterEntity> filters = globalFilterService.getFilters(ctx.fromId());
-                var menu = FilterMenuBuilder.build(filters);
+                List<GlobalFilterEntity> filters = globalFilterService.getFilters(ctx.fromId(), ctx.chatId());
+                var menu = FilterMenuBuilder.build(filters, ctx.chatId());
                 ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
                         menu.text(), menu.keyboard());
             }

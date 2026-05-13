@@ -97,7 +97,7 @@ class SportEventConsumerTest {
 
         given(controllerPort.findById(CTRL_ID)).willReturn(Optional.of(activeController));
         given(userPort.findById(USER_ID)).willReturn(Optional.of(activeUser));
-        given(globalFilterService.findByUserId(USER_ID)).willReturn(List.of());
+        given(globalFilterService.findByChatId(TG_ID)).willReturn(List.of());
         given(detectedEventPort.findIdByControllerIdAndExternalId(any(), any()))
                 .willReturn(Optional.empty());
         given(notificationLogService.createPending(any(), any(), any(), any())).willReturn(logEntry);
@@ -157,7 +157,7 @@ class SportEventConsumerTest {
     @Test
     @DisplayName("global filter drops event when title does NOT match the rule")
     void globalFilter_noMatch_drops() {
-        given(globalFilterService.findByUserId(USER_ID)).willReturn(List.of("zenit"));
+        given(globalFilterService.findByChatId(TG_ID)).willReturn(List.of("zenit"));
 
         consumer.onSportEventDetected(event);
 
@@ -167,7 +167,7 @@ class SportEventConsumerTest {
     @Test
     @DisplayName("global filter passes event when title matches the rule")
     void globalFilter_matches_passes() {
-        given(globalFilterService.findByUserId(USER_ID)).willReturn(List.of("spartak"));
+        given(globalFilterService.findByChatId(TG_ID)).willReturn(List.of("spartak"));
 
         consumer.onSportEventDetected(event);
 
