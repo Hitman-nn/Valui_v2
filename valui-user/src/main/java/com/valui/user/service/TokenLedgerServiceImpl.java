@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -35,6 +36,10 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
 
     /** Абсолютные пороги (токены): информационный → предупреждение → критический */
     private static final int[] THRESHOLDS = {10, 50, 100};
+
+    /** Таймаут ожидания пессимистичной блокировки (мс) — защита от deadlock */
+    private static final Map<String, Object> PESSIMISTIC_LOCK_HINTS =
+        Map.of("jakarta.persistence.lock.timeout", 5_000);
 
     private final UserRepository                  userRepository;
     private final ControllerRepository            controllerRepository;
@@ -200,7 +205,8 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
     // ─── helpers ─────────────────────────────────────────────────────────────
 
     private UserEntity lockUser(UUID userId) {
-        UserEntity user = em.find(UserEntity.class, userId, LockModeType.PESSIMISTIC_WRITE);
+        UserEntity user = em.find(UserEntity.class, userId,
+            LockModeType.PESSIMISTIC_WRITE, PESSIMISTIC_LOCK_HINTS);
         if (user == null) throw new UserNotFoundException(userId);
         return user;
     }

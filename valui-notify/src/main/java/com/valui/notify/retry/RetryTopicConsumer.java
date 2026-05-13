@@ -5,20 +5,27 @@ import com.valui.common.kafka.UserNotificationRequestMessage;
 import com.valui.notify.dispatcher.NotificationDispatchService;
 import com.valui.notify.exception.RetryableNotificationException;
 import com.valui.notify.log.NotificationLogService;
+import com.valui.notify.util.KafkaNotifyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Handles the three time-delayed retry tiers (1 s, 5 s, 30 s).
  *
- * Each listener sleeps for the configured delay on a virtual thread (cheap),
- * attempts dispatch once, then either marks the log SENT or forwards to the
- * next tier via {@link DeadLetterPublisher}.
+ * Each listener returns immediately — the Kafka poll thread is never blocked.
+ * The actual retry runs on a dedicated scheduler thread after the configured delay.
+ * The offset is acknowledged only after the retry completes, so a crash during
+ * the wait causes re-delivery on the next startup.
+ *
+ * On failure the record is forwarded to the next tier via {@link DeadLetterPublisher}.
  */
 @Slf4j
 @Component
@@ -29,14 +36,19 @@ public class RetryTopicConsumer {
     private final NotificationLogService logService;
     private final DeadLetterPublisher deadLetterPublisher;
     private final NotificationRetryPolicy retryPolicy;
+    private final ScheduledExecutorService retryScheduler;
+
+    private static final long DELAY_1S  =  1_000L;
+    private static final long DELAY_5S  =  5_000L;
+    private static final long DELAY_30S = 30_000L;
 
     @KafkaListener(
             topics           = KafkaTopics.NOTIFICATIONS_RETRY_1S,
             groupId          = "valui-retry-group",
             containerFactory = "retryContainerFactory"
     )
-    public void handle1s(ConsumerRecord<String, Object> record) {
-        attempt(record, 1_000L);
+    public void handle1s(ConsumerRecord<String, Object> record, Acknowledgment ack) {
+        retryScheduler.schedule(() -> doProcess(record, ack), DELAY_1S, TimeUnit.MILLISECONDS);
     }
 
     @KafkaListener(
@@ -44,8 +56,8 @@ public class RetryTopicConsumer {
             groupId          = "valui-retry-group",
             containerFactory = "retryContainerFactory"
     )
-    public void handle5s(ConsumerRecord<String, Object> record) {
-        attempt(record, 5_000L);
+    public void handle5s(ConsumerRecord<String, Object> record, Acknowledgment ack) {
+        retryScheduler.schedule(() -> doProcess(record, ack), DELAY_5S, TimeUnit.MILLISECONDS);
     }
 
     @KafkaListener(
@@ -53,44 +65,36 @@ public class RetryTopicConsumer {
             groupId          = "valui-retry-group",
             containerFactory = "retryContainerFactory"
     )
-    public void handle30s(ConsumerRecord<String, Object> record) {
-        attempt(record, 30_000L);
+    public void handle30s(ConsumerRecord<String, Object> record, Acknowledgment ack) {
+        retryScheduler.schedule(() -> doProcess(record, ack), DELAY_30S, TimeUnit.MILLISECONDS);
     }
 
     // ── private ───────────────────────────────────────────────────────────────
 
-    private void attempt(ConsumerRecord<String, Object> record, long delayMs) {
-        sleepQuietly(delayMs);
-
-        if (!(record.value() instanceof UserNotificationRequestMessage request)) {
-            log.warn("[RETRY] Unexpected payload on {}, skipping", record.topic());
-            return;
-        }
-
-        UUID logId = parseLogId(request.notificationLogId());
-        if (logId != null && logService.isAlreadySent(logId)) {
-            log.debug("[RETRY] Already sent — skipping logId={}", logId);
-            return;
-        }
+    private void doProcess(ConsumerRecord<String, Object> record, Acknowledgment ack) {
         try {
-            dispatchService.dispatch(request);
-            if (logId != null) logService.markSent(logId);
-            log.info("[RETRY] Success on topic={} logId={}", record.topic(), logId);
-        } catch (Exception e) {
-            RetryableNotificationException rne = retryPolicy.classify(e);
-            log.warn("[RETRY] Failed on topic={} logId={}: {}", record.topic(), logId, e.getMessage());
-            deadLetterPublisher.publishToDlq(record, rne);
+            if (!(record.value() instanceof UserNotificationRequestMessage request)) {
+                log.warn("[RETRY] Unexpected payload on {}, skipping", record.topic());
+                return;
+            }
+
+            UUID logId = KafkaNotifyUtil.parseLogId(request.notificationLogId());
+            if (logId != null && logService.isAlreadySent(logId)) {
+                log.debug("[RETRY] Already sent — skipping logId={}", logId);
+                return;
+            }
+            try {
+                dispatchService.dispatch(request);
+                if (logId != null) logService.markSent(logId);
+                log.info("[RETRY] Success on topic={} logId={}", record.topic(), logId);
+            } catch (Exception e) {
+                RetryableNotificationException rne = retryPolicy.classify(e);
+                log.warn("[RETRY] Failed on topic={} logId={}: {}", record.topic(), logId, e.getMessage());
+                deadLetterPublisher.publishToDlq(record, rne);
+            }
+        } finally {
+            ack.acknowledge();
         }
     }
 
-    private static void sleepQuietly(long ms) {
-        try { Thread.sleep(ms); }
-        catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
-    }
-
-    private static UUID parseLogId(String raw) {
-        if (raw == null || raw.isBlank()) return null;
-        try { return UUID.fromString(raw); }
-        catch (IllegalArgumentException e) { return null; }
-    }
 }

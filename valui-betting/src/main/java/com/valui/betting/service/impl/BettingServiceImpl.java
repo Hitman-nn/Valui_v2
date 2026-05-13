@@ -229,8 +229,8 @@ public class BettingServiceImpl implements BettingService {
     @Transactional(readOnly = true)
     public Page<BetDto> listBets(long chatId, BetStatus statusFilter, Pageable pageable) {
         Page<BetEntity> page = statusFilter != null
-                ? betRepo.findAllByChatIdAndStatusOrderByCreatedAtDesc(chatId, statusFilter, pageable)
-                : betRepo.findAllByChatIdOrderByCreatedAtDesc(chatId, pageable);
+                ? betRepo.findAllByChatIdAndStatusWithSlips(chatId, statusFilter, pageable)
+                : betRepo.findAllByChatIdWithSlips(chatId, pageable);
         return page.map(BetDto::from);
     }
 

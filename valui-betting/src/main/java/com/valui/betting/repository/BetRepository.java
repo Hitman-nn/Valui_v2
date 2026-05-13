@@ -30,9 +30,13 @@ public interface BetRepository extends JpaRepository<BetEntity, UUID> {
         return findWithParticipantsById(id);
     }
 
-    Page<BetEntity> findAllByChatIdOrderByCreatedAtDesc(Long chatId, Pageable pageable);
+    @Query(value = "SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.slips WHERE b.chatId = :chatId ORDER BY b.createdAt DESC",
+           countQuery = "SELECT COUNT(b) FROM BetEntity b WHERE b.chatId = :chatId")
+    Page<BetEntity> findAllByChatIdWithSlips(@Param("chatId") Long chatId, Pageable pageable);
 
-    Page<BetEntity> findAllByChatIdAndStatusOrderByCreatedAtDesc(Long chatId, BetStatus status, Pageable pageable);
+    @Query(value = "SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.slips WHERE b.chatId = :chatId AND b.status = :status ORDER BY b.createdAt DESC",
+           countQuery = "SELECT COUNT(b) FROM BetEntity b WHERE b.chatId = :chatId AND b.status = :status")
+    Page<BetEntity> findAllByChatIdAndStatusWithSlips(@Param("chatId") Long chatId, @Param("status") BetStatus status, Pageable pageable);
 
     long countByChatIdAndStatus(Long chatId, BetStatus status);
 

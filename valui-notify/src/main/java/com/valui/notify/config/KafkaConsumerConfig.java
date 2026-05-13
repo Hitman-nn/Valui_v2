@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 
 /**
  * Kafka consumer configuration for valui-notify.
@@ -40,14 +41,15 @@ import java.util.concurrent.ScheduledExecutorService;
 @Configuration
 public class KafkaConsumerConfig {
 
+    private static final String OFFSET_LATEST   = "latest";
+    private static final String OFFSET_EARLIEST = "earliest";
+
     // ── Shared consumer factory ────────────────────────────────────────────────
 
-    private ConsumerFactory<String, Object> consumerFactory(
-            KafkaProperties kafkaProperties, String groupId) {
+    private Map<String, Object> baseProps(KafkaProperties kafkaProperties, String groupId, String autoOffsetReset) {
         Map<String, Object> props = new HashMap<>(kafkaProperties.buildConsumerProperties(null));
-
         props.put(ConsumerConfig.GROUP_ID_CONFIG,             groupId);
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,    "earliest");
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,    autoOffsetReset);
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,   StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
         // Trust all valui packages; type is resolved from __TypeId__ header written by producer
@@ -55,8 +57,12 @@ public class KafkaConsumerConfig {
         props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS,     true);
         // Disable auto-commit: we commit only after successful processing
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,   false);
+        return props;
+    }
 
-        return new DefaultKafkaConsumerFactory<>(props,
+    private ConsumerFactory<String, Object> consumerFactory(
+            KafkaProperties kafkaProperties, String groupId, String autoOffsetReset) {
+        return new DefaultKafkaConsumerFactory<>(baseProps(kafkaProperties, groupId, autoOffsetReset),
                 new StringDeserializer(),
                 new JsonDeserializer<>(Object.class, false));
     }
@@ -69,7 +75,7 @@ public class KafkaConsumerConfig {
             KafkaTemplate<String, Object> kafkaTemplate) {
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
-        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-notify-group"));
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-notify-group", OFFSET_LATEST));
         factory.setConcurrency(3);
         factory.setCommonErrorHandler(notifyErrorHandler(kafkaTemplate));
         return factory;
@@ -101,7 +107,7 @@ public class KafkaConsumerConfig {
             KafkaTemplate<String, Object> kafkaTemplate) {
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
-        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-notify-dispatch-group"));
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-notify-dispatch-group", OFFSET_LATEST));
         factory.setConcurrency(2);
         factory.setCommonErrorHandler(notifyErrorHandler(kafkaTemplate));
         return factory;
@@ -120,7 +126,7 @@ public class KafkaConsumerConfig {
             KafkaProperties kafkaProperties) {
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
-        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-dlq-group"));
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-dlq-group", OFFSET_EARLIEST));
         factory.setConcurrency(1);
         // MANUAL ack: DlqConsumer acknowledges from the scheduler thread after 5-min delay
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
@@ -131,18 +137,15 @@ public class KafkaConsumerConfig {
     /** Single-thread scheduler for DLQ delayed retries. shutdownNow on context close. */
     @Bean(destroyMethod = "shutdownNow")
     public ScheduledExecutorService dlqRetryScheduler() {
-        return Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "dlq-retry");
-            t.setDaemon(true);
-            return t;
-        });
+        return Executors.newSingleThreadScheduledExecutor(daemonThread("dlq-retry"));
     }
 
     // ── Retry factory ─────────────────────────────────────────────────────────
 
     /**
      * Shared factory for the three delayed-retry topics (1 s, 5 s, 30 s).
-     * concurrency=1 per topic — retry traffic is low-volume and ordering matters.
+     * concurrency=1 — retry traffic is low-volume and ordering matters.
+     * MANUAL ack: RetryTopicConsumer acknowledges from the scheduler thread after the delay.
      * No container-level error handler; RetryTopicConsumer handles all failures
      * itself via DeadLetterPublisher to avoid double-counting retry attempts.
      */
@@ -151,10 +154,26 @@ public class KafkaConsumerConfig {
             KafkaProperties kafkaProperties) {
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
-        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-retry-group"));
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-retry-group", OFFSET_EARLIEST));
         factory.setConcurrency(1);
+        // MANUAL ack: RetryTopicConsumer acknowledges from the scheduler thread after the delay
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
         factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(0L, 0)));
         return factory;
+    }
+
+    /** 3-thread scheduler for retry-topic delayed processing (one per retry tier). shutdownNow on context close. */
+    @Bean(destroyMethod = "shutdownNow")
+    public ScheduledExecutorService retryScheduler() {
+        return Executors.newScheduledThreadPool(3, daemonThread("retry-scheduler"));
+    }
+
+    private static ThreadFactory daemonThread(String name) {
+        return r -> {
+            Thread t = new Thread(r, name);
+            t.setDaemon(true);
+            return t;
+        };
     }
 
     // ── Audit factory ──────────────────────────────────────────────────────────
@@ -178,15 +197,9 @@ public class KafkaConsumerConfig {
     }
 
     private ConsumerFactory<String, Object> auditConsumerFactory(KafkaProperties kafkaProperties) {
-        Map<String, Object> props = new HashMap<>(kafkaProperties.buildConsumerProperties(null));
-        props.put(ConsumerConfig.GROUP_ID_CONFIG,             "valui-audit-group");
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,    "earliest");
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,   StringDeserializer.class);
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
-        props.put(JsonDeserializer.TRUSTED_PACKAGES,          "com.valui.*");
-        props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS,     true);
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,   false);
-        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG,     50);
+        Map<String, Object> props = baseProps(kafkaProperties, "valui-audit-group", OFFSET_LATEST);
+        // Batch size cap: drain up to 50 records per poll for saveAll efficiency
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 50);
         return new DefaultKafkaConsumerFactory<>(props,
                 new StringDeserializer(),
                 new JsonDeserializer<>(Object.class, false));

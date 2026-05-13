@@ -7,6 +7,7 @@ import com.valui.notify.exception.RetryableNotificationException;
 import com.valui.notify.log.NotificationLogService;
 import com.valui.notify.retry.DeadLetterPublisher;
 import com.valui.notify.retry.NotificationRetryPolicy;
+import com.valui.notify.util.KafkaNotifyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -60,7 +61,7 @@ public class DlqConsumer {
                 return;
             }
 
-            UUID logId = parseLogId(request.notificationLogId());
+            UUID logId = KafkaNotifyUtil.parseLogId(request.notificationLogId());
             if (logId != null && logService.isAlreadySent(logId)) {
                 log.debug("[DLQ] Already sent — skipping logId={}", logId);
                 return;
@@ -80,9 +81,4 @@ public class DlqConsumer {
         }
     }
 
-    private static UUID parseLogId(String raw) {
-        if (raw == null || raw.isBlank()) return null;
-        try { return UUID.fromString(raw); }
-        catch (IllegalArgumentException e) { return null; }
-    }
 }
