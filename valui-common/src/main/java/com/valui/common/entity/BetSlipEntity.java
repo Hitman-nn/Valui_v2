@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -49,4 +50,16 @@ public class BetSlipEntity {
     @Column(name = "sort_order", nullable = false)
     @Builder.Default
     private Integer sortOrder = 0;
+
+    @Column(name = "starts_at")
+    private Instant startsAt;
+
+    @Column(name = "initial_extra_data", columnDefinition = "text")
+    private String initialExtraData;
+
+    @Column(name = "snapshot_extra_data", columnDefinition = "text")
+    private String snapshotExtraData;
+
+    @Column(name = "snapshot_taken_at")
+    private OffsetDateTime snapshotTakenAt;
 }

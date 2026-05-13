@@ -53,23 +53,25 @@ public final class UrlParser {
         return new ParsedUrlIds(sportId, tournamentId, matchId);
     }
 
-    // /line/{sportId}[/{champId}]
+    // /line/{sportId}/{champId}[/{matchId}]
     private static ParsedUrlIds extractOlimp(String[] p) {
-        // p[0]="line", p[1]=sportId, p[2]=champId
-        String sportId     = p.length > 1 ? p[1] : null;
+        // p[0]="line", p[1]=sportId, p[2]=champId, p[3]=matchId
+        String sportId      = p.length > 1 ? p[1] : null;
         String tournamentId = p.length > 2 ? p[2] : null;
-        return new ParsedUrlIds(sportId, tournamentId, null);
+        String matchId      = p.length > 3 ? p[3] : null;
+        return new ParsedUrlIds(sportId, tournamentId, matchId);
     }
 
-    // /ru/line/{sportName}[/{champId}]
+    // /ru/line/{sportName}/{champId}[/{matchId}]
     private static ParsedUrlIds extractBetcity(String[] p) {
-        // p[0]="ru", p[1]="line", p[2]=sportName, p[3]=champId
+        // p[0]="ru", p[1]="line", p[2]=sportName, p[3]=champId, p[4]=matchId
         String sportAlias  = p.length > 2 ? p[2] : null;
         String sportId     = sportAlias != null
                 ? BetcitySportsMap.getSportId(sportAlias).map(String::valueOf).orElse(sportAlias)
                 : null;
         String tournamentId = p.length > 3 ? p[3] : null;
-        return new ParsedUrlIds(sportId, tournamentId, null);
+        String matchId      = p.length > 4 ? p[4] : null;
+        return new ParsedUrlIds(sportId, tournamentId, matchId);
     }
 
     // /sport/{sportAlias}/{countryId}/{champId}[/{matchId}]?period=all

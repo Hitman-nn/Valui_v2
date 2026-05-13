@@ -9,6 +9,7 @@ import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
+import com.valui.bot.prematch.PreMatchOddsService;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
@@ -35,11 +36,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class BettingMenuCallback implements CallbackHandler {
 
-    private final BotSessionService sessionService;
-    private final BettingService    bettingService;
-    private final BetAccountService accountService;
-    private final BetPersonService  personService;
-    private final ObjectMapper      objectMapper;
+    private final BotSessionService  sessionService;
+    private final BettingService     bettingService;
+    private final BetAccountService  accountService;
+    private final BetPersonService   personService;
+    private final ObjectMapper       objectMapper;
+    private final PreMatchOddsService preMatchOddsService;
 
     @Override
     public String callbackPrefix() { return "BET:"; }
@@ -176,6 +178,8 @@ public class BettingMenuCallback implements CallbackHandler {
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     BetDetailCallback.buildDetailText(placed), BetDetailCallback.buildDetailKeyboard(placed));
             MessageSend.answerCallback(ctx.sender(), callbackId);
+            // Async: fetch odds + schedule -30 min snapshot for each slip
+            placed.slips().forEach(slip -> preMatchOddsService.register(slip.id()));
         } catch (Exception e) {
             log.error("[BETTING] Place bet failed fromId={}: {}", ctx.fromId(), e.getMessage());
             MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, "❌ " + e.getMessage());
@@ -525,7 +529,13 @@ public class BettingMenuCallback implements CallbackHandler {
     private void handleDeleteBet(BotUpdateContext ctx, String data, String callbackId, int messageId) {
         String betIdStr = data.substring(CallbackData.BET_DELETE_CONFIRM_PREFIX.length());
         try {
-            bettingService.deleteBet(UUID.fromString(betIdStr), ctx.chatId());
+            UUID betId = UUID.fromString(betIdStr);
+            // Cancel pre-match watches before cascading delete removes the slips
+            try {
+                bettingService.getBet(betId, ctx.chatId()).slips()
+                        .forEach(slip -> preMatchOddsService.cancel(slip.id()));
+            } catch (Exception ignored) {}
+            bettingService.deleteBet(betId, ctx.chatId());
             MessageSend.answerCallback(ctx.sender(), callbackId);
             sessionService.clearSession(ctx.fromId());
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
@@ -539,7 +549,13 @@ public class BettingMenuCallback implements CallbackHandler {
     private void handleCancelBet(BotUpdateContext ctx, String data, String callbackId, int messageId) {
         String betIdStr = data.substring(CallbackData.BET_CANCEL_PREFIX.length());
         try {
-            BetDto updated = bettingService.cancelBet(UUID.fromString(betIdStr), ctx.fromId());
+            UUID betId = UUID.fromString(betIdStr);
+            // Cancel pre-match watches — bet is cancelled, snapshot no longer needed
+            try {
+                bettingService.getBet(betId, ctx.chatId()).slips()
+                        .forEach(slip -> preMatchOddsService.cancel(slip.id()));
+            } catch (Exception ignored) {}
+            BetDto updated = bettingService.cancelBet(betId, ctx.fromId());
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     BetDetailCallback.buildDetailText(updated), BetDetailCallback.buildDetailKeyboard(updated));
             MessageSend.answerCallback(ctx.sender(), callbackId);

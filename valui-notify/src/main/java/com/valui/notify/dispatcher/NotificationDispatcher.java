@@ -102,8 +102,8 @@ public class NotificationDispatcher {
                 tokenLedgerService.tryDebit(userId, cost, TokenReasonCode.NOTIFICATION_SENT, null);
             }
         } catch (Exception e) {
-            log.warn("[DISPATCH] Ошибка [logId={} channel={} userId={}]: {}",
-                logId, request.channel(), userId, e.getMessage());
+            log.warn("[DISPATCH] Ошибка [logId={} channel={} userId={}]: {} ({})",
+                logId, request.channel(), userId, e.getMessage(), e.getClass().getSimpleName());
             if (logId != null) logService.markFailed(logId, e.getMessage());
             RetryableNotificationException rne = retryPolicy.classify(e);
             deadLetterPublisher.publishToDlq(record, rne);
