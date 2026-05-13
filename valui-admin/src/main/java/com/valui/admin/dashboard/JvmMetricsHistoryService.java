@@ -19,6 +19,10 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * minuteBuffer — 1-min resolution, capacity 1 440 (24 h)
  * hourBuffer   — 1-hour resolution, capacity 720  (30 d)
+ *
+ * All mutable state (minuteBuffer, hourBuffer, minutesInCurrentHour) is
+ * guarded by a single ReentrantLock to prevent races between the @Scheduled
+ * writer and concurrent HTTP-thread readers.
  */
 @Service
 @RequiredArgsConstructor
@@ -70,6 +74,17 @@ public class JvmMetricsHistoryService {
         };
     }
 
+    private <T> List<T> lockedTail(Deque<T> deque, int n) {
+        lock.lock();
+        try {
+            List<T> list = new ArrayList<>(deque);
+            int from = Math.max(0, list.size() - n);
+            return new ArrayList<>(list.subList(from, list.size()));
+        } finally {
+            lock.unlock();
+        }
+    }
+
     private JvmDataPointDto snapshot() {
         long heapUsed  = (long) gauge("jvm.memory.used",  "area", "heap");
         long heapMax   = (long) gauge("jvm.memory.max",   "area", "heap");
@@ -85,17 +100,6 @@ public class JvmMetricsHistoryService {
                 threads,
                 Math.round(cpu * 10.0) / 10.0
         );
-    }
-
-    private <T> List<T> lockedTail(Deque<T> deque, int n) {
-        lock.lock();
-        try {
-            List<T> list = new ArrayList<>(deque);
-            int from = Math.max(0, list.size() - n);
-            return new ArrayList<>(list.subList(from, list.size()));
-        } finally {
-            lock.unlock();
-        }
     }
 
     private double gauge(String name) {
