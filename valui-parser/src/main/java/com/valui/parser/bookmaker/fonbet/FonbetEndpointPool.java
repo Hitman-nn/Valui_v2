@@ -11,9 +11,11 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.*;
+import org.springframework.data.redis.core.ZSetOperations;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -81,13 +83,15 @@ public class FonbetEndpointPool {
 
     private void seed() {
         log.info("[FonbetPool] Seeding 200 mirror URLs into Redis...");
+        Set<ZSetOperations.TypedTuple<String>> tuples = new HashSet<>(202);
         for (int i = 1; i <= 100; i++) {
             String idx = String.format("%02d", i);
-            redis.opsForZSet().add(ZSET_KEY, "https://line" + idx + "w.bk6bba-resources.com"    + PATH, 0.0);
-            redis.opsForZSet().add(ZSET_KEY, "https://line" + idx + "w.bk6bba-cf-resources.com" + PATH, 0.0);
+            tuples.add(ZSetOperations.TypedTuple.of("https://line" + idx + "w.bk6bba-resources.com"    + PATH, 0.0));
+            tuples.add(ZSetOperations.TypedTuple.of("https://line" + idx + "w.bk6bba-cf-resources.com" + PATH, 0.0));
         }
-        // Boost the known-good fallback so it is selected first on a cold start
-        redis.opsForZSet().add(ZSET_KEY, FALLBACK, (double) System.currentTimeMillis());
+        tuples.add(ZSetOperations.TypedTuple.of(FALLBACK, (double) System.currentTimeMillis()));
+        redis.delete(ZSET_KEY);
+        redis.opsForZSet().add(ZSET_KEY, tuples);
         log.info("[FonbetPool] Seed complete.");
     }
 
@@ -160,14 +164,21 @@ public class FonbetEndpointPool {
     private ProbeResult probe(String url) {
         long t0 = System.nanoTime();
         try {
+            int code;
             HttpURLConnection c = openConn(url, "HEAD");
-            int code = c.getResponseCode();
-            c.disconnect();
-            if (code == 405) {
-                c = openConn(url, "GET");
-                c.setRequestProperty("Range", "bytes=0-0");
+            try {
                 code = c.getResponseCode();
+            } finally {
                 c.disconnect();
+            }
+            if (code == 405) {
+                HttpURLConnection cGet = openConn(url, "GET");
+                cGet.setRequestProperty("Range", "bytes=0-0");
+                try {
+                    code = cGet.getResponseCode();
+                } finally {
+                    cGet.disconnect();
+                }
                 if (code == 206) code = 200;
             }
             return new ProbeResult(url, code == 200, (System.nanoTime() - t0) / 1_000_000);
