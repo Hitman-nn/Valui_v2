@@ -68,6 +68,10 @@ public class RetryTopicConsumer {
         }
 
         UUID logId = parseLogId(request.notificationLogId());
+        if (logId != null && logService.isAlreadySent(logId)) {
+            log.debug("[RETRY] Already sent — skipping logId={}", logId);
+            return;
+        }
         try {
             dispatchService.dispatch(request);
             if (logId != null) logService.markSent(logId);

@@ -154,7 +154,9 @@ public class EventDeduplicationService {
 
         if (!toRemove.isEmpty()) {
             redis.opsForSet().remove(key(controllerId), toRemove.toArray(Object[]::new));
-            log.debug("Sync removed {} stale entries from Redis for controller {}", toRemove.size(), controllerId);
+            log.warn("[DEDUP-SYNC] Removed {} phantom Redis entries for controller {} — present in Redis but absent from DB. " +
+                     "Possible cause: migration seeded Redis without populating detected_events.",
+                    toRemove.size(), controllerId);
         }
         if (!toAdd.isEmpty()) {
             redis.opsForSet().add(key(controllerId), toAdd.toArray(String[]::new));

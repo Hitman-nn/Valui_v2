@@ -4,7 +4,6 @@ import com.valui.common.domain.BookmakerType;
 import com.valui.common.domain.ControllerType;
 import com.valui.common.entity.ControllerEntity;
 import com.valui.common.entity.UserEntity;
-import com.valui.monitor.dedup.EventDeduplicationService;
 import com.valui.monitor.migration.dto.*;
 import com.valui.parser.util.ParsedUrlIds;
 import com.valui.parser.util.UrlParser;
@@ -25,7 +24,6 @@ public class MigrationService {
 
     private final ControllerPortService     controllerPort;
     private final UserService               userService;
-    private final EventDeduplicationService dedup;
 
     // ── dry-run ───────────────────────────────────────────────────────────────
 
@@ -64,7 +62,7 @@ public class MigrationService {
     public MigrationResultDto execute(MigrationRequest req) {
         Map<String, ChatMappingDto> mappings = indexMappings(req.chatMappings());
 
-        int imported = 0, skipped = 0, failed = 0, dedupSeeded = 0;
+        int imported = 0, skipped = 0, failed = 0;
         Map<String, Integer> byBookmaker = new LinkedHashMap<>();
 
         for (MigrationControllerEntry c : req.controllers()) {
@@ -111,15 +109,12 @@ public class MigrationService {
                 controllerPort.createSubscription(
                         entity.getId(), chatId, user.getId(), user.getTelegramId());
 
-                if (c.eventIds() != null && !c.eventIds().isEmpty()) {
-                    Set<String> ids = c.eventIds().stream()
-                            .filter(id -> id != null && !id.isBlank())
-                            .collect(Collectors.toSet());
-                    if (!ids.isEmpty()) {
-                        dedup.markBatchAsSeen(entity.getId(), ids);
-                        dedupSeeded += ids.size();
-                    }
-                }
+                // eventIds field is accepted but intentionally ignored:
+                // lastCheckedAt=null guarantees a warmup run that silently seeds both
+                // Redis dedup and detected_events without sending notifications.
+                // Manual Redis seeding (markBatchAsSeen without DB rows) caused the
+                // DedupSyncScheduler to treat those entries as phantoms and remove them
+                // at 3 AM, triggering a flood on the next poll.
 
                 imported++;
                 byBookmaker.merge(bk.name(), 1, Integer::sum);
@@ -130,9 +125,9 @@ public class MigrationService {
             }
         }
 
-        log.info("[MIGRATION] Завершено: импортировано={} пропущено={} ошибок={} dedup={}",
-                imported, skipped, failed, dedupSeeded);
-        return new MigrationResultDto(imported, skipped, failed, dedupSeeded, byBookmaker);
+        log.info("[MIGRATION] Завершено: импортировано={} пропущено={} ошибок={}",
+                imported, skipped, failed);
+        return new MigrationResultDto(imported, skipped, failed, 0, byBookmaker);
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
