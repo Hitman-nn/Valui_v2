@@ -107,11 +107,14 @@ public class BetCityParser implements BookmakerParser {
             String alias = BetcitySportsMap.getSport(safeInt(sportId)).orElse("sport");
             evts.fields().forEachRemaining(evtEntry -> {
                 String id = evtEntry.getKey();
-                String t1 = s(evtEntry.getValue(), "name_ht"), t2 = s(evtEntry.getValue(), "name_at");
+                JsonNode ev = evtEntry.getValue();
+                String t1 = s(ev, "name_ht"), t2 = s(ev, "name_at");
                 if (t1 == null || t2 == null) return;
                 String url = "https://betcity.ru/ru/line/" + alias + "/" + tournamentId + "/" + id;
+                Instant startsAt = Instant.ofEpochSecond(ev.path("date_ev").asLong(0));
+                boolean live = ev.path("is_live").asInt(0) == 1;
                 matches.add(new ParsedMatchDto(id, t1 + " - " + t2, tournamentId, url,
-                        parseInstant(s(evtEntry.getValue(), "date_dt")), false, null));
+                        startsAt, live, buildExtraData(id, ev)));
             });
         });
         return ParseResult.ok(matches, ms() - start);
@@ -121,6 +124,69 @@ public class BetCityParser implements BookmakerParser {
     public boolean isAvailable() {
         try { block(http.getJson(sportsApi, JsonNode.class)); return true; }
         catch (Exception e) { return false; }
+    }
+
+    // ── extraData ─────────────────────────────────────────────────────────────
+
+    /**
+     * Extracts start time, 1x2 odds, main handicap, and main total from the event node.
+     *
+     * Structure:
+     *   main."69".data.{evtId}.blocks.Wm.{P1/X/P2}.kf  → П1/Х/П2
+     *   main."71".data.{evtId}.blocks.F1m               → Ф1/Ф2 (value + kf)
+     *   main."72".data.{evtId}.blocks.T1m               → Тотал (Tot + Tb.kf/Tm.kf)
+     */
+    private static String buildExtraData(String evtId, JsonNode ev) {
+        long st = ev.path("date_ev").asLong(0);
+        JsonNode main = ev.path("main");
+
+        // 1x2
+        JsonNode wm    = main.path("69").path("data").path(evtId).path("blocks").path("Wm");
+        double w1      = wm.path("P1").path("kf").asDouble(0);
+        double wX      = wm.path("X") .path("kf").asDouble(0);
+        double w2      = wm.path("P2").path("kf").asDouble(0);
+
+        // Handicap
+        JsonNode f1m   = main.path("71").path("data").path(evtId).path("blocks").path("F1m");
+        double h1v     = f1m.path("Kf_F1").path("kf").asDouble(0);
+        double h1pt    = f1m.path("F1").asDouble(Double.NaN);
+        double h2v     = f1m.path("Kf_F2").path("kf").asDouble(0);
+        double h2pt    = f1m.path("F2").asDouble(Double.NaN);
+
+        // Total
+        JsonNode t1m   = main.path("72").path("data").path(evtId).path("blocks").path("T1m");
+        double tbv     = t1m.path("Tb").path("kf").asDouble(0);
+        double tmv     = t1m.path("Tm").path("kf").asDouble(0);
+        double totPt   = t1m.path("Tot").asDouble(Double.NaN);
+
+        StringBuilder sb = new StringBuilder("{");
+        if (st > 0)    sb.append("\"st\":").append(st).append(",");
+        if (w1  > 1.0) sb.append("\"w1\":").append(fmt(w1)).append(",");
+        if (wX  > 1.0) sb.append("\"wX\":").append(fmt(wX)).append(",");
+        if (w2  > 1.0) sb.append("\"w2\":").append(fmt(w2)).append(",");
+        if (h1v > 1.0 && h2v > 1.0 && !Double.isNaN(h1pt) && !Double.isNaN(h2pt)) {
+            sb.append("\"h1\":{\"v\":").append(fmt(h1v)).append(",\"pt\":\"").append(fmtPt(h1pt)).append("\"},");
+            sb.append("\"h2\":{\"v\":").append(fmt(h2v)).append(",\"pt\":\"").append(fmtPt(h2pt)).append("\"},");
+        }
+        if (tbv > 1.0 && tmv > 1.0 && !Double.isNaN(totPt)) {
+            sb.append("\"tb\":{\"v\":").append(fmt(tbv)).append(",\"pt\":\"").append(fmtPt(totPt)).append("\"},");
+            sb.append("\"tm\":{\"v\":").append(fmt(tmv)).append(",\"pt\":\"").append(fmtPt(totPt)).append("\"},");
+        }
+        if (sb.charAt(sb.length() - 1) == ',') sb.setLength(sb.length() - 1);
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private static String fmt(double v) {
+        String s = String.format("%.2f", v);
+        s = s.replaceAll("0+$", "").replaceAll("\\.$", "");
+        return s;
+    }
+
+    private static String fmtPt(double v) {
+        if (v == 0.0) return "0";
+        String s = String.format("%.2f", Math.abs(v)).replaceAll("0+$", "").replaceAll("\\.$", "");
+        return v > 0 ? "+" + s : "-" + s;
     }
 
     // ── fallbacks ─────────────────────────────────────────────────────────────

@@ -98,7 +98,8 @@
       "Bash(xargs basename -a)",
       "Bash(xargs -I{} javap -p {})",
       "Bash(cat)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "PowerShell(Get-Command *)"
     ]
   }
 }

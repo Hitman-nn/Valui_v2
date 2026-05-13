@@ -1,0 +1,1397 @@
+{
+  "reply" : {
+    "curr_time" : "2026-05-13 14:58:44",
+    "ntime_templates" : 1778682476,
+    "ntime_vg" : 1777737300,
+    "ntime" : 1778684316,
+    "sports" : {
+      "1" : {
+        "name_sp" : "Футбол",
+        "id_sp" : 1,
+        "order" : 34,
+        "ord_pop" : 1,
+        "is_virtual" : 0,
+        "chmps" : {
+          "74979" : {
+            "id_ch" : 74979,
+            "id_ch_gl" : 17,
+            "show_cntr" : 0,
+            "name_ch" : "Футбол. Россия. Премьер-Лига.",
+            "hd_bl" : 0,
+            "is_stat" : 0,
+            "order" : 807,
+            "cn_ch" : 1038,
+            "order_type" : [ "date_ev", "num_sort", "name_ht" ],
+            "future" : 0,
+            "stat_link" : "1:17",
+            "is_cyber" : 0,
+            "evts" : {
+              "20011109" : {
+                "id_ev" : 20011109,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 28166,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1038,
+                "num_sort" : 175,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1779030000,
+                "date_ev_str" : "2026-05-17 18:00",
+                "md_ev" : 1778608947,
+                "cnt_ext_add" : 144,
+                "var" : 1,
+                "cntr_ht" : 1,
+                "cntr_at" : 1,
+                "is_stat" : 0,
+                "fut" : 0,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "video_type" : 213,
+                "timer" : 0,
+                "maximum" : 300000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00100",
+                "video_type_2733" : 213,
+                "id_ht" : 28166,
+                "id_at" : 7839,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "stat_link" : "74979:28166:7839:20011109",
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 17,
+                "type_sb" : 1,
+                "bet_num" : 5,
+                "is_live" : 1,
+                "name_ht" : "ФК Краснодар",
+                "iso_f" : "RU",
+                "name_at" : "ФК Оренбург",
+                "iso_s" : "RU",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Фактический исход",
+                    "data" : {
+                      "20011109" : {
+                        "blocks" : {
+                          "Wm" : {
+                            "P1" : {
+                              "kf" : 1.32,
+                              "ps" : 1,
+                              "md" : 1778577410
+                            },
+                            "P2" : {
+                              "kf" : 8.9,
+                              "ps" : 2,
+                              "md" : 1778577411
+                            },
+                            "X" : {
+                              "kf" : 5.8,
+                              "ps" : 3,
+                              "md" : 1778577410
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "71" : {
+                    "order" : 4,
+                    "name" : "Фора",
+                    "data" : {
+                      "20011109" : {
+                        "blocks" : {
+                          "F1m" : {
+                            "Kf_F1" : {
+                              "kf" : 1.9,
+                              "ps" : 4,
+                              "md" : 1778577410,
+                              "lv" : -1.5,
+                              "lvt" : -1.5
+                            },
+                            "F1" : -1.5,
+                            "Kf_F2" : {
+                              "kf" : 1.92,
+                              "ps" : 5,
+                              "md" : 1778577410,
+                              "lv" : 1.5,
+                              "lvt" : 1.5
+                            },
+                            "F2" : 1.5
+                          }
+                        },
+                        "order" : 8585
+                      }
+                    },
+                    "is_open" : 1,
+                    "order_type" : [ "order", "linkedValue" ]
+                  },
+                  "72" : {
+                    "order" : 5,
+                    "name" : "Тотал",
+                    "data" : {
+                      "20011109" : {
+                        "blocks" : {
+                          "T1m" : {
+                            "Tm" : {
+                              "kf" : 2.27,
+                              "ps" : 6,
+                              "md" : 1778577410,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            },
+                            "Tot" : 2.5,
+                            "Tb" : {
+                              "kf" : 1.65,
+                              "ps" : 7,
+                              "md" : 1778568818,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            }
+                          }
+                        },
+                        "order" : 1025
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "70" : {
+                    "order" : 2,
+                    "name" : "Двойной исход",
+                    "data" : {
+                      "20011109" : {
+                        "blocks" : {
+                          "WXm" : {
+                            "X2" : {
+                              "kf" : 3.5,
+                              "ps" : 12,
+                              "md" : 1778577410
+                            },
+                            "12" : {
+                              "kf" : 1.14,
+                              "ps" : 13,
+                              "md" : 1778577410
+                            },
+                            "1X" : {
+                              "kf" : 1.07,
+                              "ps" : 14,
+                              "md" : 1778577410
+                            }
+                          }
+                        },
+                        "order" : 2
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1778608947
+              },
+              "20011108" : {
+                "id_ev" : 20011108,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 354,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1038,
+                "num_sort" : 174,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1779030000,
+                "date_ev_str" : "2026-05-17 18:00",
+                "md_ev" : 1778608947,
+                "cnt_ext_add" : 144,
+                "var" : 1,
+                "cntr_ht" : 1,
+                "cntr_at" : 1,
+                "is_stat" : 0,
+                "fut" : 0,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "video_type" : 213,
+                "timer" : 0,
+                "maximum" : 300000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00100",
+                "video_type_2733" : 213,
+                "id_ht" : 354,
+                "id_at" : 221050,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "stat_link" : "74979:354:221050:20011108",
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 17,
+                "type_sb" : 1,
+                "bet_num" : 6,
+                "is_live" : 1,
+                "name_ht" : "Рубин",
+                "iso_f" : "RU",
+                "name_at" : "Нижний Новгород",
+                "iso_s" : "RU",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Фактический исход",
+                    "data" : {
+                      "20011108" : {
+                        "blocks" : {
+                          "Wm" : {
+                            "P1" : {
+                              "kf" : 2.05,
+                              "ps" : 1,
+                              "md" : 1777842465
+                            },
+                            "P2" : {
+                              "kf" : 3.6,
+                              "ps" : 2,
+                              "md" : 1777842465
+                            },
+                            "X" : {
+                              "kf" : 3.6,
+                              "ps" : 3,
+                              "md" : 1777842465
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "71" : {
+                    "order" : 4,
+                    "name" : "Фора",
+                    "data" : {
+                      "20011108" : {
+                        "blocks" : {
+                          "F1m" : {
+                            "Kf_F1" : {
+                              "kf" : 1.49,
+                              "ps" : 4,
+                              "md" : 1777842465,
+                              "lv" : 0,
+                              "lvt" : 0
+                            },
+                            "F1" : 0,
+                            "Kf_F2" : {
+                              "kf" : 2.65,
+                              "ps" : 5,
+                              "md" : 1777842465,
+                              "lv" : 0,
+                              "lvt" : 0
+                            },
+                            "F2" : 0
+                          }
+                        },
+                        "order" : 8600
+                      }
+                    },
+                    "is_open" : 1,
+                    "order_type" : [ "order", "linkedValue" ]
+                  },
+                  "70" : {
+                    "order" : 2,
+                    "name" : "Двойной исход",
+                    "data" : {
+                      "20011108" : {
+                        "blocks" : {
+                          "WXm" : {
+                            "X2" : {
+                              "kf" : 1.79,
+                              "ps" : 12,
+                              "md" : 1777842465
+                            },
+                            "1X" : {
+                              "kf" : 1.3,
+                              "ps" : 14,
+                              "md" : 1777842465
+                            },
+                            "12" : {
+                              "kf" : 1.3,
+                              "ps" : 13,
+                              "md" : 1777842465
+                            }
+                          }
+                        },
+                        "order" : 2
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "72" : {
+                    "order" : 5,
+                    "name" : "Тотал",
+                    "data" : {
+                      "20011108" : {
+                        "blocks" : {
+                          "T1m" : {
+                            "Tm" : {
+                              "kf" : 1.75,
+                              "ps" : 6,
+                              "md" : 1777842465,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            },
+                            "Tot" : 2.5,
+                            "Tb" : {
+                              "kf" : 2.1,
+                              "ps" : 7,
+                              "md" : 1777842465,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            }
+                          }
+                        },
+                        "order" : 1025
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1778608947
+              },
+              "20011104" : {
+                "id_ev" : 20011104,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 2743,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1038,
+                "num_sort" : 171,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1779030000,
+                "date_ev_str" : "2026-05-17 18:00",
+                "md_ev" : 1778608947,
+                "cnt_ext_add" : 144,
+                "var" : 1,
+                "cntr_ht" : 1,
+                "cntr_at" : 1,
+                "is_stat" : 0,
+                "fut" : 0,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "video_type" : 213,
+                "timer" : 0,
+                "maximum" : 300000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00100",
+                "video_type_2733" : 213,
+                "id_ht" : 2743,
+                "id_at" : 356,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "stat_link" : "74979:2743:356:20011104",
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 17,
+                "type_sb" : 1,
+                "bet_num" : 8,
+                "is_live" : 1,
+                "name_ht" : "Балтика",
+                "iso_f" : "RU",
+                "name_at" : "Динамо Москва",
+                "iso_s" : "RU",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Фактический исход",
+                    "data" : {
+                      "20011104" : {
+                        "blocks" : {
+                          "Wm" : {
+                            "P1" : {
+                              "kf" : 2.5,
+                              "ps" : 1,
+                              "md" : 1777842518
+                            },
+                            "P2" : {
+                              "kf" : 2.75,
+                              "ps" : 2,
+                              "md" : 1777842518
+                            },
+                            "X" : {
+                              "kf" : 3.6,
+                              "ps" : 3,
+                              "md" : 1777842518
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "71" : {
+                    "order" : 4,
+                    "name" : "Фора",
+                    "data" : {
+                      "20011104" : {
+                        "blocks" : {
+                          "F1m" : {
+                            "Kf_F1" : {
+                              "kf" : 1.83,
+                              "ps" : 4,
+                              "md" : 1777842518,
+                              "lv" : 0,
+                              "lvt" : 0
+                            },
+                            "F1" : 0,
+                            "Kf_F2" : {
+                              "kf" : 2,
+                              "ps" : 5,
+                              "md" : 1777842518,
+                              "lv" : 0,
+                              "lvt" : 0
+                            },
+                            "F2" : 0
+                          }
+                        },
+                        "order" : 8600
+                      }
+                    },
+                    "is_open" : 1,
+                    "order_type" : [ "order", "linkedValue" ]
+                  },
+                  "70" : {
+                    "order" : 2,
+                    "name" : "Двойной исход",
+                    "data" : {
+                      "20011104" : {
+                        "blocks" : {
+                          "WXm" : {
+                            "X2" : {
+                              "kf" : 1.55,
+                              "ps" : 12,
+                              "md" : 1777842518
+                            },
+                            "1X" : {
+                              "kf" : 1.46,
+                              "ps" : 14,
+                              "md" : 1777842518
+                            },
+                            "12" : {
+                              "kf" : 1.3,
+                              "ps" : 13,
+                              "md" : 1777842518
+                            }
+                          }
+                        },
+                        "order" : 2
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "72" : {
+                    "order" : 5,
+                    "name" : "Тотал",
+                    "data" : {
+                      "20011104" : {
+                        "blocks" : {
+                          "T1m" : {
+                            "Tm" : {
+                              "kf" : 1.75,
+                              "ps" : 6,
+                              "md" : 1777842518,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            },
+                            "Tot" : 2.5,
+                            "Tb" : {
+                              "kf" : 2.1,
+                              "ps" : 7,
+                              "md" : 1777842518,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            }
+                          }
+                        },
+                        "order" : 1025
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1778608947
+              },
+              "20011105" : {
+                "id_ev" : 20011105,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 348,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1038,
+                "num_sort" : 172,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1779030000,
+                "date_ev_str" : "2026-05-17 18:00",
+                "md_ev" : 1778608947,
+                "cnt_ext_add" : 144,
+                "var" : 1,
+                "cntr_ht" : 1,
+                "cntr_at" : 1,
+                "is_stat" : 0,
+                "fut" : 0,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "video_type" : 213,
+                "timer" : 0,
+                "maximum" : 300000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00100",
+                "video_type_2733" : 213,
+                "id_ht" : 348,
+                "id_at" : 52,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "stat_link" : "74979:348:52:20011105",
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 17,
+                "type_sb" : 1,
+                "bet_num" : 9,
+                "is_live" : 1,
+                "name_ht" : "ЦСКА Москва",
+                "iso_f" : "RU",
+                "name_at" : "Локомотив Москва",
+                "iso_s" : "RU",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Фактический исход",
+                    "data" : {
+                      "20011105" : {
+                        "blocks" : {
+                          "Wm" : {
+                            "P1" : {
+                              "kf" : 2.75,
+                              "ps" : 1,
+                              "md" : 1778541376
+                            },
+                            "P2" : {
+                              "kf" : 2.5,
+                              "ps" : 2,
+                              "md" : 1778541376
+                            },
+                            "X" : {
+                              "kf" : 3.6,
+                              "ps" : 3,
+                              "md" : 1777842588
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "71" : {
+                    "order" : 4,
+                    "name" : "Фора",
+                    "data" : {
+                      "20011105" : {
+                        "blocks" : {
+                          "F1m" : {
+                            "Kf_F1" : {
+                              "kf" : 2,
+                              "ps" : 4,
+                              "md" : 1778541376,
+                              "lv" : 0,
+                              "lvt" : 0
+                            },
+                            "F1" : 0,
+                            "Kf_F2" : {
+                              "kf" : 1.83,
+                              "ps" : 5,
+                              "md" : 1778541376,
+                              "lv" : 0,
+                              "lvt" : 0
+                            },
+                            "F2" : 0
+                          }
+                        },
+                        "order" : 8600
+                      }
+                    },
+                    "is_open" : 1,
+                    "order_type" : [ "order", "linkedValue" ]
+                  },
+                  "70" : {
+                    "order" : 2,
+                    "name" : "Двойной исход",
+                    "data" : {
+                      "20011105" : {
+                        "blocks" : {
+                          "WXm" : {
+                            "X2" : {
+                              "kf" : 1.46,
+                              "ps" : 12,
+                              "md" : 1778541376
+                            },
+                            "1X" : {
+                              "kf" : 1.55,
+                              "ps" : 14,
+                              "md" : 1778541376
+                            },
+                            "12" : {
+                              "kf" : 1.3,
+                              "ps" : 13,
+                              "md" : 1777842588
+                            }
+                          }
+                        },
+                        "order" : 2
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "72" : {
+                    "order" : 5,
+                    "name" : "Тотал",
+                    "data" : {
+                      "20011105" : {
+                        "blocks" : {
+                          "T1m" : {
+                            "Tm" : {
+                              "kf" : 1.83,
+                              "ps" : 6,
+                              "md" : 1777842588,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            },
+                            "Tot" : 2.5,
+                            "Tb" : {
+                              "kf" : 2,
+                              "ps" : 7,
+                              "md" : 1777842588,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            }
+                          }
+                        },
+                        "order" : 1025
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1778608947
+              },
+              "20011106" : {
+                "id_ev" : 20011106,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 353,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1038,
+                "num_sort" : 173,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1779030000,
+                "date_ev_str" : "2026-05-17 18:00",
+                "md_ev" : 1778608947,
+                "cnt_ext_add" : 144,
+                "var" : 1,
+                "cntr_ht" : 1,
+                "cntr_at" : 1,
+                "is_stat" : 0,
+                "fut" : 0,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "video_type" : 213,
+                "timer" : 0,
+                "maximum" : 300000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00100",
+                "video_type_2733" : 213,
+                "id_ht" : 353,
+                "id_at" : 366858,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "stat_link" : "74979:353:366858:20011106",
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 17,
+                "type_sb" : 1,
+                "bet_num" : 7,
+                "is_live" : 1,
+                "name_ht" : "Крылья Советов",
+                "iso_f" : "RU",
+                "name_at" : "Акрон Тольятти",
+                "iso_s" : "RU",
+                "main" : {
+                  "71" : {
+                    "order" : 4,
+                    "name" : "Фора",
+                    "data" : {
+                      "20011106" : {
+                        "blocks" : {
+                          "F1m" : {
+                            "Kf_F1" : {
+                              "kf" : 1.6,
+                              "ps" : 4,
+                              "md" : 1778533444,
+                              "lv" : 0,
+                              "lvt" : 0
+                            },
+                            "F1" : 0,
+                            "Kf_F2" : {
+                              "kf" : 2.37,
+                              "ps" : 5,
+                              "md" : 1778533444,
+                              "lv" : 0,
+                              "lvt" : 0
+                            },
+                            "F2" : 0
+                          }
+                        },
+                        "order" : 8600
+                      }
+                    },
+                    "is_open" : 1,
+                    "order_type" : [ "order", "linkedValue" ]
+                  },
+                  "70" : {
+                    "order" : 2,
+                    "name" : "Двойной исход",
+                    "data" : {
+                      "20011106" : {
+                        "blocks" : {
+                          "WXm" : {
+                            "X2" : {
+                              "kf" : 1.69,
+                              "ps" : 12,
+                              "md" : 1778533444
+                            },
+                            "1X" : {
+                              "kf" : 1.36,
+                              "ps" : 14,
+                              "md" : 1778533444
+                            },
+                            "12" : {
+                              "kf" : 1.3,
+                              "ps" : 13,
+                              "md" : 1778533416
+                            }
+                          }
+                        },
+                        "order" : 2
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Фактический исход",
+                    "data" : {
+                      "20011106" : {
+                        "blocks" : {
+                          "Wm" : {
+                            "P1" : {
+                              "kf" : 2.2,
+                              "ps" : 1,
+                              "md" : 1778533444
+                            },
+                            "P2" : {
+                              "kf" : 3.2,
+                              "ps" : 2,
+                              "md" : 1778533444
+                            },
+                            "X" : {
+                              "kf" : 3.6,
+                              "ps" : 3,
+                              "md" : 1778533416
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "72" : {
+                    "order" : 5,
+                    "name" : "Тотал",
+                    "data" : {
+                      "20011106" : {
+                        "blocks" : {
+                          "T1m" : {
+                            "Tm" : {
+                              "kf" : 1.9,
+                              "ps" : 6,
+                              "md" : 1778533444,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            },
+                            "Tot" : 2.5,
+                            "Tb" : {
+                              "kf" : 1.92,
+                              "ps" : 7,
+                              "md" : 1778533444,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            }
+                          }
+                        },
+                        "order" : 1025
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1778608947
+              },
+              "20011110" : {
+                "id_ev" : 20011110,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 61575,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1038,
+                "num_sort" : 176,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1779030000,
+                "date_ev_str" : "2026-05-17 18:00",
+                "md_ev" : 1778608947,
+                "cnt_ext_add" : 144,
+                "var" : 1,
+                "cntr_ht" : 1,
+                "cntr_at" : 1,
+                "is_stat" : 0,
+                "fut" : 0,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "video_type" : 213,
+                "timer" : 0,
+                "maximum" : 300000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00100",
+                "video_type_2733" : 213,
+                "id_ht" : 61575,
+                "id_at" : 2740,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "stat_link" : "74979:61575:2740:20011110",
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 17,
+                "type_sb" : 1,
+                "bet_num" : 10,
+                "is_live" : 1,
+                "name_ht" : "ФК Сочи",
+                "iso_f" : "RU",
+                "name_at" : "Ахмат",
+                "iso_s" : "RU",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Фактический исход",
+                    "data" : {
+                      "20011110" : {
+                        "blocks" : {
+                          "Wm" : {
+                            "P1" : {
+                              "kf" : 2.6,
+                              "ps" : 1,
+                              "md" : 1777842673
+                            },
+                            "P2" : {
+                              "kf" : 2.6,
+                              "ps" : 2,
+                              "md" : 1777842673
+                            },
+                            "X" : {
+                              "kf" : 3.7,
+                              "ps" : 3,
+                              "md" : 1777842673
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "71" : {
+                    "order" : 4,
+                    "name" : "Фора",
+                    "data" : {
+                      "20011110" : {
+                        "blocks" : {
+                          "F1m" : {
+                            "Kf_F1" : {
+                              "kf" : 1.9,
+                              "ps" : 4,
+                              "md" : 1777842673,
+                              "lv" : 0,
+                              "lvt" : 0
+                            },
+                            "F1" : 0,
+                            "Kf_F2" : {
+                              "kf" : 1.92,
+                              "ps" : 5,
+                              "md" : 1777842673,
+                              "lv" : 0,
+                              "lvt" : 0
+                            },
+                            "F2" : 0
+                          }
+                        },
+                        "order" : 8600
+                      }
+                    },
+                    "is_open" : 1,
+                    "order_type" : [ "order", "linkedValue" ]
+                  },
+                  "70" : {
+                    "order" : 2,
+                    "name" : "Двойной исход",
+                    "data" : {
+                      "20011110" : {
+                        "blocks" : {
+                          "WXm" : {
+                            "X2" : {
+                              "kf" : 1.51,
+                              "ps" : 12,
+                              "md" : 1777842673
+                            },
+                            "1X" : {
+                              "kf" : 1.51,
+                              "ps" : 14,
+                              "md" : 1777842673
+                            },
+                            "12" : {
+                              "kf" : 1.29,
+                              "ps" : 13,
+                              "md" : 1777842673
+                            }
+                          }
+                        },
+                        "order" : 2
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "72" : {
+                    "order" : 5,
+                    "name" : "Тотал",
+                    "data" : {
+                      "20011110" : {
+                        "blocks" : {
+                          "T1m" : {
+                            "Tm" : {
+                              "kf" : 1.9,
+                              "ps" : 6,
+                              "md" : 1777842673,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            },
+                            "Tot" : 2.5,
+                            "Tb" : {
+                              "kf" : 1.92,
+                              "ps" : 7,
+                              "md" : 1777842673,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            }
+                          }
+                        },
+                        "order" : 1025
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1778608947
+              },
+              "20011111" : {
+                "id_ev" : 20011111,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 4753,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1038,
+                "num_sort" : 177,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1779030000,
+                "date_ev_str" : "2026-05-17 18:00",
+                "md_ev" : 1778608947,
+                "cnt_ext_add" : 144,
+                "var" : 1,
+                "cntr_ht" : 1,
+                "cntr_at" : 1,
+                "is_stat" : 0,
+                "fut" : 0,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "video_type" : 213,
+                "timer" : 0,
+                "maximum" : 300000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00100",
+                "video_type_2733" : 213,
+                "id_ht" : 4753,
+                "id_at" : 51,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "stat_link" : "74979:4753:51:20011111",
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 17,
+                "type_sb" : 1,
+                "bet_num" : 11,
+                "is_live" : 1,
+                "name_ht" : "Динамо Махачкала",
+                "iso_f" : "RU",
+                "name_at" : "Спартак Москва",
+                "iso_s" : "RU",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Фактический исход",
+                    "data" : {
+                      "20011111" : {
+                        "blocks" : {
+                          "Wm" : {
+                            "P1" : {
+                              "kf" : 4.2,
+                              "ps" : 1,
+                              "md" : 1777842706
+                            },
+                            "P2" : {
+                              "kf" : 1.9,
+                              "ps" : 2,
+                              "md" : 1777842706
+                            },
+                            "X" : {
+                              "kf" : 3.6,
+                              "ps" : 3,
+                              "md" : 1777842696
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "71" : {
+                    "order" : 4,
+                    "name" : "Фора",
+                    "data" : {
+                      "20011111" : {
+                        "blocks" : {
+                          "F1m" : {
+                            "Kf_F1" : {
+                              "kf" : 3.1,
+                              "ps" : 4,
+                              "md" : 1777842696,
+                              "lv" : 0,
+                              "lvt" : 0
+                            },
+                            "F1" : 0,
+                            "Kf_F2" : {
+                              "kf" : 1.38,
+                              "ps" : 5,
+                              "md" : 1777842706,
+                              "lv" : 0,
+                              "lvt" : 0
+                            },
+                            "F2" : 0
+                          }
+                        },
+                        "order" : 8600
+                      }
+                    },
+                    "is_open" : 1,
+                    "order_type" : [ "order", "linkedValue" ]
+                  },
+                  "70" : {
+                    "order" : 2,
+                    "name" : "Двойной исход",
+                    "data" : {
+                      "20011111" : {
+                        "blocks" : {
+                          "WXm" : {
+                            "X2" : {
+                              "kf" : 1.24,
+                              "ps" : 12,
+                              "md" : 1777842706
+                            },
+                            "1X" : {
+                              "kf" : 1.92,
+                              "ps" : 14,
+                              "md" : 1777842706
+                            },
+                            "12" : {
+                              "kf" : 1.3,
+                              "ps" : 13,
+                              "md" : 1777842696
+                            }
+                          }
+                        },
+                        "order" : 2
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "72" : {
+                    "order" : 5,
+                    "name" : "Тотал",
+                    "data" : {
+                      "20011111" : {
+                        "blocks" : {
+                          "T1m" : {
+                            "Tm" : {
+                              "kf" : 1.65,
+                              "ps" : 6,
+                              "md" : 1777842696,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            },
+                            "Tot" : 2.5,
+                            "Tb" : {
+                              "kf" : 2.27,
+                              "ps" : 7,
+                              "md" : 1777842696,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            }
+                          }
+                        },
+                        "order" : 1025
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1778608947
+              },
+              "20011103" : {
+                "id_ev" : 20011103,
+                "st_ev" : 2,
+                "del_ev" : 0,
+                "order" : 347,
+                "team_type_f" : 0,
+                "is_dep" : 0,
+                "cn_ch" : 1038,
+                "num_sort" : 170,
+                "is_online" : 0,
+                "time_name" : "",
+                "t_md_min" : "",
+                "stop_min" : "",
+                "date_ev" : 1779030000,
+                "date_ev_str" : "2026-05-17 18:00",
+                "md_ev" : 1778608947,
+                "cnt_ext_add" : 144,
+                "var" : 1,
+                "cntr_ht" : 1,
+                "cntr_at" : 1,
+                "is_stat" : 0,
+                "fut" : 0,
+                "show_stat" : 0,
+                "is_esports" : 0,
+                "video_type" : 213,
+                "timer" : 0,
+                "maximum" : 300000,
+                "hd_cp" : 0,
+                "hd_bl" : 0,
+                "status_ev" : 0,
+                "vd_st" : "00100",
+                "video_type_2733" : 213,
+                "id_ht" : 347,
+                "id_at" : 351,
+                "comment_ev" : "",
+                "rc_ev" : [ 0, 0 ],
+                "stat_link" : "74979:347:351:20011103",
+                "cur_score" : 0,
+                "is_ls" : 0,
+                "id_ch_gl" : 17,
+                "type_sb" : 1,
+                "bet_num" : 12,
+                "is_live" : 1,
+                "name_ht" : "ФК Ростов",
+                "iso_f" : "RU",
+                "name_at" : "Зенит",
+                "iso_s" : "RU",
+                "main" : {
+                  "69" : {
+                    "order" : 1,
+                    "name" : "Фактический исход",
+                    "data" : {
+                      "20011103" : {
+                        "blocks" : {
+                          "Wm" : {
+                            "P1" : {
+                              "kf" : 10,
+                              "ps" : 1,
+                              "md" : 1778577344
+                            },
+                            "P2" : {
+                              "kf" : 1.31,
+                              "ps" : 2,
+                              "md" : 1778537231
+                            },
+                            "X" : {
+                              "kf" : 5.6,
+                              "ps" : 3,
+                              "md" : 1778537231
+                            }
+                          }
+                        },
+                        "order" : 1
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "71" : {
+                    "order" : 4,
+                    "name" : "Фора",
+                    "data" : {
+                      "20011103" : {
+                        "blocks" : {
+                          "F1m" : {
+                            "Kf_F1" : {
+                              "kf" : 1.72,
+                              "ps" : 4,
+                              "md" : 1778577344,
+                              "lv" : 1.5,
+                              "lvt" : 1.5
+                            },
+                            "F1" : 1.5,
+                            "Kf_F2" : {
+                              "kf" : 2.15,
+                              "ps" : 5,
+                              "md" : 1778577344,
+                              "lv" : -1.5,
+                              "lvt" : -1.5
+                            },
+                            "F2" : -1.5
+                          }
+                        },
+                        "order" : 8615
+                      }
+                    },
+                    "is_open" : 1,
+                    "order_type" : [ "order", "linkedValue" ]
+                  },
+                  "72" : {
+                    "order" : 5,
+                    "name" : "Тотал",
+                    "data" : {
+                      "20011103" : {
+                        "blocks" : {
+                          "T1m" : {
+                            "Tm" : {
+                              "kf" : 1.9,
+                              "ps" : 6,
+                              "md" : 1778577344,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            },
+                            "Tot" : 2.5,
+                            "Tb" : {
+                              "kf" : 1.92,
+                              "ps" : 7,
+                              "md" : 1778577349,
+                              "lv" : 2.5,
+                              "lvt" : 2.5
+                            }
+                          }
+                        },
+                        "order" : 1025
+                      }
+                    },
+                    "is_open" : 1
+                  },
+                  "70" : {
+                    "order" : 2,
+                    "name" : "Двойной исход",
+                    "data" : {
+                      "20011103" : {
+                        "blocks" : {
+                          "WXm" : {
+                            "X2" : {
+                              "kf" : 1.06,
+                              "ps" : 12,
+                              "md" : 1778537208
+                            },
+                            "12" : {
+                              "kf" : 1.15,
+                              "ps" : 13,
+                              "md" : 1778537231
+                            },
+                            "1X" : {
+                              "kf" : 3.5,
+                              "ps" : 14,
+                              "md" : 1778537231
+                            }
+                          }
+                        },
+                        "order" : 2
+                      }
+                    },
+                    "is_open" : 1
+                  }
+                },
+                "del" : 0,
+                "md" : 1778608947
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "ok" : true,
+  "lng" : 0
+}

@@ -137,7 +137,8 @@ public class BetBoomParser implements BookmakerParser {
             String url = "https://betboom.ru/sport/" + sportAlias + "/" + countryId
                     + "/" + sectionTid + "/" + eid + "?period=all";
             matches.add(new ParsedMatchDto(String.valueOf(eid), title, tournamentId, url,
-                    parseInstant(match.getHeader().getStartsAt()), match.getHeader().getLive() == 1, null));
+                    parseInstant(match.getHeader().getStartsAt()), match.getHeader().getLive() == 1,
+                    buildExtraData(match)));
         }
         tournamentConsecutiveTimeouts(tournamentId, 0); // WS responded — reset timeout counter
         return ParseResult.ok(matches, ms() - start);
@@ -148,6 +149,94 @@ public class BetBoomParser implements BookmakerParser {
 
     @Override
     public boolean isConnectionReady() { return ws.getPool().available() > 0; }
+
+    // ── extraData ─────────────────────────────────────────────────────────────
+
+    /**
+     * Builds a compact JSON string with start time, 1x2 odds, main handicap, and main total.
+     *
+     * Market identification (from wire analysis):
+     *   market_name="Исход"  outcome_id=1/2/3  → П1/Х/П2  (no flag needed, single group)
+     *   market_name="Фора"   flag_12=1          → main handicap Ф1(id=4)/Ф2(id=5)
+     *   market_name="Тотал"  flag_12=1          → main total   ТБ(id=6)/ТМ(id=7)
+     *
+     * Odds encoding:
+     *   odds_raw1 (field9, fixed64) → IEEE-754 double = line parameter (handicap point / total line)
+     *   odds_raw2 (field10, fixed64) → IEEE-754 double = coefficient
+     */
+    private static String buildExtraData(MatchesBody.Match match) {
+        Double w1 = null, wX = null, w2 = null;
+        Double h1v = null, h2v = null;
+        String h1pt = null, h2pt = null;
+        Double tbv = null, tmv = null;
+        String tbpt = null;
+
+        for (MatchesBody.Market m : match.getMarketsList()) {
+            String name    = m.getMarketName();
+            int    outcomeId = m.getOutcomeId();
+            double odds    = Double.longBitsToDouble(m.getOddsRaw2());
+            double param   = Double.longBitsToDouble(m.getOddsRaw1());
+            boolean isMain = m.getFlag12() == 1;
+
+            if (odds <= 1.0) continue; // skip absent / suspended markets
+
+            switch (name) {
+                case "Исход" -> {
+                    if (outcomeId == 1) w1 = odds;
+                    else if (outcomeId == 2) wX = odds;
+                    else if (outcomeId == 3) w2 = odds;
+                }
+                case "Фора" -> {
+                    if (!isMain) break;
+                    if (outcomeId == 4) { h1v = odds; h1pt = fmtPt(param); }
+                    else if (outcomeId == 5) { h2v = odds; h2pt = fmtPt(param); }
+                }
+                case "Тотал" -> {
+                    if (!isMain) break;
+                    if (outcomeId == 6) { tbv = odds; tbpt = fmtPt(param); }
+                    else if (outcomeId == 7) tmv = odds;
+                }
+            }
+        }
+
+        // start time (unix seconds)
+        long st = 0;
+        String startsAt = match.getHeader().getStartsAt();
+        if (startsAt != null && !startsAt.isBlank()) {
+            try { st = Long.parseLong(startsAt); }
+            catch (NumberFormatException ignored) {}
+        }
+
+        StringBuilder sb = new StringBuilder("{");
+        if (st > 0)   sb.append("\"st\":").append(st).append(",");
+        if (w1 != null) sb.append("\"w1\":").append(fmt(w1)).append(",");
+        if (wX != null) sb.append("\"wX\":").append(fmt(wX)).append(",");
+        if (w2 != null) sb.append("\"w2\":").append(fmt(w2)).append(",");
+        if (h1v != null && h2v != null) {
+            sb.append("\"h1\":{\"v\":").append(fmt(h1v)).append(",\"pt\":\"").append(h1pt).append("\"},");
+            sb.append("\"h2\":{\"v\":").append(fmt(h2v)).append(",\"pt\":\"").append(h2pt).append("\"},");
+        }
+        if (tbv != null && tmv != null) {
+            sb.append("\"tb\":{\"v\":").append(fmt(tbv)).append(",\"pt\":\"").append(tbpt).append("\"},");
+            sb.append("\"tm\":{\"v\":").append(fmt(tmv)).append(",\"pt\":\"").append(tbpt).append("\"},");
+        }
+        if (sb.charAt(sb.length() - 1) == ',') sb.setLength(sb.length() - 1);
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private static String fmt(double v) {
+        String s = String.format("%.2f", v);
+        s = s.replaceAll("0+$", "").replaceAll("\\.$", "");
+        return s;
+    }
+
+    /** Formats a handicap/total line parameter with sign: -0.5 → "-0.5", 0.5 → "+0.5", 0 → "0" */
+    private static String fmtPt(double v) {
+        if (v == 0.0) return "0";
+        String s = String.format("%.2f", Math.abs(v)).replaceAll("0+$", "").replaceAll("\\.$", "");
+        return v > 0 ? "+" + s : "-" + s;
+    }
 
     // ── fallbacks ─────────────────────────────────────────────────────────────
 

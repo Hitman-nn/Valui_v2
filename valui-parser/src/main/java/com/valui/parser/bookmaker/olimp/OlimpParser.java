@@ -102,8 +102,9 @@ public class OlimpParser implements BookmakerParser {
             String id = s(p, "id"), name = s(p, "name"), sId = s(p, "sportId");
             if (id == null || name == null) continue;
             String url = "https://www.olimp.bet/line/" + sId + "/" + tournamentId + "/" + id;
+            Instant startsAt = Instant.ofEpochSecond(p.path("startDateTime").asLong(0));
             matches.add(new ParsedMatchDto(id, name, tournamentId, url,
-                    parseInstant(s(p, "startsAt")), p.path("isLive").asBoolean(false), null));
+                    startsAt, false, buildExtraData(p)));
         }
         return ParseResult.ok(matches, ms() - start);
     }
@@ -112,6 +113,76 @@ public class OlimpParser implements BookmakerParser {
     public boolean isAvailable() {
         try { block(http.getJson(sportsApi, JsonNode.class)); return true; }
         catch (Exception e) { return false; }
+    }
+
+    // ── extraData ─────────────────────────────────────────────────────────────
+
+    private static String buildExtraData(JsonNode payload) {
+        long st = payload.path("startDateTime").asLong(0);
+        JsonNode outcomes = payload.path("outcomes");
+
+        double w1  = prob(outcomes, "RESULT",   "П1");
+        double wX  = prob(outcomes, "RESULT",   "Х");
+        double w2  = prob(outcomes, "RESULT",   "П2");
+
+        double h1v = prob(outcomes, "HANDICAP", "Фора 1");
+        double h1pt = param(outcomes, "HANDICAP", "Фора 1");
+        double h2v = prob(outcomes, "HANDICAP", "Фора 2");
+        double h2pt = param(outcomes, "HANDICAP", "Фора 2");
+
+        double tbv = prob(outcomes, "TOTAL", "ТотБ");
+        double totPt = param(outcomes, "TOTAL", "ТотБ");
+        double tmv = prob(outcomes, "TOTAL", "ТотМ");
+
+        StringBuilder sb = new StringBuilder("{");
+        if (st > 0)    sb.append("\"st\":").append(st).append(",");
+        if (w1  > 1.0) sb.append("\"w1\":").append(fmt(w1)).append(",");
+        if (wX  > 1.0) sb.append("\"wX\":").append(fmt(wX)).append(",");
+        if (w2  > 1.0) sb.append("\"w2\":").append(fmt(w2)).append(",");
+        if (h1v > 1.0 && h2v > 1.0 && !Double.isNaN(h1pt) && !Double.isNaN(h2pt)) {
+            sb.append("\"h1\":{\"v\":").append(fmt(h1v)).append(",\"pt\":\"").append(fmtPt(h1pt)).append("\"},");
+            sb.append("\"h2\":{\"v\":").append(fmt(h2v)).append(",\"pt\":\"").append(fmtPt(h2pt)).append("\"},");
+        }
+        if (tbv > 1.0 && tmv > 1.0 && !Double.isNaN(totPt)) {
+            sb.append("\"tb\":{\"v\":").append(fmt(tbv)).append(",\"pt\":\"").append(fmtPt(totPt)).append("\"},");
+            sb.append("\"tm\":{\"v\":").append(fmt(tmv)).append(",\"pt\":\"").append(fmtPt(totPt)).append("\"},");
+        }
+        if (sb.charAt(sb.length() - 1) == ',') sb.setLength(sb.length() - 1);
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private static double prob(JsonNode outcomes, String tableType, String shortName) {
+        for (JsonNode o : iter(outcomes)) {
+            if (tableType.equals(o.path("tableType").asText())
+                    && shortName.equals(o.path("shortName").asText())) {
+                return o.path("probability").asDouble(0);
+            }
+        }
+        return 0;
+    }
+
+    private static double param(JsonNode outcomes, String tableType, String shortName) {
+        for (JsonNode o : iter(outcomes)) {
+            if (tableType.equals(o.path("tableType").asText())
+                    && shortName.equals(o.path("shortName").asText())) {
+                JsonNode p = o.path("param");
+                return p.isMissingNode() || p.isNull() ? Double.NaN : p.asDouble(Double.NaN);
+            }
+        }
+        return Double.NaN;
+    }
+
+    private static String fmt(double v) {
+        String s = String.format("%.2f", v);
+        s = s.replaceAll("0+$", "").replaceAll("\\.$", "");
+        return s;
+    }
+
+    private static String fmtPt(double v) {
+        if (v == 0.0) return "0";
+        String s = String.format("%.2f", Math.abs(v)).replaceAll("0+$", "").replaceAll("\\.$", "");
+        return v > 0 ? "+" + s : "-" + s;
     }
 
     // ── fallbacks ─────────────────────────────────────────────────────────────
@@ -139,14 +210,6 @@ public class OlimpParser implements BookmakerParser {
 
     private static String s(JsonNode n, String f) {
         JsonNode v = n.path(f); return v.isMissingNode() || v.isNull() ? null : v.asText();
-    }
-
-    private static Instant parseInstant(String s) {
-        if (s == null || s.isBlank()) return Instant.EPOCH;
-        try { return Instant.ofEpochSecond(Long.parseLong(s)); }
-        catch (NumberFormatException e) {
-            try { return Instant.parse(s); } catch (Exception e2) { return Instant.EPOCH; }
-        }
     }
 
     private static long ms() { return System.currentTimeMillis(); }

@@ -118,10 +118,20 @@ public class KafkaConsumerConfig {
             KafkaProperties kafkaProperties) {
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
-        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-dlq-group"));
+        factory.setConsumerFactory(dlqConsumerFactory(kafkaProperties));
         factory.setConcurrency(1);
         factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(0L, 0)));
         return factory;
+    }
+
+    // DlqConsumer sleeps 5 min inside the poll loop → must exceed sleep + dispatch time
+    private ConsumerFactory<String, Object> dlqConsumerFactory(KafkaProperties kafkaProperties) {
+        Map<String, Object> props = new HashMap<>(
+                consumerFactory(kafkaProperties, "valui-dlq-group").getConfigurationProperties());
+        props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 660_000); // 11 min
+        return new DefaultKafkaConsumerFactory<>(props,
+                new StringDeserializer(),
+                new JsonDeserializer<>(Object.class, false));
     }
 
     // ── Retry factory ─────────────────────────────────────────────────────────
