@@ -21,6 +21,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class GlobalFilterServiceImpl implements GlobalFilterService {
 
+    public static final String FILTERS_CACHE = "globalFilters";
+
     private final GlobalFilterRepository globalFilterRepository;
     private final UserRepository         userRepository;
     private final TokenLedgerService     tokenLedgerService;
@@ -38,7 +40,7 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
     }
 
     @Override
-    @Cacheable(value = "globalFilters", key = "#chatId")
+    @Cacheable(value = FILTERS_CACHE, key = "#chatId")
     public List<String> findByChatId(Long chatId) {
         return globalFilterRepository.findAllByChatIdAndPausedByTokensFalseOrderByCreatedAtAsc(chatId)
                 .stream()
@@ -87,7 +89,6 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
                 .ifPresent(f -> {
                     Long filterChatId = f.getChatId();
                     f.setFilterRule(newRule);
-                    globalFilterRepository.save(f);
                     evictFilterCache(filterChatId);
                 });
     }
@@ -98,7 +99,7 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
     }
 
     private void evictFilterCache(Long chatId) {
-        var cache = cacheManager.getCache("globalFilters");
+        var cache = cacheManager.getCache(FILTERS_CACHE);
         if (cache != null) cache.evict(chatId);
     }
 }

@@ -2,6 +2,7 @@ package com.valui.user.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import com.valui.user.service.GlobalFilterServiceImpl;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -63,7 +64,7 @@ public class RedisCacheConfig {
             .cacheDefaults(defaults.entryTtl(Duration.ofMinutes(10)))
             .withCacheConfiguration("users", usersCacheConfig)
             .withCacheConfiguration("plans", plansCacheConfig)
-            .withCacheConfiguration("globalFilters", globalFiltersCacheConfig)
+            .withCacheConfiguration(GlobalFilterServiceImpl.FILTERS_CACHE, globalFiltersCacheConfig)
             .build();
     }
 }

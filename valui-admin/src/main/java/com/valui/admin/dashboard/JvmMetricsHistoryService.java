@@ -12,6 +12,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Collects JVM metrics every minute and keeps rolling history.
@@ -28,6 +29,8 @@ public class JvmMetricsHistoryService {
 
     private final MeterRegistry meterRegistry;
 
+    private final ReentrantLock lock = new ReentrantLock();
+
     private final Deque<JvmDataPointDto> minuteBuffer = new ArrayDeque<>();
     private final Deque<JvmDataPointDto> hourBuffer   = new ArrayDeque<>();
     private int minutesInCurrentHour = 0;
@@ -41,28 +44,29 @@ public class JvmMetricsHistoryService {
     public void collectAndStore() {
         JvmDataPointDto point = snapshot();
 
-        synchronized (minuteBuffer) {
+        lock.lock();
+        try {
             minuteBuffer.addLast(point);
             if (minuteBuffer.size() > MINUTE_CAP) minuteBuffer.pollFirst();
-        }
 
-        minutesInCurrentHour++;
-        if (minutesInCurrentHour >= 60) {
-            minutesInCurrentHour = 0;
-            synchronized (hourBuffer) {
+            minutesInCurrentHour++;
+            if (minutesInCurrentHour >= 60) {
+                minutesInCurrentHour = 0;
                 hourBuffer.addLast(point);
                 if (hourBuffer.size() > HOUR_CAP) hourBuffer.pollFirst();
             }
+        } finally {
+            lock.unlock();
         }
     }
 
     public List<JvmDataPointDto> getHistory(String range) {
         return switch (range) {
-            case "1h"  -> tail(minuteBuffer, 60);
-            case "24h" -> tail(minuteBuffer, MINUTE_CAP);
-            case "7d"  -> tail(hourBuffer, 168);
-            case "30d" -> tail(hourBuffer, HOUR_CAP);
-            default    -> tail(minuteBuffer, 60);
+            case "1h"  -> lockedTail(minuteBuffer, 60);
+            case "24h" -> lockedTail(minuteBuffer, MINUTE_CAP);
+            case "7d"  -> lockedTail(hourBuffer, 168);
+            case "30d" -> lockedTail(hourBuffer, HOUR_CAP);
+            default    -> lockedTail(minuteBuffer, 60);
         };
     }
 
@@ -83,11 +87,14 @@ public class JvmMetricsHistoryService {
         );
     }
 
-    private static <T> List<T> tail(Deque<T> deque, int n) {
-        synchronized (deque) {
+    private <T> List<T> lockedTail(Deque<T> deque, int n) {
+        lock.lock();
+        try {
             List<T> list = new ArrayList<>(deque);
             int from = Math.max(0, list.size() - n);
-            return list.subList(from, list.size());
+            return new ArrayList<>(list.subList(from, list.size()));
+        } finally {
+            lock.unlock();
         }
     }
 

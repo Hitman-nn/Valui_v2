@@ -1,0 +1,19 @@
+package com.valui.notify.util;
+
+import java.util.UUID;
+
+/** Shared utilities for Kafka notification consumers. */
+public final class KafkaNotifyUtil {
+
+    private KafkaNotifyUtil() {}
+
+    /**
+     * Parses a nullable/blank UUID string without throwing.
+     * Returns {@code null} if the input is null, blank, or not a valid UUID.
+     */
+    public static UUID parseLogId(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try { return UUID.fromString(raw); }
+        catch (IllegalArgumentException e) { return null; }
+    }
+}

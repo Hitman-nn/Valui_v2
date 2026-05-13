@@ -344,7 +344,10 @@ spring:
     username: ${POSTGRES_USER:valui}
     password: ${POSTGRES_PASSWORD:valui_secret}
     hikari:
-      maximum-pool-size: 20
+      maximum-pool-size: 10
+      connection-timeout: 10000
+      idle-timeout: 600000
+      max-lifetime: 900000
 
   data:
     redis:
@@ -389,11 +392,11 @@ spring:
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
     hikari:
-      maximum-pool-size: 20
+      maximum-pool-size: 10
       minimum-idle: 3
       connection-timeout: 10000
       idle-timeout: 600000
-      max-lifetime: 1800000
+      max-lifetime: 900000
 
   data:
     redis:
