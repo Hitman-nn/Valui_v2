@@ -99,7 +99,9 @@
       "Bash(xargs -I{} javap -p {})",
       "Bash(cat)",
       "Read(//tmp/**)",
-      "PowerShell(Get-Command *)"
+      "PowerShell(Get-Command *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }
