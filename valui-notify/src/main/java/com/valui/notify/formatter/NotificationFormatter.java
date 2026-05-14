@@ -33,7 +33,7 @@ public class NotificationFormatter {
         }
 
         sb.append(escapeMarkdown(title));
-        if (!url.isEmpty()) sb.append("\n[🔗 Открыть матч](").append(url).append(")");
+        if (!url.isEmpty()) sb.append("\n[").append(escapeMarkdown(url)).append("](").append(url).append(")");
 
         // Append odds block if available
         String oddsBlock = buildOddsBlock(event.extraData());
