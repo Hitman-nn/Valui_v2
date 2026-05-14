@@ -1,5 +1,7 @@
 package com.valui.parser.bookmaker.betboom;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.valui.common.domain.BookmakerType;
@@ -38,6 +40,8 @@ import java.util.function.Predicate;
 @Component
 @RequiredArgsConstructor
 public class BetBoomParser implements BookmakerParser {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static final long WS_TIMEOUT_MS = 3_000L;
     // First N consecutive timeouts for the same tournament are logged WARN; after that → DEBUG.
@@ -212,25 +216,28 @@ public class BetBoomParser implements BookmakerParser {
             }
         }
 
-        StringBuilder sb = new StringBuilder("{");
-        if (st > 0)   sb.append("\"st\":").append(st).append(",");
-        if (w1 != null) sb.append("\"w1\":").append(fmt(w1)).append(",");
-        if (wX != null) sb.append("\"wX\":").append(fmt(wX)).append(",");
-        if (w2 != null) sb.append("\"w2\":").append(fmt(w2)).append(",");
-        if (h1v != null && h2v != null) {
-            sb.append("\"h1\":{\"v\":").append(fmt(h1v)).append(",\"pt\":\"").append(h1pt).append("\"},");
-            sb.append("\"h2\":{\"v\":").append(fmt(h2v)).append(",\"pt\":\"").append(h2pt).append("\"},");
+        try {
+            ObjectNode root = MAPPER.createObjectNode();
+            if (st > 0)   root.put("st", st);
+            if (w1 != null) root.put("w1", fmtDouble(w1));
+            if (wX != null) root.put("wX", fmtDouble(wX));
+            if (w2 != null) root.put("w2", fmtDouble(w2));
+            if (h1v != null && h2v != null) {
+                root.putObject("h1").put("v", fmtDouble(h1v)).put("pt", h1pt);
+                root.putObject("h2").put("v", fmtDouble(h2v)).put("pt", h2pt);
+            }
+            if (tbv != null && tmv != null) {
+                root.putObject("tb").put("v", fmtDouble(tbv)).put("pt", totPt);
+                root.putObject("tm").put("v", fmtDouble(tmv)).put("pt", totPt);
+            }
+            return MAPPER.writeValueAsString(root);
+        } catch (Exception e) {
+            log.warn("[BB] Failed to serialize extraData for match {}: {}", match.getHeader().getId(), e.getMessage());
+            return "{}";
         }
-        if (tbv != null && tmv != null) {
-            sb.append("\"tb\":{\"v\":").append(fmt(tbv)).append(",\"pt\":\"").append(totPt).append("\"},");
-            sb.append("\"tm\":{\"v\":").append(fmt(tmv)).append(",\"pt\":\"").append(totPt).append("\"},");
-        }
-        if (sb.charAt(sb.length() - 1) == ',') sb.setLength(sb.length() - 1);
-        sb.append("}");
-        return sb.toString();
     }
 
-    private static String fmt(double v) {
+    private static String fmtDouble(double v) {
         String s = String.format("%.2f", v);
         s = s.replaceAll("0+$", "").replaceAll("\\.$", "");
         return s;
@@ -281,7 +288,10 @@ public class BetBoomParser implements BookmakerParser {
             return 0;
         }
         int count = tournamentTimeoutCount.merge(tournamentId, delta, Integer::sum);
-        if (tournamentTimeoutCount.size() > 5000) tournamentTimeoutCount.clear();
+        if (tournamentTimeoutCount.size() > 5000) {
+            log.warn("[BB] tournamentTimeoutCount exceeded 5000 entries — resetting to prevent unbounded growth");
+            tournamentTimeoutCount.clear();
+        }
         return count;
     }
 

@@ -115,12 +115,12 @@ public class BettingServiceImpl implements BettingService {
 
     @Override
     @Transactional
-    public BetDto resolveBet(UUID betId, long telegramId, BetStatus result) {
+    public BetDto resolveBet(UUID betId, long chatId, BetStatus result) {
         if (result != BetStatus.WON && result != BetStatus.LOST && result != BetStatus.RETURNED) {
             throw new IllegalArgumentException("Недопустимый статус для завершения ставки: " + result);
         }
 
-        BetEntity bet = requireAccessible(betId, telegramId);
+        BetEntity bet = requireAccessible(betId, chatId);
         if (bet.getStatus() != BetStatus.OPEN) {
             throw new IllegalStateException("Ставка уже завершена: " + bet.getStatus());
         }
@@ -154,12 +154,12 @@ public class BettingServiceImpl implements BettingService {
 
     @Override
     @Transactional
-    public BetDto resolveSlip(UUID betId, int slipSortOrder, long telegramId, SlipResult result) {
+    public BetDto resolveSlip(UUID betId, int slipSortOrder, long chatId, SlipResult result) {
         if (result == SlipResult.OPEN) {
             throw new IllegalArgumentException("Недопустимый исход для события");
         }
 
-        BetEntity bet = requireAccessible(betId, telegramId);
+        BetEntity bet = requireAccessible(betId, chatId);
         if (bet.getStatus() != BetStatus.OPEN) {
             throw new IllegalStateException("Ставка уже завершена");
         }
@@ -187,8 +187,8 @@ public class BettingServiceImpl implements BettingService {
 
     @Override
     @Transactional
-    public BetDto cancelBet(UUID betId, long telegramId) {
-        BetEntity bet = requireAccessible(betId, telegramId);
+    public BetDto cancelBet(UUID betId, long chatId) {
+        BetEntity bet = requireAccessible(betId, chatId);
         if (bet.getStatus() != BetStatus.OPEN) {
             throw new IllegalStateException("Отменить можно только открытую ставку");
         }
@@ -409,13 +409,12 @@ public class BettingServiceImpl implements BettingService {
         balanceRepo.save(bal);
     }
 
-    private BetEntity requireAccessible(UUID betId, long telegramId) {
+    private BetEntity requireAccessible(UUID betId, long chatId) {
         BetEntity bet = betRepo.findWithDetailById(betId)
                 .orElseThrow(() -> new NoSuchElementException("Ставка не найдена"));
-        boolean isOwner       = Long.valueOf(telegramId).equals(bet.getTelegramId());
-        boolean isParticipant = bet.getParticipants().stream()
-                .anyMatch(p -> Long.valueOf(telegramId).equals(p.getTelegramId()));
-        if (!isOwner && !isParticipant) {
+        // chatId — основной идентификатор: в личном чате chatId == telegramId,
+        // в групповом — chatId = ID группы, что корректно ограничивает доступ чатом.
+        if (!Long.valueOf(chatId).equals(bet.getChatId())) {
             throw new SecurityException("Ставка недоступна этому пользователю");
         }
         return bet;

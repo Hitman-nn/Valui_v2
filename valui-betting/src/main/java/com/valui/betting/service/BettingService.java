@@ -13,11 +13,11 @@ public interface BettingService {
 
     BetDto placeBet(long telegramId, long chatId, CreateBetRequest request);
 
-    BetDto resolveBet(UUID betId, long telegramId, BetStatus result);
+    BetDto resolveBet(UUID betId, long chatId, BetStatus result);
 
-    BetDto resolveSlip(UUID betId, int slipSortOrder, long telegramId, SlipResult result);
+    BetDto resolveSlip(UUID betId, int slipSortOrder, long chatId, SlipResult result);
 
-    BetDto cancelBet(UUID betId, long telegramId);
+    BetDto cancelBet(UUID betId, long chatId);
 
     void deleteBet(UUID betId, long chatId);
 

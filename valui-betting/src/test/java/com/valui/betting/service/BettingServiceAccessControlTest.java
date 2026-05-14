@@ -94,36 +94,25 @@ class BettingServiceAccessControlTest {
     // ── Participant access — large Telegram IDs ───────────────────────────────
 
     @Nested
-    @DisplayName("participant access with large telegramId")
-    class ParticipantAccessLargeIds {
+    @DisplayName("group chat access — anyone calling from the same chatId can manage the bet")
+    class GroupChatAccess {
 
         @Test
-        @DisplayName("participant with 10-digit telegramId can cancel a bet they participate in")
-        void largeId_participant_canCancelBet() {
-            long ownerTgId       = 111_111_111L;
-            long participantTgId = 999_999_999L;
+        @DisplayName("any member of the group chat that created the bet can cancel it")
+        void groupMember_canCancelBet() {
+            long groupChatId = -1_001_234_567_890L;
+            long ownerTgId   = 111_111_111L;
 
+            // Bet was created in the group chat
             BetEntity bet = singleBet(ownerTgId);
-            BetPersonEntity person = BetPersonEntity.builder()
-                    .id(UUID.randomUUID())
-                    .chatId(participantTgId)
-                    .displayName("Participant")
-                    .createdAt(OffsetDateTime.now())
-                    .build();
-            bet.getParticipants().add(BetParticipantEntity.builder()
-                    .bet(bet)
-                    .person(person)
-                    .displayName("Participant")
-                    .stake(BigDecimal.TEN)
-                    .profitShare(new BigDecimal("0.5"))
-                    .telegramId(participantTgId)
-                    .build());
+            bet.setChatId(groupChatId);
 
             given(betRepo.findWithDetailById(bet.getId())).willReturn(Optional.of(bet));
             given(betRepo.save(any())).willAnswer(inv -> inv.getArgument(0));
 
-            assertThatCode(() -> service.cancelBet(bet.getId(), participantTgId))
-                    .as("Participant with telegramId=%d should be able to access the bet", participantTgId)
+            // Any call originating from the same group chat is allowed
+            assertThatCode(() -> service.cancelBet(bet.getId(), groupChatId))
+                    .as("Call from the same group chatId should be allowed")
                     .doesNotThrowAnyException();
         }
     }

@@ -191,6 +191,11 @@ public class UserServiceImpl implements UserService {
     }
 
     private UUID resolveCurrentAdminId() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof com.valui.user.security.SecurityPrincipal sp) {
+            return sp.userId();
+        }
         return null;
     }
 }

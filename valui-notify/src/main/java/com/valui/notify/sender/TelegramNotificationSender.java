@@ -44,7 +44,7 @@ public class TelegramNotificationSender implements NotificationSender {
         SendMessage message = SendMessage.builder()
                 .chatId(chatId)
                 .text(messageText)
-                .parseMode("Markdown")
+                .parseMode("MarkdownV2")
                 .disableWebPagePreview(true)
                 .build();
         doSend(chatId, message);
@@ -66,7 +66,7 @@ public class TelegramNotificationSender implements NotificationSender {
         SendMessage.SendMessageBuilder builder = SendMessage.builder()
                 .chatId(chatId)
                 .text(request.messageText())
-                .parseMode("Markdown")
+                .parseMode("MarkdownV2")
                 .disableWebPagePreview(true);
 
         if (keyboard != null) builder.replyMarkup(keyboard);
@@ -90,7 +90,7 @@ public class TelegramNotificationSender implements NotificationSender {
                     .chatId(chatId)
                     .messageId(messageId)
                     .text(request.messageText())
-                    .parseMode("Markdown")
+                    .parseMode("MarkdownV2")
                     .disableWebPagePreview(true);
 
             if (keyboard != null) builder.replyMarkup(keyboard);
@@ -109,13 +109,14 @@ public class TelegramNotificationSender implements NotificationSender {
     // ── private ───────────────────────────────────────────────────────────────
 
     private Integer doSend(Long chatId, SendMessage message) throws Exception {
+        // Rate limit exceeded — throw immediately; Kafka error handler retries with back-off
+        // (2 retries × 1 s via DefaultErrorHandler), then routes to DLQ for guaranteed delivery.
+        // Thread.sleep was removed: blocking a Kafka consumer platform thread for 1.2 s
+        // degrades throughput across all concurrent notifications.
         if (!rateLimiter.tryAcquire(chatId)) {
             stats.incRateLimitBackoff();
-            log.warn("Rate limit hit chatId={}, backing off 1.2s", chatId);
-            Thread.sleep(1_200);
-            if (!rateLimiter.tryAcquire(chatId)) {
-                throw new RuntimeException("Telegram rate limit exceeded for chatId=" + chatId);
-            }
+            log.warn("Rate limit hit chatId={} — throwing for Kafka retry", chatId);
+            throw new RuntimeException("Telegram rate limit exceeded for chatId=" + chatId);
         }
 
         try {
@@ -124,14 +125,12 @@ public class TelegramNotificationSender implements NotificationSender {
             return sent != null ? sent.getMessageId() : null;
         } catch (TelegramApiRequestException ex) {
             if (ex.getErrorCode() != null && ex.getErrorCode() == 429) {
-                log.warn("Telegram 429 for chatId={}, retrying after {} ms (raw: {})",
-                        chatId, MAX_RATE_WAIT_MS, ex.getApiResponse());
-                Thread.sleep(MAX_RATE_WAIT_MS);
-                Message sent = absSender.execute(message);
-                return sent != null ? sent.getMessageId() : null;
-            } else {
+                // Telegram-side 429 — let the Kafka retry/DLQ machinery handle the back-off
+                log.warn("Telegram 429 for chatId={} — throwing for Kafka retry (raw: {})",
+                        chatId, ex.getApiResponse());
                 throw ex;
             }
+            throw ex;
         }
     }
 

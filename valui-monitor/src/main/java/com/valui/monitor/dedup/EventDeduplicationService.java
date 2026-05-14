@@ -94,8 +94,14 @@ public class EventDeduplicationService {
         updateSizeGauge(controllerId);
     }
 
+    private static final int SMEMBERS_WARN_THRESHOLD = 10_000;
+
     public Set<String> getSeenEventIds(UUID controllerId) {
         Set<String> members = redis.opsForSet().members(key(controllerId));
+        if (members != null && members.size() > SMEMBERS_WARN_THRESHOLD) {
+            log.warn("[DEDUP] Large Redis SET for controller {} — {} members loaded via SMEMBERS. " +
+                     "Consider purging old detected_events.", controllerId, members.size());
+        }
         return members != null ? Set.copyOf(members) : Set.of();
     }
 
@@ -113,20 +119,33 @@ public class EventDeduplicationService {
      */
     @Transactional(readOnly = true)
     public void seedIfAbsent(UUID controllerId) {
-        String redisKey = key(controllerId);
-        if (Boolean.TRUE.equals(redis.hasKey(redisKey))) {
-            log.debug("Dedup key already populated for controller {} — skipping seed", controllerId);
+        String redisKey  = key(controllerId);
+        String lockKey   = redisKey + ":seed-lock";
+
+        // Atomic SET NX prevents two instances from seeding the same controller simultaneously.
+        // TTL = 2 min — ensures the lock is released even if the process crashes mid-seed.
+        Boolean locked = redis.opsForValue().setIfAbsent(lockKey, "1", Duration.ofMinutes(2));
+        if (!Boolean.TRUE.equals(locked)) {
+            log.debug("Seed for controller {} is in progress on another instance — skipping", controllerId);
             return;
         }
-        OffsetDateTime cutoff = OffsetDateTime.now().minusDays(props.getDedupTtlDays());
-        List<String> ids = detectedEventPort.findExternalIdsByControllerIdSince(controllerId, cutoff);
-        if (!ids.isEmpty()) {
-            redis.opsForSet().add(redisKey, ids.toArray(String[]::new));
-            refreshTtl(controllerId);
-            updateSizeGauge(controllerId);
-            log.info("Seeded {} dedup entries for controller {} from DB", ids.size(), controllerId);
-        } else {
-            log.debug("No recent DB events to seed for controller {}", controllerId);
+        try {
+            if (Boolean.TRUE.equals(redis.hasKey(redisKey))) {
+                log.debug("Dedup key already populated for controller {} — skipping seed", controllerId);
+                return;
+            }
+            OffsetDateTime cutoff = OffsetDateTime.now().minusDays(props.getDedupTtlDays());
+            List<String> ids = detectedEventPort.findExternalIdsByControllerIdSince(controllerId, cutoff);
+            if (!ids.isEmpty()) {
+                redis.opsForSet().add(redisKey, ids.toArray(String[]::new));
+                refreshTtl(controllerId);
+                updateSizeGauge(controllerId);
+                log.info("Seeded {} dedup entries for controller {} from DB", ids.size(), controllerId);
+            } else {
+                log.debug("No recent DB events to seed for controller {}", controllerId);
+            }
+        } finally {
+            redis.delete(lockKey);
         }
     }
 

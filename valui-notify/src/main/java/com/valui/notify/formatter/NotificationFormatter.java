@@ -32,7 +32,8 @@ public class NotificationFormatter {
             sb.append("📋 ").append(escapeMarkdown(ctrl.getTitle())).append("\n");
         }
 
-        sb.append(escapeMarkdown(title)).append("\n").append(url);
+        sb.append(escapeMarkdown(title));
+        if (!url.isEmpty()) sb.append("\n[🔗 Открыть матч](").append(url).append(")");
 
         // Append odds block if available
         String oddsBlock = buildOddsBlock(event.extraData());
@@ -61,12 +62,12 @@ public class NotificationFormatter {
             if (has1x2) {
                 boolean hasDraw = !wX.isMissingNode();
                 if (hasDraw) {
-                    sb.append("П1: ").append(w1.asText())
-                      .append("   X: ").append(wX.asText())
-                      .append("   П2: ").append(w2.asText());
+                    sb.append("П1: ").append(esc(w1))
+                      .append("   X: ").append(esc(wX))
+                      .append("   П2: ").append(esc(w2));
                 } else {
-                    sb.append("П1: ").append(w1.asText())
-                      .append("   П2: ").append(w2.asText());
+                    sb.append("П1: ").append(esc(w1))
+                      .append("   П2: ").append(esc(w2));
                 }
             }
 
@@ -75,18 +76,18 @@ public class NotificationFormatter {
             boolean hasHcap = !h1.isMissingNode() && !h2.isMissingNode();
             if (hasHcap) {
                 if (has1x2) sb.append("\n");
-                String pt1 = h1.path("pt").asText("0");
-                String pt2 = h2.path("pt").asText("0");
-                sb.append("Ф: (").append(pt1).append(") ").append(h1.path("v").asText())
-                  .append(" / (").append(pt2).append(") ").append(h2.path("v").asText());
+                String pt1 = escapeMarkdown(h1.path("pt").asText("0"));
+                String pt2 = escapeMarkdown(h2.path("pt").asText("0"));
+                sb.append("Ф: \\(").append(pt1).append("\\) ").append(esc(h1.path("v")))
+                  .append(" / \\(").append(pt2).append("\\) ").append(esc(h2.path("v")));
             }
 
             // Total line
             JsonNode tb = root.path("tb"), tm = root.path("tm");
             if (!tb.isMissingNode() && !tm.isMissingNode()) {
                 if (has1x2 || hasHcap) sb.append("\n");
-                sb.append("ТБ(").append(tb.path("pt").asText("?")).append("): ").append(tb.path("v").asText())
-                  .append("   ТМ(").append(tm.path("pt").asText("?")).append("): ").append(tm.path("v").asText());
+                sb.append("ТБ\\(").append(escapeMarkdown(tb.path("pt").asText("?"))).append("\\): ").append(esc(tb.path("v")))
+                  .append("   ТМ\\(").append(escapeMarkdown(tm.path("pt").asText("?"))).append("\\): ").append(esc(tm.path("v")));
             }
 
             String result = sb.toString().trim();
@@ -98,11 +99,32 @@ public class NotificationFormatter {
         }
     }
 
+    private static String esc(JsonNode node) {
+        return escapeMarkdown(node.asText());
+    }
+
+    /** Escapes all MarkdownV2 special characters as required by the Telegram Bot API. */
     private static String escapeMarkdown(String s) {
+        if (s == null) return "";
+        // '\' must be escaped first to avoid double-escaping
         return s.replace("\\", "\\\\")
                 .replace("_",  "\\_")
                 .replace("*",  "\\*")
+                .replace("[",  "\\[")
+                .replace("]",  "\\]")
+                .replace("(",  "\\(")
+                .replace(")",  "\\)")
+                .replace("~",  "\\~")
                 .replace("`",  "\\`")
-                .replace("[",  "\\[");
+                .replace(">",  "\\>")
+                .replace("#",  "\\#")
+                .replace("+",  "\\+")
+                .replace("-",  "\\-")
+                .replace("=",  "\\=")
+                .replace("|",  "\\|")
+                .replace("{",  "\\{")
+                .replace("}",  "\\}")
+                .replace(".",  "\\.")
+                .replace("!",  "\\!");
     }
 }

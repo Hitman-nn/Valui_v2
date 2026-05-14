@@ -477,7 +477,7 @@ public class BettingMenuCallback implements CallbackHandler {
                 case "RETURN" -> com.valui.common.domain.BetStatus.RETURNED;
                 default -> throw new IllegalArgumentException("Unknown result: " + resultStr);
             };
-            BetDto updated = bettingService.resolveBet(UUID.fromString(betIdStr), ctx.fromId(), status);
+            BetDto updated = bettingService.resolveBet(UUID.fromString(betIdStr), ctx.chatId(), status);
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     BetDetailCallback.buildDetailText(updated), BetDetailCallback.buildDetailKeyboard(updated));
             MessageSend.answerCallback(ctx.sender(), callbackId);
@@ -505,7 +505,7 @@ public class BettingMenuCallback implements CallbackHandler {
                 default  -> throw new IllegalArgumentException("Unknown result: " + resultChar);
             };
             BetDto updated = bettingService.resolveSlip(
-                    UUID.fromString(betIdStr), Integer.parseInt(orderStr), ctx.fromId(), result);
+                    UUID.fromString(betIdStr), Integer.parseInt(orderStr), ctx.chatId(), result);
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     BetDetailCallback.buildDetailText(updated), BetDetailCallback.buildDetailKeyboard(updated));
             MessageSend.answerCallback(ctx.sender(), callbackId);
@@ -555,7 +555,7 @@ public class BettingMenuCallback implements CallbackHandler {
                 bettingService.getBet(betId, ctx.chatId()).slips()
                         .forEach(slip -> preMatchOddsService.cancel(slip.id()));
             } catch (Exception ignored) {}
-            BetDto updated = bettingService.cancelBet(betId, ctx.fromId());
+            BetDto updated = bettingService.cancelBet(betId, ctx.chatId());
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     BetDetailCallback.buildDetailText(updated), BetDetailCallback.buildDetailKeyboard(updated));
             MessageSend.answerCallback(ctx.sender(), callbackId);

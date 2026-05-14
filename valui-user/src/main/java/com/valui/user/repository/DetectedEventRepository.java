@@ -34,6 +34,7 @@ public interface DetectedEventRepository extends JpaRepository<DetectedEventEnti
      * Returns 1 if inserted, 0 if the row already existed.
      */
     @Modifying
+    @Transactional
     @Query(value = """
             INSERT INTO detected_events (id, controller_id, event_external_id, title, url, extra_data, detected_at)
             VALUES (:id, :controllerId, :externalId, :title, :url, :extraData, now())

@@ -5,6 +5,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
@@ -44,6 +45,19 @@ public class KafkaConsumerConfig {
     private static final String OFFSET_LATEST   = "latest";
     private static final String OFFSET_EARLIEST = "earliest";
 
+    // Single source of truth — values declared in application.yml under spring.kafka.consumer.group-id
+    // and related keys; prevents duplication between Java and YAML.
+    @Value("${spring.kafka.consumer.group-id:valui-notify-group}")
+    private String notifyGroupId;
+    @Value("${valui.kafka.groups.dispatch:valui-notify-dispatch-group}")
+    private String dispatchGroupId;
+    @Value("${valui.kafka.groups.dlq:valui-dlq-group}")
+    private String dlqGroupId;
+    @Value("${valui.kafka.groups.retry:valui-retry-group}")
+    private String retryGroupId;
+    @Value("${valui.kafka.groups.audit:valui-audit-group}")
+    private String auditGroupId;
+
     // ── Shared consumer factory ────────────────────────────────────────────────
 
     private Map<String, Object> baseProps(KafkaProperties kafkaProperties, String groupId, String autoOffsetReset) {
@@ -75,7 +89,7 @@ public class KafkaConsumerConfig {
             KafkaTemplate<String, Object> kafkaTemplate) {
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
-        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-notify-group", OFFSET_LATEST));
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, notifyGroupId, OFFSET_LATEST));
         factory.setConcurrency(3);
         factory.setCommonErrorHandler(notifyErrorHandler(kafkaTemplate));
         return factory;
@@ -107,7 +121,7 @@ public class KafkaConsumerConfig {
             KafkaTemplate<String, Object> kafkaTemplate) {
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
-        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-notify-dispatch-group", OFFSET_LATEST));
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, dispatchGroupId, OFFSET_LATEST));
         factory.setConcurrency(2);
         factory.setCommonErrorHandler(notifyErrorHandler(kafkaTemplate));
         return factory;
@@ -126,7 +140,7 @@ public class KafkaConsumerConfig {
             KafkaProperties kafkaProperties) {
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
-        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-dlq-group", OFFSET_EARLIEST));
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, dlqGroupId, OFFSET_EARLIEST));
         factory.setConcurrency(1);
         // MANUAL ack: DlqConsumer acknowledges from the scheduler thread after 5-min delay
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
@@ -154,7 +168,7 @@ public class KafkaConsumerConfig {
             KafkaProperties kafkaProperties) {
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
-        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-retry-group", OFFSET_EARLIEST));
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, retryGroupId, OFFSET_EARLIEST));
         factory.setConcurrency(1);
         // MANUAL ack: RetryTopicConsumer acknowledges from the scheduler thread after the delay
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
@@ -197,7 +211,7 @@ public class KafkaConsumerConfig {
     }
 
     private ConsumerFactory<String, Object> auditConsumerFactory(KafkaProperties kafkaProperties) {
-        Map<String, Object> props = baseProps(kafkaProperties, "valui-audit-group", OFFSET_LATEST);
+        Map<String, Object> props = baseProps(kafkaProperties, auditGroupId, OFFSET_LATEST);
         // Batch size cap: drain up to 50 records per poll for saveAll efficiency
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 50);
         return new DefaultKafkaConsumerFactory<>(props,

@@ -205,14 +205,6 @@ public class MonitorScheduler {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private synchronized void rescheduleUser(UUID userId) {
-        List<ControllerScheduleInfo> userControllers = taskExecutor.loadActiveForUser(userId);
-        userControllers.forEach(info -> {
-            unscheduleController(info.controllerId());
-            scheduleController(info.controllerId(), info.userId(), info.pollIntervalSec());
-        });
-    }
-
     private void seedDedup(UUID controllerId) {
         try {
             dedup.seedIfAbsent(controllerId);

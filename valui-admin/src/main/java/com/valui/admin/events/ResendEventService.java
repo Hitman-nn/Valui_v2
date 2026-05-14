@@ -47,14 +47,16 @@ public class ResendEventService {
         String title           = event.getTitle();
         String url             = event.getUrl();
 
-        // 1. Удалить из monitor-dedup Redis SET — следующий опрос увидит матч как новый
-        redis.opsForSet().remove(MONITOR_DEDUP_PREFIX + controllerId, externalId);
-        // 2. Удалить outbox-строки (sentAt не важен) — уникальный индекс (external_event_id, chat_id)
+        // DB-операции первыми: если они упадут — Redis не будет затронут (нет частичного состояния).
+        // Redis не участвует в транзакции, поэтому ставим его последним в цепочке.
+        // 1. Удалить outbox-строки — уникальный индекс (external_event_id, controllerId)
         //    иначе заблокирует повторную вставку в ControllerTaskExecutor
         outboxRepository.deleteByExternalEventIdAndControllerId(externalId, controllerId.toString());
-        // 3. Удалить из detected_events — FK notification_log.event_id ON DELETE SET NULL (V34),
+        // 2. Удалить из detected_events — FK notification_log.event_id ON DELETE SET NULL (V34),
         //    чтобы DedupSync в 3:00 не вернул externalId в Redis до следующего опроса
         eventRepository.deleteById(eventId);
+        // 3. Redis: удаляем после успешного выполнения всех DB-операций
+        redis.opsForSet().remove(MONITOR_DEDUP_PREFIX + controllerId, externalId);
 
         // Clear notify-dedup for all subscribers so they receive a fresh message (not an edit)
         List<ControllerSubscriptionEntity> subs = subscriptionRepository.findAllByControllerId(controllerId);
