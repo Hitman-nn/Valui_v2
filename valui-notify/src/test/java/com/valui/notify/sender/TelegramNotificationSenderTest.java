@@ -46,19 +46,19 @@ class TelegramNotificationSenderTest {
         verify(absSender).execute(any(SendMessage.class));
     }
 
-    // ── rate limit: first deny, second allow ──────────────────────────────────
+    // ── rate limit: denied → backoff counter incremented ─────────────────────
 
     @Test
-    @DisplayName("first tryAcquire denied, second allowed after backoff → message sent")
-    void rateLimitFirstDenied_secondAllowed_sends() throws Exception {
-        given(rateLimiter.tryAcquire(CHAT_ID))
-                .willReturn(false) // first check
-                .willReturn(true); // after sleep
+    @DisplayName("rate limit denied → incRateLimitBackoff called, exception thrown immediately")
+    void rateLimitDenied_callsBackoffCounterAndThrows() {
+        given(rateLimiter.tryAcquire(CHAT_ID)).willReturn(false);
 
-        sender.send(CHAT_ID, TEXT);
+        assertThatThrownBy(() -> sender.send(CHAT_ID, TEXT))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("rate limit");
 
-        verify(absSender).execute(any(SendMessage.class));
-        verify(rateLimiter, times(2)).tryAcquire(CHAT_ID);
+        verify(stats).incRateLimitBackoff();
+        verifyNoInteractions(absSender);
     }
 
     // ── rate limit: both denied ───────────────────────────────────────────────
@@ -90,18 +90,19 @@ class TelegramNotificationSenderTest {
     // ── Telegram 429 ─────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("Telegram 429 on first attempt → retries once more")
-    void telegram429_retriesOnce() throws Exception {
+    @DisplayName("Telegram 429 → rethrown for Kafka retry/DLQ")
+    void telegram429_rethrowsForKafkaRetry() throws Exception {
         given(rateLimiter.tryAcquire(CHAT_ID)).willReturn(true);
-        TelegramApiRequestException ex429 = mock(TelegramApiRequestException.class);
-        given(ex429.getErrorCode()).willReturn(429);
-        given(absSender.execute(any(SendMessage.class)))
-                .willThrow(ex429)
-                .willReturn(null); // second attempt succeeds
+        // Use a real exception (not mock) to avoid NPE when JUnit processes getSuppressed()
+        // Real instance (not mock) — getSuppressed() works correctly, avoiding NPE in Surefire
+        TelegramApiRequestException ex429 = new TelegramApiRequestException("Too Many Requests");
+        // errorCode field has no setter; any TelegramApiRequestException is rethrown anyway
+        given(absSender.execute(any(SendMessage.class))).willThrow(ex429);
 
-        sender.send(CHAT_ID, TEXT);
+        assertThatThrownBy(() -> sender.send(CHAT_ID, TEXT))
+                .isInstanceOf(TelegramApiRequestException.class);
 
-        verify(absSender, times(2)).execute(any(SendMessage.class));
+        verify(absSender, times(1)).execute(any(SendMessage.class));
     }
 
     // ── editNotification ──────────────────────────────────────────────────────
