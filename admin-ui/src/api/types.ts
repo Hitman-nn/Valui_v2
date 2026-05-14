@@ -283,6 +283,13 @@ export interface EventStats {
   byBookmaker: Array<{ bookmaker: string; count: number }>;
 }
 
+export interface ResendResult {
+  eventId: string;
+  controllerId: string;
+  eventExternalId: string;
+  notifyDedupCleared: number;
+}
+
 // ─── Scheduler ───────────────────────────────────────────────────────────────
 
 export interface SchedulerConfig {

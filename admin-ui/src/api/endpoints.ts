@@ -28,6 +28,7 @@ import type {
   ActivityPoint,
   AdminEvent,
   EventStats,
+  ResendResult,
   Payment,
   SchedulerConfig,
   SchedulerConfigUpdateRequest,
@@ -199,6 +200,9 @@ export const eventsApi = {
 
   stats: () =>
     apiClient.get<EventStats>('/api/v1/admin/events/stats').then((r) => r.data),
+
+  resend: (id: string) =>
+    apiClient.post<ResendResult>(`/api/v1/admin/events/${id}/resend`).then((r) => r.data),
 };
 
 // ─── Parsers ─────────────────────────────────────────────────────────────────

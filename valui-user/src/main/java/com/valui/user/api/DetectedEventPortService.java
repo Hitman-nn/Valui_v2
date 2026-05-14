@@ -22,7 +22,7 @@ public interface DetectedEventPortService {
      *
      * @return true if actually inserted, false if the row already existed
      */
-    boolean insertIfAbsent(UUID id, UUID controllerId, String externalId, String title, String url);
+    boolean insertIfAbsent(UUID id, UUID controllerId, String externalId, String title, String url, String extraData);
 
     long countByControllerId(UUID controllerId);
 

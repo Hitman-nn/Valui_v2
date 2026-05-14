@@ -155,56 +155,61 @@ public class BetBoomParser implements BookmakerParser {
     /**
      * Builds a compact JSON string with start time, 1x2 odds, main handicap, and main total.
      *
-     * Market identification (from wire analysis):
-     *   market_name="Исход"  outcome_id=1/2/3  → П1/Х/П2  (no flag needed, single group)
-     *   market_name="Фора"   flag_12=1          → main handicap Ф1(id=4)/Ф2(id=5)
-     *   market_name="Тотал"  flag_12=1          → main total   ТБ(id=6)/ТМ(id=7)
+     * Sport-agnostic market identification (verified across football, hockey, tennis, basketball):
+     *   П1/X/П2 → title_short == "П1"/"X"/"П2"  (X is absent for tennis/basketball)
+     *   Фора    → view_key == "view_4" AND flag_12 == 1; outcome_no 1=Ф1, 2=Ф2
+     *   Тотал   → view_key == "view_3"; title_short "Больше"=ТБ, "Меньше"=ТМ
      *
      * Odds encoding:
-     *   odds_raw1 (field9, fixed64) → IEEE-754 double = line parameter (handicap point / total line)
-     *   odds_raw2 (field10, fixed64) → IEEE-754 double = coefficient
+     *   odds_raw2 (fixed64) → IEEE-754 double = coefficient
+     *   odds_raw1 (fixed64) → IEEE-754 double = line parameter (handicap/total value)
+     *
+     * starts_at is ISO-8601 string (e.g. "2026-05-14T13:00:00.000Z"), not unix seconds.
      */
     private static String buildExtraData(MatchesBody.Match match) {
         Double w1 = null, wX = null, w2 = null;
         Double h1v = null, h2v = null;
         String h1pt = null, h2pt = null;
         Double tbv = null, tmv = null;
-        String tbpt = null;
+        String totPt = null;
 
         for (MatchesBody.Market m : match.getMarketsList()) {
-            String name    = m.getMarketName();
-            int    outcomeId = m.getOutcomeId();
-            double odds    = Double.longBitsToDouble(m.getOddsRaw2());
-            double param   = Double.longBitsToDouble(m.getOddsRaw1());
-            boolean isMain = m.getFlag12() == 1;
+            double odds  = Double.longBitsToDouble(m.getOddsRaw2());
+            double param = Double.longBitsToDouble(m.getOddsRaw1());
+            if (odds <= 1.0) continue;
 
-            if (odds <= 1.0) continue; // skip absent / suspended markets
+            String ts = m.getTitleShort();
+            String vk = m.getViewKey();
 
-            switch (name) {
-                case "Исход" -> {
-                    if (outcomeId == 1) w1 = odds;
-                    else if (outcomeId == 2) wX = odds;
-                    else if (outcomeId == 3) w2 = odds;
-                }
-                case "Фора" -> {
-                    if (!isMain) break;
-                    if (outcomeId == 4) { h1v = odds; h1pt = fmtPt(param); }
-                    else if (outcomeId == 5) { h2v = odds; h2pt = fmtPt(param); }
-                }
-                case "Тотал" -> {
-                    if (!isMain) break;
-                    if (outcomeId == 6) { tbv = odds; tbpt = fmtPt(param); }
-                    else if (outcomeId == 7) tmv = odds;
-                }
+            // П1 / X / П2 — title_short is consistent across all sports
+            if ("П1".equals(ts))     { w1 = odds; continue; }
+            if ("X".equals(ts))      { wX = odds; continue; }
+            if ("П2".equals(ts))     { w2 = odds; continue; }
+
+            // Фора (main line) — view_key=view_4, flag_12=1; outcome_no 1=Ф1, 2=Ф2
+            if ("view_4".equals(vk) && m.getFlag12() == 1) {
+                int oNo = m.getOutcomeNo();
+                if (oNo == 1)      { h1v = odds; h1pt = fmtPt(param); }
+                else if (oNo == 2) { h2v = odds; h2pt = fmtPt(param); }
+                continue;
+            }
+
+            // Тотал — view_key=view_3; flag_12 is always 0 even for main line
+            if ("view_3".equals(vk)) {
+                if ("Больше".equals(ts))  { tbv = odds; totPt = fmtPt(param); }
+                else if ("Меньше".equals(ts)) tmv = odds;
             }
         }
 
-        // start time (unix seconds)
+        // starts_at arrives as ISO-8601 from BetBoom (e.g. "2026-05-14T13:00:00.000Z")
         long st = 0;
         String startsAt = match.getHeader().getStartsAt();
         if (startsAt != null && !startsAt.isBlank()) {
-            try { st = Long.parseLong(startsAt); }
-            catch (NumberFormatException ignored) {}
+            try {
+                st = Instant.parse(startsAt).getEpochSecond();
+            } catch (Exception e) {
+                try { st = Long.parseLong(startsAt); } catch (Exception ignored) {}
+            }
         }
 
         StringBuilder sb = new StringBuilder("{");
@@ -217,8 +222,8 @@ public class BetBoomParser implements BookmakerParser {
             sb.append("\"h2\":{\"v\":").append(fmt(h2v)).append(",\"pt\":\"").append(h2pt).append("\"},");
         }
         if (tbv != null && tmv != null) {
-            sb.append("\"tb\":{\"v\":").append(fmt(tbv)).append(",\"pt\":\"").append(tbpt).append("\"},");
-            sb.append("\"tm\":{\"v\":").append(fmt(tmv)).append(",\"pt\":\"").append(tbpt).append("\"},");
+            sb.append("\"tb\":{\"v\":").append(fmt(tbv)).append(",\"pt\":\"").append(totPt).append("\"},");
+            sb.append("\"tm\":{\"v\":").append(fmt(tmv)).append(",\"pt\":\"").append(totPt).append("\"},");
         }
         if (sb.charAt(sb.length() - 1) == ',') sb.setLength(sb.length() - 1);
         sb.append("}");

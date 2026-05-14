@@ -32,8 +32,8 @@ public class DetectedEventPortServiceImpl implements DetectedEventPortService {
     @Override
     @Transactional
     public boolean insertIfAbsent(UUID id, UUID controllerId, String externalId,
-                                  String title, String url) {
-        return repository.insertIfAbsent(id, controllerId, externalId, title, url) > 0;
+                                  String title, String url, String extraData) {
+        return repository.insertIfAbsent(id, controllerId, externalId, title, url, extraData) > 0;
     }
 
     @Override

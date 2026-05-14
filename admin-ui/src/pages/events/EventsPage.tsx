@@ -13,7 +13,7 @@ import {
   Popconfirm,
   TablePaginationConfig,
 } from 'antd';
-import { DeleteOutlined, ClearOutlined } from '@ant-design/icons';
+import { ClearOutlined, SendOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { eventsApi } from '../../api/endpoints';
@@ -34,12 +34,15 @@ export default function EventsPage() {
     queryFn: eventsApi.stats,
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: eventsApi.delete,
-    onSuccess: () => {
-      notification.success({ message: 'Событие удалено' });
+  const resendMutation = useMutation({
+    mutationFn: eventsApi.resend,
+    onSuccess: (result) => {
+      notification.success({
+        message: 'Дедупликация сброшена',
+        description: `${result.eventExternalId} — уведомление придёт при следующем опросе. Notify-dedup сброшен для ${result.notifyDedupCleared} подписчиков.`,
+        duration: 6,
+      });
       qc.invalidateQueries({ queryKey: ['admin-events'] });
-      qc.invalidateQueries({ queryKey: ['admin-events-stats'] });
     },
     onError: (e: Error) => notification.error({ message: e.message }),
   });
@@ -114,12 +117,18 @@ export default function EventsPage() {
       width: 60,
       render: (_: unknown, e: AdminEvent) => (
         <Popconfirm
-          title="Удалить событие?"
-          onConfirm={() => deleteMutation.mutate(e.id)}
-          okButtonProps={{ danger: true }}
-          okText="Удалить"
+          title="Переотправить уведомление?"
+          description="Дедупликация будет сброшена. Уведомление придёт при следующем опросе контроллера."
+          onConfirm={() => resendMutation.mutate(e.id)}
+          okText="Переотправить"
         >
-          <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+          <Button
+            size="small"
+            type="text"
+            icon={<SendOutlined />}
+            loading={resendMutation.isPending && resendMutation.variables === e.id}
+            title="Переотправить уведомление"
+          />
         </Popconfirm>
       ),
     },

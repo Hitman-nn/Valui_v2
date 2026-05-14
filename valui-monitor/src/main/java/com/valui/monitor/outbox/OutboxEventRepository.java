@@ -41,6 +41,10 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> 
 
     @Modifying
     @Transactional
+    int deleteByExternalEventIdAndControllerId(String externalEventId, String controllerId);
+
+    @Modifying
+    @Transactional
     @Query("DELETE FROM OutboxEvent o WHERE o.sentAt IS NOT NULL AND o.sentAt < :cutoff")
     int deleteSentBefore(@Param("cutoff") OffsetDateTime cutoff);
 

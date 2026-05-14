@@ -35,15 +35,16 @@ public interface DetectedEventRepository extends JpaRepository<DetectedEventEnti
      */
     @Modifying
     @Query(value = """
-            INSERT INTO detected_events (id, controller_id, event_external_id, title, url, detected_at)
-            VALUES (:id, :controllerId, :externalId, :title, :url, now())
+            INSERT INTO detected_events (id, controller_id, event_external_id, title, url, extra_data, detected_at)
+            VALUES (:id, :controllerId, :externalId, :title, :url, :extraData, now())
             ON CONFLICT (controller_id, event_external_id) DO NOTHING
             """, nativeQuery = true)
     int insertIfAbsent(@Param("id") UUID id,
                        @Param("controllerId") UUID controllerId,
                        @Param("externalId") String externalId,
                        @Param("title") String title,
-                       @Param("url") String url);
+                       @Param("url") String url,
+                       @Param("extraData") String extraData);
 
     @Query("SELECT e.eventExternalId FROM DetectedEventEntity e WHERE e.controller.id = :controllerId AND e.detectedAt > :cutoff")
     List<String> findExternalIdsByControllerIdAndDetectedAtAfter(

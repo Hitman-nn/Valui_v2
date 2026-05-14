@@ -2,6 +2,7 @@ package com.valui.admin.events;
 
 import com.valui.admin.events.dto.AdminEventDto;
 import com.valui.admin.events.dto.EventStatsDto;
+import com.valui.admin.events.dto.ResendResultDto;
 import com.valui.common.entity.DetectedEventEntity;
 import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.DetectedEventRepository;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 
 @Slf4j
@@ -32,6 +34,7 @@ public class AdminEventsController {
     private final DetectedEventRepository     eventRepository;
     private final ControllerRepository        controllerRepository;
     private final DetectedEventCleanupService cleanupService;
+    private final ResendEventService          resendService;
 
     @GetMapping
     @Transactional(readOnly = true)
@@ -54,6 +57,16 @@ public class AdminEventsController {
         return eventRepository.findById(id)
             .map(e -> ResponseEntity.ok(AdminEventDto.from(e)))
             .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{id}/resend")
+    @Operation(summary = "Сбросить дедупликацию и переотправить уведомление — следующий poll пересечёт матч как новый")
+    public ResponseEntity<ResendResultDto> resendEvent(@PathVariable UUID id) {
+        try {
+            return ResponseEntity.ok(resendService.resend(id));
+        } catch (NoSuchElementException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @DeleteMapping("/{id}")

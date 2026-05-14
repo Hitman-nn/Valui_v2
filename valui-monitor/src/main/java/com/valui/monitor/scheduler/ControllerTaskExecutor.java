@@ -202,7 +202,8 @@ public class ControllerTaskExecutor {
             UUID entityId = UUID.randomUUID();
             String title  = item.title() != null ? item.title() : item.id();
             boolean inserted = detectedEventPort.insertIfAbsent(
-                    entityId, ctrl.getId(), item.id(), title, item.url());
+                    entityId, ctrl.getId(), item.id(), title, item.url(),
+                    extraByExternalId.get(item.id()));
 
             if (inserted && !isFirstRun) {
                 // Build a value object for the fan-out loop below; fields match what was inserted.
