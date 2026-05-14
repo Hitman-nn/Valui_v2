@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -35,6 +36,7 @@ class EventDeduplicationServiceTest {
 
     @Mock StringRedisTemplate redis;
     @Mock SetOperations<String, String> setOps;
+    @Mock ValueOperations<String, String> valueOps;
     @Mock DetectedEventPortService detectedEventPort;
 
     SimpleMeterRegistry registry;
@@ -53,7 +55,10 @@ class EventDeduplicationServiceTest {
         props.setDedupTtlDays(7);
 
         given(redis.opsForSet()).willReturn(setOps);
+        given(redis.opsForValue()).willReturn(valueOps);
         given(redis.expire(anyString(), any(Duration.class))).willReturn(Boolean.TRUE);
+        // By default seed lock is acquired successfully
+        given(valueOps.setIfAbsent(anyString(), anyString(), any(Duration.class))).willReturn(Boolean.TRUE);
 
         dedup = new EventDeduplicationService(redis, detectedEventPort, props, metrics);
     }
