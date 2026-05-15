@@ -8,6 +8,7 @@ import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.http.BookmakerHttpClient;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.extern.slf4j.Slf4j;
@@ -188,17 +189,29 @@ public class OlimpParser implements BookmakerParser {
     // ── fallbacks ─────────────────────────────────────────────────────────────
 
     private ParseResult<List<SportDto>> fetchSportsFallback(Throwable t) {
-        log.warn("olimp fetchSports fallback: {}", t.getMessage());
+        if (t instanceof CallNotPermittedException) {
+            log.debug("olimp fetchSports skipped — CB open/half-open");
+        } else {
+            log.warn("olimp fetchSports fallback: {}", t.getMessage());
+        }
         return ParseResult.error("olimp-cb: " + t.getMessage());
     }
 
     private ParseResult<List<TournamentDto>> fetchTournamentsFallback(String sportId, Throwable t) {
-        log.warn("olimp fetchTournaments fallback: {}", t.getMessage());
+        if (t instanceof CallNotPermittedException) {
+            log.debug("olimp fetchTournaments skipped — CB open/half-open sportId={}", sportId);
+        } else {
+            log.warn("olimp fetchTournaments fallback: {}", t.getMessage());
+        }
         return ParseResult.error("olimp-cb: " + t.getMessage());
     }
 
     private ParseResult<List<ParsedMatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
-        log.warn("olimp fetchMatches fallback: {}", t.getMessage());
+        if (t instanceof CallNotPermittedException) {
+            log.debug("olimp fetchMatches skipped — CB open/half-open tournamentId={}", tournamentId);
+        } else {
+            log.warn("olimp fetchMatches fallback: {}", t.getMessage());
+        }
         return ParseResult.error("olimp-cb: " + t.getMessage());
     }
 

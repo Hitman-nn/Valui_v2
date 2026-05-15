@@ -253,12 +253,20 @@ public class BetBoomParser implements BookmakerParser {
     // ── fallbacks ─────────────────────────────────────────────────────────────
 
     private ParseResult<List<SportDto>> fetchSportsFallback(Throwable t) {
-        log.warn("betboom fetchSports: {} — no data returned", fallbackReason(t));
+        if (t instanceof CallNotPermittedException) {
+            log.debug("betboom fetchSports skipped — CB open/half-open");
+        } else {
+            log.warn("betboom fetchSports: {} — no data returned", fallbackReason(t));
+        }
         return ParseResult.error("betboom-cb: " + t.getMessage());
     }
 
     private ParseResult<List<TournamentDto>> fetchTournamentsFallback(String sportId, Throwable t) {
-        log.warn("betboom fetchTournaments sportId={}: {} — no data returned", sportId, fallbackReason(t));
+        if (t instanceof CallNotPermittedException) {
+            log.debug("betboom fetchTournaments skipped — CB open/half-open sportId={}", sportId);
+        } else {
+            log.warn("betboom fetchTournaments sportId={}: {} — no data returned", sportId, fallbackReason(t));
+        }
         return ParseResult.error("betboom-cb: " + t.getMessage());
     }
 
