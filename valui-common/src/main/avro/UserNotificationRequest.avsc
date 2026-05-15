@@ -34,6 +34,12 @@
       "type": ["null", "string"],
       "default": null,
       "doc":  "Source SportEventDetected.event_id for tracing; null for system-generated messages"
+    },
+    {
+      "name": "bookmaker",
+      "type": ["null", "string"],
+      "default": null,
+      "doc":  "BookmakerType enum name (FONBET, XBET, …); null for system-generated messages"
     }
   ]
 }

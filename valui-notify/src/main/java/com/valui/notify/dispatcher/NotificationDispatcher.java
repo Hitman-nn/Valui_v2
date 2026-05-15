@@ -82,7 +82,7 @@ public class NotificationDispatcher {
         try {
             Integer telegramMessageId = dispatchService.dispatch(request);
             if (logId != null) logService.markSent(logId, telegramMessageId);
-            stats.incSent();
+            stats.incSent(request.bookmaker());
             log.debug("[DISPATCH] Отправлено [logId={} channel={}]", logId, request.channel());
 
             // After successful Telegram delivery: populate dedup cache so subsequent

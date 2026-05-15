@@ -174,7 +174,8 @@ public class SportEventConsumer {
                 eventUrl,
                 betKey,
                 dedupKey,   // NotificationDispatcher will store this in the dedup cache after send
-                null        // editMessageId = null → normal send
+                null,       // editMessageId = null → normal send
+                event.bookmaker()
         );
 
         final boolean hasQuickAdd = quickAddKey != null;
@@ -223,7 +224,8 @@ public class SportEventConsumer {
                 null,
                 existing.betKey(),
                 null,                                   // dedupKey not needed for edits
-                existing.telegramMessageId()            // tells dispatcher to edit, not send
+                existing.telegramMessageId(),           // tells dispatcher to edit, not send
+                event.bookmaker()
         );
 
         kafkaTemplate.send(KafkaTopics.USER_NOTIFICATIONS_PENDING, event.userId(), editRequest)

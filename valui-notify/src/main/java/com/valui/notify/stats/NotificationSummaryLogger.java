@@ -5,7 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Logs a one-liner summary of notification activity every 10 minutes.
@@ -20,21 +22,27 @@ public class NotificationSummaryLogger {
 
     @Scheduled(fixedRate = 10, timeUnit = TimeUnit.MINUTES, initialDelay = 10)
     public void logSummary() {
-        long sent      = stats.drainSent();
-        long dlqRetry  = stats.drainDlqRetry();
-        long dlqFinal  = stats.drainDlqFinal();
-        long rateLimit = stats.drainRateLimitBackoff();
+        long sent                    = stats.drainSent();
+        long dlqRetry                = stats.drainDlqRetry();
+        long dlqFinal                = stats.drainDlqFinal();
+        long rateLimit               = stats.drainRateLimitBackoff();
+        Map<String, Long> byBookmaker = stats.drainSentByBookmaker();
 
         boolean hasProblems = dlqRetry > 0 || dlqFinal > 0 || rateLimit > 0;
         boolean allZero     = sent == 0 && !hasProblems;
 
-        String msg = "[SUMMARY 10m] отправлено={} DLQ-retry={} DLQ-final={} rate-limit-backoff={}";
+        String bkBreakdown = byBookmaker.isEmpty() ? "" :
+                " (" + byBookmaker.entrySet().stream()
+                        .map(e -> e.getKey() + ":" + e.getValue())
+                        .collect(Collectors.joining(" ")) + ")";
+
+        String msg = "[SUMMARY 10m] отправлено={}{} DLQ-retry={} DLQ-final={} rate-limit-backoff={}";
         if (allZero) {
-            log.debug(msg, sent, dlqRetry, dlqFinal, rateLimit);
+            log.debug(msg, sent, bkBreakdown, dlqRetry, dlqFinal, rateLimit);
         } else if (hasProblems) {
-            log.warn(msg, sent, dlqRetry, dlqFinal, rateLimit);
+            log.warn(msg, sent, bkBreakdown, dlqRetry, dlqFinal, rateLimit);
         } else {
-            log.info(msg, sent, dlqRetry, dlqFinal, rateLimit);
+            log.info(msg, sent, bkBreakdown, dlqRetry, dlqFinal, rateLimit);
         }
     }
 }
