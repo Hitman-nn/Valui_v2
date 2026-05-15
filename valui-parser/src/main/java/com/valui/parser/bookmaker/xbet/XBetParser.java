@@ -9,6 +9,7 @@ import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.cache.ParserCacheService;
 import com.valui.parser.http.BookmakerHttpClient;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.extern.slf4j.Slf4j;
@@ -206,17 +207,29 @@ public class XBetParser implements BookmakerParser {
     // ── fallbacks ─────────────────────────────────────────────────────────────
 
     private ParseResult<List<SportDto>> fetchSportsFallback(Throwable t) {
-        log.warn("xbet fetchSports fallback [{}]: {}", t.getClass().getSimpleName(), describe(t));
+        if (t instanceof CallNotPermittedException) {
+            log.debug("xbet fetchSports skipped — CB open/half-open");
+        } else {
+            log.warn("xbet fetchSports fallback [{}]: {}", t.getClass().getSimpleName(), describe(t));
+        }
         return ParseResult.error("xbet-cb: " + t.getMessage());
     }
 
     private ParseResult<List<TournamentDto>> fetchTournamentsFallback(String sportId, Throwable t) {
-        log.warn("xbet fetchTournaments fallback sportId={} [{}]: {}", sportId, t.getClass().getSimpleName(), describe(t));
+        if (t instanceof CallNotPermittedException) {
+            log.debug("xbet fetchTournaments skipped — CB open/half-open sportId={}", sportId);
+        } else {
+            log.warn("xbet fetchTournaments fallback sportId={} [{}]: {}", sportId, t.getClass().getSimpleName(), describe(t));
+        }
         return ParseResult.error("xbet-cb: " + t.getMessage());
     }
 
     private ParseResult<List<ParsedMatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
-        log.warn("xbet fetchMatches fallback tournamentId={} [{}]: {}", tournamentId, t.getClass().getSimpleName(), describe(t));
+        if (t instanceof CallNotPermittedException) {
+            log.debug("xbet fetchMatches skipped — CB open/half-open tournamentId={}", tournamentId);
+        } else {
+            log.warn("xbet fetchMatches fallback tournamentId={} [{}]: {}", tournamentId, t.getClass().getSimpleName(), describe(t));
+        }
         return ParseResult.error("xbet-cb: " + t.getMessage());
     }
 

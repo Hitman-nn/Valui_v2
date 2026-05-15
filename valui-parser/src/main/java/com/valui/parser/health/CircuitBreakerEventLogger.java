@@ -7,6 +7,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * Logs Resilience4j circuit breaker state transitions for all parser circuit breakers.
  * OPEN → WARN (failure threshold exceeded, parser calls will short-circuit)
@@ -19,6 +23,7 @@ import org.springframework.stereotype.Component;
 public class CircuitBreakerEventLogger {
 
     private final CircuitBreakerRegistry registry;
+    private final ConcurrentHashMap<String, Instant> openedAt = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void registerListeners() {
@@ -32,11 +37,29 @@ public class CircuitBreakerEventLogger {
             CircuitBreaker.State to = event.getStateTransition().getToState();
             CircuitBreaker.State from = event.getStateTransition().getFromState();
             switch (to) {
-                case OPEN      -> log.warn("[CB] {} OPEN — failure threshold exceeded ({}→OPEN)", name, from);
+                case OPEN -> {
+                    openedAt.put(name, Instant.now());
+                    log.warn("[CB] {} OPEN — failure threshold exceeded ({}→OPEN)", name, from);
+                }
                 case HALF_OPEN -> log.info("[CB] {} HALF_OPEN — testing recovery", name);
-                case CLOSED    -> log.info("[CB] {} CLOSED — recovered ({}→CLOSED)", name, from);
-                default        -> log.debug("[CB] {} {}→{}", name, from, to);
+                case CLOSED -> {
+                    Instant opened = openedAt.remove(name);
+                    String duration = opened != null
+                            ? " (open for " + formatDuration(Duration.between(opened, Instant.now())) + ")"
+                            : "";
+                    log.info("[CB] {} CLOSED — recovered ({}→CLOSED{})", name, from, duration);
+                }
+                default -> log.debug("[CB] {} {}→{}", name, from, to);
             }
         });
+    }
+
+    private static String formatDuration(Duration d) {
+        long h = d.toHours();
+        long m = d.toMinutesPart();
+        long s = d.toSecondsPart();
+        if (h > 0) return h + "h" + m + "m";
+        if (m > 0) return m + "m" + s + "s";
+        return s + "s";
     }
 }

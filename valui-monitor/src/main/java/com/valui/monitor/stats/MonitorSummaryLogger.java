@@ -31,13 +31,17 @@ public class MonitorSummaryLogger {
         boolean hasErrors = pollsError > 0;
         boolean allQuiet  = pollsOk == 0 && pollsError == 0 && events == 0;
 
-        String msg = "[MONITOR 10m] опросов={} ошибок={} событий={} queue={} scheduled={}";
         if (allQuiet) {
-            log.debug(msg, pollsOk, pollsError, events, queue, scheduled);
+            log.debug("[MONITOR 10m] опросов={} ошибок={} событий={} queue={} scheduled={}",
+                    pollsOk, pollsError, events, queue, scheduled);
         } else if (hasErrors) {
-            log.warn(msg, pollsOk, pollsError, events, queue, scheduled);
+            long total = pollsOk + pollsError;
+            String errPct = String.format("%.1f%%", pollsError * 100.0 / total);
+            log.warn("[MONITOR 10m] опросов={} ошибок={} ({}) событий={} queue={} scheduled={}",
+                    pollsOk, pollsError, errPct, events, queue, scheduled);
         } else {
-            log.info(msg, pollsOk, pollsError, events, queue, scheduled);
+            log.info("[MONITOR 10m] опросов={} ошибок={} событий={} queue={} scheduled={}",
+                    pollsOk, pollsError, events, queue, scheduled);
         }
     }
 }
