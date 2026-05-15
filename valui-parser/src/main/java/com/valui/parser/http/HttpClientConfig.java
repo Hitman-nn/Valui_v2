@@ -11,7 +11,10 @@ import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.HttpProtocol;
 import reactor.netty.http.client.HttpClient;
+import reactor.netty.resources.ConnectionProvider;
 import reactor.netty.transport.ProxyProvider;
+
+import java.time.Duration;
 
 import java.time.Duration;
 
@@ -36,11 +39,27 @@ public class HttpClientConfig {
 
     @Bean @Qualifier("fonbetHttpClient")
     public BookmakerHttpClient fonbetHttpClient() {
-        // Fonbet CDN mirrors (bk6bba-resources.com) resolve correctly via JVM InetAddress
-        // (DefaultAddressResolverGroup, set when proxy=null). Routing through an HTTP proxy
-        // adds a single point of failure and these domains don't require proxy access.
-        // 50 MB buffer — Fonbet's CDN response regularly exceeds the default 10 MB limit.
-        return new BookmakerHttpClient(buildWebClient(null, 50 * 1024 * 1024));
+        // Fonbet CDN mirrors (bk6bba-resources.com) resolve correctly via JVM InetAddress.
+        // Routing through a proxy adds a single point of failure — not used here.
+        // 50 MB buffer — Fonbet CDN responses regularly exceed the default 10 MB limit.
+        // maxIdleTime=45s: Fonbet CDN closes idle keep-alive connections after ~60s;
+        // evicting before that prevents PrematureCloseException on connection reuse.
+        ConnectionProvider provider = ConnectionProvider.builder("fonbet-pool")
+                .maxIdleTime(Duration.ofSeconds(45))
+                .maxLifeTime(Duration.ofMinutes(4))
+                .evictInBackground(Duration.ofSeconds(60))
+                .build();
+        HttpClient httpClient = HttpClient.create(provider)
+                .protocol(HttpProtocol.HTTP11)
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MS)
+                .responseTimeout(RESPONSE_TIMEOUT)
+                .compress(true)
+                .resolver(DefaultAddressResolverGroup.INSTANCE)
+                .headers(h -> h.set(HttpHeaders.USER_AGENT, USER_AGENT));
+        return new BookmakerHttpClient(WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .codecs(c -> c.defaultCodecs().maxInMemorySize(50 * 1024 * 1024))
+                .build());
     }
 
     @Bean @Qualifier("olimpHttpClient")

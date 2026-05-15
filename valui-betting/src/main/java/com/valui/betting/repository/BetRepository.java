@@ -30,13 +30,19 @@ public interface BetRepository extends JpaRepository<BetEntity, UUID> {
         return findWithParticipantsById(id);
     }
 
-    @Query(value = "SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.slips WHERE b.chatId = :chatId ORDER BY b.createdAt DESC",
+    @Query(value = "SELECT b FROM BetEntity b WHERE b.chatId = :chatId ORDER BY b.createdAt DESC",
            countQuery = "SELECT COUNT(b) FROM BetEntity b WHERE b.chatId = :chatId")
-    Page<BetEntity> findAllByChatIdWithSlips(@Param("chatId") Long chatId, Pageable pageable);
+    Page<BetEntity> findPageByChatId(@Param("chatId") Long chatId, Pageable pageable);
 
-    @Query(value = "SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.slips WHERE b.chatId = :chatId AND b.status = :status ORDER BY b.createdAt DESC",
+    @Query(value = "SELECT b FROM BetEntity b WHERE b.chatId = :chatId AND b.status = :status ORDER BY b.createdAt DESC",
            countQuery = "SELECT COUNT(b) FROM BetEntity b WHERE b.chatId = :chatId AND b.status = :status")
-    Page<BetEntity> findAllByChatIdAndStatusWithSlips(@Param("chatId") Long chatId, @Param("status") BetStatus status, Pageable pageable);
+    Page<BetEntity> findPageByChatIdAndStatus(@Param("chatId") Long chatId, @Param("status") BetStatus status, Pageable pageable);
+
+    @Query("SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.slips WHERE b.id IN :ids")
+    List<BetEntity> findWithSlipsByIds(@Param("ids") List<UUID> ids);
+
+    @Query("SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.participants p LEFT JOIN FETCH p.person WHERE b.id IN :ids")
+    List<BetEntity> findWithParticipantsByIds(@Param("ids") List<UUID> ids);
 
     long countByChatIdAndStatus(Long chatId, BetStatus status);
 

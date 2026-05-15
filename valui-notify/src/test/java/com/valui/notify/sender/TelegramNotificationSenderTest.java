@@ -39,7 +39,7 @@ class TelegramNotificationSenderTest {
     @Test
     @DisplayName("rate limit allows → message sent once")
     void rateLimitAllows_sendsOnce() throws Exception {
-        given(rateLimiter.tryAcquire(CHAT_ID)).willReturn(true);
+        given(rateLimiter.tryAcquire(CHAT_ID)).willReturn(0L);
 
         sender.send(CHAT_ID, TEXT);
 
@@ -49,9 +49,9 @@ class TelegramNotificationSenderTest {
     // ── rate limit: denied → backoff counter incremented ─────────────────────
 
     @Test
-    @DisplayName("rate limit denied → incRateLimitBackoff called, exception thrown immediately")
+    @DisplayName("rate limit denied → incRateLimitBackoff called, exception thrown after local retry")
     void rateLimitDenied_callsBackoffCounterAndThrows() {
-        given(rateLimiter.tryAcquire(CHAT_ID)).willReturn(false);
+        given(rateLimiter.tryAcquire(CHAT_ID)).willReturn(1L); // 1 ms wait → sleeps ~11-61 ms in test
 
         assertThatThrownBy(() -> sender.send(CHAT_ID, TEXT))
                 .isInstanceOf(RuntimeException.class)
@@ -66,7 +66,7 @@ class TelegramNotificationSenderTest {
     @Test
     @DisplayName("both tryAcquire calls denied → throws RuntimeException, no send")
     void rateLimitBothDenied_throws() {
-        given(rateLimiter.tryAcquire(CHAT_ID)).willReturn(false);
+        given(rateLimiter.tryAcquire(CHAT_ID)).willReturn(1L);
 
         assertThatThrownBy(() -> sender.send(CHAT_ID, TEXT))
                 .isInstanceOf(RuntimeException.class)
@@ -92,7 +92,7 @@ class TelegramNotificationSenderTest {
     @Test
     @DisplayName("Telegram 429 → rethrown for Kafka retry/DLQ")
     void telegram429_rethrowsForKafkaRetry() throws Exception {
-        given(rateLimiter.tryAcquire(CHAT_ID)).willReturn(true);
+        given(rateLimiter.tryAcquire(CHAT_ID)).willReturn(0L);
         // Use a real exception (not mock) to avoid NPE when JUnit processes getSuppressed()
         // Real instance (not mock) — getSuppressed() works correctly, avoiding NPE in Surefire
         TelegramApiRequestException ex429 = new TelegramApiRequestException("Too Many Requests");

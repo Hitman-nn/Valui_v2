@@ -19,11 +19,14 @@ public class TelegramRateLimiter {
     private static final String KEY_PREFIX = "rate:tg:";
     private static final long   LIMIT      = 1L;
 
-    // Atomic: increment counter, set 1 s TTL on first call, return new value.
+    // Atomic: increment counter, set 1 s TTL on first call.
+    // Returns 0 if the call is within the limit, else PTTL (ms until window resets).
     private static final RedisScript<Long> INCR_EXPIRE_SCRIPT = RedisScript.of(
             "local n = redis.call('INCR', KEYS[1]) " +
             "if n == 1 then redis.call('EXPIRE', KEYS[1], 1) end " +
-            "return n",
+            "if n <= 1 then return 0 end " +
+            "local pttl = redis.call('PTTL', KEYS[1]) " +
+            "return pttl > 0 and pttl or 1000",
             Long.class);
 
     private final StringRedisTemplate redisTemplate;
@@ -33,12 +36,12 @@ public class TelegramRateLimiter {
     }
 
     /**
-     * Returns {@code true} if the send is permitted.
-     * The first call within each 1-second window returns true; subsequent calls return false.
+     * Returns {@code 0} if the send is permitted, or milliseconds until the window resets.
+     * The first call within each 1-second window returns 0; subsequent calls return PTTL.
      */
-    public boolean tryAcquire(long chatId) {
-        String key   = KEY_PREFIX + chatId;
-        Long   count = redisTemplate.execute(INCR_EXPIRE_SCRIPT, List.of(key));
-        return count != null && count <= LIMIT;
+    public long tryAcquire(long chatId) {
+        String key    = KEY_PREFIX + chatId;
+        Long   result = redisTemplate.execute(INCR_EXPIRE_SCRIPT, List.of(key));
+        return result != null ? result : 0L;
     }
 }
