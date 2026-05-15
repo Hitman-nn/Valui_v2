@@ -112,10 +112,10 @@ public class BetDetailCallback implements CallbackHandler {
             if (bet.type() == BetType.EXPRESS) {
                 for (BetSlipDto slip : bet.slips()) {
                     if (slip.result() == SlipResult.OPEN) {
-                        int num = slip.sortOrder() + 1;
-                        kb.button("✅ " + num, CallbackData.betSlipResolve(bet.id().toString(), slip.sortOrder(), "W"))
-                          .button("❌ " + num, CallbackData.betSlipResolve(bet.id().toString(), slip.sortOrder(), "L"))
-                          .button("🔄 " + num, CallbackData.betSlipResolve(bet.id().toString(), slip.sortOrder(), "R"))
+                        kb.button(truncateTitle(slip.matchTitle(), 32), CallbackData.NOOP).row();
+                        kb.button("✅ Выиграл",  CallbackData.betSlipResolve(bet.id().toString(), slip.sortOrder(), "W"))
+                          .button("❌ Проиграл", CallbackData.betSlipResolve(bet.id().toString(), slip.sortOrder(), "L"))
+                          .button("🔄 Возврат",  CallbackData.betSlipResolve(bet.id().toString(), slip.sortOrder(), "R"))
                           .row();
                     }
                 }
@@ -169,5 +169,10 @@ public class BetDetailCallback implements CallbackHandler {
             case LOST     -> "❌";
             case RETURNED -> "🔄";
         };
+    }
+
+    private static String truncateTitle(String title, int maxLen) {
+        if (title == null) return "—";
+        return title.length() <= maxLen ? title : title.substring(0, maxLen - 1) + "…";
     }
 }
