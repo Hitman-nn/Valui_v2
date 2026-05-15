@@ -2,6 +2,7 @@ package com.valui.notify.retry;
 
 import com.valui.common.kafka.KafkaTopics;
 import com.valui.notify.exception.RetryableNotificationException;
+import com.valui.notify.service.AdminNotificationService;
 import com.valui.notify.stats.NotificationStats;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Routes failed notification records through the retry ladder or to the final DLQ.
@@ -44,9 +46,14 @@ public class DeadLetterPublisher {
         KafkaTopics.NOTIFICATIONS_DLQ        // attempt 4 (5-min)
     };
 
+    private static final long DLQ_ALERT_THROTTLE_MS = 10 * 60 * 1_000L;
+
     private final KafkaTemplate<String, Object> kafkaTemplate;
-    private final StringRedisTemplate redisTemplate;
-    private final NotificationStats stats;
+    private final StringRedisTemplate           redisTemplate;
+    private final NotificationStats             stats;
+    private final AdminNotificationService      adminNotificationService;
+
+    private final AtomicLong lastDlqAlertAt = new AtomicLong(0);
 
     public void publishToDlq(ConsumerRecord<?, ?> original, RetryableNotificationException ex) {
         int currentCount = readRetryCount(original);
@@ -59,6 +66,7 @@ public class DeadLetterPublisher {
             stats.incDlqFinal();
             log.error("[DLQ-FINAL] Permanently failed after {} retries: topic={} error={}",
                     currentCount, original.topic(), ex.getMessage());
+            alertDlqFinal(currentCount, ex.getMessage());
         } else {
             target = RETRY_TOPICS[newCount - 1];
             stats.incDlqRetry();
@@ -75,6 +83,16 @@ public class DeadLetterPublisher {
     }
 
     // ── private ───────────────────────────────────────────────────────────────
+
+    private void alertDlqFinal(int retries, String error) {
+        long now = System.currentTimeMillis();
+        if (now - lastDlqAlertAt.get() < DLQ_ALERT_THROTTLE_MS) return;
+        lastDlqAlertAt.set(now);
+        String msg = String.format(
+            "🔴 *DLQ-final*: уведомление безвозвратно потеряно после %d попыток\n`%s`",
+            retries, error != null ? error : "unknown error");
+        adminNotificationService.alertAdmin(msg);
+    }
 
     private ProducerRecord<String, Object> buildRecord(String topic,
                                                         ConsumerRecord<?, ?> original,

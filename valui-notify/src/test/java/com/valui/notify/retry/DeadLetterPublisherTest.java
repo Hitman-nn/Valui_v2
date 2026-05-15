@@ -32,6 +32,7 @@ class DeadLetterPublisherTest {
     @Mock StringRedisTemplate redisTemplate;
     @Mock ValueOperations<String, String> valueOps;
     @Mock com.valui.notify.stats.NotificationStats stats;
+    @Mock com.valui.notify.service.AdminNotificationService adminNotificationService;
 
     @InjectMocks DeadLetterPublisher publisher;
 

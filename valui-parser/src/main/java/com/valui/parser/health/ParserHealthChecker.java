@@ -55,6 +55,7 @@ public class ParserHealthChecker {
                         : "";
                 if (wasNotified) {
                     log.info("Parser {} recovered after extended unavailability{}", type, duration);
+                    eventPublisher.publishEvent(new ParserRecoveredEvent(this, type));
                 } else if (prev > 0) {
                     log.info("Parser {} recovered after {} consecutive failures{}", type, prev, duration);
                 }
