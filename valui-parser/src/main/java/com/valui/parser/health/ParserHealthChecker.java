@@ -32,7 +32,7 @@ public class ParserHealthChecker {
     private final Set<BookmakerType> notifiedUnavailable =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    @Scheduled(fixedDelay = 300_000) // every 5 minutes
+    @Scheduled(fixedDelay = 300_000, initialDelay = 60_000)
     public void checkAll() {
         log.debug("Running parser health check for {} parsers", parsers.size());
         parsers.forEach(this::checkOne);
