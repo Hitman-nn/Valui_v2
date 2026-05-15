@@ -85,7 +85,9 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
             HttpRequest req = buildRequest(url).build();
             HttpResponse<byte[]> resp = jdkClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
             checkStatus(resp);
-            return objectMapper.readValue(decompress(resp), type);
+            byte[] body = decompress(resp);
+            checkNotHtml(body, resp.uri());
+            return objectMapper.readValue(body, type);
         });
     }
 
@@ -95,7 +97,9 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
             HttpRequest req = buildRequest(url).build();
             HttpResponse<byte[]> resp = jdkClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
             checkStatus(resp);
-            return objectMapper.readValue(decompress(resp), type);
+            byte[] body = decompress(resp);
+            checkNotHtml(body, resp.uri());
+            return objectMapper.readValue(body, type);
         });
     }
 
@@ -124,6 +128,12 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
         int status = response.statusCode();
         if (status < 200 || status >= 300) {
             throw new IOException("HTTP " + status + " from " + response.uri());
+        }
+    }
+
+    private static void checkNotHtml(byte[] body, java.net.URI uri) throws IOException {
+        if (body.length > 0 && body[0] == '<') {
+            throw new IOException("HTML response (captcha/block) from " + uri);
         }
     }
 
