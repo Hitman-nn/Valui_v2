@@ -178,7 +178,7 @@ public class BetDetailCallback implements CallbackHandler {
             case WON      -> "✅";
             case LOST     -> "❌";
             case RETURNED -> "🔄";
-            case VOID     -> "➖";
+            case VOID     -> "❓";
         };
     }
 
