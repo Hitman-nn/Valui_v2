@@ -287,7 +287,15 @@ class BettingServiceImplTest {
             ArgumentCaptor<BetEntity> cap = ArgumentCaptor.forClass(BetEntity.class);
             verify(betRepo).save(cap.capture());
             assertThat(cap.getValue().getStatus()).isEqualTo(BetStatus.LOST);
-            assertThat(cap.getValue().getSlips()).allMatch(s -> s.getResult() == SlipResult.LOST);
+            // The marked slip is LOST; the unresolved slip gets VOID (not LOST)
+            assertThat(cap.getValue().getSlips()).anySatisfy(s -> {
+                assertThat(s.getSortOrder()).isEqualTo(0);
+                assertThat(s.getResult()).isEqualTo(SlipResult.LOST);
+            });
+            assertThat(cap.getValue().getSlips()).anySatisfy(s -> {
+                assertThat(s.getSortOrder()).isEqualTo(1);
+                assertThat(s.getResult()).isEqualTo(SlipResult.VOID);
+            });
             // LOST: balance -= stake * share = -100
             ArgumentCaptor<BetPersonBalanceEntity> balCap = ArgumentCaptor.forClass(BetPersonBalanceEntity.class);
             verify(balanceRepo).save(balCap.capture());
@@ -381,6 +389,35 @@ class BettingServiceImplTest {
             ArgumentCaptor<BetEntity> cap = ArgumentCaptor.forClass(BetEntity.class);
             verify(betRepo).save(cap.capture());
             assertThat(cap.getValue().getStatus()).isEqualTo(BetStatus.OPEN);
+        }
+
+        @Test
+        @DisplayName("void slip in lost bet can be resolved retroactively — no P&L change")
+        void void_slip_can_be_resolved_retroactively() {
+            BetEntity bet = openBet(1L, "3.00", "100");
+            bet.setType(BetType.EXPRESS);
+            bet.setStatus(BetStatus.LOST);
+            bet.setActualPayout(BigDecimal.ZERO);
+            BetSlipEntity s0 = betSlip(bet, 0, "2.00");
+            s0.setResult(SlipResult.LOST);
+            BetSlipEntity s1 = betSlip(bet, 1, "1.50");
+            s1.setResult(SlipResult.VOID);
+            bet.getSlips().add(s0);
+            bet.getSlips().add(s1);
+            when(betRepo.findWithDetailById(bet.getId())).thenReturn(Optional.of(bet));
+            when(betRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            BetDto result = service.resolveSlip(bet.getId(), 1, 1L, SlipResult.WON);
+
+            ArgumentCaptor<BetEntity> cap = ArgumentCaptor.forClass(BetEntity.class);
+            verify(betRepo).save(cap.capture());
+            // Bet stays LOST, no balance change
+            assertThat(cap.getValue().getStatus()).isEqualTo(BetStatus.LOST);
+            assertThat(cap.getValue().getSlips()).anySatisfy(s -> {
+                assertThat(s.getSortOrder()).isEqualTo(1);
+                assertThat(s.getResult()).isEqualTo(SlipResult.WON);
+            });
+            verify(balanceRepo, never()).save(any());
         }
 
         @Test void single_bet_throws() {

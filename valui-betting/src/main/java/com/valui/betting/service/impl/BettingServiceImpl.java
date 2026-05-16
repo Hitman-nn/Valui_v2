@@ -155,14 +155,11 @@ public class BettingServiceImpl implements BettingService {
     @Override
     @Transactional
     public BetDto resolveSlip(UUID betId, int slipSortOrder, long chatId, SlipResult result) {
-        if (result == SlipResult.OPEN) {
+        if (result == SlipResult.OPEN || result == SlipResult.VOID) {
             throw new IllegalArgumentException("Недопустимый исход для события");
         }
 
         BetEntity bet = requireAccessible(betId, chatId);
-        if (bet.getStatus() != BetStatus.OPEN) {
-            throw new IllegalStateException("Ставка уже завершена");
-        }
         if (bet.getType() != BetType.EXPRESS) {
             throw new IllegalStateException("Разметка по событиям доступна только для экспресса");
         }
@@ -172,15 +169,25 @@ public class BettingServiceImpl implements BettingService {
                 .findFirst()
                 .orElseThrow(() -> new NoSuchElementException("Событие не найдено"));
 
-        if (slip.getResult() != SlipResult.OPEN) {
-            throw new IllegalStateException("Исход события уже выставлен");
+        // Normal path: open bet, unresolved slip
+        if (bet.getStatus() == BetStatus.OPEN && slip.getResult() == SlipResult.OPEN) {
+            slip.setResult(result);
+            slip.setResolvedAt(OffsetDateTime.now());
+            tryAutoResolve(bet);
+            return BetDto.from(betRepo.save(bet));
         }
 
-        slip.setResult(result);
-        slip.setResolvedAt(OffsetDateTime.now());
-        tryAutoResolve(bet);
+        // Retrospective path: lost bet, void slip — informational only, no P&L changes
+        if (bet.getStatus() == BetStatus.LOST && slip.getResult() == SlipResult.VOID) {
+            slip.setResult(result);
+            slip.setResolvedAt(OffsetDateTime.now());
+            return BetDto.from(betRepo.save(bet));
+        }
 
-        return BetDto.from(betRepo.save(bet));
+        if (bet.getStatus() != BetStatus.OPEN) {
+            throw new IllegalStateException("Ставка уже завершена");
+        }
+        throw new IllegalStateException("Исход события уже выставлен");
     }
 
     // ── cancelBet ─────────────────────────────────────────────────────────────
@@ -343,7 +350,7 @@ public class BettingServiceImpl implements BettingService {
             OffsetDateTime now = OffsetDateTime.now();
             slips.stream()
                     .filter(s -> s.getResult() == SlipResult.OPEN)
-                    .forEach(s -> { s.setResult(SlipResult.LOST); s.setResolvedAt(now); });
+                    .forEach(s -> { s.setResult(SlipResult.VOID); s.setResolvedAt(now); });
             applyBetResult(bet, BetStatus.LOST, BigDecimal.ZERO);
             return;
         }

@@ -4,5 +4,7 @@ public enum SlipResult {
     OPEN,
     WON,
     LOST,
-    RETURNED
+    RETURNED,
+    /** Express leg left undetermined because another leg already lost the bet. Purely informational. */
+    VOID
 }

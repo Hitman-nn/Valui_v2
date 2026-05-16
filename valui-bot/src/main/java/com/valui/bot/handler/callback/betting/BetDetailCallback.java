@@ -125,6 +125,16 @@ public class BetDetailCallback implements CallbackHandler {
                   .button("🔄 Возврат",  CallbackData.betResolve(bet.id().toString(), "RETURN")).row();
             }
             kb.button("🚫 Отменить", CallbackData.betCancel(bet.id().toString())).row();
+        } else if (bet.status() == BetStatus.LOST && bet.type() == BetType.EXPRESS) {
+            for (BetSlipDto slip : bet.slips()) {
+                if (slip.result() == SlipResult.VOID) {
+                    kb.button(truncateTitle(slip.matchTitle(), 32), CallbackData.NOOP).row();
+                    kb.button("✅ Выиграл",  CallbackData.betSlipResolve(bet.id().toString(), slip.sortOrder(), "W"))
+                      .button("❌ Проиграл", CallbackData.betSlipResolve(bet.id().toString(), slip.sortOrder(), "L"))
+                      .button("🔄 Возврат",  CallbackData.betSlipResolve(bet.id().toString(), slip.sortOrder(), "R"))
+                      .row();
+                }
+            }
         }
         kb.button("🗑 Удалить", CallbackData.betDelete(bet.id().toString()))
           .button("← К меню", CallbackData.BET_MENU);
@@ -168,6 +178,7 @@ public class BetDetailCallback implements CallbackHandler {
             case WON      -> "✅";
             case LOST     -> "❌";
             case RETURNED -> "🔄";
+            case VOID     -> "➖";
         };
     }
 
