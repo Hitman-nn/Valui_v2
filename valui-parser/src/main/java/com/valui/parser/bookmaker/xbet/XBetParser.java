@@ -18,10 +18,12 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.valui.parser.http.BookmakerHttpClient.BLOCK_TIMEOUT;
 
@@ -38,6 +40,8 @@ public class XBetParser implements BookmakerParser {
     private final String matchesApi;
     private final BookmakerHttpClient http;
     @Nullable private final ParserCacheService cache;
+
+    private final AtomicLong lastResetAt = new AtomicLong(0);
 
     @Autowired
     public XBetParser(@Qualifier("xbetHttpClient") BookmakerHttpClient http, ParserCacheService cache) {
@@ -209,6 +213,8 @@ public class XBetParser implements BookmakerParser {
     private ParseResult<List<SportDto>> fetchSportsFallback(Throwable t) {
         if (t instanceof CallNotPermittedException) {
             log.debug("xbet fetchSports skipped — CB open/half-open");
+        } else if (isConnectionReset(t)) {
+            logBurstReset("xbet fetchSports: connection reset — proxy rotation?");
         } else {
             log.warn("xbet fetchSports fallback [{}]: {}", t.getClass().getSimpleName(), describe(t));
         }
@@ -218,6 +224,8 @@ public class XBetParser implements BookmakerParser {
     private ParseResult<List<TournamentDto>> fetchTournamentsFallback(String sportId, Throwable t) {
         if (t instanceof CallNotPermittedException) {
             log.debug("xbet fetchTournaments skipped — CB open/half-open sportId={}", sportId);
+        } else if (isConnectionReset(t)) {
+            logBurstReset("xbet fetchTournaments: connection reset — proxy rotation?");
         } else {
             log.warn("xbet fetchTournaments fallback sportId={} [{}]: {}", sportId, t.getClass().getSimpleName(), describe(t));
         }
@@ -227,10 +235,28 @@ public class XBetParser implements BookmakerParser {
     private ParseResult<List<ParsedMatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
         if (t instanceof CallNotPermittedException) {
             log.debug("xbet fetchMatches skipped — CB open/half-open tournamentId={}", tournamentId);
+        } else if (isConnectionReset(t)) {
+            logBurstReset("xbet fetchMatches: connection reset tournamentId=" + tournamentId + " — proxy rotation?");
         } else {
             log.warn("xbet fetchMatches fallback tournamentId={} [{}]: {}", tournamentId, t.getClass().getSimpleName(), describe(t));
         }
         return ParseResult.error("xbet-cb: " + t.getMessage());
+    }
+
+    private void logBurstReset(String msg) {
+        long now = System.currentTimeMillis();
+        long prev = lastResetAt.getAndUpdate(p -> now - p > 2_000 ? now : p);
+        if (now - prev > 2_000) {
+            log.warn(msg);
+        } else {
+            log.debug("{} (burst)", msg);
+        }
+    }
+
+    private static boolean isConnectionReset(Throwable t) {
+        Throwable cause = t.getCause();
+        if (cause == null) cause = t;
+        return cause instanceof IOException && "Connection reset".equals(cause.getMessage());
     }
 
     private static String describe(Throwable t) {

@@ -99,7 +99,7 @@ public class MonitorScheduler {
             Instant nextRunAt = stateStore.loadNextRunAt(info.controllerId())
                     .filter(t -> t.isAfter(Instant.now()))
                     .orElseGet(() -> Instant.now().plusSeconds(
-                            ThreadLocalRandom.current().nextInt(info.pollIntervalSec())));
+                            30 + ThreadLocalRandom.current().nextInt(info.pollIntervalSec())));
 
             stateStore.clearInFlight(info.controllerId()); // discard any crashed inFlight flag
 
