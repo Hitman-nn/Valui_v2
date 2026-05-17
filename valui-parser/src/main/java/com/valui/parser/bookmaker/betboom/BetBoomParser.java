@@ -123,7 +123,7 @@ public class BetBoomParser implements BookmakerParser {
         String sportAlias = mf.hasSport() && mf.getSport().hasSport()
                 ? mf.getSport().getSport().getAlias() : "";
         int countryId = mf.hasCountry() && mf.getCountry().hasCountry()
-                ? mf.getCountry().getCountry().getId() : 0;
+                ? mf.getCountry().getCountry().getRegionId() : 0;
         int sectionTid = mf.getSection().hasTournament()
                 ? mf.getSection().getTournament().getId() : 0;
 
