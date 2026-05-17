@@ -33,11 +33,13 @@ public final class UrlParser {
         };
     }
 
-    // /line/{sportSlug}/{champId}-{champName}[/{matchId}-{team1}-{team2}]
+    // Old: /line/{sportSlug}/{champId}[-name][/{matchId}-teams]       (1xstavka.ru)
+    // New: /ru/line/{sportSlug}/{champId}-name[/{matchId}-teams]     (1xbet.kz/ru)
     private static ParsedUrlIds extractXbet(String[] p) {
-        String sportId     = p.length > 1 ? p[1] : null;       // slug like "football"
-        String tournamentId = p.length > 2 ? p[2].split("-")[0] : null;
-        String matchId     = p.length > 3 ? p[3].split("-")[0] : null;
+        int base        = p.length > 0 && "ru".equals(p[0]) ? 2 : 1; // skip "ru"+"line" or just "line"
+        String sportId      = p.length > base     ? p[base]                   : null;
+        String tournamentId = p.length > base + 1 ? p[base + 1].split("-")[0] : null;
+        String matchId      = p.length > base + 2 ? p[base + 2].split("-")[0] : null;
         return new ParsedUrlIds(sportId, tournamentId, matchId);
     }
 

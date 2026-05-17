@@ -33,7 +33,11 @@ public class NotificationFormatter {
         }
 
         sb.append(escapeMarkdown(title));
-        if (!url.isEmpty()) sb.append("\n[").append(escapeMarkdown(url)).append("](").append(url).append(")");
+        if (!url.isEmpty()) {
+            // In MarkdownV2 link syntax [text](url), only ')' and '\' must be escaped inside the url part.
+            String linkUrl = url.replace("\\", "\\\\").replace(")", "\\)");
+            sb.append("\n[").append(escapeMarkdown(url)).append("](").append(linkUrl).append(")");
+        }
 
         // Append odds block if available
         String oddsBlock = buildOddsBlock(event.extraData());

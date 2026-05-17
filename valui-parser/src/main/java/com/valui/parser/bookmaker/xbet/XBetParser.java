@@ -94,7 +94,7 @@ public class XBetParser implements BookmakerParser {
             if (!sportId.equalsIgnoreCase(si) && !sportId.equalsIgnoreCase(se)) continue;
             String id = s(v, "LI"), title = s(v, "L");
             if (id == null || title == null) continue;
-            String url = "https://1xstavka.ru/line/" + slug(se) + "/" + id
+            String url = "https://1xbet.kz/ru/line/" + slug(se) + "/" + id
                     + (le != null ? "-" + slug(le) : "");
             tournaments.add(new TournamentDto(id, title, sportId, null, url));
         }
@@ -111,7 +111,18 @@ public class XBetParser implements BookmakerParser {
     @Override
     public ParseResult<List<ParsedMatchDto>> fetchMatches(String tournamentId) {
         long start = ms();
-        String sportId = resolveSportId(tournamentId);
+        // Single pass through the champs cache to get both sportId and tournamentSlug
+        String sportId   = "0";
+        String tournSlug = "";
+        for (JsonNode v : valueArray(getChampsJson())) {
+            if (tournamentId.equalsIgnoreCase(s(v, "LI"))) {
+                String si = s(v, "SI"), le = s(v, "LE");
+                if (si != null) sportId   = si;
+                if (le != null) tournSlug = slug(le);
+                break;
+            }
+        }
+        String tournPath = tournSlug.isEmpty() ? tournamentId : tournamentId + "-" + tournSlug;
         JsonNode root = block(http.getJson(
                 matchesApi + "sports=" + sportId + "&champs=" + tournamentId + "&count=1000&mode=4",
                 JsonNode.class));
@@ -121,8 +132,8 @@ public class XBetParser implements BookmakerParser {
             String ci = s(v, "CI"), o1 = s(v, "O1"), o2 = s(v, "O2");
             String o1e = s(v, "O1E"), o2e = s(v, "O2E");
             if (ci == null || o1 == null || o2 == null) continue;
-            String url = "https://1xstavka.ru/line/" + slug(s(v, "SE"))
-                    + "/" + tournamentId + "/" + ci + "-" + slug(o1e) + "-" + slug(o2e);
+            String url = "https://1xbet.kz/ru/line/" + slug(s(v, "SE"))
+                    + "/" + tournPath + "/" + ci + "-" + slug(o1e) + "-" + slug(o2e);
             // Fix: use S (Unix timestamp) for startTime, not T (which is a count field)
             Instant startsAt = parseInstant(s(v, "S"));
             String extraData = buildExtraData(v);
@@ -278,16 +289,6 @@ public class XBetParser implements BookmakerParser {
         return block(http.getJson(champsApi, JsonNode.class));
     }
 
-    private String resolveSportId(String tournamentId) {
-        for (JsonNode v : valueArray(getChampsJson())) {
-            if (tournamentId.equalsIgnoreCase(s(v, "LI"))) {
-                String si = s(v, "SI");
-                if (si != null) return si;
-            }
-        }
-        return "0";
-    }
-
     private <T> T block(reactor.core.publisher.Mono<T> mono) { return mono.block(BLOCK_TIMEOUT); }
 
     private static Iterable<JsonNode> valueArray(JsonNode root) {
@@ -301,7 +302,12 @@ public class XBetParser implements BookmakerParser {
     }
 
     private static String slug(String raw) {
-        return raw == null ? "" : raw.replaceAll("\\.", "").replace(" ", "-");
+        if (raw == null) return "";
+        return raw.toLowerCase()
+                  .replaceAll("[().]", "")
+                  .replaceAll("\\s+", "-")
+                  .replaceAll("-{2,}", "-")
+                  .replaceAll("^-|-$", "");
     }
 
     private static Instant parseInstant(String s) {

@@ -34,6 +34,7 @@ import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -64,6 +65,27 @@ public class ControllerServiceImpl implements ControllerService {
             throw new ValuiException("Controller already exists for this URL", 409);
         }
 
+        // Check for duplicate tournament: same tournamentId in the same notification chat
+        Long effectiveChatId = notificationChatId != null ? notificationChatId : user.getTelegramId();
+        try {
+            ParsedUrlIds newIds = UrlParser.extractIds(req.url(), bookmaker);
+            if (newIds.tournamentId() != null) {
+                boolean duplicate = controllerPort.findAllActiveByUserIdWithUser(user.getId()).stream()
+                        .filter(c -> c.getBookmaker() == bookmaker
+                                && Objects.equals(c.getNotificationChatId(), notificationChatId))
+                        .anyMatch(c -> {
+                            try {
+                                ParsedUrlIds existing = UrlParser.extractIds(c.getUrl(), bookmaker);
+                                return newIds.tournamentId().equals(existing.tournamentId());
+                            } catch (Exception ignored) { return false; }
+                        });
+                if (duplicate) {
+                    throw new ValuiException("Controller for this tournament already exists in this chat", 409);
+                }
+            }
+        } catch (ValuiException e) { throw e; }
+        catch (Exception ignored) {} // URL parse error → skip tournament ID check
+
         // Списываем токены если это первый контроллер данной БК у пользователя
         planLimitFacade.debitForBkSlotIfNew(telegramId, bookmaker.name());
 
@@ -83,7 +105,6 @@ public class ControllerServiceImpl implements ControllerService {
                 .notificationChatId(notificationChatId)
                 .build()
         );
-        Long effectiveChatId = notificationChatId != null ? notificationChatId : user.getTelegramId();
         controllerPort.createSubscription(saved.getId(), effectiveChatId, user.getId(), user.getTelegramId());
         log.info("[CONTROLLER] Добавлен: id={} бк={} telegramId={}", saved.getId(), bookmaker, telegramId);
         eventPublisher.publishEvent(new ControllerAddedEvent(

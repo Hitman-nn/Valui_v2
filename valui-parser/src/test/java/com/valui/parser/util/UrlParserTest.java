@@ -56,6 +56,26 @@ class UrlParserTest {
         assertThat(ids.matchId()).isEqualTo("67890");
     }
 
+    @Test
+    @DisplayName("xBet: new-format tournament URL (1xbet.kz/ru) → sportId + tournamentId, no matchId")
+    void xbet_newFormat_tournamentUrl() {
+        String url = "https://1xbet.kz/ru/line/football/2973812-world-cup-qualification-2027-europe-women";
+        ParsedUrlIds ids = UrlParser.extractIds(url, BookmakerType.XBET);
+        assertThat(ids.sportId()).isEqualTo("football");
+        assertThat(ids.tournamentId()).isEqualTo("2973812");
+        assertThat(ids.matchId()).isNull();
+    }
+
+    @Test
+    @DisplayName("xBet: new-format match URL (1xbet.kz/ru) → sportId + tournamentId + matchId")
+    void xbet_newFormat_matchUrl() {
+        String url = "https://1xbet.kz/ru/line/football/2973812-world-cup-qualification-2027-europe-women/333482058-lithuania-women-liechtenstein-women";
+        ParsedUrlIds ids = UrlParser.extractIds(url, BookmakerType.XBET);
+        assertThat(ids.sportId()).isEqualTo("football");
+        assertThat(ids.tournamentId()).isEqualTo("2973812");
+        assertThat(ids.matchId()).isEqualTo("333482058");
+    }
+
     // ── extractIds — Fonbet ───────────────────────────────────────────────────
 
     @Test
