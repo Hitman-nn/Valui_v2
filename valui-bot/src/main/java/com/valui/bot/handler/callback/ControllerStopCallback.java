@@ -31,7 +31,6 @@ public class ControllerStopCallback implements CallbackHandler {
     public void handle(BotUpdateContext ctx) {
         String callbackId = ctx.update().getCallbackQuery().getId();
         int messageId = ctx.update().getCallbackQuery().getMessage().getMessageId();
-        MessageSend.answerCallback(ctx.sender(), callbackId);
 
         UUID stoppedId = null;
         String stoppedBookmaker = null;
@@ -41,9 +40,15 @@ public class ControllerStopCallback implements CallbackHandler {
             ControllerDto c = controllerService.getController(stoppedId);
             stoppedBookmaker = c.bookmaker();
             controllerService.stopForChat(stoppedId, ctx.fromId(), ctx.chatId());
+            MessageSend.answerCallback(ctx.sender(), callbackId);
+        } catch (com.valui.common.exception.ControllerAccessException e) {
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                "🚫 Остановить контроллер может только его владелец");
+            return;
         } catch (Exception e) {
             log.warn("stopForChat failed chatId={}: {}", ctx.chatId(), e.getMessage());
-            stoppedId = null; // stop didn't complete — don't exclude from list
+            stoppedId = null;
+            MessageSend.answerCallback(ctx.sender(), callbackId);
         }
 
         final String bookmaker = stoppedBookmaker;

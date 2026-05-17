@@ -306,25 +306,16 @@ public class ControllerServiceImpl implements ControllerService {
     @Transactional
     public void stopForChat(UUID controllerId, Long telegramId, Long chatId) {
         UserEntity user = requireUser(telegramId);
-        boolean isGroup = chatId != null && chatId < 0;
 
-        Long altChatId = null;
-        if (isGroup) {
-            // Any group member may stop — but only if the controller actually has a
-            // subscription in this group (prevents stopping controllers of other groups).
-            if (controllerPort.findSubscription(controllerId, chatId).isEmpty()) {
-                throw new com.valui.common.exception.ControllerAccessException(controllerId);
-            }
-        } else {
-            // Personal chat: must own the controller.
-            // Capture the entity to read notificationChatId — if the controller was
-            // launched in a group, we must also remove that subscription to stop fully.
-            ControllerEntity ctrl = requireOwned(controllerId, user.getId());
-            Long nChatId = ctrl.getNotificationChatId();
-            if (nChatId != null && !nChatId.equals(chatId)) {
-                altChatId = nChatId;
-            }
-        }
+        // Owner-only: throws ControllerAccessException for non-owners.
+        // Capture the entity to read notificationChatId for the personal-chat case.
+        ControllerEntity ctrl = requireOwned(controllerId, user.getId());
+
+        // If the controller was launched in a different chat (e.g., launched in a group,
+        // stopped from personal chat), also remove that subscription so the controller
+        // stops completely instead of leaving a dangling group subscription active.
+        Long nChatId = ctrl.getNotificationChatId();
+        Long altChatId = (nChatId != null && !nChatId.equals(chatId)) ? nChatId : null;
 
         controllerPort.removeSubscription(controllerId, chatId);
         if (altChatId != null) {
