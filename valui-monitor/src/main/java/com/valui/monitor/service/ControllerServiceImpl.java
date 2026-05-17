@@ -306,15 +306,38 @@ public class ControllerServiceImpl implements ControllerService {
     @Transactional
     public void stopForChat(UUID controllerId, Long telegramId, Long chatId) {
         UserEntity user = requireUser(telegramId);
-        requireOwned(controllerId, user.getId());
+        boolean isGroup = chatId != null && chatId < 0;
+
+        Long altChatId = null;
+        if (isGroup) {
+            // Any group member may stop — but only if the controller actually has a
+            // subscription in this group (prevents stopping controllers of other groups).
+            if (controllerPort.findSubscription(controllerId, chatId).isEmpty()) {
+                throw new com.valui.common.exception.ControllerAccessException(controllerId);
+            }
+        } else {
+            // Personal chat: must own the controller.
+            // Capture the entity to read notificationChatId — if the controller was
+            // launched in a group, we must also remove that subscription to stop fully.
+            ControllerEntity ctrl = requireOwned(controllerId, user.getId());
+            Long nChatId = ctrl.getNotificationChatId();
+            if (nChatId != null && !nChatId.equals(chatId)) {
+                altChatId = nChatId;
+            }
+        }
+
         controllerPort.removeSubscription(controllerId, chatId);
+        if (altChatId != null) {
+            controllerPort.removeSubscription(controllerId, altChatId);
+        }
+
         if (!controllerPort.hasActiveSubscriptions(controllerId)) {
             controllerPort.updateIsActive(controllerId, false);
             dedup.clearController(controllerId);
             controllerPort.updateLastCheckedAt(controllerId, null);
             monitorScheduler.unscheduleController(controllerId);
+            log.info("[CTRL] Остановлен chatId={} controllerId={}", chatId, controllerId);
         }
-        log.info("[CTRL] Остановлен chatId={} controllerId={}", chatId, controllerId);
     }
 
     @Override
