@@ -38,6 +38,7 @@ import type {
   SchedulerOverview,
   SchedulerMetricsSnapshot,
   PollHistoryHourlyDto,
+  JobsOverview,
 } from './types';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -289,6 +290,13 @@ export const schedulerApi = {
     apiClient.get<PollHistoryHourlyDto[]>(`/api/v1/admin/scheduler/jobs/${controllerId}/hourly-stats`, {
       params: { hours },
     }).then((r) => r.data),
+};
+
+// ─── Jobs ─────────────────────────────────────────────────────────────────────
+
+export const jobsApi = {
+  overview: () =>
+    apiClient.get<JobsOverview>('/api/v1/admin/jobs').then((r) => r.data),
 };
 
 // ─── Migration ────────────────────────────────────────────────────────────────

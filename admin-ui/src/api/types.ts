@@ -443,3 +443,28 @@ export interface Payment {
   description: string | null;
   createdAt: string;
 }
+
+// ─── Jobs ────────────────────────────────────────────────────────────────────
+
+export interface SystemTaskDto {
+  key: string;
+  displayName: string;
+  module: string;
+  scheduleDescription: string;
+  nextFireTime: string | null;
+  lastRunAt: string | null;
+  lastDurationMs: number | null;
+  lastStatus: 'OK' | 'ERROR' | 'NEVER_RUN';
+}
+
+export interface PreMatchStats {
+  pendingSnapshots: number;
+  activeRetries: number;
+  fetchSemaphoreAvailable: number;
+  retryAttempts: Record<string, number>;
+}
+
+export interface JobsOverview {
+  tasks: SystemTaskDto[];
+  preMatch: PreMatchStats;
+}

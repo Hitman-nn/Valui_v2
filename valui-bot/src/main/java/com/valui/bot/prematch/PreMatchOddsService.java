@@ -23,7 +23,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -70,6 +72,26 @@ public class PreMatchOddsService {
     @Async
     public void register(UUID slipId) {
         doRegister(slipId);
+    }
+
+    /** Snapshot of current pre-match task state for admin monitoring. */
+    public record PreMatchStats(
+            int pendingSnapshots,
+            int activeRetries,
+            int fetchSemaphoreAvailable,
+            Map<String, Integer> retryAttempts
+    ) {}
+
+    public PreMatchStats getStats() {
+        Map<String, Integer> attempts = registerRetries.entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        e -> e.getKey().toString(),
+                        Map.Entry::getValue));
+        return new PreMatchStats(
+                pending.size(),
+                retryPending.size(),
+                fetchSemaphore.availablePermits(),
+                Collections.unmodifiableMap(attempts));
     }
 
     /** Cancel the scheduled snapshot and any pending registration retries for this slip. */

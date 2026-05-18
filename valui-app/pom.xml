@@ -56,6 +56,12 @@
             <artifactId>spring-boot-starter</artifactId>
         </dependency>
 
+        <!-- AOP for ScheduledTaskAspect (@Around @Scheduled) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
         <!-- Kafka — explicit dep for KafkaTopicsConfig (also available transitively via monitor/notify) -->
         <dependency>
             <groupId>org.springframework.kafka</groupId>

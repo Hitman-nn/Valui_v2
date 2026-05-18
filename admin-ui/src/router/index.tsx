@@ -12,6 +12,7 @@ import ParsersPage from '../pages/parsers/ParsersPage';
 import AuditPage from '../pages/audit/AuditPage';
 import BroadcastPage from '../pages/broadcast/BroadcastPage';
 import SchedulerPage from '../pages/scheduler/SchedulerPage';
+import JobsPage from '../pages/jobs/JobsPage';
 import MigrationPage from '../pages/migration/MigrationPage';
 import { useAuthStore } from '../store/authStore';
 import type { ReactNode } from 'react';
@@ -49,6 +50,7 @@ export const router = createBrowserRouter(
 
         { path: 'broadcast',    element: <BroadcastPage /> },
         { path: 'scheduler',    element: <SchedulerPage /> },
+        { path: 'jobs',         element: <JobsPage /> },
         { path: 'migration',    element: <MigrationPage /> },
       ],
     },
