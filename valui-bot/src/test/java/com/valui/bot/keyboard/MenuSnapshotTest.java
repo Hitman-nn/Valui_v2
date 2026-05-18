@@ -124,10 +124,11 @@ class MenuSnapshotTest {
     @DisplayName("ControllerMenuBuilder: active + muted controllers show correct icons + sort toggle")
     void controllerMenu_icons() {
         UUID id1 = UUID.randomUUID(), id2 = UUID.randomUUID(), id3 = UUID.randomUUID();
+        Instant now = Instant.now();
         List<ControllerDto> controllers = List.of(
-            ctrl(id1, "Active", "XBET",   ControllerType.TOURNAMENT, true,  false),
-            ctrl(id2, "Muted",  "FONBET", ControllerType.TOURNAMENT, true,  true),
-            ctrl(id3, "Stopped","OLIMP",  ControllerType.TOURNAMENT, false, false)
+            ctrl(id1, "Active", "XBET",   ControllerType.TOURNAMENT, true,  false, now),
+            ctrl(id2, "Muted",  "FONBET", ControllerType.TOURNAMENT, true,  true,  now.minusSeconds(60)),
+            ctrl(id3, "Stopped","OLIMP",  ControllerType.TOURNAMENT, false, false, now.minusSeconds(120))
         );
 
         MenuMessage menu = ControllerMenuBuilder.build(controllers, 0, 30, ControllerMenuBuilder.SORT_DATE);

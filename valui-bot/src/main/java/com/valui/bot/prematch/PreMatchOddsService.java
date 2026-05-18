@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RequiredArgsConstructor
 public class PreMatchOddsService {
 
-    private static final long SNAPSHOT_OFFSET_MIN      = 30;
+    private static final long SNAPSHOT_OFFSET_MIN      = 15;
     private static final long RESCHEDULE_THRESHOLD_MIN = 10;
     private static final int  MAX_REGISTER_RETRIES     = 3;
     private static final long REGISTER_RETRY_DELAY_MIN = 15;
@@ -196,16 +196,29 @@ public class PreMatchOddsService {
     // ── snapshot ──────────────────────────────────────────────────────────────
 
     private void scheduleFor(BetSlipEntity slip) {
-        Instant triggerAt = slip.getStartsAt().minus(SNAPSHOT_OFFSET_MIN, ChronoUnit.MINUTES);
-        if (!triggerAt.isAfter(Instant.now())) return;
+        scheduleFor(slip.getId(), slip.getStartsAt());
+    }
 
-        ScheduledFuture<?> old = pending.remove(slip.getId());
+    private void scheduleFor(UUID slipId, Instant startsAt) {
+        // Match hasn't started yet — still worth snapshotting
+        if (!startsAt.isAfter(Instant.now())) return;
+
+        Instant triggerAt = startsAt.minus(SNAPSHOT_OFFSET_MIN, ChronoUnit.MINUTES);
+
+        ScheduledFuture<?> old = pending.remove(slipId);
         if (old != null) old.cancel(false);
 
+        if (!triggerAt.isAfter(Instant.now())) {
+            // Bet placed inside the snapshot window — take snapshot immediately
+            log.debug("[PRE-MATCH] inside snapshot window, triggering immediately slipId={}", slipId);
+            pending.put(slipId, scheduler.schedule(() -> takeSnapshot(slipId), 0, TimeUnit.MILLISECONDS));
+            return;
+        }
+
         long delayMs = Duration.between(Instant.now(), triggerAt).toMillis();
-        ScheduledFuture<?> f = scheduler.schedule(() -> takeSnapshot(slip.getId()), delayMs, TimeUnit.MILLISECONDS);
-        pending.put(slip.getId(), f);
-        log.debug("[PRE-MATCH] snapshot scheduled slipId={} triggerAt={}", slip.getId(), triggerAt);
+        ScheduledFuture<?> f = scheduler.schedule(() -> takeSnapshot(slipId), delayMs, TimeUnit.MILLISECONDS);
+        pending.put(slipId, f);
+        log.debug("[PRE-MATCH] snapshot scheduled slipId={} triggerAt={}", slipId, triggerAt);
     }
 
     private void takeSnapshot(UUID slipId) {
@@ -249,15 +262,14 @@ public class PreMatchOddsService {
                 return false;
             }));
 
-            // Step 4: handle startsAt shift outside TX (no new I/O needed — reuse m)
+            // Step 4: handle startsAt shift outside TX — reuse already-fetched m, newStartsAt from Step 3
             if (shifted) {
-                BetSlipEntity refreshed = slipRepo.findById(slipId).orElse(null);
-                if (refreshed == null) return;
-                Instant newTrigger = refreshed.getStartsAt().minus(SNAPSHOT_OFFSET_MIN, ChronoUnit.MINUTES);
+                Instant newStartsAt = m.startsAt();
+                Instant newTrigger  = newStartsAt.minus(SNAPSHOT_OFFSET_MIN, ChronoUnit.MINUTES);
                 if (newTrigger.isAfter(Instant.now())) {
-                    scheduleFor(refreshed); // future window — reschedule
-                } else if (refreshed.getStartsAt().isAfter(Instant.now())) {
-                    // Match moved earlier, we're inside the window — use the data we already have
+                    scheduleFor(slipId, newStartsAt);
+                } else if (newStartsAt.isAfter(Instant.now())) {
+                    // Match moved earlier, we're inside the window — save with already-fetched data
                     tx.execute(status -> {
                         BetSlipEntity s = slipRepo.findById(slipId).orElse(null);
                         if (s == null || s.getSnapshotTakenAt() != null) return null;
