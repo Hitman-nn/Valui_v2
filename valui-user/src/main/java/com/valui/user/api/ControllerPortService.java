@@ -55,6 +55,12 @@ public interface ControllerPortService {
     boolean hasActiveSubscriptions(UUID controllerId);
     Optional<ControllerSubscriptionEntity> findSubscription(UUID controllerId, Long chatId);
 
+    /** Links VK peer_id to all subscriptions of the user. */
+    void linkVk(UUID userId, long vkPeerId);
+
+    /** Removes VK peer_id from all subscriptions of the user. */
+    void unlinkVk(UUID userId);
+
     /** Admin use: paginated listing of all controllers across all users. */
     Page<ControllerEntity> findAllPageable(Pageable pageable);
 

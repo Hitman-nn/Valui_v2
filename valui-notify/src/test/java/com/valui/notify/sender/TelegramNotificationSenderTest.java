@@ -166,6 +166,7 @@ class TelegramNotificationSenderTest {
                 null,
                 42,
                 null,
+                null,   // vkPeerId
                 null);
     }
 }

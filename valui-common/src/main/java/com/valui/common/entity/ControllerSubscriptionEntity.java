@@ -34,6 +34,9 @@ public class ControllerSubscriptionEntity {
     @Builder.Default
     private boolean pausedByTokens = false;
 
+    @Column(name = "vk_peer_id")
+    private Long vkPeerId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private OffsetDateTime createdAt = OffsetDateTime.now();

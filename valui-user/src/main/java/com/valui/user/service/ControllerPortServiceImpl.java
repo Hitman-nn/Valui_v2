@@ -101,6 +101,16 @@ public class ControllerPortServiceImpl implements ControllerPortService {
         return subscriptionRepository.findByControllerIdAndChatId(controllerId, chatId);
     }
 
+    @Override @Transactional
+    public void linkVk(UUID userId, long vkPeerId) {
+        subscriptionRepository.updateVkPeerIdByUserId(userId, vkPeerId);
+    }
+
+    @Override @Transactional
+    public void unlinkVk(UUID userId) {
+        subscriptionRepository.clearVkPeerIdByUserId(userId);
+    }
+
     @Override
     public Page<ControllerEntity> findAllPageable(Pageable pageable) {
         return repository.findAll(pageable);

@@ -169,6 +169,10 @@ public class SportEventConsumer {
                     new BetNotifData(event.title(), event.url(), event.bookmaker()));
         }
 
+        Long vkPeerId = controllerPort.findSubscription(controllerId, targetChatId)
+                .map(com.valui.common.entity.ControllerSubscriptionEntity::getVkPeerId)
+                .orElse(null);
+
         UserNotificationRequestMessage request = new UserNotificationRequestMessage(
                 logEntry.getId().toString(),
                 event.userId(),
@@ -182,7 +186,8 @@ public class SportEventConsumer {
                 dedupKey,   // NotificationDispatcher will store this in the dedup cache after send
                 null,       // editMessageId = null → normal send
                 event.bookmaker(),
-                computeDedupTtlMinutes(event.extraData())
+                computeDedupTtlMinutes(event.extraData()),
+                vkPeerId
         );
 
         final boolean hasQuickAdd = quickAddKey != null;
@@ -233,7 +238,8 @@ public class SportEventConsumer {
                 null,                                   // dedupKey not needed for edits
                 existing.telegramMessageId(),           // tells dispatcher to edit, not send
                 event.bookmaker(),
-                null                                    // dedupTtlMinutes not needed for edits
+                null,                                   // dedupTtlMinutes not needed for edits
+                null                                    // vkPeerId: no VK edit in phase 1
         );
 
         kafkaTemplate.send(KafkaTopics.USER_NOTIFICATIONS_PENDING, event.userId(), editRequest)

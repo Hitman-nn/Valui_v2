@@ -37,4 +37,12 @@ public interface ControllerSubscriptionRepository
     @Modifying
     @Query("UPDATE ControllerSubscriptionEntity s SET s.pausedByTokens = :paused WHERE s.userId = :userId")
     void updatePausedByTokensForUser(@Param("userId") UUID userId, @Param("paused") boolean paused);
+
+    @Modifying
+    @Query("UPDATE ControllerSubscriptionEntity s SET s.vkPeerId = :vkPeerId WHERE s.userId = :userId")
+    void updateVkPeerIdByUserId(@Param("userId") UUID userId, @Param("vkPeerId") Long vkPeerId);
+
+    @Modifying
+    @Query("UPDATE ControllerSubscriptionEntity s SET s.vkPeerId = null WHERE s.userId = :userId")
+    void clearVkPeerIdByUserId(@Param("userId") UUID userId);
 }

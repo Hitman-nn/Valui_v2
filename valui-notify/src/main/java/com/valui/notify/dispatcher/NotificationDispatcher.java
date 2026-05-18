@@ -10,6 +10,7 @@ import com.valui.notify.log.NotificationLogService;
 import com.valui.notify.retry.DeadLetterPublisher;
 import com.valui.notify.retry.NotificationRetryPolicy;
 import com.valui.notify.stats.NotificationStats;
+import com.valui.notify.vk.VkNotificationSender;
 import com.valui.user.service.TokenLedgerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +40,7 @@ public class NotificationDispatcher {
     private final TokenLedgerService          tokenLedgerService;
     private final TitleDedupCacheService      titleDedupCache;
     private final NotificationStats           stats;
+    private final VkNotificationSender        vkSender;
 
     @KafkaListener(
         topics           = KafkaTopics.USER_NOTIFICATIONS_PENDING,
@@ -101,6 +103,11 @@ public class NotificationDispatcher {
                 } else {
                     titleDedupCache.store(request.dedupKey(), dedupEntry);
                 }
+            }
+
+            // VK side-channel: best-effort, failures don't affect Telegram delivery
+            if (request.vkPeerId() != null) {
+                vkSender.send(request.vkPeerId(), request.messageText());
             }
 
             // Списываем токен за успешное уведомление

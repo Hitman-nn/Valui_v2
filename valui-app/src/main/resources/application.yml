@@ -167,6 +167,11 @@ valui:
     wizard:
       sport-page-size: ${BOT_WIZARD_SPORT_PAGE_SIZE:15}
       tournament-page-size: ${BOT_WIZARD_TOURN_PAGE_SIZE:40}
+  vk:
+    enabled: ${VK_ENABLED:false}
+    community-token: ${VK_COMMUNITY_TOKEN:}
+    group-id: ${VK_GROUP_ID:0}
+
   monitor:
     poll-interval-ms: 30000         # legacy — kept for reference
     max-concurrent-tasks: 100        # global VT task cap
