@@ -75,9 +75,11 @@ class MenuSnapshotTest {
     @Test
     @DisplayName("BookmakerMenuBuilder.buildControllerList: items without [BK] + sort toggle + Back button")
     void bookmakerMenuBuilder_controllerList_noBookmakerSuffix() {
+        Instant newer = Instant.now();
+        Instant older = newer.minusSeconds(3600);
         List<ControllerDto> controllers = List.of(
-            ctrl(UUID.randomUUID(), "Лига чемпионов", "XBET", ControllerType.TOURNAMENT, true,  false),
-            ctrl(UUID.randomUUID(), "АПЛ",            "XBET", ControllerType.TOURNAMENT, true,  true)
+            ctrl(UUID.randomUUID(), "Лига чемпионов", "XBET", ControllerType.TOURNAMENT, true,  false, newer),
+            ctrl(UUID.randomUUID(), "АПЛ",            "XBET", ControllerType.TOURNAMENT, true,  true,  older)
         );
         MenuMessage menu = BookmakerMenuBuilder.buildControllerList("XBET", controllers, 0, 30,
                 ControllerMenuBuilder.SORT_DATE);
@@ -101,8 +103,13 @@ class MenuSnapshotTest {
 
     private static ControllerDto ctrl(UUID id, String title, String bookmaker,
                                       ControllerType type, boolean active, boolean muted) {
+        return ctrl(id, title, bookmaker, type, active, muted, Instant.now());
+    }
+
+    private static ControllerDto ctrl(UUID id, String title, String bookmaker,
+                                      ControllerType type, boolean active, boolean muted, Instant createdAt) {
         return new ControllerDto(id, bookmaker, "https://example.com", title,
-                null, muted, active, Instant.now(), null, 0, type, null, null, 20, Instant.now());
+                null, muted, active, Instant.now(), null, 0, type, null, null, 20, createdAt);
     }
 
     @Test

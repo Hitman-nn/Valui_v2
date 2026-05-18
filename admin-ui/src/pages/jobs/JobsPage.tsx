@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
-  Card, Col, Row, Statistic, Table, Tag, Tooltip, Typography, Badge, Space,
+  Card, Col, Row, Statistic, Table, Tag, Tooltip, Popover, Typography, Badge, Space, Progress,
 } from 'antd';
 import {
   CheckCircleOutlined, CloseCircleOutlined, MinusCircleOutlined,
-  ReloadOutlined, ClockCircleOutlined,
+  ReloadOutlined, ClockCircleOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { jobsApi } from '../../api/endpoints';
@@ -41,12 +41,35 @@ function fmtNext(iso: string | null): string {
   return `через ${Math.floor(secs / 86400)}д`;
 }
 
-function StatusTag({ status }: { status: SystemTaskDto['lastStatus'] }) {
+function StatusTag({ status, errorMessage }: { status: SystemTaskDto['lastStatus']; errorMessage: string | null }) {
   if (status === 'OK')
     return <Tag icon={<CheckCircleOutlined />} color="success">OK</Tag>;
-  if (status === 'ERROR')
-    return <Tag icon={<CloseCircleOutlined />} color="error">ERROR</Tag>;
+  if (status === 'ERROR') {
+    const tag = <Tag icon={<CloseCircleOutlined />} color="error" style={{ cursor: errorMessage ? 'pointer' : 'default' }}>ERROR</Tag>;
+    if (!errorMessage) return tag;
+    return (
+      <Popover
+        title="Последняя ошибка"
+        content={<Text style={{ fontSize: 12, maxWidth: 360, display: 'block', wordBreak: 'break-word' }}>{errorMessage}</Text>}
+        trigger="click"
+        placement="topLeft"
+      >
+        {tag}
+      </Popover>
+    );
+  }
   return <Tag icon={<MinusCircleOutlined />} color="default">—</Tag>;
+}
+
+// A task whose nextFireTime is more than 60 s in the past is considered overdue.
+// 60 s is a safe lower bound: even the fastest task (OutboxScan, every 5 s) would
+// need to miss ~12 cycles before being flagged, avoiding false positives from
+// normal scheduling jitter between API refreshes.
+const OVERDUE_GRACE_MS = 60_000;
+
+function isOverdue(iso: string | null): boolean {
+  if (!iso) return false;
+  return Date.now() - new Date(iso).getTime() > OVERDUE_GRACE_MS;
 }
 
 function ModuleTag({ module }: { module: string }) {
@@ -62,10 +85,12 @@ const COLUMNS: ColumnsType<SystemTaskDto> = [
     title: 'Задача',
     dataIndex: 'displayName',
     render: (name: string, row) => (
-      <Space direction="vertical" size={0}>
-        <Text strong>{name}</Text>
-        <Text type="secondary" style={{ fontSize: 11 }}>{row.key}</Text>
-      </Space>
+      <Tooltip title={row.description} placement="topLeft" overlayStyle={{ maxWidth: 340 }}>
+        <Space direction="vertical" size={0} style={{ cursor: 'default' }}>
+          <Text strong>{name}</Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>{row.key}</Text>
+        </Space>
+      </Tooltip>
     ),
     width: 220,
   },
@@ -83,15 +108,22 @@ const COLUMNS: ColumnsType<SystemTaskDto> = [
   {
     title: 'Следующий запуск',
     dataIndex: 'nextFireTime',
-    render: (iso: string | null) => (
-      <Tooltip title={iso ? new Date(iso).toLocaleString() : '—'}>
-        <Space>
-          <ClockCircleOutlined style={{ color: '#1890ff' }} />
-          {fmtNext(iso)}
-        </Space>
-      </Tooltip>
-    ),
-    width: 160,
+    render: (iso: string | null) => {
+      const overdue = isOverdue(iso);
+      return (
+        <Tooltip title={iso ? new Date(iso).toLocaleString() : '—'}>
+          <Space>
+            {overdue
+              ? <WarningOutlined style={{ color: '#fa8c16' }} />
+              : <ClockCircleOutlined style={{ color: '#1890ff' }} />}
+            <Text style={overdue ? { color: '#fa8c16', fontWeight: 500 } : undefined}>
+              {fmtNext(iso)}
+            </Text>
+          </Space>
+        </Tooltip>
+      );
+    },
+    width: 170,
     sorter: (a, b) => {
       const ta = a.nextFireTime ? new Date(a.nextFireTime).getTime() : Number.MAX_VALUE;
       const tb = b.nextFireTime ? new Date(b.nextFireTime).getTime() : Number.MAX_VALUE;
@@ -117,9 +149,34 @@ const COLUMNS: ColumnsType<SystemTaskDto> = [
     align: 'right',
   },
   {
+    title: 'Ок / Всего',
+    dataIndex: 'runCount',
+    render: (_: number, row) => {
+      if (row.runCount === 0) return <Text type="secondary">—</Text>;
+      const successCount = row.runCount - row.errorCount;
+      const pct = Math.round((successCount / row.runCount) * 100);
+      return (
+        <Tooltip title={`Успешных: ${successCount} из ${row.runCount} (${pct}%)`}>
+          <Space direction="vertical" size={2} style={{ width: 80 }}>
+            <Text style={{ fontSize: 12 }}>{successCount}/{row.runCount}</Text>
+            <Progress
+              percent={pct}
+              size="small"
+              showInfo={false}
+              strokeColor={pct === 100 ? '#52c41a' : pct >= 80 ? '#faad14' : '#f5222d'}
+            />
+          </Space>
+        </Tooltip>
+      );
+    },
+    width: 110,
+  },
+  {
     title: 'Статус',
     dataIndex: 'lastStatus',
-    render: (s: SystemTaskDto['lastStatus']) => <StatusTag status={s} />,
+    render: (s: SystemTaskDto['lastStatus'], row) => (
+      <StatusTag status={s} errorMessage={row.lastErrorMessage} />
+    ),
     width: 90,
     filters: [
       { text: 'OK',       value: 'OK' },

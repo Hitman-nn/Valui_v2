@@ -449,12 +449,16 @@ export interface Payment {
 export interface SystemTaskDto {
   key: string;
   displayName: string;
+  description: string;
   module: string;
   scheduleDescription: string;
   nextFireTime: string | null;
   lastRunAt: string | null;
   lastDurationMs: number | null;
   lastStatus: 'OK' | 'ERROR' | 'NEVER_RUN';
+  lastErrorMessage: string | null;
+  runCount: number;
+  errorCount: number;
 }
 
 export interface PreMatchStats {

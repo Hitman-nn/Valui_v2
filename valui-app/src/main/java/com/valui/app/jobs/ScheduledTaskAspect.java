@@ -26,10 +26,11 @@ public class ScheduledTaskAspect {
         long start = System.currentTimeMillis();
         try {
             Object result = pjp.proceed();
-            tracker.record(key, System.currentTimeMillis() - start, true);
+            tracker.record(key, System.currentTimeMillis() - start, true, null);
             return result;
         } catch (Throwable t) {
-            tracker.record(key, System.currentTimeMillis() - start, false);
+            String msg = t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
+            tracker.record(key, System.currentTimeMillis() - start, false, msg);
             throw t;
         }
     }
