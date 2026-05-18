@@ -20,9 +20,14 @@ import java.util.concurrent.ThreadLocalRandom;
  * Manages VK account linking for Valui users.
  *
  * Flow:
- *   1. User calls /vk in Telegram → generateCode(userId) → stores code in Redis (TTL 15 min)
- *   2. User writes the code to the VK community
- *   3. VK Long Poll receives the message → handleMessage() → links peer_id to all user's subscriptions
+ *   1. User calls /vk in Telegram chat X → generateCode(userId, chatId)
+ *      → stores "{userId}:{chatId}" in Redis with TTL 15 min
+ *   2. User writes the code in the target VK chat (personal or group)
+ *   3. VK Long Poll receives message_new → peer_id = where the code was sent
+ *   4. handleMessage(peerId, text) → looks up code → links peerId to all subscriptions
+ *      of the user that belong to the originating Telegram chatId
+ *
+ * Result: Telegram chatId ↔ VK peerId, so group chats map to VK group chats.
  */
 @Slf4j
 @Service
@@ -42,7 +47,7 @@ public class VkLinkService {
     @Value("${valui.vk.group-id:0}")
     private long groupId;
 
-    private final StringRedisTemplate  redis;
+    private final StringRedisTemplate   redis;
     private final ControllerPortService controllerPort;
     private final ObjectMapper          mapper;
     private final RestClient            http = RestClient.create();
@@ -67,14 +72,17 @@ public class VkLinkService {
     }
 
     /**
-     * Generates a one-time link code for the user and stores it in Redis.
+     * Generates a one-time link code and stores userId + telegramChatId in Redis.
      *
+     * @param telegramChatId the Telegram chat from which /vk was issued;
+     *                       determines which subscriptions get the VK peer_id
      * @return code string like "VLK-A3K9F2"
      */
-    public String generateCode(UUID userId) {
-        String code = "VLK-" + randomCode();
-        redis.opsForValue().set(LINK_KEY_PREFIX + code, userId.toString(), CODE_TTL);
-        log.debug("[VK-LINK] Code generated for userId={}: {}", userId, code);
+    public String generateCode(UUID userId, long telegramChatId) {
+        String code  = "VLK-" + randomCode();
+        String value = userId + ":" + telegramChatId;
+        redis.opsForValue().set(LINK_KEY_PREFIX + code, value, CODE_TTL);
+        log.debug("[VK-LINK] Code generated userId={} chatId={}: {}", userId, telegramChatId, code);
         return code;
     }
 
@@ -125,10 +133,12 @@ public class VkLinkService {
                 for (JsonNode update : root.path("updates")) {
                     if ("message_new".equals(update.path("type").asText())) {
                         JsonNode msg = update.path("object").path("message");
-                        long fromId = msg.path("from_id").asLong(0);
+                        // peer_id = where the message was sent (personal or group chat)
+                        // from_id = who sent it (always individual user)
+                        long peerId = msg.path("peer_id").asLong(0);
                         String text = msg.path("text").asText("").trim();
-                        if (fromId > 0 && !text.isBlank()) {
-                            handleMessage(fromId, text);
+                        if (peerId > 0 && !text.isBlank()) {
+                            handleMessage(peerId, text);
                         }
                     }
                 }
@@ -160,16 +170,22 @@ public class VkLinkService {
     // ── message handling ──────────────────────────────────────────────────────
 
     void handleMessage(long vkPeerId, String text) {
-        String code = text.toUpperCase().replaceAll("\\s+", "");
+        String code     = text.toUpperCase().replaceAll("\\s+", "");
         String redisKey = LINK_KEY_PREFIX + code;
-        String userIdStr = redis.opsForValue().get(redisKey);
-        if (userIdStr == null) return;
+        String stored   = redis.opsForValue().get(redisKey);
+        if (stored == null) return;
+
+        // stored = "userId:telegramChatId"
+        String[] parts = stored.split(":", 2);
+        if (parts.length != 2) return;
 
         try {
-            UUID userId = UUID.fromString(userIdStr);
-            controllerPort.linkVk(userId, vkPeerId);
+            UUID userId          = UUID.fromString(parts[0]);
+            long telegramChatId  = Long.parseLong(parts[1]);
+            controllerPort.linkVk(userId, telegramChatId, vkPeerId);
             redis.delete(redisKey);
-            log.info("[VK-LINK] Linked vkPeerId={} → userId={}", vkPeerId, userId);
+            log.info("[VK-LINK] Linked vkPeerId={} → userId={} telegramChatId={}",
+                    vkPeerId, userId, telegramChatId);
         } catch (Exception e) {
             log.warn("[VK-LINK] Link failed for code={}: {}", code, e.getMessage());
         }

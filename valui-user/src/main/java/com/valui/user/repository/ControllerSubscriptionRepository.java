@@ -43,6 +43,10 @@ public interface ControllerSubscriptionRepository
     void updateVkPeerIdByUserId(@Param("userId") UUID userId, @Param("vkPeerId") Long vkPeerId);
 
     @Modifying
+    @Query("UPDATE ControllerSubscriptionEntity s SET s.vkPeerId = :vkPeerId WHERE s.userId = :userId AND s.chatId = :chatId")
+    void updateVkPeerIdByUserIdAndChatId(@Param("userId") UUID userId, @Param("chatId") Long chatId, @Param("vkPeerId") Long vkPeerId);
+
+    @Modifying
     @Query("UPDATE ControllerSubscriptionEntity s SET s.vkPeerId = null WHERE s.userId = :userId")
     void clearVkPeerIdByUserId(@Param("userId") UUID userId);
 }

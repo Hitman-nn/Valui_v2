@@ -102,8 +102,8 @@ public class ControllerPortServiceImpl implements ControllerPortService {
     }
 
     @Override @Transactional
-    public void linkVk(UUID userId, long vkPeerId) {
-        subscriptionRepository.updateVkPeerIdByUserId(userId, vkPeerId);
+    public void linkVk(UUID userId, long telegramChatId, long vkPeerId) {
+        subscriptionRepository.updateVkPeerIdByUserIdAndChatId(userId, telegramChatId, vkPeerId);
     }
 
     @Override @Transactional

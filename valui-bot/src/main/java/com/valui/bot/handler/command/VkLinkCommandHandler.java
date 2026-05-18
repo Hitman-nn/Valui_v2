@@ -28,11 +28,15 @@ public class VkLinkCommandHandler implements CommandHandler {
             MessageSend.text(ctx.sender(), ctx.chatId(), "VK-уведомления пока не настроены.");
             return;
         }
-        String code = vkLinkService.generateCode(ctx.user().getId());
+        String code = vkLinkService.generateCode(ctx.user().getId(), ctx.chatId());
+        String where = ctx.isGroupChat()
+                ? "в беседу VK-сообщества, куда хотите получать уведомления"
+                : "в личные сообщения VK-сообщества";
         MessageSend.text(ctx.sender(), ctx.chatId(),
                 "Чтобы получать уведомления в VK:\n\n" +
-                "1. Откройте наше VK-сообщество\n" +
-                "2. Напишите в сообщения: " + code + "\n\n" +
+                "1. Напишите " + where + ":\n" +
+                code + "\n\n" +
+                "Уведомления придут туда, откуда отправите код.\n" +
                 "Код действует 15 минут.");
     }
 }
