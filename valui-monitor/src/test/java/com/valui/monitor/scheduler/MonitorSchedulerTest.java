@@ -11,6 +11,7 @@ import com.valui.monitor.scheduler.job.ControllerJob;
 import com.valui.monitor.scheduler.job.JobRegistry;
 import com.valui.monitor.scheduler.state.SchedulerStateStore;
 import com.valui.user.api.ControllerPortService;
+import com.valui.user.event.UserBanEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -128,6 +129,43 @@ class MonitorSchedulerTest {
         scheduler.on(new ControllerRemovedEvent(CTRL_ID, USER_ID));
 
         assertThat(scheduler.getScheduledControllerIds()).doesNotContain(CTRL_ID);
+    }
+
+    // ── UserBanEvent (UNBAN) ──────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("UserBanEvent UNBAN → clears dedup and resets lastCheckedAt in one batch")
+    void on_userUnban_clearsDedupAndResetsBatch() {
+        UUID ctrl1 = UUID.randomUUID(), ctrl2 = UUID.randomUUID();
+        given(taskExecutor.loadActiveForUser(USER_ID)).willReturn(List.of(
+                new ControllerScheduleInfo(ctrl1, USER_ID, TG_ID, 60, BookmakerType.XBET),
+                new ControllerScheduleInfo(ctrl2, USER_ID, TG_ID, 60, BookmakerType.FONBET)));
+
+        scheduler.on(new UserBanEvent(USER_ID, "UNBAN", null));
+
+        verify(dedup).clearController(ctrl1);
+        verify(dedup).clearController(ctrl2);
+        verify(controllerPort).resetLastCheckedAtBatch(List.of(ctrl1, ctrl2));
+    }
+
+    @Test
+    @DisplayName("UserBanEvent BAN → no dedup or DB reset")
+    void on_userBan_noop() {
+        scheduler.on(new UserBanEvent(USER_ID, "BAN", null));
+
+        verify(dedup, never()).clearController(any());
+        verify(controllerPort, never()).resetLastCheckedAtBatch(any());
+    }
+
+    @Test
+    @DisplayName("UserBanEvent UNBAN with no controllers → no-op")
+    void on_userUnban_noControllers_noop() {
+        given(taskExecutor.loadActiveForUser(USER_ID)).willReturn(List.of());
+
+        scheduler.on(new UserBanEvent(USER_ID, "UNBAN", null));
+
+        verify(dedup, never()).clearController(any());
+        verify(controllerPort, never()).resetLastCheckedAtBatch(any());
     }
 
     // ── rescheduleAll ─────────────────────────────────────────────────────────

@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.HashSet;
@@ -35,11 +34,30 @@ public class DedupSyncScheduler {
     private final MonitorProperties props;
 
     @Scheduled(cron = "${valui.monitor.dedup-sync-cron:0 0 3 * * *}")
-    @Transactional(readOnly = true)
     public void sync() {
         log.info("Nightly dedup sync started");
-        OffsetDateTime cutoff = OffsetDateTime.now().minusDays(props.getDedupTtlDays());
+        OffsetDateTime now = OffsetDateTime.now();
 
+        // Step 1: delete expired detected_events in batches to avoid long-running DELETE.
+        // Must happen BEFORE the Redis sync so removed IDs are absent from allDbIds →
+        // syncSeenEvents() evicts them from the Redis SET automatically.
+        // Wrapped separately so a DB failure here doesn't abort the Redis reconciliation.
+        try {
+            int totalDeleted = 0;
+            int deleted;
+            do {
+                deleted = detectedEventPort.deleteExpiredBatch(now, props.getDedupCleanupBatchSize());
+                totalDeleted += deleted;
+            } while (deleted > 0);
+            if (totalDeleted > 0) {
+                log.info("Nightly cleanup: deleted {} expired detected_events rows", totalDeleted);
+            }
+        } catch (Exception e) {
+            log.error("Nightly cleanup failed, continuing with Redis sync: {}", e.getMessage(), e);
+        }
+
+        // Step 2: two-way Redis ↔ DB reconciliation per controller.
+        OffsetDateTime cutoff = now.minusDays(props.getDedupTtlDays());
         List<ControllerEntity> active = controllerPort.findAllActive();
         int synced = 0, errors = 0;
 

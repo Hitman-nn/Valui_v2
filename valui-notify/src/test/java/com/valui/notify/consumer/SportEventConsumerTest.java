@@ -32,6 +32,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.kafka.core.KafkaTemplate;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -106,7 +107,7 @@ class SportEventConsumerTest {
         given(kafkaTemplate.send(anyString(), anyString(), any()))
                 .willReturn(CompletableFuture.completedFuture(null));
         // Default: no dedup cache hit — events pass through normally
-        given(titleDedupCache.computeKey(anyLong(), any(), any(), any())).willReturn("dedup-key");
+        given(titleDedupCache.computeKey(anyLong(), any(), any(), any(), anyLong())).willReturn("dedup-key");
         given(titleDedupCache.find(any())).willReturn(Optional.empty());
     }
 
@@ -283,5 +284,19 @@ class SportEventConsumerTest {
         consumer.onSportEventDetected(event);
 
         verify(betNotifCacheService).store(eq("old-bet"), any());
+    }
+
+    @Test
+    @DisplayName("dedup cache hit → TTL of dedup entry is refreshed before sending edit")
+    void dedupCacheHit_refreshesTtl() {
+        com.valui.notify.dedup.TitleDedupEntry existing =
+                new com.valui.notify.dedup.TitleDedupEntry(555, TG_ID, "old-bet", null);
+        given(titleDedupCache.find(any())).willReturn(Optional.of(existing));
+
+        consumer.onSportEventDetected(event);
+
+        verify(titleDedupCache).store(anyString(),
+                eq(existing),
+                argThat(d -> d.toMinutes() >= 180));
     }
 }

@@ -49,8 +49,8 @@ class TitleDedupCacheServiceTest {
     @Test
     @DisplayName("same inputs produce the same key")
     void computeKey_sameInputs_sameKey() {
-        String k1 = service.computeKey(CHAT_ID, BOOKMAKER, URL, TITLE);
-        String k2 = service.computeKey(CHAT_ID, BOOKMAKER, URL, TITLE);
+        String k1 = service.computeKey(CHAT_ID, BOOKMAKER, URL, TITLE, 0);
+        String k2 = service.computeKey(CHAT_ID, BOOKMAKER, URL, TITLE, 0);
 
         assertThat(k1).isEqualTo(k2).startsWith("notif:title-dedup:");
     }
@@ -58,8 +58,8 @@ class TitleDedupCacheServiceTest {
     @Test
     @DisplayName("different chatId produces different key")
     void computeKey_differentChatId_differentKey() {
-        String k1 = service.computeKey(111L, BOOKMAKER, URL, TITLE);
-        String k2 = service.computeKey(222L, BOOKMAKER, URL, TITLE);
+        String k1 = service.computeKey(111L, BOOKMAKER, URL, TITLE, 0);
+        String k2 = service.computeKey(222L, BOOKMAKER, URL, TITLE, 0);
 
         assertThat(k1).isNotEqualTo(k2);
     }
@@ -70,8 +70,8 @@ class TitleDedupCacheServiceTest {
         String url1 = "https://fonbet.ru/sports/soccer/match/111";
         String url2 = "https://fonbet.ru/sports/soccer/match/999";
 
-        String k1 = service.computeKey(CHAT_ID, BOOKMAKER, url1, TITLE);
-        String k2 = service.computeKey(CHAT_ID, BOOKMAKER, url2, TITLE);
+        String k1 = service.computeKey(CHAT_ID, BOOKMAKER, url1, TITLE, 0);
+        String k2 = service.computeKey(CHAT_ID, BOOKMAKER, url2, TITLE, 0);
 
         assertThat(k1).isEqualTo(k2);
     }
@@ -79,22 +79,46 @@ class TitleDedupCacheServiceTest {
     @Test
     @DisplayName("null URL is handled without NPE")
     void computeKey_nullUrl_doesNotThrow() {
-        assertThat(service.computeKey(CHAT_ID, BOOKMAKER, null, TITLE))
+        assertThat(service.computeKey(CHAT_ID, BOOKMAKER, null, TITLE, 0))
                 .startsWith("notif:title-dedup:");
     }
 
     @Test
     @DisplayName("null title is normalised to empty string")
     void computeKey_nullTitle_doesNotThrow() {
-        assertThat(service.computeKey(CHAT_ID, BOOKMAKER, URL, null))
+        assertThat(service.computeKey(CHAT_ID, BOOKMAKER, URL, null, 0))
                 .startsWith("notif:title-dedup:");
+    }
+
+    @Test
+    @DisplayName("same title but different startEpoch produces different key")
+    void computeKey_sameTitle_differentStartEpoch_differentKey() {
+        long mondayEpoch  = 1_747_584_000L; // Monday 18:00
+        long tuesdayEpoch = 1_747_670_400L; // Tuesday 18:00
+
+        String k1 = service.computeKey(CHAT_ID, BOOKMAKER, URL, "Djokovic - Federer", mondayEpoch);
+        String k2 = service.computeKey(CHAT_ID, BOOKMAKER, URL, "Djokovic - Federer", tuesdayEpoch);
+
+        assertThat(k1).isNotEqualTo(k2);
+    }
+
+    @Test
+    @DisplayName("same title, same startEpoch, different event ID in URL → same key (urlBase stripping)")
+    void computeKey_sameEpochDifferentEventUrl_sameKey() {
+        String url1 = "https://fonbet.ru/sports/tennis/tournament/1/match/111";
+        String url2 = "https://fonbet.ru/sports/tennis/tournament/1/match/999";
+
+        String k1 = service.computeKey(CHAT_ID, BOOKMAKER, url1, TITLE, 1_747_584_000L);
+        String k2 = service.computeKey(CHAT_ID, BOOKMAKER, url2, TITLE, 1_747_584_000L);
+
+        assertThat(k1).isEqualTo(k2);
     }
 
     @Test
     @DisplayName("title comparison is case-insensitive")
     void computeKey_titleCaseInsensitive_sameKey() {
-        String k1 = service.computeKey(CHAT_ID, BOOKMAKER, URL, "Spartak - CSKA");
-        String k2 = service.computeKey(CHAT_ID, BOOKMAKER, URL, "SPARTAK - CSKA");
+        String k1 = service.computeKey(CHAT_ID, BOOKMAKER, URL, "Spartak - CSKA", 0);
+        String k2 = service.computeKey(CHAT_ID, BOOKMAKER, URL, "SPARTAK - CSKA", 0);
 
         assertThat(k1).isEqualTo(k2);
     }

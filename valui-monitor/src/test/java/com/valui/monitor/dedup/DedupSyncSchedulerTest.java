@@ -42,6 +42,9 @@ class DedupSyncSchedulerTest {
     @BeforeEach
     void setUp() {
         given(props.getDedupTtlDays()).willReturn(7);
+        given(props.getDedupCleanupBatchSize()).willReturn(500);
+        // Default: no expired rows — cleanup loop executes once and stops
+        given(detectedEventPort.deleteExpiredBatch(any(), anyInt())).willReturn(0);
     }
 
     @Test
@@ -86,6 +89,51 @@ class DedupSyncSchedulerTest {
         scheduler.sync(); // must not throw
 
         verify(dedup).syncSeenEvents(eq(ctrl2), eq(Set.of("good-event")), eq(Set.of("good-event")));
+    }
+
+    @Test
+    @DisplayName("sync: deletes expired detected_events in batches before Redis sync")
+    void sync_deletesExpiredEventsBeforeSync() {
+        // First batch returns 500 (full), second returns 0 (done)
+        given(detectedEventPort.deleteExpiredBatch(any(), eq(500)))
+                .willReturn(500)
+                .willReturn(0);
+        given(controllerPort.findAllActive()).willReturn(List.of());
+
+        scheduler.sync();
+
+        verify(detectedEventPort, org.mockito.Mockito.times(2)).deleteExpiredBatch(any(), eq(500));
+    }
+
+    @Test
+    @DisplayName("sync: cleanup DB exception does not abort Redis reconciliation")
+    void sync_cleanupException_doesNotAbortRediSync() {
+        given(detectedEventPort.deleteExpiredBatch(any(), anyInt()))
+                .willThrow(new RuntimeException("DB timeout"));
+        ControllerEntity ctrl = controllerEntity(CTRL_ID);
+        given(controllerPort.findAllActive()).willReturn(List.of(ctrl));
+        given(detectedEventPort.findAllExternalIdsByControllerId(CTRL_ID)).willReturn(List.of("e1"));
+        given(detectedEventPort.findExternalIdsByControllerIdSince(eq(CTRL_ID), any())).willReturn(List.of("e1"));
+
+        scheduler.sync(); // must not throw
+
+        verify(dedup).syncSeenEvents(eq(CTRL_ID), any(), any()); // Redis sync still ran
+    }
+
+    @Test
+    @DisplayName("sync: cleanup runs before Redis sync — deleted IDs are absent from allDbIds")
+    void sync_cleanupBeforeRedisSyncOrder() {
+        ControllerEntity ctrl = controllerEntity(CTRL_ID);
+        given(controllerPort.findAllActive()).willReturn(List.of(ctrl));
+        given(detectedEventPort.findAllExternalIdsByControllerId(CTRL_ID)).willReturn(List.of("e1"));
+        given(detectedEventPort.findExternalIdsByControllerIdSince(eq(CTRL_ID), any())).willReturn(List.of("e1"));
+
+        org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(detectedEventPort, dedup);
+
+        scheduler.sync();
+
+        inOrder.verify(detectedEventPort).deleteExpiredBatch(any(), anyInt());
+        inOrder.verify(dedup).syncSeenEvents(any(), any(), any());
     }
 
     private ControllerEntity controllerEntity(UUID id) {

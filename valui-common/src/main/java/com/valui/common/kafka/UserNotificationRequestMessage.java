@@ -30,7 +30,8 @@ public record UserNotificationRequestMessage(
         String betKey,
         String dedupKey,
         Integer editMessageId,
-        String bookmaker
+        String bookmaker,
+        Integer dedupTtlMinutes // null = use server default (180 min)
 ) {
     /** Backward-compatible constructor for callers that don't use dedup (e.g. DLQ retry). */
     public UserNotificationRequestMessage(
@@ -38,6 +39,6 @@ public record UserNotificationRequestMessage(
             String channel, String messageText, String eventId,
             String quickAddKey, String eventUrl, String betKey) {
         this(notificationLogId, userId, telegramId, channel, messageText,
-             eventId, quickAddKey, eventUrl, betKey, null, null, null);
+             eventId, quickAddKey, eventUrl, betKey, null, null, null, null);
     }
 }

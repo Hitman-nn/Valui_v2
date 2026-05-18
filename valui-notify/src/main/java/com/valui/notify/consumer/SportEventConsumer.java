@@ -27,6 +27,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -115,12 +116,17 @@ public class SportEventConsumer {
         // Same match may appear under a different event ID within the TTL window
         // (e.g., BetBoom pre-match → live transition). Instead of sending a second
         // notification, edit the already-sent message with the updated URL/text.
+        long startEpoch = extractStartEpoch(event.extraData());
         String dedupKey = titleDedupCache.computeKey(
-                targetChatId, event.bookmaker(), event.url(), event.title());
+                targetChatId, event.bookmaker(), event.url(), event.title(), startEpoch);
 
         TitleDedupEntry existing = titleDedupCache.find(dedupKey).orElse(null);
         if (existing != null) {
             log.debug("[DEDUP] Hit for chatId={} — editing message {}", targetChatId, existing.telegramMessageId());
+            // Refresh TTL so the edit window stays open for the full lifetime of the match.
+            // Without this, a match re-published many times within the TTL window would eventually
+            // expire the key and send a new notification instead of editing the old one.
+            titleDedupCache.store(dedupKey, existing, Duration.ofMinutes(computeDedupTtlMinutes(event.extraData())));
             sendEditRequest(event, controller, targetChatId, existing);
             return;
         }
@@ -175,7 +181,8 @@ public class SportEventConsumer {
                 betKey,
                 dedupKey,   // NotificationDispatcher will store this in the dedup cache after send
                 null,       // editMessageId = null → normal send
-                event.bookmaker()
+                event.bookmaker(),
+                computeDedupTtlMinutes(event.extraData())
         );
 
         final boolean hasQuickAdd = quickAddKey != null;
@@ -225,7 +232,8 @@ public class SportEventConsumer {
                 existing.betKey(),
                 null,                                   // dedupKey not needed for edits
                 existing.telegramMessageId(),           // tells dispatcher to edit, not send
-                event.bookmaker()
+                event.bookmaker(),
+                null                                    // dedupTtlMinutes not needed for edits
         );
 
         kafkaTemplate.send(KafkaTopics.USER_NOTIFICATIONS_PENDING, event.userId(), editRequest)
@@ -238,6 +246,34 @@ public class SportEventConsumer {
                                 targetChatId, existing.telegramMessageId());
                     }
                 });
+    }
+
+    /**
+     * Dynamic dedup TTL: max(3h, time_until_match_start + 2h).
+     * Prevents duplicate notifications when a bookmaker re-publishes the same match
+     * under a new event ID (e.g., BetBoom adding handicap/totals markets hours later).
+     */
+    private static int computeDedupTtlMinutes(String extraData) {
+        int minimumMinutes = 180;
+        if (extraData == null || extraData.isBlank()) return minimumMinutes;
+        long startEpoch = extractStartEpoch(extraData);
+        if (startEpoch <= 0) return minimumMinutes;
+        long minutesUntilStart = (startEpoch - System.currentTimeMillis() / 1000) / 60;
+        if (minutesUntilStart <= 0) return minimumMinutes;
+        int dynamic = (int) Math.min(minutesUntilStart + 120, 7 * 24 * 60L); // cap 7 days
+        return Math.max(minimumMinutes, dynamic);
+    }
+
+    private static long extractStartEpoch(String extraData) {
+        if (extraData == null) return 0;
+        int idx = extraData.indexOf("\"st\":");
+        if (idx < 0) return 0;
+        int start = idx + 5;
+        int end   = start;
+        while (end < extraData.length() && Character.isDigit(extraData.charAt(end))) end++;
+        if (end == start) return 0;
+        try { return Long.parseLong(extraData.substring(start, end)); }
+        catch (NumberFormatException e) { return 0; }
     }
 
     private static boolean passesFilterRule(String filterRule, String title) {

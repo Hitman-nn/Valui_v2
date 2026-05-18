@@ -34,21 +34,25 @@ public class TitleDedupCacheService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper        objectMapper;
 
-    @Value("${valui.notifications.dedup-ttl-minutes:60}")
+    @Value("${valui.notifications.dedup-ttl-minutes:180}")
     private int dedupTtlMinutes;
 
     /**
      * Computes the dedup key for an event.
      *
-     * @param chatId     target chat ID (scope per subscriber)
-     * @param bookmaker  bookmaker name (BETBOOM, FONBET, etc.)
-     * @param url        full event URL (last path segment stripped to get the tournament base)
-     * @param title      raw event title from the parser
+     * @param chatId      target chat ID (scope per subscriber)
+     * @param bookmaker   bookmaker name (BETBOOM, FONBET, etc.)
+     * @param url         full event URL (last path segment stripped to get the tournament base)
+     * @param title       raw event title from the parser
+     * @param startEpoch  Unix timestamp of match start time; 0 if unavailable.
+     *                    Included in the hash so two matches with the same title but different
+     *                    start times (e.g. same players in different rounds) get distinct keys.
      */
-    public String computeKey(long chatId, String bookmaker, String url, String title) {
-        String urlBase = extractUrlBase(url);
-        String input   = bookmaker + ":" + urlBase + ":" + (title == null ? "" : title.strip().toLowerCase());
-        String hash    = sha256Hex(input);
+    public String computeKey(long chatId, String bookmaker, String url, String title, long startEpoch) {
+        String urlBase    = extractUrlBase(url);
+        String epochPart  = startEpoch > 0 ? ":" + startEpoch : "";
+        String input      = bookmaker + ":" + urlBase + ":" + (title == null ? "" : title.strip().toLowerCase()) + epochPart;
+        String hash       = sha256Hex(input);
         return KEY_PREFIX + chatId + ":" + hash;
     }
 
@@ -64,11 +68,15 @@ public class TitleDedupCacheService {
     }
 
     public void store(String dedupKey, TitleDedupEntry entry) {
+        store(dedupKey, entry, Duration.ofMinutes(dedupTtlMinutes));
+    }
+
+    public void store(String dedupKey, TitleDedupEntry entry, Duration ttl) {
         try {
             redisTemplate.opsForValue().set(
                     dedupKey,
                     objectMapper.writeValueAsString(entry),
-                    Duration.ofMinutes(dedupTtlMinutes));
+                    ttl);
         } catch (JsonProcessingException e) {
             log.warn("[DEDUP] Failed to store entry for key={}: {}", dedupKey, e.getMessage());
         }

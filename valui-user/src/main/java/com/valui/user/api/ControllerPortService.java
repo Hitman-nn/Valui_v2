@@ -33,6 +33,9 @@ public interface ControllerPortService {
 
     void updateLastCheckedAt(UUID controllerId, OffsetDateTime checkedAt);
 
+    /** Resets lastCheckedAt to null for all given controller IDs in one UPDATE. */
+    void resetLastCheckedAtBatch(List<UUID> controllerIds);
+
     void updateIsActive(UUID controllerId, boolean active);
 
     boolean existsByUserAndBookmakerAndUrl(UUID userId, BookmakerType bookmaker, String url);

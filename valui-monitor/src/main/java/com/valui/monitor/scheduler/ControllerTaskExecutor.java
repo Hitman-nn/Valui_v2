@@ -190,6 +190,7 @@ public class ControllerTaskExecutor {
             if (item.extraData() != null) extraByExternalId.put(item.id(), item.extraData());
         }
 
+        OffsetDateTime expiresAt = OffsetDateTime.now().plusDays(props.getDedupTtlDays());
         List<DetectedEventEntity> saved = new ArrayList<>();
         for (ParsedItem item : fetched) {
             // Redis atomic claim replaces the per-event DB existsBy query (O(1) vs O(log n))
@@ -203,7 +204,7 @@ public class ControllerTaskExecutor {
             String title  = item.title() != null ? item.title() : item.id();
             boolean inserted = detectedEventPort.insertIfAbsent(
                     entityId, ctrl.getId(), item.id(), title, item.url(),
-                    extraByExternalId.get(item.id()));
+                    extraByExternalId.get(item.id()), expiresAt);
 
             if (inserted && !isFirstRun) {
                 // Build a value object for the fan-out loop below; fields match what was inserted.

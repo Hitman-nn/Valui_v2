@@ -13,6 +13,7 @@ import com.valui.monitor.scheduler.state.SchedulerStateStore;
 import com.valui.user.api.ControllerPortService;
 import com.valui.user.event.ControllerResumedEvent;
 import com.valui.user.event.ControllerSuspendedEvent;
+import com.valui.user.event.UserBanEvent;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -201,6 +202,21 @@ public class MonitorScheduler {
             scheduleController(e.controllerId(), e.userId(), e.pollIntervalSec());
             log.info("Контроллер {} возобновлён (токены)", e.controllerId());
         }
+    }
+
+    @EventListener
+    public void on(UserBanEvent e) {
+        if (!"UNBAN".equals(e.action())) return;
+        List<ControllerTaskExecutor.ControllerScheduleInfo> userControllers =
+                taskExecutor.loadActiveForUser(e.targetUserId());
+        if (userControllers.isEmpty()) return;
+        List<java.util.UUID> ids = userControllers.stream()
+                .map(ControllerTaskExecutor.ControllerScheduleInfo::controllerId)
+                .toList();
+        userControllers.forEach(info -> dedup.clearController(info.controllerId()));
+        controllerPort.resetLastCheckedAtBatch(ids);
+        log.info("Разбан userId={}: сброс дедупа и lastCheckedAt для {} контроллеров",
+                e.targetUserId(), userControllers.size());
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

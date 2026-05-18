@@ -165,6 +165,7 @@ class TelegramNotificationSenderTest {
                 betKey,
                 null,
                 42,
+                null,
                 null);
     }
 }

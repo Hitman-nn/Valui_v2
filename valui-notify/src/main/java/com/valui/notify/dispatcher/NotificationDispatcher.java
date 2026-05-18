@@ -17,6 +17,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.UUID;
 
 /**
@@ -89,11 +90,17 @@ public class NotificationDispatcher {
             // duplicates (same match, different event ID) edit this message instead.
             if (telegramMessageId != null && request.dedupKey() != null
                     && request.telegramId() != null) {
-                titleDedupCache.store(request.dedupKey(), new TitleDedupEntry(
+                TitleDedupEntry dedupEntry = new TitleDedupEntry(
                         telegramMessageId,
                         request.telegramId(),
                         request.betKey(),
-                        request.quickAddKey()));
+                        request.quickAddKey());
+                if (request.dedupTtlMinutes() != null && request.dedupTtlMinutes() > 0) {
+                    titleDedupCache.store(request.dedupKey(), dedupEntry,
+                            Duration.ofMinutes(request.dedupTtlMinutes()));
+                } else {
+                    titleDedupCache.store(request.dedupKey(), dedupEntry);
+                }
             }
 
             // Списываем токен за успешное уведомление

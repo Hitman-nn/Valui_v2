@@ -42,6 +42,11 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
 
     @Transactional
     @Modifying
+    @Query("UPDATE ControllerEntity c SET c.lastCheckedAt = null WHERE c.id IN :ids")
+    int resetLastCheckedAtBatch(@Param("ids") List<UUID> ids);
+
+    @Transactional
+    @Modifying
     @Query("UPDATE ControllerEntity c SET c.isActive = :active WHERE c.id = :id")
     int updateIsActive(@Param("id") UUID id, @Param("active") Boolean active);
 

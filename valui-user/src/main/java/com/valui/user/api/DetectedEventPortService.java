@@ -22,7 +22,8 @@ public interface DetectedEventPortService {
      *
      * @return true if actually inserted, false if the row already existed
      */
-    boolean insertIfAbsent(UUID id, UUID controllerId, String externalId, String title, String url, String extraData);
+    boolean insertIfAbsent(UUID id, UUID controllerId, String externalId, String title, String url, String extraData,
+                           java.time.OffsetDateTime expiresAt);
 
     long countByControllerId(UUID controllerId);
 
@@ -45,4 +46,10 @@ public interface DetectedEventPortService {
 
     /** Returns ALL known external event IDs for the controller (no time limit). Used by dedup sync. */
     List<String> findAllExternalIdsByControllerId(UUID controllerId);
+
+    /**
+     * Deletes up to {@code batchSize} expired detected_events rows (expires_at < threshold).
+     * Returns the number of deleted rows; 0 means no more expired rows remain.
+     */
+    int deleteExpiredBatch(OffsetDateTime threshold, int batchSize);
 }

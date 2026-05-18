@@ -59,10 +59,11 @@ public class ResendEventService {
         redis.opsForSet().remove(MONITOR_DEDUP_PREFIX + controllerId, externalId);
 
         // Clear notify-dedup for all subscribers so they receive a fresh message (not an edit)
+        long startEpoch = extractStartEpoch(event.getExtraData());
         List<ControllerSubscriptionEntity> subs = subscriptionRepository.findAllByControllerId(controllerId);
         int notifyDedupCleared = 0;
         for (ControllerSubscriptionEntity sub : subs) {
-            String key = notifyDedupKey(sub.getChatId(), bookmaker, url, title);
+            String key = notifyDedupKey(sub.getChatId(), bookmaker, url, title, startEpoch);
             if (Boolean.TRUE.equals(redis.delete(key))) notifyDedupCleared++;
         }
 
@@ -74,10 +75,22 @@ public class ResendEventService {
 
     // ── key helpers (mirrors TitleDedupCacheService logic) ────────────────────
 
-    private static String notifyDedupKey(long chatId, String bookmaker, String url, String title) {
-        String urlBase = extractUrlBase(url);
-        String input   = bookmaker + ":" + urlBase + ":" + (title == null ? "" : title.strip().toLowerCase());
+    private static String notifyDedupKey(long chatId, String bookmaker, String url, String title, long startEpoch) {
+        String urlBase   = extractUrlBase(url);
+        String epochPart = startEpoch > 0 ? ":" + startEpoch : "";
+        String input     = bookmaker + ":" + urlBase + ":" + (title == null ? "" : title.strip().toLowerCase()) + epochPart;
         return NOTIFY_DEDUP_PREFIX + chatId + ":" + sha256Hex(input);
+    }
+
+    private static long extractStartEpoch(String extraData) {
+        if (extraData == null) return 0;
+        int idx = extraData.indexOf("\"st\":");
+        if (idx < 0) return 0;
+        int start = idx + 5, end = start;
+        while (end < extraData.length() && Character.isDigit(extraData.charAt(end))) end++;
+        if (end == start) return 0;
+        try { return Long.parseLong(extraData.substring(start, end)); }
+        catch (NumberFormatException e) { return 0; }
     }
 
     private static String extractUrlBase(String url) {

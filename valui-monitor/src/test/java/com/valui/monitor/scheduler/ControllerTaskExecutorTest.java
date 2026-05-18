@@ -115,7 +115,7 @@ class ControllerTaskExecutorTest {
         ParsedItem item = new ParsedItem("evt1", "Zenit - CSKA", "https://1xstavka.ru/evt1", null);
         given(controllerPort.findById(CTRL_ID)).willReturn(Optional.of(controller));
         given(dedup.claimIfNew(CTRL_ID, "evt1")).willReturn(true);
-        given(detectedEventPort.insertIfAbsent(any(), any(), any(), any(), any(), any())).willReturn(true);
+        given(detectedEventPort.insertIfAbsent(any(), any(), any(), any(), any(), any(), any())).willReturn(true);
         given(controllerPort.save(any())).willReturn(controller);
 
         int count = executor.persistNewEvents(ctx, List.of(item));
@@ -145,7 +145,7 @@ class ControllerTaskExecutorTest {
 
         assertThat(count).isZero();
         verify(events, never()).publishEvent(any());
-        verify(detectedEventPort, never()).insertIfAbsent(any(), any(), any(), any(), any(), any());
+        verify(detectedEventPort, never()).insertIfAbsent(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -156,7 +156,7 @@ class ControllerTaskExecutorTest {
         given(controllerPort.findById(CTRL_ID)).willReturn(Optional.of(controller));
         given(dedup.claimIfNew(CTRL_ID, "evtOld")).willReturn(false);
         given(dedup.claimIfNew(CTRL_ID, "evtNew")).willReturn(true);
-        given(detectedEventPort.insertIfAbsent(any(), any(), any(), any(), any(), any())).willReturn(true);
+        given(detectedEventPort.insertIfAbsent(any(), any(), any(), any(), any(), any(), any())).willReturn(true);
         given(controllerPort.save(any())).willReturn(controller);
 
         int count = executor.persistNewEvents(ctx, List.of(old, fresh));

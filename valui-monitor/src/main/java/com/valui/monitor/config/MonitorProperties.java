@@ -14,12 +14,13 @@ public class MonitorProperties {
     private int maxTasksPerUser = 5;
     /** Fallback poll interval when controller.pollIntervalSec is null. */
     private int defaultPollIntervalSec = 60;
-    /** How long to keep event IDs in the Redis dedup SET (days).
-     *  Covers Kafka replay window only — matches can live months but dedup only needs
-     *  to catch duplicates from rebalance/retry, not the full event lifetime. */
-    private int dedupTtlDays = 3;
+    /** How long to keep event IDs in the Redis dedup SET and detected_events DB rows (days).
+     *  Must cover the full match lifecycle: tennis/football events can run up to 6 months. */
+    private int dedupTtlDays = 180;
     /** Cron expression for the nightly dedup sync job. */
     private String dedupSyncCron = "0 0 3 * * *";
+    /** Batch size for the nightly expired detected_events cleanup. */
+    private int dedupCleanupBatchSize = 500;
 
     // ── DRR dispatcher ────────────────────────────────────────────────────────
 

@@ -39,6 +39,12 @@ public class ControllerPortServiceImpl implements ControllerPortService {
     public void updateLastCheckedAt(UUID id, OffsetDateTime at) { repository.updateLastCheckedAt(id, at); }
 
     @Override @Transactional
+    public void resetLastCheckedAtBatch(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) return;
+        repository.resetLastCheckedAtBatch(ids);
+    }
+
+    @Override @Transactional
     public void updateIsActive(UUID id, boolean active) { repository.updateIsActive(id, active); }
 
     @Override
