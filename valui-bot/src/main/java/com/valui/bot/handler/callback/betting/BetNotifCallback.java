@@ -5,6 +5,7 @@ import com.valui.betting.cache.BetNotifData;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
+import com.valui.bot.keyboard.BotMarkdownUtil;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.bot.service.BotSessionService;
@@ -146,7 +147,6 @@ public class BetNotifCallback implements CallbackHandler {
     }
 
     private static String escape(String s) {
-        if (s == null) return "—";
-        return s.replace("_", "\\_").replace("*", "\\*").replace("[", "\\[").replace("`", "\\`");
+        return BotMarkdownUtil.escapeTitle(s);
     }
 }

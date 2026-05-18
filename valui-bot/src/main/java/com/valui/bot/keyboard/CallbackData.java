@@ -19,8 +19,11 @@ public final class CallbackData {
     public static final String NOOP = ".";
 
     // ─── Controller ───────────────────────────────────────────────────────────
-    public static final String CTRL_LIST    = "CTRL:LIST";
-    public static final String CTRL_BK_LIST = "CTRL:BK:LIST";
+    public static final String CTRL_LIST             = "CTRL:LIST";
+    public static final String CTRL_BK_LIST          = "CTRL:BK:LIST";
+    public static final String CTRL_LIST_SORT_PREFIX = "CTRL:LIST:SORT:";
+
+    public static String ctrlListSort(String sort) { return CTRL_LIST_SORT_PREFIX + sort.toUpperCase(); }
 
     public static String ctrlDetail(UUID id)    { return "CTRL:DETAIL:" + id; }
     public static String ctrlStop(UUID id)      { return "CTRL:STOP:" + id; }
@@ -28,6 +31,18 @@ public final class CallbackData {
     public static String ctrlUnmute(UUID id)    { return "CTRL:UNMUTE:" + id; }
     public static String ctrlFilterEdit(UUID id){ return "CTRL:FILTER:" + id; }
     public static String ctrlByBookmaker(String bm)       { return "CTRL:BK:" + bm.toUpperCase(); }
+    public static String ctrlByBookmakerSort(String bm, String sort) {
+        return "CTRL:BK:" + bm.toUpperCase() + ":SORT:" + sort.toUpperCase();
+    }
+
+    // ─── Controller events ────────────────────────────────────────────────────
+    public static final String CTRL_EVT_BET_PREFIX  = "CTRL:EVT:BET:";
+    public static final String CTRL_EVT_SRCH_PREFIX = "CTRL:EVT:SRCH:";
+
+    public static String ctrlEvtBet(UUID eventId)                      { return CTRL_EVT_BET_PREFIX  + eventId; }
+    public static String ctrlEvtSrch(UUID controllerId)                { return CTRL_EVT_SRCH_PREFIX + controllerId; }
+    public static String ctrlEvtSrchPage(UUID controllerId, int page)  { return CTRL_EVT_SRCH_PREFIX + controllerId + ":P:" + page; }
+    public static String ctrlDetailPage(UUID controllerId, int page)   { return "CTRL:DETAIL:" + controllerId + ":P:" + page; }
 
     // ─── Filter ───────────────────────────────────────────────────────────────
     public static final String FILTER_LIST = "FILTER:LIST";

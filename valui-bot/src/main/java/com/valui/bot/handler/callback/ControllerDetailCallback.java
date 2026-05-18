@@ -7,16 +7,19 @@ import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.common.domain.ControllerType;
+import com.valui.common.entity.DetectedEventEntity;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
+import com.valui.user.api.DetectedEventPortService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 
 import java.time.Duration;
 import java.time.Instant;
-
 import java.util.UUID;
 
 @Slf4j
@@ -24,24 +27,36 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ControllerDetailCallback implements CallbackHandler {
 
-    private static final String PREFIX = "CTRL:DETAIL:";
+    private static final String PREFIX          = "CTRL:DETAIL:";
+    private static final int    EVENTS_PER_PAGE = 10;
 
-    private final ControllerService controllerService;
-    private final BotMessageSource messageSource;
+    private final ControllerService        controllerService;
+    private final BotMessageSource         messageSource;
+    private final DetectedEventPortService detectedEventPort;
 
     @Override public String callbackPrefix() { return PREFIX; }
     @Override public int order() { return 50; }
 
     @Override
     public void handle(BotUpdateContext ctx) {
+        String data       = ctx.update().getCallbackQuery().getData();
         String callbackId = ctx.update().getCallbackQuery().getId();
-        int messageId = ctx.update().getCallbackQuery().getMessage().getMessageId();
+        int    messageId  = ctx.update().getCallbackQuery().getMessage().getMessageId();
         MessageSend.answerCallback(ctx.sender(), callbackId);
 
+        // Parse controllerId and optional events page: "{uuid}" or "{uuid}:P:{page}"
+        String payload = data.substring(PREFIX.length());
         UUID controllerId;
-        try {
-            controllerId = UUID.fromString(ctx.update().getCallbackQuery().getData().substring(PREFIX.length()));
-        } catch (Exception e) { return; }
+        int eventsPage = 0;
+        if (payload.contains(":P:")) {
+            try {
+                controllerId = UUID.fromString(payload.substring(0, payload.indexOf(":P:")));
+                eventsPage   = Integer.parseInt(payload.substring(payload.lastIndexOf(':') + 1));
+            } catch (Exception e) { return; }
+        } else {
+            try { controllerId = UUID.fromString(payload); }
+            catch (Exception e) { return; }
+        }
 
         ControllerDto c;
         try {
@@ -51,10 +66,61 @@ public class ControllerDetailCallback implements CallbackHandler {
             return;
         }
 
+        Page<DetectedEventEntity> events = detectedEventPort.findRecentByControllerId(
+                controllerId, PageRequest.of(eventsPage, EVENTS_PER_PAGE));
+
+        String text = buildDetailText(c, ctx.chatId());
+        if (events.isEmpty() && eventsPage == 0) {
+            text += "\n\n_Событий пока нет_";
+        }
+
         ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
-            buildDetailText(c, ctx.chatId()),
-            buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
+                text, buildKeyboard(c, ctx.fromId(), ctx.chatId(), events, eventsPage));
     }
+
+    // ── Keyboard with events ──────────────────────────────────────────────────
+
+    private static InlineKeyboardMarkup buildKeyboard(ControllerDto c, Long fromId, Long chatId,
+                                                       Page<DetectedEventEntity> events, int eventsPage) {
+        boolean isGroupChat = chatId != null && chatId < 0;
+        boolean isOwner = !isGroupChat || c.ownerTelegramId() == null || c.ownerTelegramId().equals(fromId);
+
+        var builder = InlineKeyboardBuilder.create();
+
+        if (c.isActive() && isOwner) {
+            builder.button("🛑 Остановить", CallbackData.ctrlStop(c.id()));
+            builder.button(c.isMuted() ? "🔔 Размьютить" : "🔕 Замьютить",
+                    c.isMuted() ? CallbackData.ctrlUnmute(c.id()) : CallbackData.ctrlMute(c.id()));
+            builder.row();
+        }
+        if (c.type() == ControllerType.SPORT && isOwner) {
+            builder.button("✏️ Изменить фильтр", CallbackData.ctrlFilterEdit(c.id())).row();
+        }
+
+        builder.button("← К списку", CallbackData.ctrlByBookmaker(c.bookmaker()));
+        builder.button("🔍 Поиск", CallbackData.ctrlEvtSrch(c.id()));
+        builder.row();
+
+        for (DetectedEventEntity event : events.getContent()) {
+            builder.button("🎯 " + truncate(event.getTitle(), 55),
+                    CallbackData.ctrlEvtBet(event.getId())).row();
+        }
+
+        if (events.getTotalPages() > 1) {
+            if (eventsPage > 0) {
+                builder.button("‹", CallbackData.ctrlDetailPage(c.id(), eventsPage - 1));
+            }
+            builder.button((eventsPage + 1) + "/" + events.getTotalPages(), CallbackData.NOOP);
+            if (eventsPage < events.getTotalPages() - 1) {
+                builder.button("›", CallbackData.ctrlDetailPage(c.id(), eventsPage + 1));
+            }
+            builder.row();
+        }
+
+        return builder.build();
+    }
+
+    // ── Static helpers (used by WizardTextHandler after filter edit) ──────────
 
     public static String buildDetailText(ControllerDto c, Long chatId) {
         String status;
@@ -84,11 +150,10 @@ public class ControllerDetailCallback implements CallbackHandler {
         return sb.toString();
     }
 
+    /** Backward-compat: keyboard WITHOUT events section (used by WizardTextHandler after filter edit). */
     public static InlineKeyboardMarkup buildDetailKeyboard(ControllerDto c, Long fromId, Long chatId) {
         boolean isGroupChat = chatId != null && chatId < 0;
-        boolean isOwner = !isGroupChat
-            || c.ownerTelegramId() == null
-            || c.ownerTelegramId().equals(fromId);
+        boolean isOwner = !isGroupChat || c.ownerTelegramId() == null || c.ownerTelegramId().equals(fromId);
 
         var builder = InlineKeyboardBuilder.create();
 
@@ -101,7 +166,6 @@ public class ControllerDetailCallback implements CallbackHandler {
             }
             builder.row();
         }
-
         if (c.type() == ControllerType.SPORT && isOwner) {
             builder.button("✏️ Изменить фильтр", CallbackData.ctrlFilterEdit(c.id()));
             builder.row();
@@ -114,8 +178,13 @@ public class ControllerDetailCallback implements CallbackHandler {
     private static String formatLastChecked(Instant lastCheckedAt) {
         if (lastCheckedAt == null) return "ещё не запускался";
         long secs = Duration.between(lastCheckedAt, Instant.now()).getSeconds();
-        if (secs < 60)  return secs + " сек назад";
+        if (secs < 60)   return secs + " сек назад";
         if (secs < 3600) return (secs / 60) + " мин назад";
         return (secs / 3600) + " ч назад";
+    }
+
+    private static String truncate(String s, int maxLen) {
+        if (s == null) return "";
+        return s.length() <= maxLen ? s : s.substring(0, maxLen - 1) + "…";
     }
 }

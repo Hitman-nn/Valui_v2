@@ -77,7 +77,8 @@ class MonitoringControllerTest {
                 Instant.now().minusSeconds(300),
                 Instant.now().minusSeconds(60),
                 5, ControllerType.TOURNAMENT,
-                TELEGRAM, TELEGRAM, 20);
+                TELEGRAM, TELEGRAM, 20,
+                Instant.now().minusSeconds(7200));
     }
 
     // ── GET /api/v1/controllers ───────────────────────────────────────────────

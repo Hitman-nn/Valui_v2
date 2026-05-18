@@ -73,24 +73,27 @@ class MenuSnapshotTest {
     }
 
     @Test
-    @DisplayName("BookmakerMenuBuilder.buildControllerList: items without [BK] + Back button")
+    @DisplayName("BookmakerMenuBuilder.buildControllerList: items without [BK] + sort toggle + Back button")
     void bookmakerMenuBuilder_controllerList_noBookmakerSuffix() {
         List<ControllerDto> controllers = List.of(
             ctrl(UUID.randomUUID(), "Лига чемпионов", "XBET", ControllerType.TOURNAMENT, true,  false),
             ctrl(UUID.randomUUID(), "АПЛ",            "XBET", ControllerType.TOURNAMENT, true,  true)
         );
-        MenuMessage menu = BookmakerMenuBuilder.buildControllerList("XBET", controllers, 0, 30);
+        MenuMessage menu = BookmakerMenuBuilder.buildControllerList("XBET", controllers, 0, 30,
+                ControllerMenuBuilder.SORT_DATE);
         InlineKeyboardMarkup kb = menu.keyboard();
-        // 2 items + back = 3 rows
-        assertThat(kb.getKeyboard()).hasSize(3);
+        // 2 items + sort toggle + back = 4 rows
+        assertThat(kb.getKeyboard()).hasSize(4);
         // Labels have no [XBET] suffix
         String label0 = kb.getKeyboard().get(0).get(0).getText();
         assertThat(label0).doesNotContain("[XBET]");
         assertThat(label0).contains("Лига чемпионов");
         assertThat(label0).startsWith("🟢");
         assertThat(kb.getKeyboard().get(1).get(0).getText()).startsWith("🔕");
+        // Sort toggle
+        assertThat(kb.getKeyboard().get(2).get(0).getText()).isEqualTo("🔡 По алфавиту");
         // Back button
-        assertThat(kb.getKeyboard().get(2).get(0).getCallbackData())
+        assertThat(kb.getKeyboard().get(3).get(0).getCallbackData())
             .isEqualTo(CallbackData.CTRL_BK_LIST);
     }
 
@@ -99,19 +102,19 @@ class MenuSnapshotTest {
     private static ControllerDto ctrl(UUID id, String title, String bookmaker,
                                       ControllerType type, boolean active, boolean muted) {
         return new ControllerDto(id, bookmaker, "https://example.com", title,
-                null, muted, active, Instant.now(), null, 0, type, null, null, 20);
+                null, muted, active, Instant.now(), null, 0, type, null, null, 20, Instant.now());
     }
 
     @Test
     @DisplayName("ControllerMenuBuilder: empty list → text only, empty keyboard")
     void controllerMenu_empty_noButtons() {
-        MenuMessage menu = ControllerMenuBuilder.build(List.of(), 0, 30);
+        MenuMessage menu = ControllerMenuBuilder.build(List.of(), 0, 30, ControllerMenuBuilder.SORT_DATE);
         assertThat(menu.text()).contains("пуст");
         assertThat(menu.keyboard().getKeyboard()).isEmpty();
     }
 
     @Test
-    @DisplayName("ControllerMenuBuilder: active + muted controllers show correct icons (no Back row)")
+    @DisplayName("ControllerMenuBuilder: active + muted controllers show correct icons + sort toggle")
     void controllerMenu_icons() {
         UUID id1 = UUID.randomUUID(), id2 = UUID.randomUUID(), id3 = UUID.randomUUID();
         List<ControllerDto> controllers = List.of(
@@ -120,31 +123,49 @@ class MenuSnapshotTest {
             ctrl(id3, "Stopped","OLIMP",  ControllerType.TOURNAMENT, false, false)
         );
 
-        MenuMessage menu = ControllerMenuBuilder.build(controllers, 0, 30);
+        MenuMessage menu = ControllerMenuBuilder.build(controllers, 0, 30, ControllerMenuBuilder.SORT_DATE);
         InlineKeyboardMarkup kb = menu.keyboard();
         assertThat(kb.getKeyboard().get(0).get(0).getText()).startsWith("🟢");
         assertThat(kb.getKeyboard().get(1).get(0).getText()).startsWith("🔕");
         assertThat(kb.getKeyboard().get(2).get(0).getText()).startsWith("🔴");
-        // 3 items only — no Back row
-        assertThat(kb.getKeyboard()).hasSize(3);
+        // 3 items + 1 sort toggle = 4 rows
+        assertThat(kb.getKeyboard()).hasSize(4);
+        assertThat(kb.getKeyboard().get(3).get(0).getText()).isEqualTo("🔡 По алфавиту");
     }
 
     @Test
-    @DisplayName("ControllerMenuBuilder: 7 controllers paged → nav row, no Back row")
+    @DisplayName("ControllerMenuBuilder: 16 controllers paged → nav row + sort toggle")
     void controllerMenu_multiPage_hasNavRow() {
-        List<ControllerDto> controllers = java.util.stream.IntStream.rangeClosed(1, 7)
+        List<ControllerDto> controllers = java.util.stream.IntStream.rangeClosed(1, 16)
             .mapToObj(i -> ctrl(UUID.randomUUID(), "Ctrl " + i, "XBET",
                     ControllerType.MATCH, true, false))
             .toList();
 
-        MenuMessage menu = ControllerMenuBuilder.build(controllers, 0, 30);
+        MenuMessage menu = ControllerMenuBuilder.build(controllers, 0, 30, ControllerMenuBuilder.SORT_DATE);
         InlineKeyboardMarkup kb = menu.keyboard();
-        // 6 items + 1 nav = 7 rows (no Back)
-        assertThat(kb.getKeyboard()).hasSize(7);
-        List<InlineKeyboardButton> nav = kb.getKeyboard().get(6);
+        // 15 items + 1 nav + 1 sort toggle = 17 rows
+        assertThat(kb.getKeyboard()).hasSize(17);
+        List<InlineKeyboardButton> nav = kb.getKeyboard().get(15);
         assertThat(nav.get(0).getText()).isEqualTo("1/2");
         assertThat(nav.get(1).getText()).isEqualTo("›");
         assertThat(nav.get(1).getCallbackData()).isEqualTo(ControllerMenuBuilder.NAV_PREFIX + ":PAGE:1");
+    }
+
+    @Test
+    @DisplayName("ControllerMenuBuilder: sort NAME → toggle shows 📅 По дате")
+    void controllerMenu_sortName_toggleShowsDate() {
+        List<ControllerDto> controllers = List.of(
+            ctrl(UUID.randomUUID(), "Zeta", "XBET",   ControllerType.TOURNAMENT, true, false),
+            ctrl(UUID.randomUUID(), "Alpha", "FONBET", ControllerType.TOURNAMENT, true, false)
+        );
+
+        MenuMessage menu = ControllerMenuBuilder.build(controllers, 0, 30, ControllerMenuBuilder.SORT_NAME);
+        InlineKeyboardMarkup kb = menu.keyboard();
+        // Alphabetical: Alpha before Zeta
+        assertThat(kb.getKeyboard().get(0).get(0).getText()).contains("Alpha");
+        assertThat(kb.getKeyboard().get(1).get(0).getText()).contains("Zeta");
+        // Sort toggle shows switch-to-DATE option
+        assertThat(kb.getKeyboard().get(2).get(0).getText()).isEqualTo("📅 По дате");
     }
 
     // ─── FilterMenuBuilder ───────────────────────────────────────────────────

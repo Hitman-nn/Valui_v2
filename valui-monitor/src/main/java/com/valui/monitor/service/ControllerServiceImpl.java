@@ -347,7 +347,8 @@ public class ControllerServiceImpl implements ControllerService {
             e.getLastCheckedAt() != null ? e.getLastCheckedAt().toInstant() : null,
             e.getLastEventAt()   != null ? e.getLastEventAt().toInstant()   : null,
             (int) eventCount, e.getType(), e.getNotificationChatId(), ownerTelegramId,
-            resolvedPollInterval(e)
+            resolvedPollInterval(e),
+            e.getCreatedAt() != null ? e.getCreatedAt().toInstant() : null
         );
     }
 
@@ -421,7 +422,8 @@ public class ControllerServiceImpl implements ControllerService {
             e.getLastCheckedAt() != null ? e.getLastCheckedAt().toInstant() : null,
             e.getLastEventAt()   != null ? e.getLastEventAt().toInstant()   : null,
             (int) eventCount, e.getType(), e.getNotificationChatId(), ownerTelegramId,
-            resolvedPollInterval(e)
+            resolvedPollInterval(e),
+            e.getCreatedAt() != null ? e.getCreatedAt().toInstant() : null
         );
     }
 
@@ -442,7 +444,8 @@ public class ControllerServiceImpl implements ControllerService {
             e.getType(),
             e.getNotificationChatId(),
             ownerTelegramId,
-            resolvedPollInterval(e)
+            resolvedPollInterval(e),
+            e.getCreatedAt() != null ? e.getCreatedAt().toInstant() : null
         );
     }
 

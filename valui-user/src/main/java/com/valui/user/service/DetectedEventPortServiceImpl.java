@@ -8,6 +8,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -76,5 +79,20 @@ public class DetectedEventPortServiceImpl implements DetectedEventPortService {
     @Transactional
     public int deleteExpiredBatch(OffsetDateTime threshold, int batchSize) {
         return repository.deleteExpiredBatch(threshold, batchSize);
+    }
+
+    @Override
+    public Page<DetectedEventEntity> findRecentByControllerId(UUID controllerId, Pageable pageable) {
+        return repository.findByControllerIdOrderByDetectedAtDesc(controllerId, pageable);
+    }
+
+    @Override
+    public Page<DetectedEventEntity> searchByControllerIdAndTitle(UUID controllerId, String query, Pageable pageable) {
+        return repository.searchByControllerIdAndTitle(controllerId, query, pageable);
+    }
+
+    @Override
+    public Optional<DetectedEventEntity> findByIdWithController(UUID eventId) {
+        return repository.findByIdWithController(eventId);
     }
 }

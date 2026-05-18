@@ -5,6 +5,7 @@ import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
 import com.valui.bot.keyboard.menu.BookmakerMenuBuilder;
+import com.valui.bot.keyboard.menu.ControllerMenuBuilder;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
 import lombok.RequiredArgsConstructor;
@@ -61,7 +62,8 @@ public class ControllerStopCallback implements CallbackHandler {
                 .filter(c -> bookmaker.equalsIgnoreCase(c.bookmaker()))
                 .filter(c -> removedId == null || !c.id().equals(removedId))
                 .toList();
-            var menu = BookmakerMenuBuilder.buildControllerList(bookmaker, remaining, 0, botProperties.staleThresholdDays());
+            var menu = BookmakerMenuBuilder.buildControllerList(bookmaker, remaining, 0,
+                    botProperties.staleThresholdDays(), ControllerMenuBuilder.SORT_DATE);
             ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId, menu.text(), menu.keyboard());
         } else {
             List<ControllerDto> all = ctx.isGroupChat()

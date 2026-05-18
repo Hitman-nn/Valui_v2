@@ -86,4 +86,12 @@ public interface DetectedEventRepository extends JpaRepository<DetectedEventEnti
     long countByDetectedAtBetween(OffsetDateTime from, OffsetDateTime to);
 
     Page<DetectedEventEntity> findByControllerIdOrderByDetectedAtDesc(UUID controllerId, Pageable pageable);
+
+    @Query("SELECT e FROM DetectedEventEntity e WHERE e.controller.id = :controllerId AND LOWER(e.title) LIKE LOWER(CONCAT('%', :query, '%')) ORDER BY e.detectedAt DESC")
+    Page<DetectedEventEntity> searchByControllerIdAndTitle(@Param("controllerId") UUID controllerId,
+                                                           @Param("query") String query,
+                                                           Pageable pageable);
+
+    @Query("SELECT e FROM DetectedEventEntity e JOIN FETCH e.controller WHERE e.id = :id")
+    Optional<DetectedEventEntity> findByIdWithController(@Param("id") UUID id);
 }

@@ -52,4 +52,12 @@ public interface DetectedEventPortService {
      * Returns the number of deleted rows; 0 means no more expired rows remain.
      */
     int deleteExpiredBatch(OffsetDateTime threshold, int batchSize);
+
+    org.springframework.data.domain.Page<DetectedEventEntity> findRecentByControllerId(
+            UUID controllerId, org.springframework.data.domain.Pageable pageable);
+
+    org.springframework.data.domain.Page<DetectedEventEntity> searchByControllerIdAndTitle(
+            UUID controllerId, String query, org.springframework.data.domain.Pageable pageable);
+
+    java.util.Optional<DetectedEventEntity> findByIdWithController(UUID eventId);
 }

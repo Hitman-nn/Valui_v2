@@ -6,6 +6,8 @@ import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.menu.BookmakerMenuBuilder;
+import com.valui.bot.keyboard.menu.ControllerMenuBuilder;
+import com.valui.bot.service.ControllerSortPreferenceService;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
 import lombok.RequiredArgsConstructor;
@@ -17,10 +19,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ControllerByBookmakerCallback implements CallbackHandler {
 
-    private final ControllerService controllerService;
-    private final BotProperties     botProperties;
-
     private static final String PREFIX = "CTRL:BK:";
+
+    private final ControllerService             controllerService;
+    private final BotProperties                 botProperties;
+    private final ControllerSortPreferenceService sortPreference;
 
     @Override
     public String callbackPrefix() { return PREFIX; }
@@ -30,41 +33,52 @@ public class ControllerByBookmakerCallback implements CallbackHandler {
 
     @Override
     public void handle(BotUpdateContext ctx) {
-        String data      = ctx.update().getCallbackQuery().getData();
+        String data       = ctx.update().getCallbackQuery().getData();
         String callbackId = ctx.update().getCallbackQuery().getId();
         int    messageId  = ctx.update().getCallbackQuery().getMessage().getMessageId();
+        long   chatId     = ctx.chatId();
         MessageSend.answerCallback(ctx.sender(), callbackId);
 
-        String remainder = data.substring(PREFIX.length()); // "LIST" | "XBET" | "XBET:PAGE:1"
+        String remainder = data.substring(PREFIX.length()); // "LIST" | "XBET" | "XBET:PAGE:1" | "XBET:SORT:NAME"
 
         List<ControllerDto> all = ctx.isGroupChat()
-            ? controllerService.getGroupControllers(ctx.chatId())
-            : controllerService.getUserControllersForChat(ctx.fromId(), ctx.chatId());
+            ? controllerService.getGroupControllers(chatId)
+            : controllerService.getUserControllersForChat(ctx.fromId(), chatId);
 
         if (CallbackData.CTRL_BK_LIST.equals(data)) {
             var menu = BookmakerMenuBuilder.buildSelection(all);
-            ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
+            ctx.tracker().replaceAndTrack(ctx.sender(), chatId, messageId,
                 menu.text(), menu.keyboard());
             return;
         }
 
-        // parse bookmaker and optional page
+        // parse bookmaker, optional page, optional sort
         String bm;
-        int page;
-        if (remainder.contains(":PAGE:")) {
+        int    page;
+        String sort;
+
+        if (remainder.contains(":SORT:")) {
+            bm   = remainder.substring(0, remainder.indexOf(":SORT:"));
+            sort = remainder.substring(remainder.lastIndexOf(':') + 1).toUpperCase();
+            sortPreference.save(chatId, sort);
+            page = 0;
+        } else if (remainder.contains(":PAGE:")) {
             bm   = remainder.substring(0, remainder.indexOf(":PAGE:"));
             page = parsePage(remainder.substring(remainder.lastIndexOf(':') + 1));
+            sort = sortPreference.load(chatId);
         } else {
             bm   = remainder;
             page = 0;
+            sort = sortPreference.load(chatId);
         }
 
         List<ControllerDto> filtered = all.stream()
             .filter(c -> bm.equalsIgnoreCase(c.bookmaker()))
             .toList();
 
-        var menu = BookmakerMenuBuilder.buildControllerList(bm, filtered, page, botProperties.staleThresholdDays());
-        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
+        var menu = BookmakerMenuBuilder.buildControllerList(
+                bm, filtered, page, botProperties.staleThresholdDays(), sort);
+        ctx.tracker().replaceAndTrack(ctx.sender(), chatId, messageId,
             menu.text(), menu.keyboard());
     }
 

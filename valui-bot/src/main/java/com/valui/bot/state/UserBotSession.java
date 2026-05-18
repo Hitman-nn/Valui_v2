@@ -64,4 +64,9 @@ public class UserBotSession {
     public static final String CTX_ACCT_EDIT_ID         = "acctEditId";       // UUID of account currently being edited
     public static final String CTX_ACCT_EDIT_PERSON_ID  = "acctEditPersonId"; // UUID of person being linked/edited in account
     public static final String CTX_ACCT_EDIT_OP         = "acctEditOp";       // "SET" | "ADD" | "SUB"
+
+    // ── Controller event search keys ──────────────────────────────────────────
+    public static final String CTX_EVT_SEARCH_CTRL_ID = "evtSearchCtrlId"; // UUID of controller being searched
+    public static final String CTX_EVT_SEARCH_QUERY   = "evtSearchQuery";  // last search query (for pagination)
+    public static final String CTX_EVT_MSG_ID         = "evtMsgId";        // message ID to replace with results
 }

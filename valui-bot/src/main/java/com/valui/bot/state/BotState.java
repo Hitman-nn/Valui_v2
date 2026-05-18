@@ -18,6 +18,9 @@ public enum BotState {
     BETTING_CONFIRM,              // confirmation screen before submit
     BETTING_WAITING_PART_AMOUNT,  // entering custom stake amount for one participant
 
+    // ── Controller event search ───────────────────────────────────────────────
+    SEARCHING_CONTROLLER_EVENTS,           // waiting for user to type event search query
+
     // ── Account / Person management ───────────────────────────────────────────
     BETTING_WAITING_ACCOUNT_NAME,          // entering name for new bet account
     BETTING_WAITING_PERSON_NAME,           // entering name for new bet person

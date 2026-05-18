@@ -19,5 +19,6 @@ public record ControllerDto(
         ControllerType type,
         Long notificationChatId,
         Long ownerTelegramId,
-        int pollIntervalSec
+        int pollIntervalSec,
+        Instant createdAt
 ) {}

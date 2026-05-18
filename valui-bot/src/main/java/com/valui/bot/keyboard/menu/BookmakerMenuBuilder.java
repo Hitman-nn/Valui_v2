@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 public final class BookmakerMenuBuilder {
 
     public static final String BK_NAV_PREFIX = "CTRL:BK";
-    private static final int PAGE_SIZE = 6;
+    private static final int PAGE_SIZE = 15;
 
     private BookmakerMenuBuilder() {}
 
@@ -52,7 +52,8 @@ public final class BookmakerMenuBuilder {
     /**
      * Builds the per-bookmaker controller list (no [BK] suffix in labels, with "← Букмекеры" back).
      */
-    public static MenuMessage buildControllerList(String bookmaker, List<ControllerDto> controllers, int page, int staleThresholdDays) {
+    public static MenuMessage buildControllerList(String bookmaker, List<ControllerDto> controllers,
+                                                   int page, int staleThresholdDays, String sort) {
         if (controllers.isEmpty()) {
             var keyboard = InlineKeyboardBuilder.create()
                 .button("← Букмекеры", CallbackData.CTRL_BK_LIST)
@@ -60,13 +61,20 @@ public final class BookmakerMenuBuilder {
             return new MenuMessage("📋 " + bookmaker + " — контроллеров нет.", keyboard);
         }
 
-        int totalPages = (int) Math.ceil((double) controllers.size() / PAGE_SIZE);
+        List<ControllerDto> sorted = sort(controllers, sort);
+        int totalPages = (int) Math.ceil((double) sorted.size() / PAGE_SIZE);
         String text = totalPages > 1
             ? String.format("📋 %s — стр. %d / %d:", bookmaker, page + 1, totalPages)
             : "📋 " + bookmaker + ":";
 
+        boolean isName = ControllerMenuBuilder.SORT_NAME.equalsIgnoreCase(sort);
+        String toggleLabel    = isName ? "📅 По дате"    : "🔡 По алфавиту";
+        String toggleCallback = isName
+                ? CallbackData.ctrlByBookmakerSort(bookmaker, ControllerMenuBuilder.SORT_DATE)
+                : CallbackData.ctrlByBookmakerSort(bookmaker, ControllerMenuBuilder.SORT_NAME);
+
         var keyboard = PagedKeyboardBuilder.<ControllerDto>create()
-            .items(controllers)
+            .items(sorted)
             .itemRenderer(c -> {
                 String statusIcon = !c.isActive() ? "🔴" : (c.isMuted() ? "🔕" : "🟢");
                 String staleIcon  = isStale(c.lastEventAt(), staleThresholdDays) ? "🕰️" : "";
@@ -76,14 +84,18 @@ public final class BookmakerMenuBuilder {
             .pageSize(PAGE_SIZE)
             .currentPage(page)
             .navigationCallbackPrefix(BK_NAV_PREFIX + ":" + bookmaker.toUpperCase())
+            .appendRow(KeyboardButton.callback(toggleLabel, toggleCallback))
             .appendRow(KeyboardButton.callback("← Букмекеры", CallbackData.CTRL_BK_LIST))
             .build();
 
         return new MenuMessage(text, keyboard);
     }
 
+    private static List<ControllerDto> sort(List<ControllerDto> controllers, String sort) {
+        return ControllerSortUtil.sort(controllers, sort);
+    }
+
     private static boolean isStale(Instant lastEventAt, int days) {
         return lastEventAt != null && lastEventAt.isBefore(Instant.now().minus(days, ChronoUnit.DAYS));
     }
-
 }

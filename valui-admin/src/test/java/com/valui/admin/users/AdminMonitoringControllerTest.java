@@ -79,7 +79,8 @@ class AdminMonitoringControllerTest {
                 Instant.now().minusSeconds(600),
                 Instant.now().minusSeconds(60),
                 12, ControllerType.TOURNAMENT,
-                USER_TG, USER_TG, 20);
+                USER_TG, USER_TG, 20,
+                Instant.now().minusSeconds(3600));
     }
 
     // ── GET /api/v1/admin/controllers ────────────────────────────────────────

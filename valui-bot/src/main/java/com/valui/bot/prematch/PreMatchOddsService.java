@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -37,16 +38,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RequiredArgsConstructor
 public class PreMatchOddsService {
 
-    private static final long SNAPSHOT_OFFSET_MIN = 30;
+    private static final long SNAPSHOT_OFFSET_MIN      = 30;
     private static final long RESCHEDULE_THRESHOLD_MIN = 10;
+    private static final int  MAX_REGISTER_RETRIES     = 3;
+    private static final long REGISTER_RETRY_DELAY_MIN = 15;
+    // Caps simultaneous HTTP calls to bookmakers (shared by @Async VTs and scheduler threads)
+    private static final int  MAX_CONCURRENT_FETCHES   = 4;
 
     private final BetSlipRepository slipRepo;
-    private final ParserFactory parserFactory;
+    private final ParserFactory     parserFactory;
     private final TransactionTemplate tx;
 
-    private final ConcurrentHashMap<UUID, ScheduledFuture<?>> pending = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, ScheduledFuture<?>> pending         = new ConcurrentHashMap<>();
+    /** Tracks scheduled retry futures to cancel superseded attempts (prevents duplicate retries on concurrent failure). */
+    private final ConcurrentHashMap<UUID, ScheduledFuture<?>> retryPending    = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, Integer>            registerRetries  = new ConcurrentHashMap<>();
+    private final Semaphore                                   fetchSemaphore   = new Semaphore(MAX_CONCURRENT_FETCHES, true);
+
     private final AtomicInteger threadCounter = new AtomicInteger();
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2,
+    // 4 threads: up to 2 concurrent snapshots + 2 for registration retries
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(4,
             r -> { Thread t = new Thread(r, "pre-match-" + threadCounter.getAndIncrement()); t.setDaemon(true); return t; });
 
     // ── public API ────────────────────────────────────────────────────────────
@@ -54,35 +65,20 @@ public class PreMatchOddsService {
     /**
      * Async: fetches the match from the parser, stores startsAt + initial odds in the slip,
      * then schedules the snapshot task. Called right after a bet is saved.
+     * On transient failure retries up to {@value MAX_REGISTER_RETRIES} times with increasing delay.
      */
     @Async
     public void register(UUID slipId) {
-        BetSlipEntity slip = slipRepo.findById(slipId).orElse(null);
-        if (slip == null || slip.getMatchUrl() == null || slip.getMatchUrl().isBlank()) return;
-        try {
-            ParsedMatchDto match = fetchMatch(slip.getMatchUrl());
-            if (match == null) {
-                log.debug("[PRE-MATCH] match not found at registration, slipId={}", slipId);
-                return;
-            }
-            Instant startsAt = match.startsAt();
-            if (startsAt == null || startsAt.equals(Instant.EPOCH)) {
-                log.debug("[PRE-MATCH] startsAt unknown for slipId={}", slipId);
-                return;
-            }
-            slip.setStartsAt(startsAt);
-            slip.setInitialExtraData(match.extraData());
-            slipRepo.save(slip);
-            scheduleFor(slip);
-        } catch (Exception e) {
-            log.warn("[PRE-MATCH] register failed slipId={}: {}", slipId, e.getMessage());
-        }
+        doRegister(slipId);
     }
 
-    /** Cancel the scheduled snapshot for this slip (e.g. when bet is deleted). */
+    /** Cancel the scheduled snapshot and any pending registration retries for this slip. */
     public void cancel(UUID slipId) {
         ScheduledFuture<?> f = pending.remove(slipId);
         if (f != null) f.cancel(false);
+        ScheduledFuture<?> rf = retryPending.remove(slipId);
+        if (rf != null) rf.cancel(false);
+        registerRetries.remove(slipId);
     }
 
     // ── lifecycle ─────────────────────────────────────────────────────────────
@@ -110,7 +106,72 @@ public class PreMatchOddsService {
         scheduler.shutdownNow();
     }
 
-    // ── internals ─────────────────────────────────────────────────────────────
+    // ── registration ──────────────────────────────────────────────────────────
+
+    /**
+     * Core registration logic, called both by {@link #register} (VT) and retry scheduler (PT).
+     * Extracts match start time + initial odds, persists them, then arms the snapshot task.
+     */
+    private void doRegister(UUID slipId) {
+        BetSlipEntity slip = slipRepo.findById(slipId).orElse(null);
+        if (slip == null || slip.getMatchUrl() == null || slip.getMatchUrl().isBlank()) {
+            registerRetries.remove(slipId);
+            return;
+        }
+        if (slip.getStartsAt() != null) {
+            // Already registered (e.g. by a previous retry that succeeded)
+            registerRetries.remove(slipId);
+            scheduleFor(slip);
+            return;
+        }
+        try {
+            ParsedMatchDto match = fetchMatch(slip.getMatchUrl());
+            if (match == null) {
+                log.debug("[PRE-MATCH] match not found at registration, slipId={}", slipId);
+                scheduleRegisterRetry(slipId);
+                return;
+            }
+            Instant startsAt = match.startsAt();
+            if (startsAt == null || startsAt.equals(Instant.EPOCH)) {
+                log.debug("[PRE-MATCH] startsAt unknown for slipId={}", slipId);
+                scheduleRegisterRetry(slipId);
+                return;
+            }
+            slip.setStartsAt(startsAt);
+            slip.setInitialExtraData(match.extraData());
+            slipRepo.save(slip);
+            scheduleFor(slip);
+            registerRetries.remove(slipId);
+        } catch (Exception e) {
+            log.warn("[PRE-MATCH] register failed slipId={}: {}", slipId, e.getMessage());
+            scheduleRegisterRetry(slipId);
+        }
+    }
+
+    private void scheduleRegisterRetry(UUID slipId) {
+        int attempt = registerRetries.merge(slipId, 1, Integer::sum);
+        if (attempt > MAX_REGISTER_RETRIES) {
+            log.warn("[PRE-MATCH] giving up registration slipId={} after {} attempts", slipId, attempt - 1);
+            registerRetries.remove(slipId);
+            return;
+        }
+        long delayMin = REGISTER_RETRY_DELAY_MIN * attempt; // 15, 30, 45 min
+        log.info("[PRE-MATCH] registration retry {}/{} in {}min for slipId={}",
+                attempt, MAX_REGISTER_RETRIES, delayMin, slipId);
+
+        // Cancel any previously scheduled retry to prevent duplicates when two concurrent
+        // doRegister() calls both fail (e.g. two VTs from the same @Async invocation chain).
+        ScheduledFuture<?> old = retryPending.remove(slipId);
+        if (old != null) old.cancel(false);
+
+        ScheduledFuture<?> f = scheduler.schedule(() -> {
+            retryPending.remove(slipId);
+            doRegister(slipId);
+        }, delayMin, TimeUnit.MINUTES);
+        retryPending.put(slipId, f);
+    }
+
+    // ── snapshot ──────────────────────────────────────────────────────────────
 
     private void scheduleFor(BetSlipEntity slip) {
         Instant triggerAt = slip.getStartsAt().minus(SNAPSHOT_OFFSET_MIN, ChronoUnit.MINUTES);
@@ -128,24 +189,34 @@ public class PreMatchOddsService {
     private void takeSnapshot(UUID slipId) {
         pending.remove(slipId);
         try {
-            ParsedMatchDto match = tx.execute(status -> {
+            // Step 1: idempotency guard + read matchUrl — short read-only TX
+            String matchUrl = tx.execute(status -> {
                 BetSlipEntity slip = slipRepo.findById(slipId).orElse(null);
                 if (slip == null || slip.getSnapshotTakenAt() != null || slip.getMatchUrl() == null)
                     return null;
+                return slip.getMatchUrl();
+            });
+            if (matchUrl == null) return;
 
-                ParsedMatchDto m = fetchMatch(slip.getMatchUrl());
-                if (m == null) {
-                    log.info("[PRE-MATCH] match not found at snapshot time, slipId={} — skipping", slipId);
-                    return null;
-                }
+            // Step 2: HTTP fetch — outside any transaction, limited by semaphore
+            ParsedMatchDto m = fetchMatch(matchUrl);
+            if (m == null) {
+                log.info("[PRE-MATCH] match not found at snapshot time, slipId={} — skipping", slipId);
+                return;
+            }
 
-                if (!m.startsAt().equals(Instant.EPOCH) && slip.getStartsAt() != null) {
+            // Step 3: write result — short write TX, no I/O inside
+            boolean shifted = Boolean.TRUE.equals(tx.execute(status -> {
+                BetSlipEntity slip = slipRepo.findById(slipId).orElse(null);
+                if (slip == null || slip.getSnapshotTakenAt() != null) return false;
+
+                if (!Instant.EPOCH.equals(m.startsAt()) && slip.getStartsAt() != null) {
                     long diffMin = Math.abs(Duration.between(slip.getStartsAt(), m.startsAt()).toMinutes());
                     if (diffMin > RESCHEDULE_THRESHOLD_MIN) {
                         log.info("[PRE-MATCH] startsAt shifted {}min for slipId={}", diffMin, slipId);
                         slip.setStartsAt(m.startsAt());
                         slipRepo.save(slip);
-                        return m; // signal to reschedule / take immediately after tx
+                        return true; // caller reschedules or takes immediate snapshot
                     }
                 }
 
@@ -153,22 +224,22 @@ public class PreMatchOddsService {
                 slip.setSnapshotTakenAt(OffsetDateTime.now());
                 slipRepo.save(slip);
                 log.info("[PRE-MATCH] snapshot saved slipId={}", slipId);
-                return null; // done
-            });
+                return false;
+            }));
 
-            // If match was rescheduled (tx returned the fresh match), decide what to do
-            if (match != null) {
+            // Step 4: handle startsAt shift outside TX (no new I/O needed — reuse m)
+            if (shifted) {
                 BetSlipEntity refreshed = slipRepo.findById(slipId).orElse(null);
                 if (refreshed == null) return;
                 Instant newTrigger = refreshed.getStartsAt().minus(SNAPSHOT_OFFSET_MIN, ChronoUnit.MINUTES);
                 if (newTrigger.isAfter(Instant.now())) {
                     scheduleFor(refreshed); // future window — reschedule
                 } else if (refreshed.getStartsAt().isAfter(Instant.now())) {
-                    // Match moved earlier, we're inside the window — snapshot immediately
+                    // Match moved earlier, we're inside the window — use the data we already have
                     tx.execute(status -> {
                         BetSlipEntity s = slipRepo.findById(slipId).orElse(null);
                         if (s == null || s.getSnapshotTakenAt() != null) return null;
-                        s.setSnapshotExtraData(match.extraData());
+                        s.setSnapshotExtraData(m.extraData());
                         s.setSnapshotTakenAt(OffsetDateTime.now());
                         slipRepo.save(s);
                         log.info("[PRE-MATCH] snapshot saved (moved earlier) slipId={}", slipId);
@@ -181,6 +252,8 @@ public class PreMatchOddsService {
             log.warn("[PRE-MATCH] takeSnapshot failed slipId={}: {}", slipId, e.getMessage());
         }
     }
+
+    // ── HTTP fetch ────────────────────────────────────────────────────────────
 
     @Nullable
     private ParsedMatchDto fetchMatch(String matchUrl) {
@@ -195,13 +268,22 @@ public class PreMatchOddsService {
         try { parser = parserFactory.getParser(bk); }
         catch (Exception e) { return null; }
 
-        ParseResult<List<ParsedMatchDto>> result = parser.fetchMatches(ids.tournamentId());
-        if (!result.success() || result.data() == null) return null;
-
-        String matchId = ids.matchId();
-        return result.data().stream()
-                .filter(m -> matchId == null || matchId.equals(m.id()))
-                .findFirst()
-                .orElse(null);
+        try {
+            fetchSemaphore.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        }
+        try {
+            ParseResult<List<ParsedMatchDto>> result = parser.fetchMatches(ids.tournamentId());
+            if (!result.success() || result.data() == null) return null;
+            String matchId = ids.matchId();
+            return result.data().stream()
+                    .filter(m -> matchId == null || matchId.equals(m.id()))
+                    .findFirst()
+                    .orElse(null);
+        } finally {
+            fetchSemaphore.release();
+        }
     }
 }
