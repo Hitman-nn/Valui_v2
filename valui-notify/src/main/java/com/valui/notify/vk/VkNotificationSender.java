@@ -55,6 +55,8 @@ public class VkNotificationSender {
             if (msgId > 0) {
                 stats.incVkSent();
                 log.debug("[VK] Sent to peerId={} msgId={}", peerId, msgId);
+            } else {
+                stats.incVkSkipped();
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

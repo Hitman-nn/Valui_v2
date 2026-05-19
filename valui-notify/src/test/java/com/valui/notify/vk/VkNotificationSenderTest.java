@@ -1,5 +1,6 @@
 package com.valui.notify.vk;
 
+import com.valui.notify.stats.NotificationStats;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,9 +18,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 @DisplayName("VkNotificationSender — unit tests")
 class VkNotificationSenderTest {
 
-    @Mock VkProperties  props;
-    @Mock VkApiClient   apiClient;
-    @Mock VkRateLimiter rateLimiter;
+    @Mock VkProperties      props;
+    @Mock VkApiClient       apiClient;
+    @Mock VkRateLimiter     rateLimiter;
+    @Mock NotificationStats stats;
     @InjectMocks VkNotificationSender sender;
 
     static final long   PEER_ID       = 2000000003L;
@@ -62,6 +64,21 @@ class VkNotificationSenderTest {
         sender.send(PEER_ID, MARKDOWN_TEXT);
 
         verify(apiClient).sendMessage(PEER_ID, PLAIN_TEXT);
+        verify(stats).incVkSent();
+    }
+
+    @Test
+    @DisplayName("API вернул ошибку → incVkSkipped")
+    void apiError_incrementsSkipped() throws Exception {
+        given(props.isEnabled()).willReturn(true);
+        given(props.getCommunityToken()).willReturn("token");
+        given(rateLimiter.tryAcquire(PEER_ID)).willReturn(0L);
+        given(apiClient.sendMessage(PEER_ID, PLAIN_TEXT)).willReturn(-1L);
+
+        sender.send(PEER_ID, MARKDOWN_TEXT);
+
+        verify(stats).incVkSkipped();
+        verify(stats, never()).incVkSent();
     }
 
     @Test
@@ -81,16 +98,16 @@ class VkNotificationSenderTest {
     }
 
     @Test
-    @DisplayName("rate limit: исчерпан бюджет ожидания → сообщение пропускается")
+    @DisplayName("rate limit: исчерпан бюджет ожидания → incVkSkipped, сообщение пропускается")
     void rateLimitExhausted_skips() throws Exception {
         given(props.isEnabled()).willReturn(true);
         given(props.getCommunityToken()).willReturn("token");
-        // возвращает 10001ms — больше MAX_RATE_WAIT_MS(10000), поэтому sleep<=0 → skip
         given(rateLimiter.tryAcquire(PEER_ID)).willReturn(10_001L);
 
         sender.send(PEER_ID, MARKDOWN_TEXT);
 
         verifyNoInteractions(apiClient);
+        verify(stats).incVkSkipped();
     }
 
     // ── stripMarkdown ─────────────────────────────────────────────────────────

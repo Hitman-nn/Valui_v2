@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Transactional outbox sender.
@@ -36,6 +37,9 @@ public class OutboxSenderService {
     private final SportEventKafkaMetrics metrics;
     private final OutboxMarkingService markingService;
 
+    // tracks consecutive backlog scans to avoid log spam when Kafka is down
+    private final AtomicInteger backlogCount = new AtomicInteger(0);
+
     @Async
     public void publishImmediate(String externalEventId) {
         outboxRepo.findAllByExternalEventIdAndSentAtIsNull(externalEventId)
@@ -49,8 +53,15 @@ public class OutboxSenderService {
         List<OutboxEvent> pending = outboxRepo.findUnsentBefore(
                 now.minusSeconds(15), now.minusSeconds(30));
         if (!pending.isEmpty()) {
-            log.info("Outbox retry: {} unsent event(s) — Kafka delivery may be lagging", pending.size());
+            int n = backlogCount.incrementAndGet();
+            if (n == 1) {
+                log.info("Outbox retry: {} unsent event(s)", pending.size());
+            } else if (n % 12 == 0) { // ~60s at default 5s interval
+                log.warn("Outbox backlog persisting: {} unsent event(s) for ~{}s", pending.size(), n * 5);
+            }
             pending.forEach(this::doPublish);
+        } else {
+            backlogCount.set(0);
         }
     }
 

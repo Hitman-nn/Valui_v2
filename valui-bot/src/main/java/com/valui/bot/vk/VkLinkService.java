@@ -4,8 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.valui.user.api.ControllerPortService;
 import jakarta.annotation.PreDestroy;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -31,6 +31,7 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class VkLinkService {
 
     private static final String LINK_KEY_PREFIX = "vk:link:";
@@ -38,19 +39,11 @@ public class VkLinkService {
     private static final String API_BASE   = "https://api.vk.com/method";
     private static final String API_VER    = "5.199";
 
-    @Value("${valui.vk.enabled:false}")
-    private boolean enabled;
-
-    @Value("${valui.vk.community-token:}")
-    private String communityToken;
-
-    @Value("${valui.vk.group-id:0}")
-    private long groupId;
-
-    private final StringRedisTemplate   redis;
-    private final ControllerPortService controllerPort;
-    private final ObjectMapper          mapper;
-    private final RestClient            http = RestClient.create();
+    private final VkBotProperties        props;
+    private final StringRedisTemplate    redis;
+    private final ControllerPortService  controllerPort;
+    private final ObjectMapper           mapper;
+    private final RestClient             http = RestClient.create();
 
     private volatile boolean running = false;
 
@@ -59,16 +52,8 @@ public class VkLinkService {
     private volatile String lpKey;
     private volatile String lpTs;
 
-    public VkLinkService(StringRedisTemplate redis,
-                         ControllerPortService controllerPort,
-                         ObjectMapper mapper) {
-        this.redis          = redis;
-        this.controllerPort = controllerPort;
-        this.mapper         = mapper;
-    }
-
     public boolean isEnabled() {
-        return enabled && !communityToken.isBlank() && groupId > 0;
+        return props.isEnabled() && !props.getCommunityToken().isBlank() && props.getGroupId() > 0;
     }
 
     /**
@@ -96,7 +81,7 @@ public class VkLinkService {
         }
         running = true;
         Thread.ofVirtual().name("vk-longpoll").start(this::runLongPoll);
-        log.info("[VK-LP] Long Poll started for groupId={}", groupId);
+        log.info("[VK-LP] Long Poll started for groupId={}", props.getGroupId());
     }
 
     @PreDestroy
@@ -155,8 +140,8 @@ public class VkLinkService {
     }
 
     private void fetchServerInfo() throws Exception {
-        String url = API_BASE + "/groups.getLongPollServer?group_id=" + groupId
-                + "&access_token=" + communityToken + "&v=" + API_VER;
+        String url = API_BASE + "/groups.getLongPollServer?group_id=" + props.getGroupId()
+                + "&access_token=" + props.getCommunityToken() + "&v=" + API_VER;
         String body = http.get().uri(url).retrieve().body(String.class);
         JsonNode root = mapper.readTree(body);
         if (root.has("error")) {
