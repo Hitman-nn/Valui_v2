@@ -61,6 +61,9 @@ public interface ControllerPortService {
     /** Removes VK peer_id from all subscriptions of the user. */
     void unlinkVk(UUID userId);
 
+    /** Returns distinct group chat IDs (chatId < 0) where the user has active (non-muted, non-paused) subscriptions. */
+    List<Long> findActiveGroupChatIds(long telegramId);
+
     /** True if the user has at least one subscription in the given chat with a VK peer_id set. */
     boolean hasVkLinked(UUID userId, long chatId);
 

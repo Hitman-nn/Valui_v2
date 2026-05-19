@@ -112,6 +112,11 @@ public class ControllerPortServiceImpl implements ControllerPortService {
     }
 
     @Override
+    public List<Long> findActiveGroupChatIds(long telegramId) {
+        return subscriptionRepository.findActiveGroupChatIdsByTelegramId(telegramId);
+    }
+
+    @Override
     public boolean hasVkLinked(UUID userId, long chatId) {
         return subscriptionRepository.existsVkLinkedByUserIdAndChatId(userId, chatId);
     }

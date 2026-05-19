@@ -50,6 +50,9 @@ public interface ControllerSubscriptionRepository
     @Query("UPDATE ControllerSubscriptionEntity s SET s.vkPeerId = null WHERE s.userId = :userId")
     void clearVkPeerIdByUserId(@Param("userId") UUID userId);
 
+    @Query("SELECT DISTINCT s.chatId FROM ControllerSubscriptionEntity s WHERE s.telegramId = :telegramId AND s.chatId < 0 AND s.isMuted = false AND s.pausedByTokens = false")
+    List<Long> findActiveGroupChatIdsByTelegramId(@Param("telegramId") Long telegramId);
+
     @Query("SELECT (COUNT(s) > 0) FROM ControllerSubscriptionEntity s WHERE s.userId = :userId AND s.chatId = :chatId AND s.vkPeerId IS NOT NULL")
     boolean existsVkLinkedByUserIdAndChatId(@Param("userId") UUID userId, @Param("chatId") Long chatId);
 

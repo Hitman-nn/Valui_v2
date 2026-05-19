@@ -1,6 +1,7 @@
 package com.valui.bot.listener;
 
 import com.valui.bot.i18n.BotMessageSource;
+import com.valui.user.api.ControllerPortService;
 import com.valui.user.event.TokenThresholdEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +13,8 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.util.List;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -19,6 +22,7 @@ public class TokenThresholdBotListener {
 
     private final AbsSender bot;
     private final BotMessageSource messageSource;
+    private final ControllerPortService controllerPort;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -44,8 +48,26 @@ public class TokenThresholdBotListener {
                 .text(text)
                 .parseMode("Markdown")
                 .build());
+            return;
         } catch (TelegramApiException e) {
-            log.warn("[TOKEN] Failed to send low balance alert to telegramId={}", event.getTelegramId(), e);
+            log.debug("[TOKEN] Personal chat unavailable for telegramId={} — trying group chats", event.getTelegramId());
+        }
+
+        List<Long> groupChats = controllerPort.findActiveGroupChatIds(event.getTelegramId());
+        if (groupChats.isEmpty()) {
+            log.warn("[TOKEN] No reachable chat for telegramId={}, notification lost", event.getTelegramId());
+            return;
+        }
+        for (Long chatId : groupChats) {
+            try {
+                bot.execute(SendMessage.builder()
+                    .chatId(chatId)
+                    .text(text)
+                    .parseMode("Markdown")
+                    .build());
+            } catch (TelegramApiException e) {
+                log.warn("[TOKEN] Failed to send to groupChat={}: {}", chatId, e.getMessage());
+            }
         }
     }
 }
