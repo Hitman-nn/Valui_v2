@@ -43,6 +43,7 @@ public final class MainMenuKeyboard {
         return ReplyKeyboardMarkup.builder()
             .keyboard(List.of(row1, row2, row3, row4, row5))
             .resizeKeyboard(true)
+            .isPersistent(true)
             .oneTimeKeyboard(false)
             .selective(false)
             .build();
