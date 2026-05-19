@@ -40,13 +40,13 @@ public class VkNotificationSender {
             while (true) {
                 long waitMs = rateLimiter.tryAcquire(peerId);
                 if (waitMs <= 0) break;
-                long sleep = Math.min(waitMs + 10, MAX_RATE_WAIT_MS - totalWaited);
-                if (sleep <= 0) {
+                long remaining = MAX_RATE_WAIT_MS - totalWaited;
+                if (remaining <= 0 || waitMs >= remaining) {
                     log.warn("[VK] Rate limit exceeded peerId={} — skipping after {}ms", peerId, totalWaited);
                     return;
                 }
-                Thread.sleep(sleep);
-                totalWaited += sleep;
+                Thread.sleep(waitMs + 10);
+                totalWaited += waitMs + 10;
             }
             long msgId = apiClient.sendMessage(peerId, plain);
             if (msgId > 0) {
