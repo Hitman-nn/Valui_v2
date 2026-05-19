@@ -13,6 +13,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.Map;
 
 /**
  * Thin HTTP wrapper for the VK API (java.net.http — no extra dependencies).
@@ -36,16 +37,18 @@ public class VkApiClient {
      * @return VK message_id on success, -1 on error.
      */
     public long sendMessage(long peerId, String text) {
-        String url = API_BASE + "/messages.send" +
-                "?peer_id="     + peerId +
-                "&message="     + enc(text) +
-                "&random_id="   + ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE) +
-                "&access_token=" + enc(props.getCommunityToken()) +
-                "&v=" + API_VER;
+        String body = buildForm(Map.of(
+                "peer_id",      String.valueOf(peerId),
+                "message",      text,
+                "random_id",    String.valueOf(ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE)),
+                "access_token", props.getCommunityToken(),
+                "v",            API_VER));
 
         try {
-            HttpRequest req = HttpRequest.newBuilder(URI.create(url))
-                    .GET().build();
+            HttpRequest req = HttpRequest.newBuilder(URI.create(API_BASE + "/messages.send"))
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .build();
             HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
             JsonNode root = mapper.readTree(resp.body());
             if (root.has("error")) {
@@ -61,7 +64,14 @@ public class VkApiClient {
         }
     }
 
-    private static String enc(String s) {
-        return URLEncoder.encode(s == null ? "" : s, StandardCharsets.UTF_8);
+    private static String buildForm(Map<String, String> params) {
+        StringBuilder sb = new StringBuilder();
+        params.forEach((k, v) -> {
+            if (sb.length() > 0) sb.append('&');
+            sb.append(URLEncoder.encode(k, StandardCharsets.UTF_8))
+              .append('=')
+              .append(URLEncoder.encode(v == null ? "" : v, StandardCharsets.UTF_8));
+        });
+        return sb.toString();
     }
 }

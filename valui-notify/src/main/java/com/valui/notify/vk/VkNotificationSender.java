@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class VkNotificationSender {
 
-    private static final int MAX_RATE_WAIT_MS = 2_000;
+    private static final int MAX_RATE_WAIT_MS = 10_000;
 
     private final VkProperties  props;
     private final VkApiClient   apiClient;
@@ -36,14 +36,17 @@ public class VkNotificationSender {
         String plain = stripMarkdown(markdownText);
 
         try {
-            long waitMs = rateLimiter.tryAcquire(peerId);
-            if (waitMs > 0) {
-                Thread.sleep(Math.min(waitMs + 10, MAX_RATE_WAIT_MS));
-                waitMs = rateLimiter.tryAcquire(peerId);
-                if (waitMs > 0) {
-                    log.warn("[VK] Rate limit exceeded peerId={} — skipping", peerId);
+            long totalWaited = 0;
+            while (true) {
+                long waitMs = rateLimiter.tryAcquire(peerId);
+                if (waitMs <= 0) break;
+                long sleep = Math.min(waitMs + 10, MAX_RATE_WAIT_MS - totalWaited);
+                if (sleep <= 0) {
+                    log.warn("[VK] Rate limit exceeded peerId={} — skipping after {}ms", peerId, totalWaited);
                     return;
                 }
+                Thread.sleep(sleep);
+                totalWaited += sleep;
             }
             long msgId = apiClient.sendMessage(peerId, plain);
             if (msgId > 0) {
