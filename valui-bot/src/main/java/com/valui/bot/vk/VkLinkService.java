@@ -133,8 +133,6 @@ public class VkLinkService {
                 for (JsonNode update : root.path("updates")) {
                     if ("message_new".equals(update.path("type").asText())) {
                         JsonNode msg = update.path("object").path("message");
-                        // peer_id = where the message was sent (personal or group chat)
-                        // from_id = who sent it (always individual user)
                         long peerId = msg.path("peer_id").asLong(0);
                         String text = msg.path("text").asText("").trim();
                         if (peerId > 0 && !text.isBlank()) {
