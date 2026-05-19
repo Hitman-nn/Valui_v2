@@ -18,6 +18,8 @@ public class NotificationStats {
     private final AtomicLong dlqRetry         = new AtomicLong();
     private final AtomicLong dlqFinal         = new AtomicLong();
     private final AtomicLong rateLimitBackoff = new AtomicLong();
+    private final AtomicLong vkSent           = new AtomicLong();
+    private final AtomicLong vkSkipped        = new AtomicLong();
 
     private final ConcurrentHashMap<String, AtomicLong> sentByBookmaker = new ConcurrentHashMap<>();
 
@@ -33,12 +35,16 @@ public class NotificationStats {
     public void incDlqRetry()         { dlqRetry.incrementAndGet(); }
     public void incDlqFinal()         { dlqFinal.incrementAndGet(); }
     public void incRateLimitBackoff() { rateLimitBackoff.incrementAndGet(); }
+    public void incVkSent()           { vkSent.incrementAndGet(); }
+    public void incVkSkipped()        { vkSkipped.incrementAndGet(); }
 
     /** Returns value and resets counter to 0. */
     public long drainSent()             { return sent.getAndSet(0); }
     public long drainDlqRetry()         { return dlqRetry.getAndSet(0); }
     public long drainDlqFinal()         { return dlqFinal.getAndSet(0); }
     public long drainRateLimitBackoff() { return rateLimitBackoff.getAndSet(0); }
+    public long drainVkSent()           { return vkSent.getAndSet(0); }
+    public long drainVkSkipped()        { return vkSkipped.getAndSet(0); }
 
     /** Returns per-bookmaker sent counts and resets them. Sorted by count descending. */
     public Map<String, Long> drainSentByBookmaker() {

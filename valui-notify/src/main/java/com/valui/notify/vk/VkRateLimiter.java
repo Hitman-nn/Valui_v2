@@ -1,5 +1,6 @@
 package com.valui.notify.vk;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
@@ -10,6 +11,7 @@ import java.util.List;
  * Token-counter rate limiter: 1 message per second per VK peer_id.
  * Same Lua pattern as TelegramRateLimiter.
  */
+@Slf4j
 @Component
 public class VkRateLimiter {
 
@@ -32,6 +34,10 @@ public class VkRateLimiter {
     /** Returns 0 if permitted, or milliseconds until the window resets. */
     public long tryAcquire(long peerId) {
         Long result = redisTemplate.execute(INCR_EXPIRE_SCRIPT, List.of(KEY_PREFIX + peerId));
-        return result != null ? result : 0L;
+        long waitMs = result != null ? result : 0L;
+        if (waitMs > 0) {
+            log.debug("[VK-RL] peerId={} throttled, retry in {}ms", peerId, waitMs);
+        }
+        return waitMs;
     }
 }

@@ -49,7 +49,7 @@ public class OutboxSenderService {
         List<OutboxEvent> pending = outboxRepo.findUnsentBefore(
                 now.minusSeconds(15), now.minusSeconds(30));
         if (!pending.isEmpty()) {
-            log.debug("Outbox retry: {} unsent event(s)", pending.size());
+            log.info("Outbox retry: {} unsent event(s) — Kafka delivery may be lagging", pending.size());
             pending.forEach(this::doPublish);
         }
     }

@@ -1,5 +1,6 @@
 package com.valui.notify.vk;
 
+import com.valui.notify.stats.NotificationStats;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -18,9 +19,10 @@ public class VkNotificationSender {
 
     private static final int MAX_RATE_WAIT_MS = 10_000;
 
-    private final VkProperties  props;
-    private final VkApiClient   apiClient;
-    private final VkRateLimiter rateLimiter;
+    private final VkProperties       props;
+    private final VkApiClient        apiClient;
+    private final VkRateLimiter      rateLimiter;
+    private final NotificationStats  stats;
 
     public boolean isEnabled() {
         return props.isEnabled() && !props.getCommunityToken().isBlank();
@@ -43,6 +45,7 @@ public class VkNotificationSender {
                 long remaining = MAX_RATE_WAIT_MS - totalWaited;
                 if (remaining <= 0 || waitMs >= remaining) {
                     log.warn("[VK] Rate limit exceeded peerId={} — skipping after {}ms", peerId, totalWaited);
+                    stats.incVkSkipped();
                     return;
                 }
                 Thread.sleep(waitMs + 10);
@@ -50,6 +53,7 @@ public class VkNotificationSender {
             }
             long msgId = apiClient.sendMessage(peerId, plain);
             if (msgId > 0) {
+                stats.incVkSent();
                 log.debug("[VK] Sent to peerId={} msgId={}", peerId, msgId);
             }
         } catch (InterruptedException e) {

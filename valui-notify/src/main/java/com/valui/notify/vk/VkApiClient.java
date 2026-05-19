@@ -54,7 +54,13 @@ public class VkApiClient {
             if (root.has("error")) {
                 int code = root.path("error").path("error_code").asInt(-1);
                 String msg = root.path("error").path("error_msg").asText();
-                log.warn("[VK] messages.send failed peerId={}: {} (code={})", peerId, msg, code);
+                if (code == 9) {
+                    log.warn("[VK] messages.send rate-limited peerId={} (code=9) — reduce send frequency", peerId);
+                } else if (code == 5) {
+                    log.warn("[VK] messages.send auth error peerId={}: {} (code=5) — check VK_COMMUNITY_TOKEN", peerId, msg);
+                } else {
+                    log.warn("[VK] messages.send failed peerId={}: {} (code={})", peerId, msg, code);
+                }
                 return -1;
             }
             return root.path("response").asLong(-1);

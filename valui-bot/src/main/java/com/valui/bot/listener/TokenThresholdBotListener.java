@@ -48,6 +48,7 @@ public class TokenThresholdBotListener {
                 .text(text)
                 .parseMode("Markdown")
                 .build());
+            log.info("[TOKEN] Alert sent: telegramId={} level={}", event.getTelegramId(), msgKey);
             return;
         } catch (TelegramApiException e) {
             log.debug("[TOKEN] Personal chat unavailable for telegramId={} — trying group chats", event.getTelegramId());
@@ -58,6 +59,7 @@ public class TokenThresholdBotListener {
             log.warn("[TOKEN] No reachable chat for telegramId={}, notification lost", event.getTelegramId());
             return;
         }
+        int sent = 0;
         for (Long chatId : groupChats) {
             try {
                 bot.execute(SendMessage.builder()
@@ -65,9 +67,13 @@ public class TokenThresholdBotListener {
                     .text(text)
                     .parseMode("Markdown")
                     .build());
+                sent++;
             } catch (TelegramApiException e) {
                 log.warn("[TOKEN] Failed to send to groupChat={}: {}", chatId, e.getMessage());
             }
+        }
+        if (sent > 0) {
+            log.info("[TOKEN] Alert sent to {} group chat(s): telegramId={} level={}", sent, event.getTelegramId(), msgKey);
         }
     }
 }
