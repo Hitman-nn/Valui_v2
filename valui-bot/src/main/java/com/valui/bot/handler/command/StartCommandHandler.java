@@ -11,7 +11,10 @@ import com.valui.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.User;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 @Slf4j
 @Component
@@ -50,8 +53,16 @@ public class StartCommandHandler implements CommandHandler {
         ctx.tracker().deleteStale(ctx.chatId(), ctx.sender());
 
         String name = ctx.username() != null ? "@" + ctx.username() : "друг";
-        int id = com.valui.bot.handler.MessageSend.sendGetId(ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("bot.welcome", ctx.fromId(), name));
-        if (id > 0) ctx.tracker().track(ctx.chatId(), id);
+        try {
+            Message sent = ctx.sender().execute(SendMessage.builder()
+                .chatId(ctx.chatId())
+                .text(messageSource.getMessage("bot.welcome", ctx.fromId(), name))
+                .parseMode("Markdown")
+                .replyMarkup(MainMenuKeyboard.build(ctx.fromId(), messageSource))
+                .build());
+            if (sent != null) ctx.tracker().track(ctx.chatId(), sent.getMessageId());
+        } catch (TelegramApiException e) {
+            log.error("StartCommandHandler send failed chatId={}: {}", ctx.chatId(), e.getMessage());
+        }
     }
 }
