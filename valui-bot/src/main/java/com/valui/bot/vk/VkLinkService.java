@@ -160,10 +160,18 @@ public class VkLinkService {
         String url = API_BASE + "/groups.getLongPollServer?group_id=" + groupId
                 + "&access_token=" + communityToken + "&v=" + API_VER;
         String body = http.get().uri(url).retrieve().body(String.class);
-        JsonNode resp = mapper.readTree(body).path("response");
+        JsonNode root = mapper.readTree(body);
+        if (root.has("error")) {
+            throw new IllegalStateException("VK API error: "
+                    + root.path("error").path("error_msg").asText(body));
+        }
+        JsonNode resp = root.path("response");
         lpServer = resp.path("server").asText();
         lpKey    = resp.path("key").asText();
         lpTs     = resp.path("ts").asText();
+        if (lpServer.isBlank()) {
+            throw new IllegalStateException("VK getLongPollServer returned empty server. Response: " + body);
+        }
         log.debug("[VK-LP] Got server info ts={}", lpTs);
     }
 

@@ -61,6 +61,12 @@ public interface ControllerPortService {
     /** Removes VK peer_id from all subscriptions of the user. */
     void unlinkVk(UUID userId);
 
+    /** True if the user has at least one subscription in the given chat with a VK peer_id set. */
+    boolean hasVkLinked(UUID userId, long chatId);
+
+    /** Removes VK peer_id from subscriptions of the user in the given chat only. */
+    void unlinkVkForChat(UUID userId, long chatId);
+
     /** Admin use: paginated listing of all controllers across all users. */
     Page<ControllerEntity> findAllPageable(Pageable pageable);
 

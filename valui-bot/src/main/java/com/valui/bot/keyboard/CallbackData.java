@@ -178,6 +178,10 @@ public final class CallbackData {
     public static String persDel(String id)  { return PERS_DEL_PREFIX + id; }
     public static String persStat(String id) { return PERS_STAT_PREFIX + id; }
 
+    // ─── Settings ─────────────────────────────────────────────────────────────
+    public static final String VK_LINK   = "VK:LINK";
+    public static final String VK_UNLINK = "VK:UNLINK";
+
     // ─── Pagination ───────────────────────────────────────────────────────────
     public static String page(String listKey, int pageNum) { return "PAGE:" + listKey + ":" + pageNum; }
     public static String betListPage(boolean openOnly, int pageNum) {

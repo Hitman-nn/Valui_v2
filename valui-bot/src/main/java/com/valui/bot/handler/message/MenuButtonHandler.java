@@ -10,6 +10,7 @@ import com.valui.bot.handler.command.InfoCommandHandler;
 import com.valui.bot.handler.command.LanguageCommandHandler;
 import com.valui.bot.handler.command.ListCommandHandler;
 import com.valui.bot.handler.command.ListFilterCommandHandler;
+import com.valui.bot.handler.command.SettingsCommandHandler;
 import com.valui.bot.handler.command.StopCommandHandler;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.service.BotSessionService;
@@ -47,9 +48,10 @@ public class MenuButtonHandler implements BotUpdateHandler {
     static final String BTN_BET      = "💸";
     static final String BTN_HELP     = "❓"; // legacy — kept to handle old keyboard until /start is called
     static final String BTN_LANGUAGE = "🌍";
+    static final String BTN_SETTINGS = "⚙️";
 
     private static final Set<String> BUTTON_EMOJIS =
-        Set.of(BTN_ADD, BTN_LIST, BTN_FILTER, BTN_STOP, BTN_INFO, BTN_BET, BTN_HELP, BTN_LANGUAGE);
+        Set.of(BTN_ADD, BTN_LIST, BTN_FILTER, BTN_STOP, BTN_INFO, BTN_BET, BTN_HELP, BTN_LANGUAGE, BTN_SETTINGS);
 
     private final BotMessageSource messageSource;
     private final BotSessionService sessionService;
@@ -62,6 +64,7 @@ public class MenuButtonHandler implements BotUpdateHandler {
     private final BetCommandHandler        betCommandHandler;
     private final HelpCommandHandler       helpCommandHandler;
     private final LanguageCommandHandler   languageCommandHandler;
+    private final SettingsCommandHandler   settingsCommandHandler;
 
     public static boolean isMenuButtonText(String text) {
         return text != null && BUTTON_EMOJIS.stream().anyMatch(text::startsWith);
@@ -99,7 +102,8 @@ public class MenuButtonHandler implements BotUpdateHandler {
         if (text.startsWith(BTN_STOP))     { stopCommandHandler.handle(ctx);         return; }
         if (text.startsWith(BTN_INFO))     { infoCommandHandler.handle(ctx);         return; }
         if (text.startsWith(BTN_BET))      { betCommandHandler.handle(ctx);   return; }
-        if (text.startsWith(BTN_HELP))     { helpCommandHandler.handle(ctx);  return; } // legacy: sends updated keyboard
-        if (text.startsWith(BTN_LANGUAGE)) { languageCommandHandler.handle(ctx); }
+        if (text.startsWith(BTN_HELP))     { helpCommandHandler.handle(ctx);      return; } // legacy: sends updated keyboard
+        if (text.startsWith(BTN_LANGUAGE)) { languageCommandHandler.handle(ctx);  return; }
+        if (text.startsWith(BTN_SETTINGS)) { settingsCommandHandler.handle(ctx); }
     }
 }
