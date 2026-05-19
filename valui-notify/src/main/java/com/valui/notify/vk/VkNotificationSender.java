@@ -56,9 +56,17 @@ public class VkNotificationSender {
         }
     }
 
-    // Removes MarkdownV2 backslash escaping so VK receives plain text.
+    // Converts Telegram Markdown/MarkdownV2 to plain text for VK.
     static String stripMarkdown(String text) {
         if (text == null) return "";
-        return text.replaceAll("\\\\([_*\\[\\]()~`>#+\\-=|{}.!])", "$1");
+        // [display text](url) → url
+        String r = text.replaceAll("\\[([^\\]]*)]\\(([^)]+)\\)", "$2");
+        // *bold* → text
+        r = r.replaceAll("\\*([^*\n]+)\\*", "$1");
+        // _italic_ → text
+        r = r.replaceAll("_([^_\n]+)_", "$1");
+        // backslash-escaped chars (MarkdownV2): \. \! \- etc → just the char
+        r = r.replaceAll("\\\\([_*\\[\\]()~`>#+\\-=|{}.!])", "$1");
+        return r;
     }
 }
