@@ -511,7 +511,8 @@ public class BettingMenuCallback implements CallbackHandler {
             BetDto updated = bettingService.resolveSlip(
                     UUID.fromString(betIdStr), Integer.parseInt(orderStr), ctx.chatId(), result);
             if (updated.status() == BetStatus.WON
-                    && updated.type() == BetType.EXPRESS) {
+                    && updated.type() == BetType.EXPRESS
+                    && needsPayoutConfirmation(updated)) {
                 MessageSend.answerCallback(ctx.sender(), callbackId);
                 showPayoutConfirmation(ctx, updated, messageId);
                 return;
@@ -523,6 +524,18 @@ public class BettingMenuCallback implements CallbackHandler {
             log.warn("[BET] resolveSlip failed id={} fromId={}: {}", betIdStr, ctx.fromId(), e.getMessage());
             MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, "❌ " + e.getMessage());
         }
+    }
+
+    private static boolean needsPayoutConfirmation(BetDto bet) {
+        BigDecimal effectiveOdds = bet.slips().stream()
+                .filter(s -> s.result() == SlipResult.WON)
+                .map(BetSlipDto::odds)
+                .reduce(BigDecimal.ONE, BigDecimal::multiply)
+                .setScale(4, RoundingMode.HALF_UP);
+        BigDecimal stake  = bet.totalStake();
+        BigDecimal pay4dp = stake.multiply(effectiveOdds).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal pay2dp = stake.multiply(effectiveOdds.setScale(2, RoundingMode.HALF_UP)).setScale(2, RoundingMode.HALF_UP);
+        return pay2dp.compareTo(pay4dp) != 0;
     }
 
     private void showPayoutConfirmation(BotUpdateContext ctx, BetDto bet, int messageId) {
