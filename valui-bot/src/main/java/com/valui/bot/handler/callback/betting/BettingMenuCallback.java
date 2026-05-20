@@ -526,7 +526,7 @@ public class BettingMenuCallback implements CallbackHandler {
         }
     }
 
-    private static boolean needsPayoutConfirmation(BetDto bet) {
+    static boolean needsPayoutConfirmation(BetDto bet) {
         BigDecimal effectiveOdds = bet.slips().stream()
                 .filter(s -> s.result() == SlipResult.WON)
                 .map(BetSlipDto::odds)
