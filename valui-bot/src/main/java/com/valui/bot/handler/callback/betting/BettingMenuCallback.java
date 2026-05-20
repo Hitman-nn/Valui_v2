@@ -527,23 +527,23 @@ public class BettingMenuCallback implements CallbackHandler {
     }
 
     static boolean needsPayoutConfirmation(BetDto bet) {
-        BigDecimal effectiveOdds = bet.slips().stream()
-                .filter(s -> s.result() == SlipResult.WON)
-                .map(BetSlipDto::odds)
-                .reduce(BigDecimal.ONE, BigDecimal::multiply)
-                .setScale(4, RoundingMode.HALF_UP);
+        BigDecimal effectiveOdds = computeEffectiveOdds(bet);
         BigDecimal stake  = bet.totalStake();
         BigDecimal pay4dp = stake.multiply(effectiveOdds).setScale(2, RoundingMode.HALF_UP);
         BigDecimal pay2dp = stake.multiply(effectiveOdds.setScale(2, RoundingMode.HALF_UP)).setScale(2, RoundingMode.HALF_UP);
         return pay2dp.compareTo(pay4dp) != 0;
     }
 
-    private void showPayoutConfirmation(BotUpdateContext ctx, BetDto bet, int messageId) {
-        BigDecimal effectiveOdds = bet.slips().stream()
+    private static BigDecimal computeEffectiveOdds(BetDto bet) {
+        return bet.slips().stream()
                 .filter(s -> s.result() == SlipResult.WON)
                 .map(BetSlipDto::odds)
                 .reduce(BigDecimal.ONE, BigDecimal::multiply)
                 .setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private void showPayoutConfirmation(BotUpdateContext ctx, BetDto bet, int messageId) {
+        BigDecimal effectiveOdds = computeEffectiveOdds(bet);
 
         BigDecimal stake    = bet.totalStake();
         BigDecimal odds4dp  = effectiveOdds;
@@ -596,6 +596,10 @@ public class BettingMenuCallback implements CallbackHandler {
         String amountStr = rest.substring(lastColon + 1);
         try {
             BigDecimal amount = new BigDecimal(amountStr);
+            if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.compareTo(new BigDecimal("10000000")) > 0) {
+                MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, "❌ Некорректная сумма");
+                return;
+            }
             BetDto updated = bettingService.correctPayout(UUID.fromString(betIdStr), ctx.chatId(), amount);
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     BetDetailCallback.buildDetailText(updated), BetDetailCallback.buildDetailKeyboard(updated));

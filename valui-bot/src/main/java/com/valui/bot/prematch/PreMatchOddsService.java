@@ -86,7 +86,8 @@ public class PreMatchOddsService {
             int pendingSnapshots,
             int activeRetries,
             int fetchSemaphoreAvailable,
-            Map<String, Integer> retryAttempts
+            Map<String, Integer> retryAttempts,
+            Map<String, Integer> sweepMissCount
     ) {}
 
     public PreMatchStats getStats() {
@@ -94,11 +95,16 @@ public class PreMatchOddsService {
                 .collect(java.util.stream.Collectors.toMap(
                         e -> e.getKey().toString(),
                         Map.Entry::getValue));
+        Map<String, Integer> misses = sweepMisses.entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        e -> e.getKey().toString(),
+                        Map.Entry::getValue));
         return new PreMatchStats(
                 pending.size(),
                 retryPending.size(),
                 fetchSemaphore.availablePermits(),
-                Collections.unmodifiableMap(attempts));
+                Collections.unmodifiableMap(attempts),
+                Collections.unmodifiableMap(misses));
     }
 
     /** Cancel the scheduled snapshot and any pending registration retries for this slip. */
@@ -144,13 +150,7 @@ public class PreMatchOddsService {
         }
         if (slip.getStartsAt() == null) return;
 
-        ParsedMatchDto match;
-        try {
-            match = fetchMatch(slip.getMatchUrl());
-        } catch (Exception e) {
-            log.debug("[PRE-MATCH] sweep fetch failed slipId={}: {}", slipId, e.getMessage());
-            return; // transient HTTP error — don't count toward miss limit
-        }
+        ParsedMatchDto match = fetchMatch(slip.getMatchUrl());
         if (match == null || match.startsAt() == null || Instant.EPOCH.equals(match.startsAt())) {
             int misses = sweepMisses.merge(slipId, 1, Integer::sum);
             if (misses >= MAX_SWEEP_MISSES) {

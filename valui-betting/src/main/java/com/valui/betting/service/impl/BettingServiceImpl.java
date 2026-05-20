@@ -195,6 +195,9 @@ public class BettingServiceImpl implements BettingService {
     @Override
     @Transactional
     public BetDto correctPayout(UUID betId, long chatId, BigDecimal newPayout) {
+        if (newPayout == null || newPayout.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Сумма выплаты должна быть положительной");
+        }
         BetEntity bet = requireAccessible(betId, chatId);
         if (bet.getStatus() != BetStatus.WON) {
             throw new IllegalStateException("Корректировка выплаты возможна только для выигранной ставки");
