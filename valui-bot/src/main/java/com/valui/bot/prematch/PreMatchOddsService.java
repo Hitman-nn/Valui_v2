@@ -49,6 +49,8 @@ public class PreMatchOddsService {
     private static final int  MAX_CONCURRENT_FETCHES   = 4;
     // How often to sweep pending slips for rescheduled matches (ms, default 1 hour)
     private static final String SWEEP_INTERVAL_PROP    = "${valui.prematch.sweep-interval-ms:3600000}";
+    // Cancel job after this many consecutive sweeps where the match was not found (~hours)
+    private static final int   MAX_SWEEP_MISSES        = 5;
 
     private final BetSlipRepository slipRepo;
     private final ParserFactory     parserFactory;
@@ -58,6 +60,8 @@ public class PreMatchOddsService {
     /** Tracks scheduled retry futures to cancel superseded attempts (prevents duplicate retries on concurrent failure). */
     private final ConcurrentHashMap<UUID, ScheduledFuture<?>> retryPending    = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, Integer>            registerRetries  = new ConcurrentHashMap<>();
+    /** Counts consecutive sweeps where the match was not found in the parser; reset on successful fetch. */
+    private final ConcurrentHashMap<UUID, Integer>            sweepMisses      = new ConcurrentHashMap<>();
     private final Semaphore                                   fetchSemaphore   = new Semaphore(MAX_CONCURRENT_FETCHES, true);
 
     private final AtomicInteger threadCounter = new AtomicInteger();
@@ -104,6 +108,7 @@ public class PreMatchOddsService {
         ScheduledFuture<?> rf = retryPending.remove(slipId);
         if (rf != null) rf.cancel(false);
         registerRetries.remove(slipId);
+        sweepMisses.remove(slipId);
     }
 
     // ── lifecycle ─────────────────────────────────────────────────────────────
@@ -144,9 +149,21 @@ public class PreMatchOddsService {
             match = fetchMatch(slip.getMatchUrl());
         } catch (Exception e) {
             log.debug("[PRE-MATCH] sweep fetch failed slipId={}: {}", slipId, e.getMessage());
+            return; // transient HTTP error — don't count toward miss limit
+        }
+        if (match == null || match.startsAt() == null || Instant.EPOCH.equals(match.startsAt())) {
+            int misses = sweepMisses.merge(slipId, 1, Integer::sum);
+            if (misses >= MAX_SWEEP_MISSES) {
+                log.warn("[PRE-MATCH] sweep: match not found for {}h, cancelling slipId={}",
+                        misses, slipId);
+                cancel(slipId);
+            } else {
+                log.debug("[PRE-MATCH] sweep: match not found slipId={} ({}/{})",
+                        slipId, misses, MAX_SWEEP_MISSES);
+            }
             return;
         }
-        if (match == null || match.startsAt() == null || Instant.EPOCH.equals(match.startsAt())) return;
+        sweepMisses.remove(slipId); // match found — reset miss counter
 
         long diffMin = Math.abs(Duration.between(slip.getStartsAt(), match.startsAt()).toMinutes());
         if (diffMin <= RESCHEDULE_THRESHOLD_MIN) return;
