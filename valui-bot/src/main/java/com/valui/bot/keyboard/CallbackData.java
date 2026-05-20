@@ -140,6 +140,8 @@ public final class CallbackData {
     public static final String BET_DELETE_PREFIX        = "BET:DEL:";
     public static final String BET_DELETE_CONFIRM_PREFIX = "BET:DELC:";
     public static final String BET_SLIP_RESOLVE_PREFIX = "BET:SI:";  // BET:SI:{betId}:{sortOrder}:W|L|R
+    /** BET:WPAY:{betId}:{amount} — confirm payout; BET:WPAY:M:{betId} — enter manually. */
+    public static final String BET_WIN_PAY_PREFIX       = "BET:WPAY:";
 
     public static String betDetail(String betId)  { return BET_DETAIL_PREFIX + betId; }
     public static String betResolve(String betId, String result) { return BET_RESOLVE_PREFIX + betId + ":" + result; }
@@ -149,6 +151,8 @@ public final class CallbackData {
     public static String betSlipResolve(String betId, int sortOrder, String result) {
         return BET_SLIP_RESOLVE_PREFIX + betId + ":" + sortOrder + ":" + result;
     }
+    public static String betWinPay(String betId, String amount) { return BET_WIN_PAY_PREFIX + betId + ":" + amount; }
+    public static String betWinPayManual(String betId)          { return BET_WIN_PAY_PREFIX + "M:" + betId; }
 
     // ─── Accounts (BetAccountCallback: ACCT:) ────────────────────────────────
     public static final String ACCT_LIST            = "ACCT:LIST";

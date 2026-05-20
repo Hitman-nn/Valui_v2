@@ -17,6 +17,7 @@ public enum BotState {
     BETTING_WAITING_AMOUNT,       // entering stake amount
     BETTING_CONFIRM,              // confirmation screen before submit
     BETTING_WAITING_PART_AMOUNT,  // entering custom stake amount for one participant
+    BETTING_WAITING_PAYOUT,       // entering manual payout after express win
 
     // ── Controller event search ───────────────────────────────────────────────
     SEARCHING_CONTROLLER_EVENTS,           // waiting for user to type event search query

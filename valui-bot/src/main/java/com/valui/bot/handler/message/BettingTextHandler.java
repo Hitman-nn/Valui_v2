@@ -2,8 +2,11 @@ package com.valui.bot.handler.message;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.valui.betting.dto.BetDto;
 import com.valui.betting.dto.BetSlipRequest;
 import com.valui.betting.dto.ParticipantRequest;
+import com.valui.betting.service.BettingService;
+import com.valui.bot.handler.callback.betting.BetDetailCallback;
 import com.valui.betting.service.BetAccountService;
 import com.valui.betting.service.BetPersonService;
 import com.valui.bot.handler.callback.betting.BetAccountCallback;
@@ -42,6 +45,7 @@ import java.util.function.Consumer;
 public class BettingTextHandler implements BotUpdateHandler {
 
     private final BotSessionService  sessionService;
+    private final BettingService     bettingService;
     private final BetAccountService  accountService;
     private final BetPersonService   personService;
     private final BetAccountCallback accountCallback;
@@ -71,6 +75,7 @@ public class BettingTextHandler implements BotUpdateHandler {
                     "⚠️ Введите имя участника (не более 64 символов):", CallbackData.PERS_LIST,
                     personService::create, c -> personCallback.showList(c, 0));
             case BETTING_WAITING_ACCOUNT_PERSON_BALANCE -> handleAccountPersonBalance(ctx, text);
+            case BETTING_WAITING_PAYOUT                 -> handlePayoutCorrection(ctx, text);
             default -> { /* not a betting state */ }
         }
     }
@@ -241,6 +246,45 @@ public class BettingTextHandler implements BotUpdateHandler {
         }
     }
 
+    // ── Payout correction ─────────────────────────────────────────────────────
+
+    private void handlePayoutCorrection(BotUpdateContext ctx, String text) {
+        int wizardMsgId = getWizardMsgId(ctx);
+        String betIdStr = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BET_CORRECT_ID).orElse(null);
+        var backKb = InlineKeyboardBuilder.create()
+                .button("← Назад", betIdStr != null ? CallbackData.betDetail(betIdStr) : CallbackData.BET_MENU)
+                .build();
+
+        BigDecimal amount;
+        try {
+            amount = new BigDecimal(text.replace(",", ".").replace(" ", ""));
+            if (amount.compareTo(BigDecimal.ZERO) <= 0) throw new NumberFormatException("not positive");
+        } catch (NumberFormatException e) {
+            if (wizardMsgId > 0) {
+                MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), wizardMsgId,
+                        "⚠️ Введите корректную сумму (например: `4327` или `4327.50`):", backKb);
+            }
+            return;
+        }
+
+        if (betIdStr == null) { sessionService.clearSession(ctx.fromId()); return; }
+
+        try {
+            BetDto updated = bettingService.correctPayout(UUID.fromString(betIdStr), ctx.chatId(), amount);
+            sessionService.clearSession(ctx.fromId());
+            if (wizardMsgId > 0) {
+                MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), wizardMsgId,
+                        BetDetailCallback.buildDetailText(updated), BetDetailCallback.buildDetailKeyboard(updated));
+            }
+        } catch (Exception e) {
+            log.warn("[BET] correctPayout failed id={} fromId={}: {}", betIdStr, ctx.fromId(), e.getMessage());
+            if (wizardMsgId > 0) {
+                MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), wizardMsgId,
+                        "❌ " + e.getMessage(), backKb);
+            }
+        }
+    }
+
     // ── Account / Person name entry ───────────────────────────────────────────
 
     private void handleNameEntry(BotUpdateContext ctx, String text, String errorMsg, String cancelCallback,
@@ -324,7 +368,8 @@ public class BettingTextHandler implements BotUpdateHandler {
                 || state == BotState.BETTING_WAITING_PART_AMOUNT
                 || state == BotState.BETTING_WAITING_ACCOUNT_NAME
                 || state == BotState.BETTING_WAITING_PERSON_NAME
-                || state == BotState.BETTING_WAITING_ACCOUNT_PERSON_BALANCE;
+                || state == BotState.BETTING_WAITING_ACCOUNT_PERSON_BALANCE
+                || state == BotState.BETTING_WAITING_PAYOUT;
     }
 
     @Override

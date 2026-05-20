@@ -190,6 +190,32 @@ public class BettingServiceImpl implements BettingService {
         throw new IllegalStateException("Исход события уже выставлен");
     }
 
+    // ── correctPayout ─────────────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public BetDto correctPayout(UUID betId, long chatId, BigDecimal newPayout) {
+        BetEntity bet = requireAccessible(betId, chatId);
+        if (bet.getStatus() != BetStatus.WON) {
+            throw new IllegalStateException("Корректировка выплаты возможна только для выигранной ставки");
+        }
+        BigDecimal newPayoutRounded = newPayout.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal oldPayout = bet.getActualPayout() != null ? bet.getActualPayout() : BigDecimal.ZERO;
+        BigDecimal diff = newPayoutRounded.subtract(oldPayout);
+        if (diff.compareTo(BigDecimal.ZERO) != 0 && bet.getAccount() != null) {
+            for (BetParticipantEntity p : bet.getParticipants()) {
+                if (p.getPerson() == null) continue;
+                BigDecimal delta = diff.multiply(p.getProfitShare()).setScale(2, RoundingMode.HALF_UP);
+                if (delta.compareTo(BigDecimal.ZERO) != 0) {
+                    updatePersonBalance(bet.getAccount(), p.getPerson(), delta);
+                }
+            }
+        }
+        bet.setActualPayout(newPayoutRounded);
+        bet.setUpdatedAt(OffsetDateTime.now());
+        return BetDto.from(betRepo.save(bet));
+    }
+
     // ── cancelBet ─────────────────────────────────────────────────────────────
 
     @Override

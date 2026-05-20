@@ -13,7 +13,9 @@ import com.valui.bot.prematch.PreMatchOddsService;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
+import com.valui.common.domain.BetStatus;
 import com.valui.common.domain.BetType;
+import com.valui.common.domain.SlipResult;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -76,6 +78,8 @@ public class BettingMenuCallback implements CallbackHandler {
                     handlePartSplit(ctx, data, callbackId, messageId);
                 } else if (data.startsWith(CallbackData.BET_PART_AMT_PREFIX)) {
                     handlePartAmtEdit(ctx, data, callbackId, messageId);
+                } else if (data.startsWith(CallbackData.BET_WIN_PAY_PREFIX)) {
+                    handleWinPay(ctx, data, callbackId, messageId);
                 } else if (data.startsWith(CallbackData.BET_SLIP_RESOLVE_PREFIX)) {
                     handleSlipResolve(ctx, data, callbackId, messageId);
                 } else if (data.startsWith(CallbackData.BET_RESOLVE_PREFIX)) {
@@ -506,6 +510,12 @@ public class BettingMenuCallback implements CallbackHandler {
             };
             BetDto updated = bettingService.resolveSlip(
                     UUID.fromString(betIdStr), Integer.parseInt(orderStr), ctx.chatId(), result);
+            if (updated.status() == BetStatus.WON
+                    && updated.type() == BetType.EXPRESS) {
+                MessageSend.answerCallback(ctx.sender(), callbackId);
+                showPayoutConfirmation(ctx, updated, messageId);
+                return;
+            }
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     BetDetailCallback.buildDetailText(updated), BetDetailCallback.buildDetailKeyboard(updated));
             MessageSend.answerCallback(ctx.sender(), callbackId);
@@ -513,6 +523,78 @@ public class BettingMenuCallback implements CallbackHandler {
             log.warn("[BET] resolveSlip failed id={} fromId={}: {}", betIdStr, ctx.fromId(), e.getMessage());
             MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, "❌ " + e.getMessage());
         }
+    }
+
+    private void showPayoutConfirmation(BotUpdateContext ctx, BetDto bet, int messageId) {
+        BigDecimal effectiveOdds = bet.slips().stream()
+                .filter(s -> s.result() == SlipResult.WON)
+                .map(BetSlipDto::odds)
+                .reduce(BigDecimal.ONE, BigDecimal::multiply)
+                .setScale(4, RoundingMode.HALF_UP);
+
+        BigDecimal stake    = bet.totalStake();
+        BigDecimal odds4dp  = effectiveOdds;
+        BigDecimal odds2dp  = effectiveOdds.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal pay4dp   = stake.multiply(odds4dp).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal pay2dp   = stake.multiply(odds2dp).setScale(2, RoundingMode.HALF_UP);
+
+        String betIdStr = bet.id().toString();
+        InlineKeyboardBuilder kb = InlineKeyboardBuilder.create();
+
+        if (pay2dp.compareTo(pay4dp) != 0) {
+            kb.button(formatPayout(pay2dp) + "  (кэф " + odds2dp.stripTrailingZeros().toPlainString() + ")",
+                      CallbackData.betWinPay(betIdStr, pay2dp.toPlainString())).row();
+            kb.button(formatPayout(pay4dp) + "  (кэф " + odds4dp.stripTrailingZeros().toPlainString() + ")",
+                      CallbackData.betWinPay(betIdStr, pay4dp.toPlainString())).row();
+        } else {
+            kb.button("✅ " + formatPayout(pay4dp) + "  (кэф " + odds4dp.stripTrailingZeros().toPlainString() + ")",
+                      CallbackData.betWinPay(betIdStr, pay4dp.toPlainString())).row();
+        }
+        kb.button("✏️ Ввести вручную", CallbackData.betWinPayManual(betIdStr)).row();
+
+        String text = "🎉 *Экспресс выигран!*\n\n"
+                + "💰 Ставка: *" + stake.setScale(0, RoundingMode.HALF_UP) + " ₽*\n"
+                + "📈 Кэф: *" + odds4dp.stripTrailingZeros().toPlainString() + "*\n\n"
+                + "Какая сумма поступила на счёт?";
+
+        MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId, text, kb.build());
+    }
+
+    private void handleWinPay(BotUpdateContext ctx, String data, String callbackId, int messageId) {
+        String rest = data.substring(CallbackData.BET_WIN_PAY_PREFIX.length());
+
+        if (rest.startsWith("M:")) {
+            String betIdStr = rest.substring(2);
+            MessageSend.answerCallback(ctx.sender(), callbackId);
+            sessionService.setStateWithContext(ctx.fromId(), BotState.BETTING_WAITING_PAYOUT, Map.of(
+                    UserBotSession.CTX_BET_CORRECT_ID, betIdStr,
+                    UserBotSession.CTX_BET_WIZARD_MSG, String.valueOf(messageId)
+            ));
+            var kb = InlineKeyboardBuilder.create()
+                    .button("← Назад", CallbackData.betDetail(betIdStr)).build();
+            MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+                    "✏️ *Введите фактическую выплату* (₽):", kb);
+            return;
+        }
+
+        int lastColon = rest.lastIndexOf(':');
+        if (lastColon < 0) { MessageSend.answerCallback(ctx.sender(), callbackId); return; }
+        String betIdStr  = rest.substring(0, lastColon);
+        String amountStr = rest.substring(lastColon + 1);
+        try {
+            BigDecimal amount = new BigDecimal(amountStr);
+            BetDto updated = bettingService.correctPayout(UUID.fromString(betIdStr), ctx.chatId(), amount);
+            MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+                    BetDetailCallback.buildDetailText(updated), BetDetailCallback.buildDetailKeyboard(updated));
+            MessageSend.answerCallback(ctx.sender(), callbackId);
+        } catch (Exception e) {
+            log.warn("[BET] correctPayout failed id={} fromId={}: {}", betIdStr, ctx.fromId(), e.getMessage());
+            MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, "❌ " + e.getMessage());
+        }
+    }
+
+    private static String formatPayout(BigDecimal amount) {
+        return amount.setScale(2, RoundingMode.HALF_UP).toPlainString() + " ₽";
     }
 
     private void handleDeleteConfirm(BotUpdateContext ctx, String data, String callbackId, int messageId) {

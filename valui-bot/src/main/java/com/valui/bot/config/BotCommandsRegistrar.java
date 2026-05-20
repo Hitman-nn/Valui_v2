@@ -6,7 +6,9 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
+import org.telegram.telegrambots.meta.api.methods.menubutton.SetChatMenuButton;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
+import org.telegram.telegrambots.meta.api.objects.menubutton.MenuButtonCommands;
 import com.valui.bot.ValuiTelegramBot;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -46,6 +48,13 @@ public class BotCommandsRegistrar {
             log.info("✅ Команды бота зарегистрированы в Telegram ({} команд)", commands.size());
         } catch (TelegramApiException e) {
             log.warn("⚠️  Не удалось зарегистрировать команды бота: {}", e.getMessage());
+        }
+
+        try {
+            bot.execute(SetChatMenuButton.builder().menuButton(MenuButtonCommands.builder().build()).build());
+            log.info("✅ Menu button установлен (MenuButtonCommands)");
+        } catch (TelegramApiException e) {
+            log.warn("⚠️  Не удалось установить menu button: {}", e.getMessage());
         }
     }
 }

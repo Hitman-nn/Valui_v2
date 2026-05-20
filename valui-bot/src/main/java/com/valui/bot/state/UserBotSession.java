@@ -61,6 +61,7 @@ public class UserBotSession {
     public static final String CTX_BET_WIZARD_MSG    = "betWizardMsg";    // wizard message ID
     public static final String CTX_BET_EXPRESS_JSON  = "betExpressJson";  // JSON list of BetSlipRequest legs
     public static final String CTX_BET_EDITING_PART_ID  = "betEditingPartId"; // personId whose stake is being edited
+    public static final String CTX_BET_CORRECT_ID       = "betCorrectId";      // betId awaiting manual payout correction
     public static final String CTX_ACCT_EDIT_ID         = "acctEditId";       // UUID of account currently being edited
     public static final String CTX_ACCT_EDIT_PERSON_ID  = "acctEditPersonId"; // UUID of person being linked/edited in account
     public static final String CTX_ACCT_EDIT_OP         = "acctEditOp";       // "SET" | "ADD" | "SUB"
