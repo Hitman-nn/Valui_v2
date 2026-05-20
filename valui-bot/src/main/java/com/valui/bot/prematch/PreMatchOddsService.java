@@ -134,7 +134,7 @@ public class PreMatchOddsService {
      *   - inside snapshot window → take snapshot immediately
      *   - future trigger      → reschedule
      */
-    private void checkReschedule(UUID slipId) {
+    void checkReschedule(UUID slipId) {
         if (!pending.containsKey(slipId)) return; // already fired or cancelled
 
         BetSlipEntity slip = slipRepo.findById(slipId).orElse(null);
