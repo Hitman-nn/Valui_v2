@@ -16,6 +16,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -46,6 +47,8 @@ public class PreMatchOddsService {
     private static final long REGISTER_RETRY_DELAY_MIN = 15;
     // Caps simultaneous HTTP calls to bookmakers (shared by @Async VTs and scheduler threads)
     private static final int  MAX_CONCURRENT_FETCHES   = 4;
+    // How often to sweep pending slips for rescheduled matches (ms, default 1 hour)
+    private static final String SWEEP_INTERVAL_PROP    = "${valui.prematch.sweep-interval-ms:3600000}";
 
     private final BetSlipRepository slipRepo;
     private final ParserFactory     parserFactory;
@@ -104,6 +107,75 @@ public class PreMatchOddsService {
     }
 
     // ── lifecycle ─────────────────────────────────────────────────────────────
+
+    /**
+     * Hourly sweep: re-fetches startsAt for every pending slip and reacts to rescheduling.
+     * Fires AFTER ApplicationReadyEvent so rescheduleOnStartup always runs first.
+     */
+    @Scheduled(fixedDelayString = SWEEP_INTERVAL_PROP, initialDelayString = SWEEP_INTERVAL_PROP)
+    public void sweepPendingSlips() {
+        List<UUID> slipIds = List.copyOf(pending.keySet());
+        if (slipIds.isEmpty()) return;
+        log.debug("[PRE-MATCH] sweep: checking {} pending slip(s) for rescheduling", slipIds.size());
+        for (UUID slipId : slipIds) {
+            scheduler.execute(() -> checkReschedule(slipId));
+        }
+    }
+
+    /**
+     * Lightweight reschedule check: fetches current startsAt from the bookmaker.
+     * If the match was moved significantly earlier:
+     *   - already started     → cancel (snapshot skipped, match is over)
+     *   - inside snapshot window → take snapshot immediately
+     *   - future trigger      → reschedule
+     */
+    private void checkReschedule(UUID slipId) {
+        if (!pending.containsKey(slipId)) return; // already fired or cancelled
+
+        BetSlipEntity slip = slipRepo.findById(slipId).orElse(null);
+        if (slip == null || slip.getMatchUrl() == null || slip.getSnapshotTakenAt() != null) {
+            cancel(slipId);
+            return;
+        }
+        if (slip.getStartsAt() == null) return;
+
+        ParsedMatchDto match;
+        try {
+            match = fetchMatch(slip.getMatchUrl());
+        } catch (Exception e) {
+            log.debug("[PRE-MATCH] sweep fetch failed slipId={}: {}", slipId, e.getMessage());
+            return;
+        }
+        if (match == null || match.startsAt() == null || Instant.EPOCH.equals(match.startsAt())) return;
+
+        long diffMin = Math.abs(Duration.between(slip.getStartsAt(), match.startsAt()).toMinutes());
+        if (diffMin <= RESCHEDULE_THRESHOLD_MIN) return;
+
+        Instant newStartsAt = match.startsAt();
+        log.info("[PRE-MATCH] sweep: startsAt shifted {}min for slipId={}, new={}",
+                diffMin, slipId, newStartsAt);
+
+        tx.execute(status -> {
+            BetSlipEntity s = slipRepo.findById(slipId).orElse(null);
+            if (s != null && s.getSnapshotTakenAt() == null) {
+                s.setStartsAt(newStartsAt);
+                slipRepo.save(s);
+            }
+            return null;
+        });
+
+        ScheduledFuture<?> old = pending.remove(slipId);
+        if (old != null) old.cancel(false);
+
+        if (!newStartsAt.isAfter(Instant.now())) {
+            log.info("[PRE-MATCH] sweep: match already started slipId={}, snapshot skipped", slipId);
+        } else if (!newStartsAt.minus(SNAPSHOT_OFFSET_MIN, ChronoUnit.MINUTES).isAfter(Instant.now())) {
+            log.info("[PRE-MATCH] sweep: inside window after reschedule, snapshot now slipId={}", slipId);
+            pending.put(slipId, scheduler.schedule(() -> takeSnapshot(slipId), 0, TimeUnit.MILLISECONDS));
+        } else {
+            scheduleFor(slipId, newStartsAt);
+        }
+    }
 
     @EventListener(ApplicationReadyEvent.class)
     public void rescheduleOnStartup() {
