@@ -441,6 +441,139 @@ class BettingServiceImplTest {
         }
     }
 
+    // ── correctPayout ─────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("correctPayout")
+    class CorrectPayout {
+
+        @Test
+        @DisplayName("ставка не WON → выброс")
+        void non_won_bet_throws() {
+            BetEntity bet = openBet(1L, "2.00", "100");
+            when(betRepo.findWithDetailById(bet.getId())).thenReturn(Optional.of(bet));
+
+            assertThatIllegalStateException()
+                    .isThrownBy(() -> service.correctPayout(bet.getId(), 1L, bd("200")))
+                    .withMessageContaining("выигранной ставки");
+        }
+
+        @Test
+        @DisplayName("без счёта — только обновляет actualPayout, баланс не трогает")
+        void no_account_updates_payout_only() {
+            BetEntity bet = wonBetNoAccount(1L, "100", "200");
+
+            when(betRepo.findWithDetailById(bet.getId())).thenReturn(Optional.of(bet));
+            when(betRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            service.correctPayout(bet.getId(), 1L, bd("210"));
+
+            ArgumentCaptor<BetEntity> cap = ArgumentCaptor.forClass(BetEntity.class);
+            verify(betRepo).save(cap.capture());
+            assertThat(cap.getValue().getActualPayout()).isEqualByComparingTo("210.00");
+            verify(balanceRepo, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("увеличение выплаты → баланс участника растёт на дельту")
+        void increase_payout_credits_delta_to_participant() {
+            BetPersonEntity person = person(1L);
+            BetAccountEntity acct  = account(1L);
+            BetEntity bet = wonBet(1L, "100", "4327.50", acct);
+            addParticipant(bet, person, "100", "1.0");
+
+            when(betRepo.findWithDetailById(bet.getId())).thenReturn(Optional.of(bet));
+            when(betRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            BetPersonBalanceEntity existingBal = balEntity(acct, person, "3227.50"); // net profit already applied
+            when(balanceRepo.findByAccountIdAndPersonId(any(), any())).thenReturn(Optional.of(existingBal));
+            when(balanceRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            // User corrects 4327.50 → 4330.00: delta = +2.50
+            service.correctPayout(bet.getId(), 1L, bd("4330.00"));
+
+            ArgumentCaptor<BetPersonBalanceEntity> balCap = ArgumentCaptor.forClass(BetPersonBalanceEntity.class);
+            verify(balanceRepo).save(balCap.capture());
+            assertThat(balCap.getValue().getBalance()).isEqualByComparingTo("3230.00"); // 3227.50 + 2.50
+        }
+
+        @Test
+        @DisplayName("уменьшение выплаты → баланс участника уменьшается на дельту")
+        void decrease_payout_debits_delta_from_participant() {
+            BetPersonEntity person = person(1L);
+            BetAccountEntity acct  = account(1L);
+            BetEntity bet = wonBet(1L, "100", "4330.00", acct);
+            addParticipant(bet, person, "100", "1.0");
+
+            when(betRepo.findWithDetailById(bet.getId())).thenReturn(Optional.of(bet));
+            when(betRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            BetPersonBalanceEntity existingBal = balEntity(acct, person, "3230.00");
+            when(balanceRepo.findByAccountIdAndPersonId(any(), any())).thenReturn(Optional.of(existingBal));
+            when(balanceRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            service.correctPayout(bet.getId(), 1L, bd("4327.50"));
+
+            ArgumentCaptor<BetPersonBalanceEntity> balCap = ArgumentCaptor.forClass(BetPersonBalanceEntity.class);
+            verify(balanceRepo).save(balCap.capture());
+            assertThat(balCap.getValue().getBalance()).isEqualByComparingTo("3227.50"); // 3230 - 2.50
+        }
+
+        @Test
+        @DisplayName("та же сумма → баланс не меняется")
+        void same_payout_no_balance_change() {
+            BetPersonEntity person = person(1L);
+            BetAccountEntity acct  = account(1L);
+            BetEntity bet = wonBet(1L, "100", "4327.50", acct);
+            addParticipant(bet, person, "100", "1.0");
+
+            when(betRepo.findWithDetailById(bet.getId())).thenReturn(Optional.of(bet));
+            when(betRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            service.correctPayout(bet.getId(), 1L, bd("4327.50"));
+
+            verify(balanceRepo, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("два участника — каждый получает дельту пропорционально доле")
+        void two_participants_delta_split_by_share() {
+            BetPersonEntity p1   = person(1L);
+            BetPersonEntity p2   = person(2L);
+            BetAccountEntity acct = account(1L);
+            BetEntity bet = wonBet(1L, "100", "4327.50", acct);
+            addParticipant(bet, p1, "50", "0.5");
+            addParticipant(bet, p2, "50", "0.5");
+
+            when(betRepo.findWithDetailById(bet.getId())).thenReturn(Optional.of(bet));
+            when(betRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(balanceRepo.findByAccountIdAndPersonId(any(), any())).thenReturn(Optional.empty());
+            when(balanceRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            // delta = 4330.00 - 4327.50 = 2.50; each share=0.5 → each gets +1.25
+            service.correctPayout(bet.getId(), 1L, bd("4330.00"));
+
+            ArgumentCaptor<BetPersonBalanceEntity> cap = ArgumentCaptor.forClass(BetPersonBalanceEntity.class);
+            verify(balanceRepo, times(2)).save(cap.capture());
+            assertThat(cap.getAllValues())
+                    .allMatch(b -> b.getBalance().compareTo(bd("1.25")) == 0);
+        }
+
+        @Test
+        @DisplayName("сумма округляется до 2 знаков перед сохранением")
+        void payout_rounded_to_2dp() {
+            BetEntity bet = wonBetNoAccount(1L, "100", "200.00");
+
+            when(betRepo.findWithDetailById(bet.getId())).thenReturn(Optional.of(bet));
+            when(betRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            service.correctPayout(bet.getId(), 1L, bd("4327.5"));
+
+            ArgumentCaptor<BetEntity> cap = ArgumentCaptor.forClass(BetEntity.class);
+            verify(betRepo).save(cap.capture());
+            assertThat(cap.getValue().getActualPayout().scale()).isEqualTo(2);
+            assertThat(cap.getValue().getActualPayout()).isEqualByComparingTo("4327.50");
+        }
+    }
+
     // ── access control ────────────────────────────────────────────────────────
 
     @Test
@@ -517,6 +650,30 @@ class BettingServiceImplTest {
                 .odds(bd(odds))
                 .result(SlipResult.OPEN)
                 .sortOrder(sortOrder)
+                .build();
+    }
+
+    private BetEntity wonBet(long chatId, String stake, String payout, BetAccountEntity acct) {
+        BetEntity bet = openBet(chatId, "1.00", stake);
+        bet.setStatus(BetStatus.WON);
+        bet.setActualPayout(bd(payout));
+        bet.setAccount(acct);
+        return bet;
+    }
+
+    private BetEntity wonBetNoAccount(long chatId, String stake, String payout) {
+        BetEntity bet = openBet(chatId, "1.00", stake);
+        bet.setStatus(BetStatus.WON);
+        bet.setActualPayout(bd(payout));
+        return bet;
+    }
+
+    private BetPersonBalanceEntity balEntity(BetAccountEntity acct, BetPersonEntity person, String balance) {
+        return BetPersonBalanceEntity.builder()
+                .account(acct)
+                .person(person)
+                .balance(bd(balance))
+                .updatedAt(OffsetDateTime.now())
                 .build();
     }
 
