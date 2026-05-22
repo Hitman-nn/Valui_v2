@@ -35,6 +35,9 @@ public final class AdminUserSummaryDto extends RepresentationModel<AdminUserSumm
     @Schema(description = "Баланс токенов", example = "150")
     public final int tokenBalance;
 
+    @Schema(description = "Ежемесячный грант токенов", example = "200")
+    public final int tokenMonthlyGrantRef;
+
     @Schema(description = "Количество контроллеров пользователя")
     public final long controllersCount;
 
@@ -48,8 +51,9 @@ public final class AdminUserSummaryDto extends RepresentationModel<AdminUserSumm
         this.firstName        = u.getFirstName();
         this.role             = u.getRole();
         this.status           = u.getStatus();
-        this.tokenBalance     = u.getTokenBalance() != null ? u.getTokenBalance() : 0;
-        this.controllersCount = controllersCount;
+        this.tokenBalance          = u.getTokenBalance()         != null ? u.getTokenBalance()         : 0;
+        this.tokenMonthlyGrantRef  = u.getTokenMonthlyGrantRef() != null ? u.getTokenMonthlyGrantRef() : 0;
+        this.controllersCount      = controllersCount;
         this.createdAt        = u.getCreatedAt();
     }
 }

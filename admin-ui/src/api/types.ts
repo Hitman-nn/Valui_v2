@@ -49,6 +49,7 @@ export interface UserSummary {
   role: 'USER' | 'ADMIN';
   status: 'ACTIVE' | 'BANNED' | 'PENDING';
   tokenBalance: number;
+  tokenMonthlyGrantRef: number;
   controllersCount: number;
   createdAt: string;
 }
