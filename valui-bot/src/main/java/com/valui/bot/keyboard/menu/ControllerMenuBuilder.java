@@ -24,8 +24,10 @@ public final class ControllerMenuBuilder {
     public static MenuMessage build(List<ControllerDto> controllers, int page,
                                     int staleThresholdDays, String sort) {
         if (controllers.isEmpty()) {
-            return new MenuMessage("📋 Список контроллеров пуст.",
-                InlineKeyboardMarkup.builder().keyboard(List.of()).build());
+            var kb = com.valui.bot.keyboard.InlineKeyboardBuilder.create()
+                .button("📡 Добавить контроллер", CallbackData.CTRL_ADD)
+                .build();
+            return new MenuMessage("📋 Список контроллеров пуст.", kb);
         }
 
         List<ControllerDto> sorted = sort(controllers, sort);

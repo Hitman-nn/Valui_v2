@@ -20,6 +20,7 @@ public final class CallbackData {
 
     // ─── Controller ───────────────────────────────────────────────────────────
     public static final String CTRL_LIST             = "CTRL:LIST";
+    public static final String CTRL_ADD              = "CTRL:ADD";
     public static final String CTRL_BK_LIST          = "CTRL:BK:LIST";
     public static final String CTRL_LIST_SORT_PREFIX = "CTRL:LIST:SORT:";
 
@@ -182,7 +183,19 @@ public final class CallbackData {
     public static String persDel(String id)  { return PERS_DEL_PREFIX + id; }
     public static String persStat(String id) { return PERS_STAT_PREFIX + id; }
 
-    // ─── Settings ─────────────────────────────────────────────────────────────
+    // ─── Stop confirmation ────────────────────────────────────────────────────
+    public static final String STOP_CONFIRM_PREFIX = "STOP:";
+    public static final String STOP_YES = "STOP:YES";
+    public static final String STOP_NO  = "STOP:NO";
+
+    // ─── Settings callbacks ───────────────────────────────────────────────────
+    public static final String SETT_LANG_PREFIX = "SETT:LANG:";
+    public static final String SETT_TOK_PREFIX  = "SETT:TOK:";
+    public static final String SETT_TOK_OFF     = "SETT:TOK:OFF";
+    public static String settLang(String code) { return SETT_LANG_PREFIX + code; }
+    public static String settTok(int value)    { return SETT_TOK_PREFIX + value; }
+
+    // ─── VK ──────────────────────────────────────────────────────────────────
     public static final String VK_LINK   = "VK:LINK";
     public static final String VK_UNLINK = "VK:UNLINK";
 

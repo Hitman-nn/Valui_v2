@@ -35,13 +35,10 @@ public final class MainMenuKeyboard {
         row3.add(new KeyboardButton(msg.getMessage("menu.btn.bet",      fromId)));
 
         KeyboardRow row4 = new KeyboardRow();
-        row4.add(new KeyboardButton(msg.getMessage("menu.btn.language", fromId)));
-
-        KeyboardRow row5 = new KeyboardRow();
-        row5.add(new KeyboardButton(msg.getMessage("menu.btn.settings", fromId)));
+        row4.add(new KeyboardButton(msg.getMessage("menu.btn.settings", fromId)));
 
         return ReplyKeyboardMarkup.builder()
-            .keyboard(List.of(row1, row2, row3, row4, row5))
+            .keyboard(List.of(row1, row2, row3, row4))
             .resizeKeyboard(true)
             .isPersistent(true)
             .oneTimeKeyboard(false)

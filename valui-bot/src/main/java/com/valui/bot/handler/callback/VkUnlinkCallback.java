@@ -40,8 +40,10 @@ public class VkUnlinkCallback implements CallbackHandler {
             msg.getMessage("settings.vk_unlinked", ctx.fromId()));
 
         int messageId = ctx.update().getCallbackQuery().getMessage().getMessageId();
-        MessageSend.editTextWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-            settingsCommandHandler.buildText(false, ctx.fromId()),
-            settingsCommandHandler.buildKeyboard(false, ctx.fromId()));
+        Integer threshold = ctx.user().getTokenLowThreshold();
+        String  langCode  = ctx.user().getLanguageCode();
+        MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+            settingsCommandHandler.buildText(false, threshold, langCode, ctx.fromId()),
+            settingsCommandHandler.buildKeyboard(false, threshold, ctx.fromId()));
     }
 }

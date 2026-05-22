@@ -142,6 +142,17 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     @CacheEvict(value = USERS_CACHE, allEntries = true)
+    public void setTokenLowThreshold(UUID userId, Integer threshold) {
+        UserEntity user = userRepository.findById(userId)
+            .orElseThrow(() -> new UserNotFoundException(userId));
+        user.setTokenLowThreshold(threshold);
+        userRepository.save(user);
+        log.debug("Token threshold updated: userId={} threshold={}", userId, threshold);
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = USERS_CACHE, allEntries = true)
     public UserEntity updateProfile(UUID userId, Integer tokenBalance, Integer tokenLowThreshold, Integer tokenMonthlyGrantRef) {
         UserEntity user = userRepository.findById(userId)
             .orElseThrow(() -> new UserNotFoundException(userId));

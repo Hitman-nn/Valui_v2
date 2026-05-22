@@ -4,6 +4,7 @@ import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CommandHandler;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.menu.MainMenuKeyboard;
+import com.valui.bot.service.MenuAnchorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -17,6 +18,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 public class HelpCommandHandler implements CommandHandler {
 
     private final BotMessageSource messageSource;
+    private final MenuAnchorService menuAnchorService;
 
     @Override
     public String command() { return "/help"; }
@@ -33,7 +35,7 @@ public class HelpCommandHandler implements CommandHandler {
                 .parseMode("Markdown")
                 .replyMarkup(MainMenuKeyboard.build(ctx.fromId(), messageSource))
                 .build());
-            if (sent != null) ctx.tracker().track(ctx.chatId(), sent.getMessageId());
+            if (sent != null) menuAnchorService.replaceAnchor(ctx.chatId(), ctx.sender(), sent.getMessageId());
         } catch (TelegramApiException e) {
             log.error("HelpCommandHandler send failed chatId={}: {}", ctx.chatId(), e.getMessage());
         }

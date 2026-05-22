@@ -113,11 +113,13 @@ class MenuSnapshotTest {
     }
 
     @Test
-    @DisplayName("ControllerMenuBuilder: empty list → text only, empty keyboard")
+    @DisplayName("ControllerMenuBuilder: empty list → text contains 'пуст', keyboard has ➕ Add button")
     void controllerMenu_empty_noButtons() {
         MenuMessage menu = ControllerMenuBuilder.build(List.of(), 0, 30, ControllerMenuBuilder.SORT_DATE);
         assertThat(menu.text()).contains("пуст");
-        assertThat(menu.keyboard().getKeyboard()).isEmpty();
+        var rows = menu.keyboard().getKeyboard();
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get(0).getCallbackData()).isEqualTo("CTRL:ADD");
     }
 
     @Test

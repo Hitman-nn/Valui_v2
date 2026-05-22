@@ -27,8 +27,10 @@ public final class BookmakerMenuBuilder {
      */
     public static MenuMessage buildSelection(List<ControllerDto> all) {
         if (all.isEmpty()) {
-            return new MenuMessage("📋 Контроллеров нет.",
-                InlineKeyboardBuilder.create().build());
+            var kb = InlineKeyboardBuilder.create()
+                .button("📡 Добавить контроллер", CallbackData.CTRL_ADD)
+                .build();
+            return new MenuMessage("📋 Контроллеров нет.", kb);
         }
 
         // Preserve insertion order (first seen = first listed)
@@ -56,6 +58,7 @@ public final class BookmakerMenuBuilder {
                                                    int page, int staleThresholdDays, String sort) {
         if (controllers.isEmpty()) {
             var keyboard = InlineKeyboardBuilder.create()
+                .button("📡 Добавить контроллер", CallbackData.CTRL_ADD).row()
                 .button("← Букмекеры", CallbackData.CTRL_BK_LIST)
                 .build();
             return new MenuMessage("📋 " + bookmaker + " — контроллеров нет.", keyboard);

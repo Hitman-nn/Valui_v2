@@ -67,7 +67,10 @@ public class UserBotSession {
     public static final String CTX_ACCT_EDIT_OP         = "acctEditOp";       // "SET" | "ADD" | "SUB"
 
     // ── Controller event search keys ──────────────────────────────────────────
-    public static final String CTX_EVT_SEARCH_CTRL_ID = "evtSearchCtrlId"; // UUID of controller being searched
-    public static final String CTX_EVT_SEARCH_QUERY   = "evtSearchQuery";  // last search query (for pagination)
-    public static final String CTX_EVT_MSG_ID         = "evtMsgId";        // message ID to replace with results
+    public static final String CTX_EVT_SEARCH_CTRL_ID  = "evtSearchCtrlId"; // UUID of controller being searched
+    public static final String CTX_EVT_SEARCH_QUERY    = "evtSearchQuery";  // last search query (for pagination)
+    public static final String CTX_EVT_MSG_ID          = "evtMsgId";        // message ID to replace with results
+
+    // ── Wizard tournament search ──────────────────────────────────────────────
+    public static final String CTX_WIZARD_SEARCH_QUERY = "wizardSearchQuery"; // last tournament search query
 }

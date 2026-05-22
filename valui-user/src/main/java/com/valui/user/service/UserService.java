@@ -52,6 +52,9 @@ public interface UserService {
     /** Update token balance, low threshold (absolute), and monthly grant reference (admin only). */
     UserEntity updateProfile(UUID userId, Integer tokenBalance, Integer tokenLowThreshold, Integer tokenMonthlyGrantRef);
 
+    /** Sets or clears the token low-balance notification threshold for a user. */
+    void setTokenLowThreshold(UUID userId, Integer threshold);
+
     /** Returns telegramIds of users with the given status. Null or "ALL" returns all users. */
     List<Long> findTelegramIdsByStatus(String status);
 }

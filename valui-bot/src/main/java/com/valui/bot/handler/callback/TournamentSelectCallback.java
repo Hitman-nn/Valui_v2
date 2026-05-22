@@ -211,7 +211,8 @@ public class TournamentSelectCallback implements CallbackHandler {
         }
 
         // Return to tournament list — the created entry will now appear marked with ✅
-        MessageSend.answerCallback(ctx.sender(), callbackId);
+        MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+            "✅ " + bm.get() + " — " + tournament.title());
         backNavigator.returnToTournamentList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
     }
 

@@ -4,6 +4,8 @@ import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CommandHandler;
 import com.valui.bot.handler.MessageSend;
 import com.valui.bot.i18n.BotMessageSource;
+import com.valui.bot.keyboard.CallbackData;
+import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.bot.keyboard.menu.BookmakerMenuBuilder;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
@@ -39,8 +41,11 @@ public class ListCommandHandler implements CommandHandler {
             : controllerService.getUserControllersForChat(ctx.fromId(), ctx.chatId());
 
         if (controllers.isEmpty()) {
+            var kb = InlineKeyboardBuilder.create()
+                .button(messageSource.getMessage("menu.btn.add", ctx.fromId()), CallbackData.CTRL_ADD)
+                .build();
             int id = MessageSend.sendGetId(ctx.sender(), ctx.chatId(),
-                messageSource.getMessage("controller.list_empty", ctx.fromId()));
+                messageSource.getMessage("controller.list_empty", ctx.fromId()), kb);
             if (id > 0) ctx.tracker().track(ctx.chatId(), id);
             return;
         }

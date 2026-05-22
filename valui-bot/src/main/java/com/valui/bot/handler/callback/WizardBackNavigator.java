@@ -128,13 +128,22 @@ public class WizardBackNavigator {
         String sportName  = sportNameOpt.orElse(sportId);
         String sportAlias = sportAliasOpt.orElse(sportId);
 
-        sessionService.setStateWithContext(fromId, BotState.SELECTING_TOURNAMENT,
-            new HashMap<>(Map.of(
-                UserBotSession.CTX_BOOKMAKER,   bm,
-                UserBotSession.CTX_SPORT_ID,    sportId,
-                UserBotSession.CTX_SPORT_NAME,  sportName,
-                UserBotSession.CTX_SPORT_ALIAS, sportAlias
-            )));
+        // Read both page and search query BEFORE resetting context
+        int savedPage = sessionService.getContext(fromId, UserBotSession.CTX_TOURNAMENT_PAGE)
+            .map(s -> { try { return Integer.parseInt(s); } catch (NumberFormatException e) { return 0; } })
+            .orElse(0);
+        String searchQuery = sessionService.getContext(fromId, UserBotSession.CTX_WIZARD_SEARCH_QUERY)
+            .filter(s -> !s.isBlank())
+            .orElse(null);
+
+        Map<String, String> newCtx = new HashMap<>(Map.of(
+            UserBotSession.CTX_BOOKMAKER,   bm,
+            UserBotSession.CTX_SPORT_ID,    sportId,
+            UserBotSession.CTX_SPORT_NAME,  sportName,
+            UserBotSession.CTX_SPORT_ALIAS, sportAlias
+        ));
+        if (searchQuery != null) newCtx.put(UserBotSession.CTX_WIZARD_SEARCH_QUERY, searchQuery);
+        sessionService.setStateWithContext(fromId, BotState.SELECTING_TOURNAMENT, newCtx);
 
         // Use cache — avoids HTTP call when returning to the same tournament list
         List<TournamentDto> tournaments;
@@ -171,19 +180,33 @@ public class WizardBackNavigator {
         BookmakerType bmType = BookmakerType.valueOf(bm.toUpperCase());
         String sportUrl = TournamentSelectCallback.buildSportUrl(bmType, sportId, sportAlias);
 
-        int savedPage = sessionService.getContext(fromId, UserBotSession.CTX_TOURNAMENT_PAGE)
-            .map(s -> { try { return Integer.parseInt(s); } catch (NumberFormatException e) { return 0; } })
-            .orElse(0);
+        // Apply search filter if user came from a search
+        List<TournamentDto> toDisplay;
+        String listText;
+        int displayPage;
+        if (searchQuery != null) {
+            String lower = searchQuery.toLowerCase();
+            toDisplay = tournaments.stream()
+                .filter(t -> t.title().toLowerCase().contains(lower))
+                .collect(java.util.stream.Collectors.toList());
+            listText = toDisplay.isEmpty()
+                ? "🔍 По запросу «" + searchQuery + "» ничего не найдено."
+                : messageSource.getMessage("wizard.select_tournament", fromId, sportName);
+            displayPage = 0;
+        } else {
+            toDisplay = tournaments;
+            listText = messageSource.getMessage("wizard.select_tournament", fromId, sportName);
+            displayPage = savedPage;
+        }
 
         String monitorAllText = messageSource.getMessage("wizard.monitor_all_sport", fromId, sportName);
         String backText   = messageSource.getMessage("menu.back",   fromId);
         String cancelText = messageSource.getMessage("menu.cancel", fromId);
         InlineKeyboardMarkup keyboard = SportSelectCallback.buildTournamentKeyboard(
-            tournaments, savedPage, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
+            toDisplay, displayPage, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
             wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
 
-        tracker.replaceAndTrack(sender, chatId, messageId,
-            messageSource.getMessage("wizard.select_tournament", fromId, sportName), keyboard);
+        tracker.replaceAndTrack(sender, chatId, messageId, listText, keyboard);
     }
 
     private void fallbackToMainMenu(AbsSender sender, long fromId, long chatId) {

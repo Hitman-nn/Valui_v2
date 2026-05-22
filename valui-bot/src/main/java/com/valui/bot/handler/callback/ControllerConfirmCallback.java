@@ -86,7 +86,9 @@ public class ControllerConfirmCallback implements CallbackHandler {
 
             log.info("✅ Контроллер создан: fromId={} chatId={} бук={} url={}",
                     ctx.fromId(), ctx.chatId(), bmOpt.get(), urlOpt.get());
-            MessageSend.answerCallback(ctx.sender(), callbackId);
+            String toastName = title != null && !title.isBlank() ? title : urlOpt.get();
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                "✅ " + bmOpt.get() + " — " + toastName);
             if (ControllerType.SPORT.equals(typeHint)) {
                 backNavigator.returnToSportList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
             } else {

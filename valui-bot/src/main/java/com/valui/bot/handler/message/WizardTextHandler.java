@@ -192,7 +192,8 @@ public class WizardTextHandler implements BotUpdateHandler {
         String lower = query.toLowerCase();
 
         if ("TOURNAMENT".equals(target)) {
-            sessionService.setState(ctx.fromId(), BotState.SELECTING_TOURNAMENT);
+            sessionService.setStateAndMergeContext(ctx.fromId(), BotState.SELECTING_TOURNAMENT,
+                Map.of(UserBotSession.CTX_WIZARD_SEARCH_QUERY, query));
             Optional<String> bm        = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BOOKMAKER);
             Optional<String> sportId   = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_ID);
             Optional<String> sportName = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_SPORT_NAME);

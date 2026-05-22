@@ -6,7 +6,7 @@ import com.valui.bot.handler.MessageSend;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.menu.FilterMenuBuilder;
-import com.valui.bot.keyboard.menu.MainMenuKeyboard;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
@@ -58,8 +58,14 @@ public class CancelCallback implements CallbackHandler {
             return;
         }
 
-        // Tournament selection Cancel → bookmaker selection
-        // Confirmation screen Cancel → bookmaker selection
+        // Sport selection Cancel → step 1 (bookmaker selection)
+        if (state == BotState.SELECTING_SPORT) {
+            backNavigator.returnToBookmakerSelection(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
+            return;
+        }
+
+        // Tournament selection Cancel → step 1 (bookmaker selection)
+        // Confirmation screen Cancel → step 1 (bookmaker selection)
         if (state == BotState.SELECTING_TOURNAMENT || state == BotState.WAITING_CONFIRM_CREATE) {
             backNavigator.returnToBookmakerSelection(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
             return;
@@ -70,7 +76,8 @@ public class CancelCallback implements CallbackHandler {
             String mode = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_FILTER_MODE)
                     .orElse("GLOBAL");
             if ("INDIVIDUAL".equals(mode)) {
-                backNavigator.returnToTournamentList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
+                // step 4 of add-controller wizard → Cancel goes to step 1
+                backNavigator.returnToBookmakerSelection(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
             } else if ("CONTROLLER_FILTER".equals(mode)) {
                 // editing controller filter — back to controller detail
                 Optional<String> ctrlIdOpt = sessionService.getContext(
@@ -98,14 +105,14 @@ public class CancelCallback implements CallbackHandler {
             return;
         }
 
-        // All other states (IDLE, SELECTING_BOOKMAKER, SELECTING_SPORT) → main menu
-        // In group: don't flood the chat — the user pressing Cancel is not the wizard owner
+        // All other states (IDLE, SELECTING_BOOKMAKER) → close wizard in-place
+        // In group: don't touch the message — the pressing user may not be the wizard owner
         if (ctx.isGroupChat()) {
             return;
         }
         sessionService.clearSession(ctx.fromId());
-        int id = MessageSend.sendGetId(ctx.sender(), ctx.chatId(),
-            messageSource.getMessage("menu.main", ctx.fromId()));
-        if (id > 0) ctx.tracker().track(ctx.chatId(), id);
+        var empty = InlineKeyboardMarkup.builder().keyboard(java.util.List.of()).build();
+        MessageSend.editTextWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+            messageSource.getMessage("wizard.cancelled", ctx.fromId()), empty);
     }
 }

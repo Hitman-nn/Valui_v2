@@ -9,8 +9,7 @@ import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.menubutton.SetChatMenuButton;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.menubutton.MenuButtonCommands;
-import com.valui.bot.ValuiTelegramBot;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.List;
@@ -18,29 +17,21 @@ import java.util.List;
 /**
  * Registers the bot's visible command list with Telegram on startup.
  * These commands appear when the user types "/" in the chat.
+ * Works in both long-polling and webhook modes.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnBean(ValuiTelegramBot.class)   // only in long-polling mode
 public class BotCommandsRegistrar {
 
-    private final ValuiTelegramBot bot;
+    private final AbsSender bot;
 
     @EventListener(ApplicationReadyEvent.class)
     public void registerCommands() {
         List<BotCommand> commands = List.of(
-            new BotCommand("/menu",       "🏠 Главное меню"),
-            new BotCommand("/add",        "➕ Добавить контроллер"),
-            new BotCommand("/list",       "📋 Мои контроллеры"),
-            new BotCommand("/info",       "ℹ️ Мой тариф / статус группы"),
-            new BotCommand("/listfilter", "🔍 Фильтры"),
-            new BotCommand("/stop",       "🛑 Остановить всё"),
-            new BotCommand("/deleteall",  "🗑 Удалить все контроллеры"),
-            new BotCommand("/language",   "🌍 Сменить язык"),
-            new BotCommand("/bet",        "💸 Журнал ставок"),
-            new BotCommand("/help",       "❓ Справка"),
-            new BotCommand("/start",      "🔄 Перезапустить бота")
+            new BotCommand("/menu",  "🏠 Главное меню"),
+            new BotCommand("/help",  "❓ Справка"),
+            new BotCommand("/start", "🔄 Перезапустить бота")
         );
 
         try {

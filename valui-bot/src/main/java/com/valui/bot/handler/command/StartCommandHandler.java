@@ -5,6 +5,7 @@ import com.valui.bot.handler.CommandHandler;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.menu.MainMenuKeyboard;
 import com.valui.bot.service.BotSessionService;
+import com.valui.bot.service.MenuAnchorService;
 import com.valui.bot.state.BotState;
 import com.valui.user.dto.TelegramUserDto;
 import com.valui.user.service.UserService;
@@ -24,6 +25,7 @@ public class StartCommandHandler implements CommandHandler {
     private final UserService userService;
     private final BotSessionService sessionService;
     private final BotMessageSource messageSource;
+    private final MenuAnchorService menuAnchorService;
 
     @Override
     public String command() { return "/start"; }
@@ -60,7 +62,7 @@ public class StartCommandHandler implements CommandHandler {
                 .parseMode("Markdown")
                 .replyMarkup(MainMenuKeyboard.build(ctx.fromId(), messageSource))
                 .build());
-            if (sent != null) ctx.tracker().track(ctx.chatId(), sent.getMessageId());
+            if (sent != null) menuAnchorService.replaceAnchor(ctx.chatId(), ctx.sender(), sent.getMessageId());
         } catch (TelegramApiException e) {
             log.error("StartCommandHandler send failed chatId={}: {}", ctx.chatId(), e.getMessage());
         }
