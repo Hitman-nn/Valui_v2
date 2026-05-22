@@ -67,6 +67,10 @@ public class UserEntity implements HasUpdatedAt {
     @Builder.Default
     private boolean tokenAlertSent = false;
 
+    /** Если задано — история и статистика токенов отображаются только начиная с этой даты. Данные не удаляются. */
+    @Column(name = "token_stats_reset_at")
+    private OffsetDateTime tokenStatsResetAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

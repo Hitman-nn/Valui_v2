@@ -7,6 +7,7 @@ import com.valui.user.dto.TelegramUserDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -57,4 +58,10 @@ public interface UserService {
 
     /** Returns telegramIds of users with the given status. Null or "ALL" returns all users. */
     List<Long> findTelegramIdsByStatus(String status);
+
+    /**
+     * Sets the token stats lower bound for the user.
+     * Pass null to clear (show all history again).
+     */
+    UserEntity setTokenStatsResetAt(UUID userId, OffsetDateTime resetAt);
 }

@@ -12,6 +12,9 @@ import {
   Tag,
   Spin,
   App,
+  Modal,
+  DatePicker,
+  Tooltip,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -20,7 +23,10 @@ import {
   EditOutlined,
   SaveOutlined,
   CloseOutlined,
+  ReloadOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
+import type { Dayjs } from 'dayjs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -43,6 +49,8 @@ export default function UserDetailPage() {
   const [notifPage, setNotifPage] = useState(0);
   const [editing, setEditing] = useState(false);
   const [editForm] = Form.useForm<ProfileDraft>();
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetDate, setResetDate] = useState<Dayjs | null>(null);
 
   const { data: user, isLoading: userLoading } = useQuery({
     queryKey: ['user', id],
@@ -109,6 +117,26 @@ export default function UserDetailPage() {
     setEditing(false);
     editForm.resetFields();
   };
+
+  const resetStatsMutation = useMutation({
+    mutationFn: (isoDate?: string) => usersApi.resetTokenStats(id!, isoDate),
+    onSuccess: () => {
+      notification.success({ message: 'Статистика сброшена' });
+      setResetModalOpen(false);
+      setResetDate(null);
+      refetchUser();
+    },
+    onError: (err: Error) => notification.error({ message: err.message }),
+  });
+
+  const clearResetMutation = useMutation({
+    mutationFn: () => usersApi.clearTokenStatsReset(id!),
+    onSuccess: () => {
+      notification.success({ message: 'Граница статистики очищена' });
+      refetchUser();
+    },
+    onError: (err: Error) => notification.error({ message: err.message }),
+  });
 
   if (userLoading) {
     return (
@@ -190,6 +218,24 @@ export default function UserDetailPage() {
         >
           {user.status === 'BANNED' ? 'Разбан' : 'Бан'}
         </Button>
+        {!editing && (
+          <Tooltip title="Задать дату, начиная с которой отображается статистика токенов">
+            <Button icon={<ReloadOutlined />} onClick={() => setResetModalOpen(true)}>
+              Сбросить статистику
+            </Button>
+          </Tooltip>
+        )}
+        {!editing && user.tokenStatsResetAt && (
+          <Tooltip title="Очистить границу — показывать всю историю">
+            <Button
+              danger icon={<DeleteOutlined />}
+              loading={clearResetMutation.isPending}
+              onClick={() => clearResetMutation.mutate()}
+            >
+              Очистить сброс
+            </Button>
+          </Tooltip>
+        )}
         {!editing ? (
           <Button icon={<EditOutlined />} onClick={() => startEditing(user)}>
             Изменить профиль
@@ -295,11 +341,44 @@ export default function UserDetailPage() {
                 {user.tokenLowThreshold ?? '—'}
               </Typography.Text>
             </Descriptions.Item>
+            <Descriptions.Item label="Статистика с">
+              {user.tokenStatsResetAt ? (
+                <Tag color="orange">{dayjs(user.tokenStatsResetAt).format('DD.MM.YYYY HH:mm')}</Tag>
+              ) : (
+                <Typography.Text type="secondary">вся история</Typography.Text>
+              )}
+            </Descriptions.Item>
             <Descriptions.Item label="Регистрация">{dayjs(user.createdAt).format('DD.MM.YYYY HH:mm')}</Descriptions.Item>
             <Descriptions.Item label="Обновлён">{dayjs(user.updatedAt).format('DD.MM.YYYY HH:mm')}</Descriptions.Item>
           </Descriptions>
         )}
       </Card>
+
+      <Modal
+        title="Сбросить статистику токенов"
+        open={resetModalOpen}
+        onCancel={() => { setResetModalOpen(false); setResetDate(null); }}
+        onOk={() => resetStatsMutation.mutate(resetDate ? resetDate.toISOString() : undefined)}
+        okText="Применить"
+        cancelText="Отмена"
+        confirmLoading={resetStatsMutation.isPending}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Typography.Text>
+            История и статистика токенов будут отображаться только начиная с выбранной даты.
+            Данные <Typography.Text strong>не удаляются</Typography.Text> — граница в любой момент
+            может быть очищена.
+          </Typography.Text>
+          <DatePicker
+            showTime
+            value={resetDate}
+            onChange={(d) => setResetDate(d)}
+            placeholder="Оставьте пустым — сбросить на сейчас"
+            style={{ width: '100%' }}
+            format="DD.MM.YYYY HH:mm"
+          />
+        </Space>
+      </Modal>
 
       <Tabs
         defaultActiveKey="controllers"

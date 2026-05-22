@@ -65,6 +65,7 @@ export interface UserDetail {
   tokenBalance: number;
   tokenMonthlyGrantRef: number;
   tokenLowThreshold: number | null;
+  tokenStatsResetAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

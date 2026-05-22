@@ -18,6 +18,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
+
+import java.time.OffsetDateTime;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -183,6 +185,15 @@ public class UserServiceImpl implements UserService {
         } catch (IllegalArgumentException e) {
             return userRepository.findAllTelegramIds();
         }
+    }
+
+    @Override
+    @Transactional
+    public UserEntity setTokenStatsResetAt(UUID userId, OffsetDateTime resetAt) {
+        UserEntity user = userRepository.findById(userId)
+            .orElseThrow(() -> new UserNotFoundException(userId));
+        user.setTokenStatsResetAt(resetAt);
+        return userRepository.save(user);
     }
 
     // ─── private helpers ─────────────────────────────────────────────────────

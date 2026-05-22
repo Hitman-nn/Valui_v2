@@ -201,6 +201,39 @@ public class AdminUserController {
         return ResponseEntity.ok(dto);
     }
 
+    // ── POST /api/v1/admin/users/{id}/token-stats/reset ──────────────────────
+
+    public record ResetTokenStatsRequest(java.time.OffsetDateTime resetAt) {}
+
+    @Operation(summary = "Задать нижнюю границу статистики токенов (по умолчанию — сейчас)")
+    @PostMapping(value = "/{id}/token-stats/reset",
+                 consumes = {V1, MediaType.APPLICATION_JSON_VALUE},
+                 produces = {V1, MediaType.APPLICATION_JSON_VALUE})
+    public ResponseEntity<AdminUserDto> resetTokenStats(
+            @PathVariable UUID id,
+            @RequestBody(required = false) ResetTokenStatsRequest req,
+            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        java.time.OffsetDateTime resetAt = (req != null && req.resetAt() != null)
+            ? req.resetAt()
+            : java.time.OffsetDateTime.now();
+        UserEntity user = userService.setTokenStatsResetAt(id, resetAt);
+        AdminUserDto dto = new AdminUserDto(user);
+        enrichWithLinks(dto, user);
+        return ResponseEntity.ok(dto);
+    }
+
+    @Operation(summary = "Очистить нижнюю границу статистики токенов (показывать всю историю)")
+    @DeleteMapping(value = "/{id}/token-stats/reset",
+                   produces = {V1, MediaType.APPLICATION_JSON_VALUE})
+    public ResponseEntity<AdminUserDto> clearTokenStatsReset(
+            @PathVariable UUID id,
+            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        UserEntity user = userService.setTokenStatsResetAt(id, null);
+        AdminUserDto dto = new AdminUserDto(user);
+        enrichWithLinks(dto, user);
+        return ResponseEntity.ok(dto);
+    }
+
     // ── GET /api/v1/admin/users/{id}/payments ─────────────────────────────────
 
     @Operation(summary = "История платежей пользователя")

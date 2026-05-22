@@ -44,6 +44,9 @@ public final class AdminUserDto extends RepresentationModel<AdminUserDto> {
     @Schema(description = "Последний уведомлённый абсолютный порог токенов (100/50/10)", example = "50")
     public final Integer tokenLowThreshold;
 
+    @Schema(description = "Нижняя граница статистики токенов (null = вся история)")
+    public final OffsetDateTime tokenStatsResetAt;
+
     @Schema(description = "Дата регистрации")
     public final OffsetDateTime createdAt;
 
@@ -61,6 +64,7 @@ public final class AdminUserDto extends RepresentationModel<AdminUserDto> {
         this.tokenBalance         = u.getTokenBalance()         != null ? u.getTokenBalance()         : 0;
         this.tokenMonthlyGrantRef = u.getTokenMonthlyGrantRef() != null ? u.getTokenMonthlyGrantRef() : 0;
         this.tokenLowThreshold    = u.getTokenLowThreshold();
+        this.tokenStatsResetAt    = u.getTokenStatsResetAt();
         this.createdAt            = u.getCreatedAt();
         this.updatedAt            = u.getUpdatedAt();
     }

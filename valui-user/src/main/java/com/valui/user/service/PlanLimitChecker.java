@@ -86,8 +86,12 @@ public class PlanLimitChecker implements PlanLimitFacade {
 
         int controllersUsed = controllerRepository.countByUserIdAndIsActiveTrue(userId);
 
+        OffsetDateTime resetAt = user.getTokenStatsResetAt();
+
         // History: group last 50 transactions by (reasonCode, day), take first 10 groups
-        var rawTxs = txRepository.findTop50ByUserIdOrderByCreatedAtDesc(userId);
+        var rawTxs = resetAt != null
+            ? txRepository.findTop50ByUserIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(userId, resetAt)
+            : txRepository.findTop50ByUserIdOrderByCreatedAtDesc(userId);
         record GroupKey(com.valui.common.domain.TokenReasonCode code, LocalDate date) {}
         Map<GroupKey, int[]> grouped = new LinkedHashMap<>();
         for (var tx : rawTxs) {
@@ -106,13 +110,17 @@ public class PlanLimitChecker implements PlanLimitFacade {
         // Stats
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         OffsetDateTime monthStart = now.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
-        int spentThisMonth = (int) Math.abs(txRepository.sumSpentInPeriod(userId, monthStart, now));
-        int spentAllTime   = (int) Math.abs(txRepository.sumSpentTotal(userId));
+        OffsetDateTime statsFloor = (resetAt != null && resetAt.isAfter(monthStart)) ? resetAt : monthStart;
+
+        int spentThisMonth = (int) Math.abs(txRepository.sumSpentInPeriod(userId, statsFloor, now));
+        int spentAllTime   = resetAt != null
+            ? (int) Math.abs(txRepository.sumSpentFrom(userId, resetAt))
+            : (int) Math.abs(txRepository.sumSpentTotal(userId));
 
         int avgPerMonth = 0;
-        var earliest = txRepository.findEarliestCreatedAt(userId);
-        if (earliest.isPresent()) {
-            long months = java.time.temporal.ChronoUnit.MONTHS.between(earliest.get(), now);
+        OffsetDateTime baseDate = resetAt != null ? resetAt : txRepository.findEarliestCreatedAt(userId).orElse(null);
+        if (baseDate != null) {
+            long months = java.time.temporal.ChronoUnit.MONTHS.between(baseDate, now);
             avgPerMonth = months > 0 ? (int) (spentAllTime / months) : spentAllTime;
         }
 

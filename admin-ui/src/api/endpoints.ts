@@ -122,6 +122,14 @@ export const usersApi = {
   updateProfile: (id: string, data: { tokenBalance?: number; tokenLowThreshold?: number | null; tokenMonthlyGrantRef?: number }) =>
     apiClient.patch<UserDetail>(`/api/v1/admin/users/${id}/profile`, data).then((r) => r.data),
 
+  resetTokenStats: (id: string, resetAt?: string) =>
+    apiClient
+      .post<UserDetail>(`/api/v1/admin/users/${id}/token-stats/reset`, resetAt ? { resetAt } : {})
+      .then((r) => r.data),
+
+  clearTokenStatsReset: (id: string) =>
+    apiClient.delete<UserDetail>(`/api/v1/admin/users/${id}/token-stats/reset`).then((r) => r.data),
+
   auditLog: (id: string, params: { page?: number; size?: number }) =>
     apiClient
       .get<SpringPage<AuditLog>>(`/api/v1/admin/users/${id}/audit-log`, { params })
