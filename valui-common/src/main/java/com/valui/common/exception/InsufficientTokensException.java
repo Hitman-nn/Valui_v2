@@ -24,8 +24,8 @@ public class InsufficientTokensException extends ValuiException {
         if (required > 0) {
             return "⚠️ Недостаточно токенов\n\n"
                  + "Нужно: " + required + " • Баланс: " + available + "\n\n"
-                 + "Пополните баланс: /plans";
+                 + "Пополните баланс в настройках (/info)";
         }
-        return "⚠️ Недостаточно токенов. Пополните баланс: /plans";
+        return "⚠️ Недостаточно токенов. Пополните баланс в настройках (/info)";
     }
 }

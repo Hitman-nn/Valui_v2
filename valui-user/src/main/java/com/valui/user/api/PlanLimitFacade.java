@@ -1,6 +1,5 @@
 package com.valui.user.api;
 
-import com.valui.user.dto.LimitInfoDto;
 import com.valui.user.dto.TokenInfoDto;
 
 /**
@@ -21,9 +20,6 @@ public interface PlanLimitFacade {
      * Бросает {@link com.valui.common.exception.InsufficientTokensException} при нехватке токенов.
      */
     void debitForControllerFilter(Long telegramId);
-
-    /** Возвращает снимок баланса токенов и использования контроллеров. */
-    LimitInfoDto getLimitInfo(Long telegramId);
 
     /** Возвращает полную информацию о токенах: баланс, история, статистика. */
     TokenInfoDto getTokenInfo(Long telegramId);

@@ -6,7 +6,6 @@ import com.valui.common.entity.UserBkSlotEntity;
 import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.UserNotFoundException;
 import com.valui.user.api.PlanLimitFacade;
-import com.valui.user.dto.LimitInfoDto;
 import com.valui.user.dto.TokenHistoryEntry;
 import com.valui.user.dto.TokenInfoDto;
 import com.valui.user.repository.ControllerRepository;
@@ -77,18 +76,6 @@ public class PlanLimitChecker implements PlanLimitFacade {
         UserEntity user = requireUser(telegramId);
         int cost = tokenLedgerService.getCost("CONTROLLER_FILTER_MONTHLY");
         tokenLedgerService.debit(user.getId(), cost, TokenReasonCode.CONTROLLER_FILTER_CHARGE, null);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public LimitInfoDto getLimitInfo(Long telegramId) {
-        UserEntity user = requireUser(telegramId);
-        int controllersUsed = controllerRepository.countByUserIdAndIsActiveTrue(user.getId());
-        return new LimitInfoDto(
-            controllersUsed,
-            user.getTokenBalance() != null ? user.getTokenBalance() : 0,
-            user.getTokenMonthlyGrantRef() != null ? user.getTokenMonthlyGrantRef() : 0
-        );
     }
 
     @Override

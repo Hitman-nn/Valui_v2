@@ -102,13 +102,13 @@ class BotMessageSourceTest {
     }
 
     @Test
-    @DisplayName("subscription.expired with plan code arg")
-    void subscriptionExpired_argsSubstituted() {
+    @DisplayName("error.insufficient_tokens message exists")
+    void insufficientTokens_messageExists() {
         given(localeResolver.resolve(CHAT_ID)).willReturn(Locale.forLanguageTag("ru"));
 
-        String result = botMessageSource.getMessage("subscription.expired", CHAT_ID, "PRO");
+        String result = botMessageSource.getMessage("error.insufficient_tokens", CHAT_ID);
 
-        assertThat(result).contains("PRO");
+        assertThat(result).isNotBlank();
     }
 
     // ─── Redis caching ────────────────────────────────────────────────────────

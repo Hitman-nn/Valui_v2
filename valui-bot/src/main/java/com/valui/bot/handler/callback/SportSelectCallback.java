@@ -22,7 +22,6 @@ import com.valui.monitor.service.ControllerService;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
-import com.valui.user.api.PlanLimitFacade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -45,7 +44,6 @@ public class SportSelectCallback implements CallbackHandler {
     private final BotMessageSource    messageSource;
     private final ParserFactory       parserFactory;
     private final ControllerService   controllerService;
-    private final PlanLimitFacade     planLimitFacade;
     private final WizardCacheService  wizardCache;
     private final BotWizardProperties wizardProps;
     private final BotProperties       botProperties;
