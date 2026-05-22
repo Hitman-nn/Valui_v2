@@ -62,6 +62,11 @@ public class UserEntity implements HasUpdatedAt {
     @Builder.Default
     private Integer tokenMonthlyGrantRef = 0;
 
+    /** true — алерт о низком балансе уже отправлен для текущего периода. Сбрасывается при пополнении баланса выше порога и при ежемесячном гранте. */
+    @Column(name = "token_alert_sent", nullable = false)
+    @Builder.Default
+    private boolean tokenAlertSent = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 

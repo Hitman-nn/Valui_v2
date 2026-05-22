@@ -11,6 +11,8 @@ import com.valui.common.exception.UserNotFoundException;
 import com.valui.user.event.ControllerResumedEvent;
 import com.valui.user.event.ControllerSuspendedEvent;
 import com.valui.user.event.TokenThresholdEvent;
+import com.valui.user.event.UserControllersPausedEvent;
+import com.valui.user.event.UserControllersResumedEvent;
 import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.ControllerSubscriptionRepository;
 import com.valui.user.repository.GlobalFilterRepository;
@@ -25,17 +27,18 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TokenLedgerServiceImpl implements TokenLedgerService {
 
-    /** Абсолютные пороги (токены): информационный → предупреждение → критический */
-    private static final int[] THRESHOLDS = {10, 50, 100};
+    // Hardcoded thresholds removed — user configures a single threshold via Settings (tokenLowThreshold)
 
     /** Таймаут ожидания пессимистичной блокировки (мс) — защита от deadlock */
     private static final Map<String, Object> PESSIMISTIC_LOCK_HINTS =
@@ -91,9 +94,9 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
 
         if (newBalance > 0) {
             restoreTokenPausedControllers(userId);
-            // Сбрасываем порог уведомлений, если баланс снова выше всех порогов
-            if (newBalance >= THRESHOLDS[THRESHOLDS.length - 1]) {
-                user.setTokenLowThreshold(null);
+            Integer userThreshold = user.getTokenLowThreshold();
+            if (userThreshold != null && newBalance >= userThreshold && user.isTokenAlertSent()) {
+                user.setTokenAlertSent(false);
                 userRepository.save(user);
             }
         }
@@ -165,16 +168,30 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
     @Override
     @Transactional
     public void pauseAllControllers(UUID userId) {
-        // Mark all subscriptions as paused
         subscriptionRepository.updatePausedByTokensForUser(userId, true);
 
-        // For each controller that now has NO active subscriptions: publish suspend event
         List<ControllerEntity> active = controllerRepository.findAllByUserIdAndIsActiveTrue(userId);
+        List<Long> suspendedChatIds = new ArrayList<>();
+        boolean hasPersonalChatCtrl = false;
         for (ControllerEntity c : active) {
             if (!subscriptionRepository.existsByControllerIdAndIsMutedFalseAndPausedByTokensFalse(c.getId())) {
                 eventPublisher.publishEvent(new ControllerSuspendedEvent(c.getId()));
+                if (c.getNotificationChatId() != null) {
+                    suspendedChatIds.add(c.getNotificationChatId());
+                } else {
+                    hasPersonalChatCtrl = true;
+                }
             }
         }
+
+        boolean finalHasPersonal = hasPersonalChatCtrl;
+        userRepository.findById(userId).ifPresent(u -> {
+            List<Long> distinctChats = suspendedChatIds.stream().distinct().collect(Collectors.toList());
+            if (finalHasPersonal) distinctChats.add(0, u.getTelegramId());
+            if (!distinctChats.isEmpty()) {
+                eventPublisher.publishEvent(new UserControllersPausedEvent(u.getTelegramId(), distinctChats));
+            }
+        });
         log.info("[TOKEN] Паузим подписки userId={}", userId);
     }
 
@@ -184,19 +201,33 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
         List<ControllerSubscriptionEntity> paused = subscriptionRepository.findAllByUserIdAndPausedByTokensTrue(userId);
         subscriptionRepository.updatePausedByTokensForUser(userId, false);
 
+        List<Long> resumedChatIds = new ArrayList<>();
+        boolean[] hasPersonalChatCtrl = {false};
         paused.stream()
             .map(ControllerSubscriptionEntity::getControllerId)
             .distinct()
             .forEach(controllerId -> controllerRepository.findById(controllerId).ifPresent(c -> {
                 int pollInterval = c.getPollIntervalSec() != null ? c.getPollIntervalSec() : 60;
                 eventPublisher.publishEvent(new ControllerResumedEvent(c.getId(), c.getUser().getId(), pollInterval));
+                if (c.getNotificationChatId() != null) {
+                    resumedChatIds.add(c.getNotificationChatId());
+                } else {
+                    hasPersonalChatCtrl[0] = true;
+                }
             }));
 
-        // Восстанавливаем паузу на фильтрах
         int restoredCtrlFilters = controllerRepository.restoreFilterPauseForUser(userId);
         globalFilterRepository.findAllByUserIdAndPausedByTokensTrue(userId).forEach(f -> {
             f.setPausedByTokens(false);
             globalFilterRepository.save(f);
+        });
+
+        userRepository.findById(userId).ifPresent(u -> {
+            List<Long> distinctChats = resumedChatIds.stream().distinct().collect(Collectors.toList());
+            if (hasPersonalChatCtrl[0]) distinctChats.add(0, u.getTelegramId());
+            if (!distinctChats.isEmpty()) {
+                eventPublisher.publishEvent(new UserControllersResumedEvent(u.getTelegramId(), distinctChats));
+            }
         });
 
         log.info("[TOKEN] Восстановили подписки+фильтры userId={} ctrlFilters={}", userId, restoredCtrlFilters);
@@ -222,17 +253,14 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
     }
 
     private void checkAndNotifyThresholds(UserEntity user, int newBalance) {
-        int lastNotified = user.getTokenLowThreshold() != null ? user.getTokenLowThreshold() : Integer.MAX_VALUE;
-
-        for (int threshold : THRESHOLDS) {
-            if (newBalance < threshold && lastNotified > threshold) {
-                user.setTokenLowThreshold(threshold);
-                userRepository.save(user);
-                eventPublisher.publishEvent(
-                    new TokenThresholdEvent(this, user.getTelegramId(), newBalance, threshold));
-                log.info("[TOKEN] Порог {} токенов для userId={} balance={}", threshold, user.getId(), newBalance);
-                break;
-            }
+        Integer userThreshold = user.getTokenLowThreshold();
+        if (userThreshold == null) return;
+        if (newBalance < userThreshold && !user.isTokenAlertSent()) {
+            user.setTokenAlertSent(true);
+            userRepository.save(user);
+            eventPublisher.publishEvent(
+                new TokenThresholdEvent(this, user.getTelegramId(), newBalance, userThreshold));
+            log.info("[TOKEN] Порог {} токенов для userId={} balance={}", userThreshold, user.getId(), newBalance);
         }
     }
 }

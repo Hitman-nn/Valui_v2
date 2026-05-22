@@ -43,7 +43,7 @@ public class UserBillingProcessor {
         // 1. Начисляем ежемесячный грант (задаётся админом через tokenMonthlyGrantRef)
         int grant = user.getTokenMonthlyGrantRef() != null ? user.getTokenMonthlyGrantRef() : 0;
         if (grant > 0) {
-            user.setTokenLowThreshold(null);
+            user.setTokenAlertSent(false);
             userRepository.save(user);
             tokenLedgerService.credit(user.getId(), grant, TokenReasonCode.PLAN_GRANT, null);
             granted = grant;

@@ -64,6 +64,9 @@ public interface ControllerPortService {
     /** Returns distinct group chat IDs (chatId < 0) where the user has active (non-muted, non-paused) subscriptions. */
     List<Long> findActiveGroupChatIds(long telegramId);
 
+    /** Returns the group chat (chatId < 0) where the user has the most controllers, or empty if none. */
+    Optional<Long> findGroupChatWithMostControllers(long telegramId);
+
     /** True if the user has at least one subscription in the given chat with a VK peer_id set. */
     boolean hasVkLinked(UUID userId, long chatId);
 

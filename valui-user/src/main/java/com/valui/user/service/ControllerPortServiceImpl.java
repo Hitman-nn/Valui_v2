@@ -117,6 +117,12 @@ public class ControllerPortServiceImpl implements ControllerPortService {
     }
 
     @Override
+    public Optional<Long> findGroupChatWithMostControllers(long telegramId) {
+        List<Long> chats = subscriptionRepository.findGroupChatIdsSortedByControllerCount(telegramId);
+        return chats.isEmpty() ? Optional.empty() : Optional.of(chats.get(0));
+    }
+
+    @Override
     public boolean hasVkLinked(UUID userId, long chatId) {
         return subscriptionRepository.existsVkLinkedByUserIdAndChatId(userId, chatId);
     }

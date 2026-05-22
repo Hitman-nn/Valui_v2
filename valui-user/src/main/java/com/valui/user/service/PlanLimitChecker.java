@@ -7,9 +7,21 @@ import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.UserNotFoundException;
 import com.valui.user.api.PlanLimitFacade;
 import com.valui.user.dto.LimitInfoDto;
+import com.valui.user.dto.TokenHistoryEntry;
+import com.valui.user.dto.TokenInfoDto;
 import com.valui.user.repository.ControllerRepository;
+import com.valui.user.repository.TokenTransactionRepository;
 import com.valui.user.repository.UserBkSlotRepository;
 import com.valui.user.repository.UserRepository;
+
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,10 +30,11 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PlanLimitChecker implements PlanLimitFacade {
 
-    private final UserRepository       userRepository;
-    private final ControllerRepository controllerRepository;
-    private final TokenLedgerService   tokenLedgerService;
-    private final UserBkSlotRepository userBkSlotRepository;
+    private final UserRepository              userRepository;
+    private final ControllerRepository        controllerRepository;
+    private final TokenLedgerService          tokenLedgerService;
+    private final UserBkSlotRepository        userBkSlotRepository;
+    private final TokenTransactionRepository  txRepository;
 
     /**
      * Списывает токены за первый контроллер данной БК.
@@ -75,6 +88,56 @@ public class PlanLimitChecker implements PlanLimitFacade {
             controllersUsed,
             user.getTokenBalance() != null ? user.getTokenBalance() : 0,
             user.getTokenMonthlyGrantRef() != null ? user.getTokenMonthlyGrantRef() : 0
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TokenInfoDto getTokenInfo(Long telegramId) {
+        UserEntity user = requireUser(telegramId);
+        UUID userId = user.getId();
+
+        int controllersUsed = controllerRepository.countByUserIdAndIsActiveTrue(userId);
+
+        // History: group last 50 transactions by (reasonCode, day), take first 10 groups
+        var rawTxs = txRepository.findTop50ByUserIdOrderByCreatedAtDesc(userId);
+        record GroupKey(com.valui.common.domain.TokenReasonCode code, LocalDate date) {}
+        Map<GroupKey, int[]> grouped = new LinkedHashMap<>();
+        for (var tx : rawTxs) {
+            LocalDate day = tx.getCreatedAt().toLocalDate();
+            var key = new GroupKey(tx.getReasonCode(), day);
+            grouped.computeIfAbsent(key, k -> new int[]{0, 0});
+            grouped.get(key)[0] += tx.getDelta();
+            grouped.get(key)[1]++;
+        }
+        List<TokenHistoryEntry> history = new ArrayList<>();
+        for (var e : grouped.entrySet()) {
+            if (history.size() >= 10) break;
+            history.add(new TokenHistoryEntry(e.getKey().code(), e.getKey().date(), e.getValue()[0], e.getValue()[1]));
+        }
+
+        // Stats
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        OffsetDateTime monthStart = now.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        int spentThisMonth = (int) Math.abs(txRepository.sumSpentInPeriod(userId, monthStart, now));
+        int spentAllTime   = (int) Math.abs(txRepository.sumSpentTotal(userId));
+
+        int avgPerMonth = 0;
+        var earliest = txRepository.findEarliestCreatedAt(userId);
+        if (earliest.isPresent()) {
+            long months = java.time.temporal.ChronoUnit.MONTHS.between(earliest.get(), now);
+            avgPerMonth = months > 0 ? (int) (spentAllTime / months) : spentAllTime;
+        }
+
+        return new TokenInfoDto(
+            controllersUsed,
+            user.getTokenBalance() != null ? user.getTokenBalance() : 0,
+            user.getTokenMonthlyGrantRef() != null ? user.getTokenMonthlyGrantRef() : 0,
+            user.getTokenLowThreshold(),
+            history,
+            spentThisMonth,
+            avgPerMonth,
+            spentAllTime
         );
     }
 

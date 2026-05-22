@@ -5,16 +5,23 @@ import com.valui.bot.handler.CommandHandler;
 import com.valui.bot.handler.MessageSend;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.user.api.PlanLimitFacade;
-import com.valui.user.dto.LimitInfoDto;
+import com.valui.user.dto.TokenHistoryEntry;
+import com.valui.user.dto.TokenInfoDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-/** /info — показывает баланс токенов и количество контроллеров. */
+import java.time.format.DateTimeFormatter;
+
+/** /info — мой тариф: токены, статистика, история. */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class InfoCommandHandler implements CommandHandler {
+
+    private static final DateTimeFormatter DAY_FMT = DateTimeFormatter.ofPattern("dd.MM");
 
     private final BotMessageSource messageSource;
     private final PlanLimitFacade  planLimitFacade;
@@ -33,25 +40,67 @@ public class InfoCommandHandler implements CommandHandler {
             return;
         }
 
-        LimitInfoDto info;
+        TokenInfoDto info;
         try {
-            info = planLimitFacade.getLimitInfo(ctx.fromId());
+            info = planLimitFacade.getTokenInfo(ctx.fromId());
         } catch (Exception e) {
-            log.warn("Failed to load limit info for fromId={}: {}", ctx.fromId(), e.getMessage());
+            log.warn("Failed to load token info for fromId={}: {}", ctx.fromId(), e.getMessage());
             MessageSend.text(ctx.sender(), ctx.chatId(),
                 messageSource.getMessage("error.general", ctx.fromId()));
             return;
         }
 
-        String text = messageSource.getMessage("info.personal_no_expiry", ctx.fromId(),
-            "—",
-            0,
-            info.controllersUsed(),
-            0,
-            info.tokenBalance(),
-            info.monthlyTokenGrant());
+        String text = buildText(info, ctx.fromId());
+        try {
+            var msg = ctx.sender().execute(SendMessage.builder()
+                .chatId(ctx.chatId())
+                .text(text)
+                .parseMode("Markdown")
+                .build());
+            if (msg != null) ctx.tracker().track(ctx.chatId(), msg.getMessageId());
+        } catch (TelegramApiException e) {
+            log.error("InfoCommandHandler send failed chatId={}: {}", ctx.chatId(), e.getMessage());
+        }
+    }
 
-        int id = MessageSend.sendGetId(ctx.sender(), ctx.chatId(), text);
-        if (id > 0) ctx.tracker().track(ctx.chatId(), id);
+    private String buildText(TokenInfoDto info, long fromId) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append(messageSource.getMessage("info.header", fromId)).append("\n\n");
+        sb.append(messageSource.getMessage("info.tokens_line", fromId,
+            info.tokenBalance(), info.monthlyTokenGrant())).append("\n");
+        sb.append(messageSource.getMessage("info.controllers_line", fromId,
+            info.controllersUsed())).append("\n");
+
+        String thresholdDisplay = info.tokenLowThreshold() != null
+            ? String.valueOf(info.tokenLowThreshold())
+            : messageSource.getMessage("info.threshold_off", fromId);
+        sb.append(messageSource.getMessage("info.threshold_line", fromId, thresholdDisplay)).append("\n");
+
+        sb.append("\n");
+        sb.append(messageSource.getMessage("info.stats_header", fromId)).append("\n");
+        sb.append(messageSource.getMessage("info.stats_line", fromId,
+            info.spentThisMonth(), info.avgPerMonth(), info.spentAllTime())).append("\n");
+
+        sb.append("\n");
+        sb.append(messageSource.getMessage("info.history_header", fromId)).append("\n");
+
+        if (info.recentHistory().isEmpty()) {
+            sb.append(messageSource.getMessage("info.history_empty", fromId)).append("\n");
+        } else {
+            for (TokenHistoryEntry entry : info.recentHistory()) {
+                String reasonKey = "token.reason." + entry.reasonCode().name();
+                String reason = messageSource.getMessage(reasonKey, fromId);
+                String delta = (entry.totalDelta() >= 0 ? "+" : "") + entry.totalDelta();
+                String suffix = entry.count() > 1 ? " ×" + entry.count() : "";
+                String line = messageSource.getMessage("info.history_line", fromId,
+                    entry.date().format(DAY_FMT),
+                    reason + suffix,
+                    " " + delta);
+                sb.append("• ").append(line).append("\n");
+            }
+        }
+
+        return sb.toString().trim();
     }
 }

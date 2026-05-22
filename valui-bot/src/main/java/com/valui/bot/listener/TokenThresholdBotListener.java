@@ -13,8 +13,6 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.util.List;
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -30,50 +28,41 @@ public class TokenThresholdBotListener {
         log.info("[TOKEN] Low balance alert: telegramId={} balance={} threshold={}",
             event.getTelegramId(), event.getBalance(), event.getThreshold());
 
-        String msgKey;
-        if (event.getBalance() <= 0) {
-            msgKey = "token.no_balance";
-        } else if (event.getThreshold() <= 10) {
-            msgKey = "token.critical_balance";
-        } else if (event.getThreshold() <= 50) {
-            msgKey = "token.low_balance";
-        } else {
-            msgKey = "token.info_balance";
-        }
-        String text = messageSource.getMessage(msgKey, event.getTelegramId(), event.getBalance());
+        String msgKey = event.getBalance() <= 0 ? "token.no_balance" : "token.threshold_alert";
+        String text = messageSource.getMessage(msgKey, event.getTelegramId(),
+            event.getBalance(), event.getThreshold());
 
+        // Try personal chat first
+        if (trySend(event.getTelegramId(), text)) {
+            log.info("[TOKEN] Alert sent to personal chat: telegramId={}", event.getTelegramId());
+            return;
+        }
+
+        // Fallback: group with most controllers
+        controllerPort.findGroupChatWithMostControllers(event.getTelegramId()).ifPresentOrElse(
+            chatId -> {
+                if (trySend(chatId, text)) {
+                    log.info("[TOKEN] Alert sent to group chat={}: telegramId={}", chatId, event.getTelegramId());
+                } else {
+                    log.error("[TOKEN] Failed to deliver alert to group chat={} for telegramId={}",
+                        chatId, event.getTelegramId());
+                }
+            },
+            () -> log.error("[TOKEN] No reachable chat for telegramId={}, alert lost", event.getTelegramId())
+        );
+    }
+
+    private boolean trySend(long chatId, String text) {
         try {
             bot.execute(SendMessage.builder()
-                .chatId(event.getTelegramId())
+                .chatId(chatId)
                 .text(text)
-                .parseMode("Markdown")
+                .parseMode("MarkdownV2")
                 .build());
-            log.info("[TOKEN] Alert sent: telegramId={} level={}", event.getTelegramId(), msgKey);
-            return;
+            return true;
         } catch (TelegramApiException e) {
-            log.debug("[TOKEN] Personal chat unavailable for telegramId={} — trying group chats", event.getTelegramId());
-        }
-
-        List<Long> groupChats = controllerPort.findActiveGroupChatIds(event.getTelegramId());
-        if (groupChats.isEmpty()) {
-            log.warn("[TOKEN] No reachable chat for telegramId={}, notification lost", event.getTelegramId());
-            return;
-        }
-        int sent = 0;
-        for (Long chatId : groupChats) {
-            try {
-                bot.execute(SendMessage.builder()
-                    .chatId(chatId)
-                    .text(text)
-                    .parseMode("Markdown")
-                    .build());
-                sent++;
-            } catch (TelegramApiException e) {
-                log.warn("[TOKEN] Failed to send to groupChat={}: {}", chatId, e.getMessage());
-            }
-        }
-        if (sent > 0) {
-            log.info("[TOKEN] Alert sent to {} group chat(s): telegramId={} level={}", sent, event.getTelegramId(), msgKey);
+            log.debug("[TOKEN] Cannot send to chatId={}: {}", chatId, e.getMessage());
+            return false;
         }
     }
 }

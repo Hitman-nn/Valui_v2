@@ -1,6 +1,7 @@
 package com.valui.user.api;
 
 import com.valui.user.dto.LimitInfoDto;
+import com.valui.user.dto.TokenInfoDto;
 
 /**
  * Публичный API valui-user для токенного биллинга.
@@ -23,4 +24,7 @@ public interface PlanLimitFacade {
 
     /** Возвращает снимок баланса токенов и использования контроллеров. */
     LimitInfoDto getLimitInfo(Long telegramId);
+
+    /** Возвращает полную информацию о токенах: баланс, история, статистика. */
+    TokenInfoDto getTokenInfo(Long telegramId);
 }
