@@ -3,7 +3,7 @@ package com.valui.bot.handler.callback;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.state.UserBotSession;
-import com.valui.common.exception.SubscriptionLimitExceededException;
+import com.valui.common.exception.InsufficientTokensException;
 import com.valui.common.exception.ValuiException;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
@@ -94,11 +94,11 @@ class QuickAddControllerCallbackTest {
     // ── plan limit ────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("Plan limit exceeded: shows plan-upgrade toast, button stays (no EditMessage)")
+    @DisplayName("Insufficient tokens: shows modal toast with balance info, button stays (no EditMessage)")
     void limitExceeded_showsUpgradeToast_buttonUnchanged() throws Exception {
         given(quickAddCacheService.find(CACHE_KEY)).willReturn(Optional.of(DATA));
         given(controllerService.addController(any(), anyLong(), anyLong()))
-                .willThrow(new SubscriptionLimitExceededException("controllers", 5));
+                .willThrow(new InsufficientTokensException(5, 0));
 
         callback.handle(ctx("QADD:" + CACHE_KEY));
 
@@ -106,7 +106,7 @@ class QuickAddControllerCallbackTest {
         verify(sender, atLeastOnce()).execute(toastCaptor.capture());
         assertThat(toastCaptor.getValue().getText()).contains("токенов");
 
-        // Button must NOT be replaced — user may upgrade and return to this notification
+        // Button must NOT be replaced — user may top up and return to this notification
         verify(sender, never()).execute(any(EditMessageReplyMarkup.class));
     }
 
