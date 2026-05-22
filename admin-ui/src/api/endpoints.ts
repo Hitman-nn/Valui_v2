@@ -39,6 +39,8 @@ import type {
   SchedulerMetricsSnapshot,
   PollHistoryHourlyDto,
   JobsOverview,
+  TokenActionCost,
+  UpdateTokenActionCostRequest,
 } from './types';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -310,6 +312,18 @@ export const migrationApi = {
   execute: (body: import('./types').MigrationRequest) =>
     apiClient
       .post<import('./types').MigrationResult>('/api/v1/admin/migration/execute', body)
+      .then((r) => r.data),
+};
+
+// ─── Token Costs ─────────────────────────────────────────────────────────────
+
+export const tokenCostsApi = {
+  list: () =>
+    apiClient.get<TokenActionCost[]>('/api/v1/admin/token-costs').then((r) => r.data),
+
+  update: (actionCode: string, data: UpdateTokenActionCostRequest) =>
+    apiClient
+      .patch<TokenActionCost>(`/api/v1/admin/token-costs/${actionCode}`, data)
       .then((r) => r.data),
 };
 

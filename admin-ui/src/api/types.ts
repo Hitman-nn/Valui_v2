@@ -472,3 +472,14 @@ export interface JobsOverview {
   tasks: SystemTaskDto[];
   preMatch: PreMatchStats;
 }
+
+export interface TokenActionCost {
+  actionCode:  string;
+  costTokens:  number;
+  description: string | null;
+}
+
+export interface UpdateTokenActionCostRequest {
+  costTokens:  number;
+  description?: string;
+}

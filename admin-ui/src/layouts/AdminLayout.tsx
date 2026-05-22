@@ -24,6 +24,7 @@ import {
   AuditOutlined,
   BarChartOutlined,
   FieldTimeOutlined,
+  DollarOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -42,8 +43,9 @@ const MENU_ITEMS = [
   { key: '/scheduler', icon: <FieldTimeOutlined />,   label: 'Scheduler' },
   { key: '/jobs',      icon: <FieldTimeOutlined />,   label: 'Jobs' },
   { key: '/migration', icon: <ThunderboltOutlined />,  label: 'Migration' },
-  { key: '/audit',     icon: <AuditOutlined />,       label: 'Audit Log' },
-  { key: '/broadcast', icon: <NotificationOutlined />, label: 'Broadcast' },
+  { key: '/audit',       icon: <AuditOutlined />,       label: 'Audit Log' },
+  { key: '/broadcast',   icon: <NotificationOutlined />, label: 'Broadcast' },
+  { key: '/token-costs', icon: <DollarOutlined />,      label: 'Token Costs' },
 ];
 
 const BREADCRUMB_MAP: Record<string, string> = {
@@ -58,6 +60,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   migration:     'Migration',
   audit:         'Audit Log',
   broadcast:     'Broadcast',
+  'token-costs': 'Token Costs',
 };
 
 function buildBreadcrumbs(pathname: string): { title: ReactNode }[] {
