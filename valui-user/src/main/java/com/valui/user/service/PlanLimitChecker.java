@@ -92,19 +92,22 @@ public class PlanLimitChecker implements PlanLimitFacade {
         var rawTxs = resetAt != null
             ? txRepository.findTop50ByUserIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(userId, resetAt)
             : txRepository.findTop50ByUserIdOrderByCreatedAtDesc(userId);
-        record GroupKey(com.valui.common.domain.TokenReasonCode code, LocalDate date) {}
-        Map<GroupKey, int[]> grouped = new LinkedHashMap<>();
+        record GroupKey(TokenReasonCode code, LocalDate date) {}
+        Map<GroupKey, List<com.valui.common.entity.TokenTransactionEntity>> grouped = new LinkedHashMap<>();
         for (var tx : rawTxs) {
             LocalDate day = tx.getCreatedAt().toLocalDate();
-            var key = new GroupKey(tx.getReasonCode(), day);
-            grouped.computeIfAbsent(key, k -> new int[]{0, 0});
-            grouped.get(key)[0] += tx.getDelta();
-            grouped.get(key)[1]++;
+            grouped.computeIfAbsent(new GroupKey(tx.getReasonCode(), day), k -> new ArrayList<>()).add(tx);
         }
         List<TokenHistoryEntry> history = new ArrayList<>();
         for (var e : grouped.entrySet()) {
             if (history.size() >= 10) break;
-            history.add(new TokenHistoryEntry(e.getKey().code(), e.getKey().date(), e.getValue()[0], e.getValue()[1]));
+            var txs = e.getValue();
+            int totalDelta = txs.stream().mapToInt(com.valui.common.entity.TokenTransactionEntity::getDelta).sum();
+            var details = txs.stream()
+                .map(t -> new com.valui.user.dto.TokenTransactionDetail(
+                    t.getId(), t.getDelta(), t.getBalanceAfter(), t.getRefId(), t.getCreatedAt()))
+                .toList();
+            history.add(new TokenHistoryEntry(e.getKey().code(), e.getKey().date(), totalDelta, txs.size(), details));
         }
 
         // Stats

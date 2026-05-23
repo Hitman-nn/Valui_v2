@@ -37,7 +37,7 @@ import dayjs from 'dayjs';
 import { usersApi } from '../../api/endpoints';
 import { StatusBadge, RoleBadge } from '../../components/StatusBadge';
 import StatCard from '../../components/StatCard';
-import type { AuditLog, NotificationLog, Controller, UserDetail, TokenHistoryEntry } from '../../api/types';
+import type { AuditLog, NotificationLog, Controller, UserDetail, TokenHistoryEntry, TokenTransactionDetail } from '../../api/types';
 
 const REASON_LABELS: Record<string, string> = {
   PLAN_GRANT:                         'Начальный грант',
@@ -53,6 +53,40 @@ const REASON_LABELS: Record<string, string> = {
   MONTHLY_CONTROLLER_FILTER_CHARGE:   'Ежемес. фильтр контроллера',
   NOTIFICATION_SENT:                  'Уведомление',
 };
+
+const txDetailColumns = [
+  {
+    title: 'Время',
+    dataIndex: 'createdAt',
+    key: 'createdAt',
+    width: 90,
+    render: (v: string) => dayjs(v).format('HH:mm:ss'),
+  },
+  {
+    title: 'Изменение',
+    dataIndex: 'delta',
+    key: 'delta',
+    width: 110,
+    render: (v: number) => (
+      <Typography.Text strong style={{ color: v >= 0 ? '#52c41a' : '#ff4d4f' }}>
+        {v >= 0 ? '+' : ''}{v}
+      </Typography.Text>
+    ),
+  },
+  {
+    title: 'Баланс после',
+    dataIndex: 'balanceAfter',
+    key: 'balanceAfter',
+    width: 110,
+  },
+  {
+    title: 'Ref ID',
+    dataIndex: 'refId',
+    key: 'refId',
+    render: (v: string | null) =>
+      v ? <Typography.Text code style={{ fontSize: 11 }}>{v}</Typography.Text> : '—',
+  },
+];
 
 const historyColumns = [
   {
@@ -538,6 +572,19 @@ export default function UserDetailPage() {
                   loading={tokenStatsLoading}
                   size="small"
                   pagination={false}
+                  expandable={{
+                    expandedRowRender: (row) => (
+                      <Table<TokenTransactionDetail>
+                        dataSource={row.transactions}
+                        columns={txDetailColumns}
+                        rowKey="id"
+                        size="small"
+                        pagination={false}
+                        style={{ margin: 0 }}
+                      />
+                    ),
+                    rowExpandable: (row) => row.transactions.length > 0,
+                  }}
                   title={() => (
                     <Typography.Text strong>
                       История операций{' '}

@@ -70,11 +70,20 @@ export interface UserDetail {
   updatedAt: string;
 }
 
+export interface TokenTransactionDetail {
+  id: string;
+  delta: number;
+  balanceAfter: number;
+  refId: string | null;
+  createdAt: string;
+}
+
 export interface TokenHistoryEntry {
   reasonCode: string;
   date: string;
   totalDelta: number;
   count: number;
+  transactions: TokenTransactionDetail[];
 }
 
 export interface TokenStats {
