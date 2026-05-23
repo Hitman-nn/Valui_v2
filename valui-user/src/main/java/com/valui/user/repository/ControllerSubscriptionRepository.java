@@ -59,6 +59,9 @@ public interface ControllerSubscriptionRepository
     @Query("SELECT (COUNT(s) > 0) FROM ControllerSubscriptionEntity s WHERE s.userId = :userId AND s.chatId = :chatId AND s.vkPeerId IS NOT NULL")
     boolean existsVkLinkedByUserIdAndChatId(@Param("userId") UUID userId, @Param("chatId") Long chatId);
 
+    @Query("SELECT s.vkPeerId FROM ControllerSubscriptionEntity s WHERE s.userId = :userId AND s.chatId = :chatId AND s.vkPeerId IS NOT NULL ORDER BY s.createdAt DESC")
+    List<Long> findVkPeerIdsByUserIdAndChatId(@Param("userId") UUID userId, @Param("chatId") Long chatId);
+
     @Modifying
     @Query("UPDATE ControllerSubscriptionEntity s SET s.vkPeerId = null WHERE s.userId = :userId AND s.chatId = :chatId")
     void clearVkPeerIdByUserIdAndChatId(@Param("userId") UUID userId, @Param("chatId") Long chatId);

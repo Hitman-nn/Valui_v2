@@ -67,8 +67,12 @@ public class ControllerPortServiceImpl implements ControllerPortService {
     @Override @Transactional
     public void createSubscription(UUID controllerId, Long chatId, UUID userId, Long telegramId) {
         if (subscriptionRepository.findByControllerIdAndChatId(controllerId, chatId).isPresent()) return;
+        // Inherit vkPeerId if the user already has VK linked for this chat
+        List<Long> vkPeerIds = subscriptionRepository.findVkPeerIdsByUserIdAndChatId(userId, chatId);
+        Long vkPeerId = vkPeerIds.isEmpty() ? null : vkPeerIds.get(0);
         subscriptionRepository.save(ControllerSubscriptionEntity.builder()
-            .controllerId(controllerId).chatId(chatId).userId(userId).telegramId(telegramId).build());
+            .controllerId(controllerId).chatId(chatId).userId(userId).telegramId(telegramId)
+            .vkPeerId(vkPeerId).build());
     }
 
     @Override @Transactional
