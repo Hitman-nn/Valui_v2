@@ -4,18 +4,23 @@ import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CommandHandler;
 import com.valui.bot.handler.MessageSend;
 import com.valui.bot.i18n.BotMessageSource;
+import com.valui.bot.keyboard.CallbackData;
+import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.user.api.PlanLimitFacade;
+import com.valui.user.crypto.CryptoPaymentService;
 import com.valui.user.dto.TokenHistoryEntry;
 import com.valui.user.dto.TokenInfoDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.time.format.DateTimeFormatter;
 
-/** /info — мой тариф: токены, статистика, история. */
+/** /info — токены, статистика, история. */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -25,6 +30,9 @@ public class InfoCommandHandler implements CommandHandler {
 
     private final BotMessageSource messageSource;
     private final PlanLimitFacade  planLimitFacade;
+
+    @Autowired(required = false)
+    private CryptoPaymentService cryptoPaymentService;
 
     @Override
     public String command() { return "/info"; }
@@ -51,16 +59,25 @@ public class InfoCommandHandler implements CommandHandler {
         }
 
         String text = buildText(info, ctx.fromId());
+        InlineKeyboardMarkup keyboard = buildKeyboard(ctx.fromId());
         try {
-            var msg = ctx.sender().execute(SendMessage.builder()
+            var builder = SendMessage.builder()
                 .chatId(ctx.chatId())
                 .text(text)
-                .parseMode("Markdown")
-                .build());
+                .parseMode("Markdown");
+            if (keyboard != null) builder.replyMarkup(keyboard);
+            var msg = ctx.sender().execute(builder.build());
             if (msg != null) ctx.tracker().track(ctx.chatId(), msg.getMessageId());
         } catch (TelegramApiException e) {
             log.error("InfoCommandHandler send failed chatId={}: {}", ctx.chatId(), e.getMessage());
         }
+    }
+
+    private InlineKeyboardMarkup buildKeyboard(long fromId) {
+        if (cryptoPaymentService == null) return null;
+        return InlineKeyboardBuilder.create()
+            .button(messageSource.getMessage("info.btn.topup", fromId), CallbackData.TOPUP_START)
+            .build();
     }
 
     private String buildText(TokenInfoDto info, long fromId) {
