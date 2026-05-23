@@ -7,7 +7,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -16,7 +16,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/admin/crypto-rates")
 @RequiredArgsConstructor
-@ConditionalOnBean(CryptoPaymentService.class)
+@ConditionalOnProperty(name = "cryptobot.api-token")
 public class AdminCryptoRatesController {
 
     private final CryptoPaymentService       cryptoPaymentService;

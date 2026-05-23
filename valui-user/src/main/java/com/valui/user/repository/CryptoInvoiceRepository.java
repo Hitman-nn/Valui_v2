@@ -18,4 +18,7 @@ public interface CryptoInvoiceRepository extends JpaRepository<CryptoInvoiceEnti
 
     /** Все PENDING-инвойсы старше cutoff помечаем как EXPIRED. */
     List<CryptoInvoiceEntity> findAllByStatusAndCreatedAtBefore(String status, OffsetDateTime cutoff);
+
+    /** Ищет существующий PENDING-инвойс для пользователя и валюты. */
+    Optional<CryptoInvoiceEntity> findFirstByUserIdAndCurrencyAndStatus(UUID userId, String currency, String status);
 }

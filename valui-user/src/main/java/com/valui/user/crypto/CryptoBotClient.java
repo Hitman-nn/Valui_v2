@@ -2,11 +2,15 @@ package com.valui.user.crypto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.netty.channel.ChannelOption;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.client.HttpClient;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -19,13 +23,16 @@ import java.util.Map;
 public class CryptoBotClient {
 
     private final WebClient client;
-    private final CryptoBotProperties props;
 
     public CryptoBotClient(CryptoBotProperties props) {
-        this.props = props;
+        HttpClient httpClient = HttpClient.create()
+            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5_000)
+            .responseTimeout(Duration.ofSeconds(15));
+
         this.client = WebClient.builder()
             .baseUrl(props.apiUrl())
             .defaultHeader("Crypto-Pay-API-Token", props.apiToken())
+            .clientConnector(new ReactorClientHttpConnector(httpClient))
             .build();
     }
 
@@ -60,8 +67,7 @@ public class CryptoBotClient {
             "asset", asset,
             "amount", amount.toPlainString(),
             "description", description,
-            "payload", payload,
-            "expires_in", props.invoiceExpiresInSeconds()
+            "payload", payload
         );
         var resp = client.post()
             .uri("/createInvoice")

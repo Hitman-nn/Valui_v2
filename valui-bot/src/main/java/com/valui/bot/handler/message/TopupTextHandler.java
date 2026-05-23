@@ -74,7 +74,8 @@ public class TopupTextHandler implements BotUpdateHandler {
             return;
         }
 
-        sessionService.setStateAndMergeContext(ctx.fromId(), BotState.TOPUP_ENTER_AMOUNT,
+        // Save amount and switch to IDLE — further text won't override the amount
+        sessionService.setStateAndMergeContext(ctx.fromId(), BotState.IDLE,
             Map.of(UserBotSession.CTX_TOPUP_AMOUNT, String.valueOf(tokenAmount)));
 
         var keyboard = buildCurrencyKeyboard();

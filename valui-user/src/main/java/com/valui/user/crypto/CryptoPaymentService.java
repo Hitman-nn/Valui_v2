@@ -11,7 +11,9 @@ import com.valui.user.repository.UserRepository;
 import com.valui.user.service.TokenLedgerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,12 +32,16 @@ public class CryptoPaymentService {
     private static final List<String> SUPPORTED = List.of("USDT", "TON", "ETH", "BTC");
     private static final int EXPIRE_HOURS = 24;
 
-    private final CryptoBotClient          cryptoBotClient;
-    private final CryptoInvoiceRepository  invoiceRepository;
+    private final CryptoBotClient            cryptoBotClient;
+    private final CryptoInvoiceRepository    invoiceRepository;
     private final TokenExchangeRateRepository rateRepository;
-    private final UserRepository           userRepository;
-    private final TokenLedgerService       tokenLedgerService;
-    private final ApplicationEventPublisher eventPublisher;
+    private final UserRepository             userRepository;
+    private final TokenLedgerService         tokenLedgerService;
+    private final ApplicationEventPublisher  eventPublisher;
+
+    // Self-injection for transaction splitting in processPendingInvoices
+    @Lazy @Autowired
+    private CryptoPaymentService self;
 
     // ─── read ─────────────────────────────────────────────────────────────────
 
@@ -66,10 +72,23 @@ public class CryptoPaymentService {
 
     // ─── create invoice ───────────────────────────────────────────────────────
 
+    /**
+     * Создаёт новый инвойс или возвращает существующий PENDING-инвойс
+     * для той же валюты (идемпотентность при повторном нажатии).
+     */
     @Transactional
     public CryptoInvoiceEntity createInvoice(Long telegramId, int tokenAmount, String currency) {
         UserEntity user = userRepository.findByTelegramId(telegramId)
             .orElseThrow(() -> new UserNotFoundException(telegramId));
+
+        // Return existing PENDING invoice for same currency if amount matches
+        var existing = invoiceRepository.findFirstByUserIdAndCurrencyAndStatus(
+            user.getId(), currency, "PENDING");
+        if (existing.isPresent() && existing.get().getTokenAmount() == tokenAmount) {
+            log.info("[CRYPTO] Reusing existing invoice: invoiceId={} userId={}",
+                existing.get().getInvoiceId(), user.getId());
+            return existing.get();
+        }
 
         BigDecimal cryptoAmount = calculateCryptoAmount(tokenAmount, currency);
         String description = tokenAmount + " токенов Valui";
@@ -95,55 +114,65 @@ public class CryptoPaymentService {
 
     // ─── poll (called by scheduler) ───────────────────────────────────────────
 
-    @Transactional
+    /**
+     * Координатор: разбит на отдельные транзакции, чтобы HTTP-вызов к CryptoBot
+     * не держал DB-соединение открытым.
+     */
     public void processPendingInvoices() {
-        List<CryptoInvoiceEntity> pending = invoiceRepository.findAllByStatus("PENDING");
-        if (pending.isEmpty()) return;
+        List<Long> activeIds = self.expireOldAndLoadActiveIds();
+        if (activeIds.isEmpty()) return;
 
-        // Expire old invoices
-        OffsetDateTime cutoff = OffsetDateTime.now().minusHours(EXPIRE_HOURS);
-        pending.stream()
-            .filter(i -> i.getCreatedAt().isBefore(cutoff))
-            .forEach(i -> {
-                i.setStatus("EXPIRED");
-                invoiceRepository.save(i);
-                log.info("[CRYPTO] Invoice expired: invoiceId={}", i.getInvoiceId());
-            });
-
-        List<CryptoInvoiceEntity> active = pending.stream()
-            .filter(i -> i.getCreatedAt().isAfter(cutoff))
-            .toList();
-        if (active.isEmpty()) return;
-
-        List<Long> ids = active.stream().map(CryptoInvoiceEntity::getInvoiceId).toList();
-        List<CryptoBotClient.InvoiceResult> results = cryptoBotClient.getInvoices(ids);
+        List<CryptoBotClient.InvoiceResult> results = cryptoBotClient.getInvoices(activeIds);
 
         for (CryptoBotClient.InvoiceResult r : results) {
-            if (!"paid".equals(r.status())) continue;
-
-            invoiceRepository.findByInvoiceId(r.invoiceId()).ifPresent(invoice -> {
-                if (!"PENDING".equals(invoice.getStatus())) return;
-
-                invoice.setStatus("PAID");
-                invoice.setPaidAt(OffsetDateTime.now());
-                invoiceRepository.save(invoice);
-
-                tokenLedgerService.credit(
-                    invoice.getUser().getId(),
-                    invoice.getTokenAmount(),
-                    TokenReasonCode.TOPUP,
-                    invoice.getId());
-
-                eventPublisher.publishEvent(new CryptoPaymentSuccessEvent(
-                    invoice.getUser().getTelegramId(),
-                    invoice.getTokenAmount(),
-                    invoice.getCurrency(),
-                    invoice.getCryptoAmount()));
-
-                log.info("[CRYPTO] Payment confirmed: invoiceId={} userId={} tokens={}",
-                    r.invoiceId(), invoice.getUser().getId(), invoice.getTokenAmount());
-            });
+            if ("paid".equals(r.status())) {
+                self.confirmPayment(r.invoiceId());
+            }
         }
+    }
+
+    /** Экспайрит старые инвойсы и возвращает ID активных. Отдельная транзакция. */
+    @Transactional
+    public List<Long> expireOldAndLoadActiveIds() {
+        OffsetDateTime cutoff = OffsetDateTime.now().minusHours(EXPIRE_HOURS);
+        List<CryptoInvoiceEntity> expired =
+            invoiceRepository.findAllByStatusAndCreatedAtBefore("PENDING", cutoff);
+        for (CryptoInvoiceEntity inv : expired) {
+            inv.setStatus("EXPIRED");
+            invoiceRepository.save(inv);
+            log.info("[CRYPTO] Invoice expired: invoiceId={}", inv.getInvoiceId());
+        }
+
+        return invoiceRepository.findAllByStatus("PENDING").stream()
+            .map(CryptoInvoiceEntity::getInvoiceId)
+            .toList();
+    }
+
+    /** Подтверждает оплату одного инвойса. Отдельная транзакция. */
+    @Transactional
+    public void confirmPayment(long invoiceId) {
+        invoiceRepository.findByInvoiceId(invoiceId).ifPresent(invoice -> {
+            if (!"PENDING".equals(invoice.getStatus())) return;
+
+            invoice.setStatus("PAID");
+            invoice.setPaidAt(OffsetDateTime.now());
+            invoiceRepository.save(invoice);
+
+            tokenLedgerService.credit(
+                invoice.getUser().getId(),
+                invoice.getTokenAmount(),
+                TokenReasonCode.TOPUP,
+                invoice.getId());
+
+            eventPublisher.publishEvent(new CryptoPaymentSuccessEvent(
+                invoice.getUser().getTelegramId(),
+                invoice.getTokenAmount(),
+                invoice.getCurrency(),
+                invoice.getCryptoAmount()));
+
+            log.info("[CRYPTO] Payment confirmed: invoiceId={} userId={} tokens={}",
+                invoiceId, invoice.getUser().getId(), invoice.getTokenAmount());
+        });
     }
 
     // ─── update rate (admin) ──────────────────────────────────────────────────

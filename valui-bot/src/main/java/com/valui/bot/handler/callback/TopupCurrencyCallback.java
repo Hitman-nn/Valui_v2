@@ -7,6 +7,7 @@ import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.state.BotState;
+import com.valui.bot.state.UserBotSession;
 import com.valui.common.entity.CryptoInvoiceEntity;
 import com.valui.user.crypto.CryptoPaymentService;
 import lombok.RequiredArgsConstructor;
@@ -47,7 +48,7 @@ public class TopupCurrencyCallback implements CallbackHandler {
         String data       = ctx.update().getCallbackQuery().getData();
         String currency   = data.substring(CallbackData.TOPUP_CURRENCY_PREFIX.length());
 
-        String amountStr = sessionService.getContext(ctx.fromId(), com.valui.bot.state.UserBotSession.CTX_TOPUP_AMOUNT)
+        String amountStr = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_TOPUP_AMOUNT)
             .orElse("0");
         int tokenAmount;
         try {

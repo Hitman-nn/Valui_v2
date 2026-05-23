@@ -7,9 +7,4 @@ public record CryptoBotProperties(
     String apiToken,
     String apiUrl,
     int invoiceExpiresInSeconds
-) {
-    public CryptoBotProperties {
-        if (apiUrl == null || apiUrl.isBlank()) apiUrl = "https://pay.crypt.bot/api";
-        if (invoiceExpiresInSeconds <= 0) invoiceExpiresInSeconds = 3600;
-    }
-}
+) {}

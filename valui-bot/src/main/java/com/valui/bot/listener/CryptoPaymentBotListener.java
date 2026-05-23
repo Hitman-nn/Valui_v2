@@ -5,9 +5,10 @@ import com.valui.user.crypto.CryptoPaymentSuccessEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -22,7 +23,7 @@ public class CryptoPaymentBotListener {
     private final BotMessageSource messageSource;
 
     @Async
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onPaymentSuccess(CryptoPaymentSuccessEvent event) {
         String text = messageSource.getMessage("topup.paid", event.telegramId(),
             event.tokenAmount(),
