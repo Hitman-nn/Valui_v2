@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import {
   Card,
   Descriptions,
@@ -53,6 +53,39 @@ const REASON_LABELS: Record<string, string> = {
   MONTHLY_CONTROLLER_FILTER_CHARGE:   'Ежемес. фильтр контроллера',
   NOTIFICATION_SENT:                  'Уведомление',
 };
+
+const historyColumns = [
+  {
+    title: 'Дата',
+    dataIndex: 'date',
+    key: 'date',
+    width: 90,
+    render: (v: string) => dayjs(v).format('DD.MM.YYYY'),
+  },
+  {
+    title: 'Операция',
+    dataIndex: 'reasonCode',
+    key: 'reasonCode',
+    render: (v: string) => REASON_LABELS[v] ?? v,
+  },
+  {
+    title: 'Изменение',
+    dataIndex: 'totalDelta',
+    key: 'totalDelta',
+    width: 110,
+    render: (v: number) => (
+      <Typography.Text strong style={{ color: v >= 0 ? '#52c41a' : '#ff4d4f' }}>
+        {v >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />} {Math.abs(v)}
+      </Typography.Text>
+    ),
+  },
+  {
+    title: 'Операций',
+    dataIndex: 'count',
+    key: 'count',
+    width: 90,
+  },
+];
 
 interface ProfileDraft {
   tokenBalance: number;
@@ -208,39 +241,6 @@ export default function UserDetailPage() {
       render: (v: string | null) => (v ? dayjs(v).format('DD.MM.YYYY HH:mm') : '—'),
     },
   ];
-
-  const historyColumns = useMemo(() => [
-    {
-      title: 'Дата',
-      dataIndex: 'date',
-      key: 'date',
-      width: 90,
-      render: (v: string) => dayjs(v).format('DD.MM.YYYY'),
-    },
-    {
-      title: 'Операция',
-      dataIndex: 'reasonCode',
-      key: 'reasonCode',
-      render: (v: string) => REASON_LABELS[v] ?? v,
-    },
-    {
-      title: 'Изменение',
-      dataIndex: 'totalDelta',
-      key: 'totalDelta',
-      width: 110,
-      render: (v: number) => (
-        <Typography.Text strong style={{ color: v >= 0 ? '#52c41a' : '#ff4d4f' }}>
-          {v >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />} {Math.abs(v)}
-        </Typography.Text>
-      ),
-    },
-    {
-      title: 'Операций',
-      dataIndex: 'count',
-      key: 'count',
-      width: 90,
-    },
-  ], []);
 
   const ctrlColumns = [
     { title: 'Букмекер', dataIndex: 'bookmaker', key: 'bookmaker', render: (v: string) => <Tag>{v}</Tag> },
