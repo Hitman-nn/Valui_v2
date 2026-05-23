@@ -43,7 +43,7 @@ public class MonthlyTokenBillingScheduler {
                 totalFilterCharged += result.filterCharged();
                 totalUsers++;
             } catch (Exception e) {
-                log.error("[BILLING] Ошибка биллинга userId={}: {}", user.getId(), e.getMessage());
+                log.error("[BILLING] Ошибка биллинга userId={}", user.getId(), e);
             }
         }
 

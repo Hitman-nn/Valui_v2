@@ -6,19 +6,25 @@ import com.valui.common.entity.ControllerEntity;
 import com.valui.common.entity.GlobalFilterEntity;
 import com.valui.common.entity.UserBkSlotEntity;
 import com.valui.common.entity.UserEntity;
+import com.valui.user.event.ControllerSuspendedEvent;
+import com.valui.user.event.UserControllersPausedEvent;
 import com.valui.user.repository.ControllerRepository;
+import com.valui.user.repository.ControllerSubscriptionRepository;
 import com.valui.user.repository.GlobalFilterRepository;
 import com.valui.user.repository.UserBkSlotRepository;
 import com.valui.user.repository.UserRepository;
 import com.valui.user.service.TokenLedgerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Выполняет биллинг одного пользователя в отдельной транзакции.
@@ -30,11 +36,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UserBillingProcessor {
 
-    private final UserRepository         userRepository;
-    private final ControllerRepository   controllerRepository;
-    private final GlobalFilterRepository globalFilterRepository;
-    private final UserBkSlotRepository   userBkSlotRepository;
-    private final TokenLedgerService     tokenLedgerService;
+    private final UserRepository                   userRepository;
+    private final ControllerRepository             controllerRepository;
+    private final GlobalFilterRepository           globalFilterRepository;
+    private final UserBkSlotRepository             userBkSlotRepository;
+    private final TokenLedgerService               tokenLedgerService;
+    private final ControllerSubscriptionRepository subscriptionRepository;
+    private final ApplicationEventPublisher        eventPublisher;
 
     @Transactional
     public MonthlyTokenBillingScheduler.BillingResult process(UserEntity user, YearMonth billingMonth) {
@@ -76,7 +84,7 @@ public class UserBillingProcessor {
             boolean ok = tokenLedgerService.tryDebit(
                 user.getId(), bkCost, TokenReasonCode.MONTHLY_BK_CHARGE, null);
             if (!ok) {
-                pauseBookmakerControllers(user.getId(), bk);
+                pauseBookmakerControllers(user, bk);
                 log.info("[BILLING] Нет токенов для БК {} userId={} → пауза", slot.getBookmaker(), user.getId());
             } else {
                 bkCharged++;
@@ -134,11 +142,28 @@ public class UserBillingProcessor {
         return new MonthlyTokenBillingScheduler.BillingResult(granted, bkCharged, filterCharged);
     }
 
-    private void pauseBookmakerControllers(UUID userId, BookmakerType bookmaker) {
+    private void pauseBookmakerControllers(UserEntity user, BookmakerType bookmaker) {
         List<ControllerEntity> bkControllers = controllerRepository
-            .findAllByUserIdAndBookmakerAndIsActiveTrue(userId, bookmaker);
-        for (ControllerEntity c : bkControllers) {
-            controllerRepository.updateTokenPauseState(c.getId(), true, false, true);
+            .findAllByUserIdAndBookmakerAndIsActiveTrue(user.getId(), bookmaker);
+        if (bkControllers.isEmpty()) return;
+
+        List<UUID> controllerIds = bkControllers.stream().map(ControllerEntity::getId).toList();
+        subscriptionRepository.updatePausedByTokensForControllers(controllerIds, true);
+
+        List<Long> chatIds = bkControllers.stream()
+            .map(ControllerEntity::getNotificationChatId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+        boolean hasPersonalCtrl = bkControllers.stream()
+            .anyMatch(c -> c.getNotificationChatId() == null);
+        if (hasPersonalCtrl) chatIds.add(0, user.getTelegramId());
+
+        for (UUID controllerId : controllerIds) {
+            eventPublisher.publishEvent(new ControllerSuspendedEvent(controllerId));
+        }
+        if (!chatIds.isEmpty()) {
+            eventPublisher.publishEvent(new UserControllersPausedEvent(user.getTelegramId(), chatIds));
         }
     }
 }
