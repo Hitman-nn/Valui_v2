@@ -73,4 +73,7 @@ public class UserBotSession {
 
     // ── Wizard tournament search ──────────────────────────────────────────────
     public static final String CTX_WIZARD_SEARCH_QUERY = "wizardSearchQuery"; // last tournament search query
+
+    // ── Top-up wizard ─────────────────────────────────────────────────────────
+    public static final String CTX_TOPUP_AMOUNT   = "topupAmount";   // token amount entered by user
 }

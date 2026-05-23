@@ -218,6 +218,11 @@ payment:
     secret-key: ${YOOKASSA_SECRET_KEY:not-configured}
     api-url: https://api.yookassa.ru/v3
 
+cryptobot:
+  api-token: ${CRYPTOBOT_API_TOKEN:}
+  api-url: ${CRYPTOBOT_API_URL:https://pay.crypt.bot/api}
+  invoice-expires-in-seconds: ${CRYPTOBOT_INVOICE_EXPIRES:3600}
+
 # Logging levels — logback-spring.xml handles appenders and patterns
 logging:
   level:

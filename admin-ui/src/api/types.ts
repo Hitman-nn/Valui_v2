@@ -485,3 +485,15 @@ export interface UpdateTokenActionCostRequest {
   costTokens:  number;
   description?: string;
 }
+
+// ─── Crypto Exchange Rates ───────────────────────────────────────────────────
+
+export interface ExchangeRate {
+  currency: string;
+  tokensPerUnit: number;
+  updatedAt: string;
+}
+
+export interface UpdateExchangeRateRequest {
+  tokensPerUnit: number;
+}

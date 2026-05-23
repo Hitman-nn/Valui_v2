@@ -199,6 +199,10 @@ public final class CallbackData {
     public static final String VK_LINK   = "VK:LINK";
     public static final String VK_UNLINK = "VK:UNLINK";
 
+    // ─── Top-up (CryptoBot) ───────────────────────────────────────────────────
+    public static final String TOPUP_CURRENCY_PREFIX = "TOPUP:CUR:";
+    public static String topupCurrency(String currency) { return TOPUP_CURRENCY_PREFIX + currency; }
+
     // ─── Pagination ───────────────────────────────────────────────────────────
     public static String page(String listKey, int pageNum) { return "PAGE:" + listKey + ":" + pageNum; }
     public static String betListPage(boolean openOnly, int pageNum) {

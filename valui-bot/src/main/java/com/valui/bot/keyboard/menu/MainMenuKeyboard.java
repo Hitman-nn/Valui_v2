@@ -12,8 +12,8 @@ import java.util.List;
  *
  * Row 1:  [add]        [list]
  * Row 2:  [listfilter] [stop]
- * Row 3:  [info]       [bet]
- * Row 4:  [language]
+ * Row 3:  [info]       [topup]
+ * Row 4:  [bet]        [settings]
  *
  * Button text dispatches by leading emoji in MenuButtonHandler.
  */
@@ -31,10 +31,11 @@ public final class MainMenuKeyboard {
         row2.add(new KeyboardButton(msg.getMessage("menu.btn.stop",       fromId)));
 
         KeyboardRow row3 = new KeyboardRow();
-        row3.add(new KeyboardButton(msg.getMessage("menu.btn.info",     fromId)));
-        row3.add(new KeyboardButton(msg.getMessage("menu.btn.bet",      fromId)));
+        row3.add(new KeyboardButton(msg.getMessage("menu.btn.info",   fromId)));
+        row3.add(new KeyboardButton(msg.getMessage("menu.btn.topup",  fromId)));
 
         KeyboardRow row4 = new KeyboardRow();
+        row4.add(new KeyboardButton(msg.getMessage("menu.btn.bet",      fromId)));
         row4.add(new KeyboardButton(msg.getMessage("menu.btn.settings", fromId)));
 
         return ReplyKeyboardMarkup.builder()

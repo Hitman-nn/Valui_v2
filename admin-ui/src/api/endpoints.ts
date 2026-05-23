@@ -41,6 +41,8 @@ import type {
   JobsOverview,
   TokenActionCost,
   UpdateTokenActionCostRequest,
+  ExchangeRate,
+  UpdateExchangeRateRequest,
 } from './types';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -332,6 +334,18 @@ export const tokenCostsApi = {
   update: (actionCode: string, data: UpdateTokenActionCostRequest) =>
     apiClient
       .patch<TokenActionCost>(`/api/v1/admin/token-costs/${actionCode}`, data)
+      .then((r) => r.data),
+};
+
+// ─── Crypto Exchange Rates ───────────────────────────────────────────────────
+
+export const cryptoRatesApi = {
+  list: () =>
+    apiClient.get<ExchangeRate[]>('/api/v1/admin/crypto-rates').then((r) => r.data),
+
+  update: (currency: string, data: UpdateExchangeRateRequest) =>
+    apiClient
+      .put<ExchangeRate>(`/api/v1/admin/crypto-rates/${currency}`, data)
       .then((r) => r.data),
 };
 

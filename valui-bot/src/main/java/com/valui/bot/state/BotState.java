@@ -26,4 +26,7 @@ public enum BotState {
     BETTING_WAITING_ACCOUNT_NAME,          // entering name for new bet account
     BETTING_WAITING_PERSON_NAME,           // entering name for new bet person
     BETTING_WAITING_ACCOUNT_PERSON_BALANCE, // entering initial/updated balance for a person in an account
+
+    // ── Top-up via CryptoBot ──────────────────────────────────────────────────
+    TOPUP_ENTER_AMOUNT,                    // waiting for user to type token amount
 }

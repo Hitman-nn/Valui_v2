@@ -15,6 +15,7 @@ import SchedulerPage from '../pages/scheduler/SchedulerPage';
 import JobsPage from '../pages/jobs/JobsPage';
 import MigrationPage from '../pages/migration/MigrationPage';
 import TokenCostsPage from '../pages/costs/TokenCostsPage';
+import CryptoRatesPage from '../pages/costs/CryptoRatesPage';
 import { useAuthStore } from '../store/authStore';
 import type { ReactNode } from 'react';
 
@@ -53,7 +54,8 @@ export const router = createBrowserRouter(
         { path: 'scheduler',    element: <SchedulerPage /> },
         { path: 'jobs',         element: <JobsPage /> },
         { path: 'migration',    element: <MigrationPage /> },
-        { path: 'token-costs',  element: <TokenCostsPage /> },
+        { path: 'token-costs',   element: <TokenCostsPage /> },
+        { path: 'crypto-rates',  element: <CryptoRatesPage /> },
       ],
     },
     { path: '*', element: <Navigate to="/" replace /> },

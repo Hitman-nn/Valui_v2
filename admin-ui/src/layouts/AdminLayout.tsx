@@ -45,7 +45,8 @@ const MENU_ITEMS = [
   { key: '/migration', icon: <ThunderboltOutlined />,  label: 'Migration' },
   { key: '/audit',       icon: <AuditOutlined />,       label: 'Audit Log' },
   { key: '/broadcast',   icon: <NotificationOutlined />, label: 'Broadcast' },
-  { key: '/token-costs', icon: <DollarOutlined />,      label: 'Token Costs' },
+  { key: '/token-costs',  icon: <DollarOutlined />,      label: 'Token Costs' },
+  { key: '/crypto-rates', icon: <DollarOutlined />,      label: 'Crypto Rates' },
 ];
 
 const BREADCRUMB_MAP: Record<string, string> = {
@@ -60,7 +61,8 @@ const BREADCRUMB_MAP: Record<string, string> = {
   migration:     'Migration',
   audit:         'Audit Log',
   broadcast:     'Broadcast',
-  'token-costs': 'Token Costs',
+  'token-costs':  'Token Costs',
+  'crypto-rates': 'Crypto Rates',
 };
 
 function buildBreadcrumbs(pathname: string): { title: ReactNode }[] {

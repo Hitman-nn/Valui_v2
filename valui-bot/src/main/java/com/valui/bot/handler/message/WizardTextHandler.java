@@ -84,6 +84,9 @@ public class WizardTextHandler implements BotUpdateHandler {
             return;
         }
 
+        // Top-up amount is handled by TopupTextHandler (order=45); should not reach here
+        if (state == BotState.TOPUP_ENTER_AMOUNT) return;
+
         if (state != BotState.WAITING_FILTER_RULE) {
             log.debug("WizardTextHandler: text ignored in state={} chatId={}", state, ctx.chatId());
             return;
