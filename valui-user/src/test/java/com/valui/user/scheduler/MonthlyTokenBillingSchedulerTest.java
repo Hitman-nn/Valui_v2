@@ -11,6 +11,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.time.YearMonth;
 import java.util.List;
@@ -50,7 +52,8 @@ class MonthlyTokenBillingSchedulerTest {
         @Test
         @DisplayName("processor is never called when there are no active users")
         void noActiveUsers_processorNotCalled() {
-            given(userRepository.findAllByStatus(UserStatus.ACTIVE)).willReturn(List.of());
+            given(userRepository.findAllByStatus(eq(UserStatus.ACTIVE), any(Pageable.class)))
+                    .willReturn(new PageImpl<>(List.of()));
 
             scheduler.runMonthlyBilling();
 
@@ -60,7 +63,8 @@ class MonthlyTokenBillingSchedulerTest {
         @Test
         @DisplayName("runs without exception when user list is empty")
         void noActiveUsers_noException() {
-            given(userRepository.findAllByStatus(UserStatus.ACTIVE)).willReturn(List.of());
+            given(userRepository.findAllByStatus(eq(UserStatus.ACTIVE), any(Pageable.class)))
+                    .willReturn(new PageImpl<>(List.of()));
 
             assertThatCode(() -> scheduler.runMonthlyBilling()).doesNotThrowAnyException();
         }
@@ -76,7 +80,8 @@ class MonthlyTokenBillingSchedulerTest {
         @DisplayName("processor.process() is called with the user and current billing month")
         void singleUser_processorCalledWithCorrectArgs() {
             UserEntity user = activeUser();
-            given(userRepository.findAllByStatus(UserStatus.ACTIVE)).willReturn(List.of(user));
+            given(userRepository.findAllByStatus(eq(UserStatus.ACTIVE), any(Pageable.class)))
+                    .willReturn(new PageImpl<>(List.of(user)));
             given(billingProcessor.process(any(), any()))
                     .willReturn(new MonthlyTokenBillingScheduler.BillingResult(100, 1, 2));
 
@@ -90,7 +95,8 @@ class MonthlyTokenBillingSchedulerTest {
         @Test
         @DisplayName("processor.process() is called exactly once")
         void singleUser_processorCalledOnce() {
-            given(userRepository.findAllByStatus(UserStatus.ACTIVE)).willReturn(List.of(activeUser()));
+            given(userRepository.findAllByStatus(eq(UserStatus.ACTIVE), any(Pageable.class)))
+                    .willReturn(new PageImpl<>(List.of(activeUser())));
             given(billingProcessor.process(any(), any()))
                     .willReturn(new MonthlyTokenBillingScheduler.BillingResult(0, 0, 0));
 
@@ -112,7 +118,8 @@ class MonthlyTokenBillingSchedulerTest {
             UserEntity u1 = activeUser();
             UserEntity u2 = activeUser();
             UserEntity u3 = activeUser();
-            given(userRepository.findAllByStatus(UserStatus.ACTIVE)).willReturn(List.of(u1, u2, u3));
+            given(userRepository.findAllByStatus(eq(UserStatus.ACTIVE), any(Pageable.class)))
+                    .willReturn(new PageImpl<>(List.of(u1, u2, u3)));
             given(billingProcessor.process(any(), any()))
                     .willReturn(new MonthlyTokenBillingScheduler.BillingResult(0, 0, 0));
 
@@ -137,7 +144,8 @@ class MonthlyTokenBillingSchedulerTest {
             UserEntity u1 = activeUser();
             UserEntity u2 = activeUser();
             UserEntity u3 = activeUser();
-            given(userRepository.findAllByStatus(UserStatus.ACTIVE)).willReturn(List.of(u1, u2, u3));
+            given(userRepository.findAllByStatus(eq(UserStatus.ACTIVE), any(Pageable.class)))
+                    .willReturn(new PageImpl<>(List.of(u1, u2, u3)));
 
             given(billingProcessor.process(eq(u1), any()))
                     .willReturn(new MonthlyTokenBillingScheduler.BillingResult(50, 1, 0));
@@ -158,7 +166,8 @@ class MonthlyTokenBillingSchedulerTest {
         void allUsersFail_schedulerCompletes() {
             UserEntity u1 = activeUser();
             UserEntity u2 = activeUser();
-            given(userRepository.findAllByStatus(UserStatus.ACTIVE)).willReturn(List.of(u1, u2));
+            given(userRepository.findAllByStatus(eq(UserStatus.ACTIVE), any(Pageable.class)))
+                    .willReturn(new PageImpl<>(List.of(u1, u2)));
             given(billingProcessor.process(any(), any()))
                     .willThrow(new RuntimeException("token service unavailable"));
 
@@ -175,21 +184,13 @@ class MonthlyTokenBillingSchedulerTest {
         @Test
         @DisplayName("billingProcessor is injected as a separate bean — not called via this.*")
         void processorIsInjectedBean_notSelfCall() {
-            // Confirms the fix for C3: the scheduler no longer calls this.processUser(...)
-            // which bypassed the @Transactional proxy. It now calls billingProcessor.process(...)
-            // which goes through the Spring proxy and runs in a real transaction.
-            //
-            // Proof: if billingProcessor is a mock (different object than scheduler),
-            // any call on it is interceptable — self-invocation would NOT be interceptable.
-            given(userRepository.findAllByStatus(UserStatus.ACTIVE))
-                    .willReturn(List.of(activeUser()));
+            given(userRepository.findAllByStatus(eq(UserStatus.ACTIVE), any(Pageable.class)))
+                    .willReturn(new PageImpl<>(List.of(activeUser())));
             given(billingProcessor.process(any(), any()))
                     .willReturn(new MonthlyTokenBillingScheduler.BillingResult(0, 0, 0));
 
             scheduler.runMonthlyBilling();
 
-            // If scheduler were calling this.process(...) internally, this verify would fail
-            // because the mock would never be touched.
             verify(billingProcessor, times(1)).process(any(), any());
         }
     }
@@ -204,7 +205,6 @@ class MonthlyTokenBillingSchedulerTest {
                 .build();
     }
 
-    // AssertJ import needed locally
     private static org.assertj.core.api.AbstractObjectAssert<?, YearMonth> assertThat(YearMonth val) {
         return org.assertj.core.api.Assertions.assertThat(val);
     }

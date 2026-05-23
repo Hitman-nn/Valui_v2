@@ -66,20 +66,24 @@ public class NotificationDispatcher {
         UUID logId  = parseLogId(request.notificationLogId());
         UUID userId = parseUserId(request.userId());
 
-        // При нулевом балансе — пропускаем, контроллер уже на паузе.
-        // Используем userId (UUID), а не telegramId: для групповых чатов telegramId
-        // содержит chatId группы (-987654...), а не id владельца контроллера.
-        if (userId != null && tokenLedgerService.getBalance(userId) == 0) {
-            log.debug("[DISPATCH] Пропуск: нулевой баланс userId={}", userId);
-            if (logId != null) logService.markFailed(logId, "Нулевой баланс токенов");
-            return;
-        }
-
         // Guard against Kafka consumer replay (rebalance after dispatch but before offset commit):
         // if the log is already SENT, the Telegram message was already delivered — skip.
         if (logId != null && logService.isAlreadySent(logId)) {
             log.debug("[DISPATCH] Повтор — уже отправлено logId={}", logId);
             return;
+        }
+
+        // Debit before dispatch: prevents the concurrent over-dispatch race where two threads
+        // both pass the balance>0 check and both send the same user's notification for free.
+        // If dispatch subsequently fails the token is consumed — the retry path delivers the
+        // notification for free, so the user still pays exactly once per notification.
+        if (userId != null) {
+            int cost = tokenLedgerService.getCost("NOTIFICATION_SENT");
+            if (!tokenLedgerService.tryDebit(userId, cost, TokenReasonCode.NOTIFICATION_SENT, null)) {
+                log.debug("[DISPATCH] Пропуск: нулевой баланс userId={}", userId);
+                if (logId != null) logService.markFailed(logId, "Нулевой баланс токенов");
+                return;
+            }
         }
 
         try {
@@ -108,12 +112,6 @@ public class NotificationDispatcher {
             // VK side-channel: best-effort, failures don't affect Telegram delivery
             if (request.vkPeerId() != null) {
                 vkSender.send(request.vkPeerId(), request.messageText());
-            }
-
-            // Списываем токен за успешное уведомление
-            if (userId != null) {
-                int cost = tokenLedgerService.getCost("NOTIFICATION_SENT");
-                tokenLedgerService.tryDebit(userId, cost, TokenReasonCode.NOTIFICATION_SENT, null);
             }
         } catch (Exception e) {
             log.warn("[DISPATCH] Ошибка [logId={} channel={} userId={}]: {} ({})",

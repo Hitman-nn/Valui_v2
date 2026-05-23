@@ -5,11 +5,12 @@ import com.valui.common.entity.UserEntity;
 import com.valui.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.YearMonth;
-import java.util.List;
 
 /**
  * Ежемесячный биллинг токенов (1-е число месяца в 01:00).
@@ -31,21 +32,24 @@ public class MonthlyTokenBillingScheduler {
         log.info("[BILLING] Запуск ежемесячного биллинга токенов");
         YearMonth billingMonth = YearMonth.now();
 
-        List<UserEntity> activeUsers = userRepository.findAllByStatus(UserStatus.ACTIVE);
-
         int totalUsers = 0, totalGranted = 0, totalBkCharged = 0, totalFilterCharged = 0;
-
-        for (UserEntity user : activeUsers) {
-            try {
-                BillingResult result = billingProcessor.process(user, billingMonth);
-                totalGranted       += result.granted();
-                totalBkCharged     += result.bkCharged();
-                totalFilterCharged += result.filterCharged();
-                totalUsers++;
-            } catch (Exception e) {
-                log.error("[BILLING] Ошибка биллинга userId={}", user.getId(), e);
+        int pageNum = 0;
+        Page<UserEntity> batch;
+        do {
+            batch = userRepository.findAllByStatus(UserStatus.ACTIVE, PageRequest.of(pageNum, 100));
+            for (UserEntity user : batch.getContent()) {
+                try {
+                    BillingResult result = billingProcessor.process(user, billingMonth);
+                    totalGranted       += result.granted();
+                    totalBkCharged     += result.bkCharged();
+                    totalFilterCharged += result.filterCharged();
+                    totalUsers++;
+                } catch (Exception e) {
+                    log.error("[BILLING] Ошибка биллинга userId={}", user.getId(), e);
+                }
             }
-        }
+            pageNum++;
+        } while (batch.hasNext());
 
         log.info("[BILLING] Завершён: users={} granted={} bkCharged={} filterCharged={}",
             totalUsers, totalGranted, totalBkCharged, totalFilterCharged);

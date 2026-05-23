@@ -210,17 +210,13 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
             .map(ControllerSubscriptionEntity::getControllerId)
             .distinct()
             .toList();
-        for (UUID controllerId : controllerIds) {
-            var opt = controllerRepository.findById(controllerId);
-            if (opt.isPresent()) {
-                ControllerEntity c = opt.get();
-                int pollInterval = c.getPollIntervalSec() != null ? c.getPollIntervalSec() : 60;
-                eventPublisher.publishEvent(new ControllerResumedEvent(c.getId(), c.getUser().getId(), pollInterval));
-                if (c.getNotificationChatId() != null) {
-                    resumedChatIds.add(c.getNotificationChatId());
-                } else {
-                    hasPersonalChatCtrl = true;
-                }
+        for (ControllerEntity c : controllerRepository.findAllById(controllerIds)) {
+            int pollInterval = c.getPollIntervalSec() != null ? c.getPollIntervalSec() : 60;
+            eventPublisher.publishEvent(new ControllerResumedEvent(c.getId(), userId, pollInterval));
+            if (c.getNotificationChatId() != null) {
+                resumedChatIds.add(c.getNotificationChatId());
+            } else {
+                hasPersonalChatCtrl = true;
             }
         }
 
