@@ -256,8 +256,7 @@ public class AdminUserController {
     public ResponseEntity<TokenInfoDto> tokenStats(
             @PathVariable UUID id,
             @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
-        UserEntity user = userService.findById(id);
-        return ResponseEntity.ok(planLimitFacade.getTokenInfo(user.getTelegramId()));
+        return ResponseEntity.ok(planLimitFacade.getTokenInfo(id));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

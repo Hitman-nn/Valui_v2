@@ -9,6 +9,7 @@ public record TokenHistoryEntry(
     TokenReasonCode reasonCode,
     LocalDate date,
     int totalDelta,
+    /** Денормализованное поле: всегда равно {@code transactions.size()}. Удобно для JSON-клиентов без разбора массива. */
     int count,
     List<TokenTransactionDetail> transactions
 ) {}

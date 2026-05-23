@@ -2,12 +2,14 @@ package com.valui.user.service;
 
 import com.valui.common.domain.BookmakerType;
 import com.valui.common.domain.TokenReasonCode;
+import com.valui.common.entity.TokenTransactionEntity;
 import com.valui.common.entity.UserBkSlotEntity;
 import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.UserNotFoundException;
 import com.valui.user.api.PlanLimitFacade;
 import com.valui.user.dto.TokenHistoryEntry;
 import com.valui.user.dto.TokenInfoDto;
+import com.valui.user.dto.TokenTransactionDetail;
 import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.TokenTransactionRepository;
 import com.valui.user.repository.UserBkSlotRepository;
@@ -16,6 +18,7 @@ import com.valui.user.repository.UserRepository;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,6 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 @RequiredArgsConstructor
 public class PlanLimitChecker implements PlanLimitFacade {
+
+    private record GroupKey(TokenReasonCode code, LocalDate date) {}
 
     private final UserRepository              userRepository;
     private final ControllerRepository        controllerRepository;
@@ -81,7 +86,17 @@ public class PlanLimitChecker implements PlanLimitFacade {
     @Override
     @Transactional(readOnly = true)
     public TokenInfoDto getTokenInfo(Long telegramId) {
-        UserEntity user = requireUser(telegramId);
+        return getTokenInfo(requireUser(telegramId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TokenInfoDto getTokenInfo(UUID userId) {
+        return getTokenInfo(userRepository.findById(userId)
+            .orElseThrow(() -> new UserNotFoundException(userId)));
+    }
+
+    private TokenInfoDto getTokenInfo(UserEntity user) {
         UUID userId = user.getId();
 
         int controllersUsed = controllerRepository.countByUserIdAndIsActiveTrue(userId);
@@ -89,23 +104,21 @@ public class PlanLimitChecker implements PlanLimitFacade {
         OffsetDateTime resetAt = user.getTokenStatsResetAt();
 
         // History: group last 50 transactions by (reasonCode, day), take first 10 groups
-        var rawTxs = resetAt != null
+        List<TokenTransactionEntity> rawTxs = resetAt != null
             ? txRepository.findTop50ByUserIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(userId, resetAt)
             : txRepository.findTop50ByUserIdOrderByCreatedAtDesc(userId);
-        record GroupKey(TokenReasonCode code, LocalDate date) {}
-        Map<GroupKey, List<com.valui.common.entity.TokenTransactionEntity>> grouped = new LinkedHashMap<>();
-        for (var tx : rawTxs) {
+        Map<GroupKey, List<TokenTransactionEntity>> grouped = new LinkedHashMap<>();
+        for (TokenTransactionEntity tx : rawTxs) {
             LocalDate day = tx.getCreatedAt().toLocalDate();
             grouped.computeIfAbsent(new GroupKey(tx.getReasonCode(), day), k -> new ArrayList<>()).add(tx);
         }
         List<TokenHistoryEntry> history = new ArrayList<>();
-        for (var e : grouped.entrySet()) {
+        for (Map.Entry<GroupKey, List<TokenTransactionEntity>> e : grouped.entrySet()) {
             if (history.size() >= 10) break;
-            var txs = e.getValue();
-            int totalDelta = txs.stream().mapToInt(com.valui.common.entity.TokenTransactionEntity::getDelta).sum();
-            var details = txs.stream()
-                .map(t -> new com.valui.user.dto.TokenTransactionDetail(
-                    t.getId(), t.getDelta(), t.getBalanceAfter(), t.getRefId(), t.getCreatedAt()))
+            List<TokenTransactionEntity> txs = e.getValue();
+            int totalDelta = txs.stream().mapToInt(TokenTransactionEntity::getDelta).sum();
+            List<TokenTransactionDetail> details = txs.stream()
+                .map(t -> new TokenTransactionDetail(t.getId(), t.getDelta(), t.getBalanceAfter(), t.getRefId(), t.getCreatedAt()))
                 .toList();
             history.add(new TokenHistoryEntry(e.getKey().code(), e.getKey().date(), totalDelta, txs.size(), details));
         }
@@ -123,7 +136,7 @@ public class PlanLimitChecker implements PlanLimitFacade {
         long avgPerMonth = 0L;
         OffsetDateTime baseDate = resetAt != null ? resetAt : txRepository.findEarliestCreatedAt(userId).orElse(null);
         if (baseDate != null) {
-            long months = java.time.temporal.ChronoUnit.MONTHS.between(baseDate, now);
+            long months = ChronoUnit.MONTHS.between(baseDate, now);
             avgPerMonth = months > 0 ? spentAllTime / months : spentAllTime;
         }
 

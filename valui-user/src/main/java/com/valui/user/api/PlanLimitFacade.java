@@ -2,6 +2,8 @@ package com.valui.user.api;
 
 import com.valui.user.dto.TokenInfoDto;
 
+import java.util.UUID;
+
 /**
  * Публичный API valui-user для токенного биллинга.
  * Внешние модули (valui-bot) должны использовать этот интерфейс.
@@ -23,4 +25,7 @@ public interface PlanLimitFacade {
 
     /** Возвращает полную информацию о токенах: баланс, история, статистика. */
     TokenInfoDto getTokenInfo(Long telegramId);
+
+    /** Перегрузка для вызовов, где UUID пользователя уже известен (избегает повторной загрузки). */
+    TokenInfoDto getTokenInfo(UUID userId);
 }
