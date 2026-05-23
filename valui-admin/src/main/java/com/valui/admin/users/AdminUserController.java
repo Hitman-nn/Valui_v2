@@ -9,6 +9,7 @@ import com.valui.admin.users.dto.AdminPaymentTransactionDto;
 import com.valui.admin.users.dto.AdminUserDto;
 import com.valui.admin.users.dto.AdminUserSummaryDto;
 import com.valui.admin.users.dto.ChangeRoleRequest;
+import com.valui.admin.users.dto.ResetTokenStatsRequest;
 import com.valui.admin.users.dto.UpdateUserProfileRequest;
 import com.valui.common.domain.UserStatus;
 import com.valui.common.dto.ErrorResponse;
@@ -39,6 +40,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -203,8 +205,6 @@ public class AdminUserController {
 
     // ── POST /api/v1/admin/users/{id}/token-stats/reset ──────────────────────
 
-    public record ResetTokenStatsRequest(java.time.OffsetDateTime resetAt) {}
-
     @Operation(summary = "Задать нижнюю границу статистики токенов (по умолчанию — сейчас)")
     @PostMapping(value = "/{id}/token-stats/reset",
                  consumes = {V1, MediaType.APPLICATION_JSON_VALUE},
@@ -213,9 +213,9 @@ public class AdminUserController {
             @PathVariable UUID id,
             @RequestBody(required = false) ResetTokenStatsRequest req,
             @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
-        java.time.OffsetDateTime resetAt = (req != null && req.resetAt() != null)
+        OffsetDateTime resetAt = (req != null && req.resetAt() != null)
             ? req.resetAt()
-            : java.time.OffsetDateTime.now();
+            : OffsetDateTime.now();
         UserEntity user = userService.setTokenStatsResetAt(id, resetAt);
         AdminUserDto dto = new AdminUserDto(user);
         enrichWithLinks(dto, user);

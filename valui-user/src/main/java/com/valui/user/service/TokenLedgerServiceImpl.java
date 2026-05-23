@@ -129,7 +129,7 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
 
         checkAndNotifyThresholds(user, newBalance);
         if (newBalance == 0) {
-            pauseAllControllers(userId);
+            doPauseAllControllers(userId, user.getTelegramId());
         }
         return newBalance;
     }
@@ -168,6 +168,12 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
     @Override
     @Transactional
     public void pauseAllControllers(UUID userId) {
+        UserEntity user = userRepository.findById(userId)
+            .orElseThrow(() -> new com.valui.common.exception.UserNotFoundException(userId));
+        doPauseAllControllers(userId, user.getTelegramId());
+    }
+
+    private void doPauseAllControllers(UUID userId, long telegramId) {
         subscriptionRepository.updatePausedByTokensForUser(userId, true);
 
         List<ControllerEntity> active = controllerRepository.findAllByUserIdAndIsActiveTrue(userId);
@@ -184,14 +190,11 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
             }
         }
 
-        boolean finalHasPersonal = hasPersonalChatCtrl;
-        userRepository.findById(userId).ifPresent(u -> {
-            List<Long> distinctChats = suspendedChatIds.stream().distinct().collect(Collectors.toList());
-            if (finalHasPersonal) distinctChats.add(0, u.getTelegramId());
-            if (!distinctChats.isEmpty()) {
-                eventPublisher.publishEvent(new UserControllersPausedEvent(u.getTelegramId(), distinctChats));
-            }
-        });
+        List<Long> distinctChats = suspendedChatIds.stream().distinct().collect(Collectors.toList());
+        if (hasPersonalChatCtrl) distinctChats.add(0, telegramId);
+        if (!distinctChats.isEmpty()) {
+            eventPublisher.publishEvent(new UserControllersPausedEvent(telegramId, distinctChats));
+        }
         log.info("[TOKEN] Паузим подписки userId={}", userId);
     }
 
@@ -202,19 +205,24 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
         subscriptionRepository.updatePausedByTokensForUser(userId, false);
 
         List<Long> resumedChatIds = new ArrayList<>();
-        boolean[] hasPersonalChatCtrl = {false};
-        paused.stream()
+        boolean hasPersonalChatCtrl = false;
+        List<UUID> controllerIds = paused.stream()
             .map(ControllerSubscriptionEntity::getControllerId)
             .distinct()
-            .forEach(controllerId -> controllerRepository.findById(controllerId).ifPresent(c -> {
+            .toList();
+        for (UUID controllerId : controllerIds) {
+            var opt = controllerRepository.findById(controllerId);
+            if (opt.isPresent()) {
+                ControllerEntity c = opt.get();
                 int pollInterval = c.getPollIntervalSec() != null ? c.getPollIntervalSec() : 60;
                 eventPublisher.publishEvent(new ControllerResumedEvent(c.getId(), c.getUser().getId(), pollInterval));
                 if (c.getNotificationChatId() != null) {
                     resumedChatIds.add(c.getNotificationChatId());
                 } else {
-                    hasPersonalChatCtrl[0] = true;
+                    hasPersonalChatCtrl = true;
                 }
-            }));
+            }
+        }
 
         int restoredCtrlFilters = controllerRepository.restoreFilterPauseForUser(userId);
         globalFilterRepository.findAllByUserIdAndPausedByTokensTrue(userId).forEach(f -> {
@@ -222,13 +230,16 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
             globalFilterRepository.save(f);
         });
 
-        userRepository.findById(userId).ifPresent(u -> {
-            List<Long> distinctChats = resumedChatIds.stream().distinct().collect(Collectors.toList());
-            if (hasPersonalChatCtrl[0]) distinctChats.add(0, u.getTelegramId());
-            if (!distinctChats.isEmpty()) {
-                eventPublisher.publishEvent(new UserControllersResumedEvent(u.getTelegramId(), distinctChats));
-            }
-        });
+        List<Long> distinctChats = resumedChatIds.stream().distinct().collect(Collectors.toList());
+        boolean needsPersonalChat = hasPersonalChatCtrl;
+        if (needsPersonalChat || !distinctChats.isEmpty()) {
+            userRepository.findById(userId).ifPresent(u -> {
+                if (needsPersonalChat) distinctChats.add(0, u.getTelegramId());
+                if (!distinctChats.isEmpty()) {
+                    eventPublisher.publishEvent(new UserControllersResumedEvent(u.getTelegramId(), distinctChats));
+                }
+            });
+        }
 
         log.info("[TOKEN] Восстановили подписки+фильтры userId={} ctrlFilters={}", userId, restoredCtrlFilters);
     }
