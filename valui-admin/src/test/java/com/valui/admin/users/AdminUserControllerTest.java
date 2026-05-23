@@ -17,6 +17,7 @@ import com.valui.user.repository.AuditLogRepository;
 import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.NotificationLogRepository;
 import com.valui.user.repository.PaymentTransactionRepository;
+import com.valui.user.api.PlanLimitFacade;
 import com.valui.user.service.UserService;
 import com.valui.monitor.service.ControllerService;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,6 +66,7 @@ class AdminUserControllerTest {
     @MockBean ControllerAssembler controllerAssembler;
     @MockBean PaymentTransactionRepository paymentTransactionRepository;
     @MockBean ControllerRepository controllerRepository;
+    @MockBean PlanLimitFacade planLimitFacade;
 
     static final UUID ADMIN_ID   = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
     static final Long ADMIN_TG   = 111111111L;
