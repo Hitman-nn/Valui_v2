@@ -43,6 +43,7 @@ import type {
   UpdateTokenActionCostRequest,
   ExchangeRate,
   UpdateExchangeRateRequest,
+  TokenStats,
 } from './types';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -141,6 +142,9 @@ export const usersApi = {
     apiClient
       .get<SpringPage<NotificationLog>>(`/api/v1/admin/users/${id}/notifications`, { params })
       .then((r) => r.data),
+
+  tokenStats: (id: string) =>
+    apiClient.get<TokenStats>(`/api/v1/admin/users/${id}/token-stats`).then((r) => r.data),
 };
 
 // ─── Controllers ─────────────────────────────────────────────────────────────

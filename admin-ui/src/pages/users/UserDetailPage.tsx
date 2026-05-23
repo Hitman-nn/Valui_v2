@@ -15,7 +15,10 @@ import {
   Modal,
   DatePicker,
   Tooltip,
+  Row,
+  Col,
 } from 'antd';
+import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
 import {
   ArrowLeftOutlined,
   StopOutlined,
@@ -32,7 +35,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { usersApi } from '../../api/endpoints';
 import { StatusBadge, RoleBadge } from '../../components/StatusBadge';
-import type { AuditLog, NotificationLog, Controller, UserDetail } from '../../api/types';
+import StatCard from '../../components/StatCard';
+import type { AuditLog, NotificationLog, Controller, UserDetail, TokenHistoryEntry } from '../../api/types';
 
 interface ProfileDraft {
   tokenBalance: number;
@@ -73,6 +77,12 @@ export default function UserDetailPage() {
   const { data: ctrlData, isLoading: ctrlLoading } = useQuery({
     queryKey: ['user-controllers', id],
     queryFn: () => usersApi.controllers(id!),
+    enabled: !!id,
+  });
+
+  const { data: tokenStatsData, isLoading: tokenStatsLoading } = useQuery({
+    queryKey: ['user-token-stats', id],
+    queryFn: () => usersApi.tokenStats(id!),
     enabled: !!id,
   });
 
@@ -179,6 +189,48 @@ export default function UserDetailPage() {
       dataIndex: 'sentAt',
       key: 'sentAt',
       render: (v: string | null) => (v ? dayjs(v).format('DD.MM.YYYY HH:mm') : '—'),
+    },
+  ];
+
+  const REASON_LABELS: Record<string, string> = {
+    MONTHLY_GRANT: 'Ежемес. грант',
+    CONTROLLER_BK_CHARGE: 'Букмекер-слот',
+    CONTROLLER_FILTER_CHARGE: 'Фильтр',
+    TOPUP: 'Пополнение',
+    MANUAL_CREDIT: 'Ручное начисление',
+    MANUAL_DEBIT: 'Ручное списание',
+  };
+
+  const historyColumns = [
+    {
+      title: 'Дата',
+      dataIndex: 'date',
+      key: 'date',
+      width: 90,
+      render: (v: string) => dayjs(v).format('DD.MM.YYYY'),
+    },
+    {
+      title: 'Операция',
+      dataIndex: 'reasonCode',
+      key: 'reasonCode',
+      render: (v: string) => REASON_LABELS[v] ?? v,
+    },
+    {
+      title: 'Изменение',
+      dataIndex: 'totalDelta',
+      key: 'totalDelta',
+      width: 110,
+      render: (v: number) => (
+        <Typography.Text strong style={{ color: v >= 0 ? '#52c41a' : '#ff4d4f' }}>
+          {v >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />} {Math.abs(v)}
+        </Typography.Text>
+      ),
+    },
+    {
+      title: 'Операций',
+      dataIndex: 'count',
+      key: 'count',
+      width: 90,
     },
   ];
 
@@ -436,6 +488,59 @@ export default function UserDetailPage() {
                   showSizeChanger: false,
                 }}
               />
+            ),
+          },
+          {
+            key: 'tokens',
+            label: 'Токены',
+            children: (
+              <Space direction="vertical" style={{ width: '100%' }} size="large">
+                <Row gutter={16}>
+                  <Col xs={24} sm={8}>
+                    <StatCard
+                      title="Потрачено за месяц"
+                      value={tokenStatsData?.spentThisMonth ?? 0}
+                      suffix="🪙"
+                      loading={tokenStatsLoading}
+                      color="#ff4d4f"
+                    />
+                  </Col>
+                  <Col xs={24} sm={8}>
+                    <StatCard
+                      title="Среднее в месяц"
+                      value={tokenStatsData?.avgPerMonth ?? 0}
+                      suffix="🪙"
+                      loading={tokenStatsLoading}
+                    />
+                  </Col>
+                  <Col xs={24} sm={8}>
+                    <StatCard
+                      title="Потрачено всего"
+                      value={tokenStatsData?.spentAllTime ?? 0}
+                      suffix="🪙"
+                      loading={tokenStatsLoading}
+                    />
+                  </Col>
+                </Row>
+                <Table<TokenHistoryEntry>
+                  dataSource={tokenStatsData?.recentHistory ?? []}
+                  columns={historyColumns}
+                  rowKey={(r) => `${r.reasonCode}-${r.date}`}
+                  loading={tokenStatsLoading}
+                  size="small"
+                  pagination={false}
+                  title={() => (
+                    <Typography.Text strong>
+                      История операций{' '}
+                      {user.tokenStatsResetAt && (
+                        <Tag color="orange">
+                          с {dayjs(user.tokenStatsResetAt).format('DD.MM.YYYY')}
+                        </Tag>
+                      )}
+                    </Typography.Text>
+                  )}
+                />
+              </Space>
             ),
           },
         ]}

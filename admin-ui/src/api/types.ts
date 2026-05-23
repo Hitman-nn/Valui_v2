@@ -70,6 +70,24 @@ export interface UserDetail {
   updatedAt: string;
 }
 
+export interface TokenHistoryEntry {
+  reasonCode: string;
+  date: string;
+  totalDelta: number;
+  count: number;
+}
+
+export interface TokenStats {
+  controllersUsed: number;
+  tokenBalance: number;
+  monthlyTokenGrant: number;
+  tokenLowThreshold: number | null;
+  recentHistory: TokenHistoryEntry[];
+  spentThisMonth: number;
+  avgPerMonth: number;
+  spentAllTime: number;
+}
+
 // ─── Controllers ─────────────────────────────────────────────────────────────
 
 export interface Controller {

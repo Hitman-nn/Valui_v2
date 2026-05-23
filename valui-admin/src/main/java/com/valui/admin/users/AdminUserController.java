@@ -17,6 +17,8 @@ import com.valui.admin.audit.dto.AdminAuditDto;
 import com.valui.common.entity.UserEntity;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
+import com.valui.user.api.PlanLimitFacade;
+import com.valui.user.dto.TokenInfoDto;
 import com.valui.user.repository.AuditLogRepository;
 import com.valui.user.repository.NotificationLogRepository;
 import com.valui.user.repository.PaymentTransactionRepository;
@@ -60,6 +62,7 @@ public class AdminUserController {
     private final AuditLogRepository auditLogRepository;
     private final NotificationLogRepository notificationLogRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
+    private final PlanLimitFacade planLimitFacade;
 
     // ── GET /api/v1/admin/users ───────────────────────────────────────────────
 
@@ -244,6 +247,17 @@ public class AdminUserController {
         return ResponseEntity.ok(
                 paymentTransactionRepository.findAllByUserId(id).stream()
                         .map(AdminPaymentTransactionDto::from).toList());
+    }
+
+    // ── GET /api/v1/admin/users/{id}/token-stats ─────────────────────────────
+
+    @Operation(summary = "Статистика токенов пользователя")
+    @GetMapping(value = "/{id}/token-stats", produces = {V1, MediaType.APPLICATION_JSON_VALUE})
+    public ResponseEntity<TokenInfoDto> tokenStats(
+            @PathVariable UUID id,
+            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        UserEntity user = userService.findById(id);
+        return ResponseEntity.ok(planLimitFacade.getTokenInfo(user.getTelegramId()));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
