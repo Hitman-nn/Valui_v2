@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Card,
   Descriptions,
@@ -18,7 +18,6 @@ import {
   Row,
   Col,
 } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
 import {
   ArrowLeftOutlined,
   StopOutlined,
@@ -28,6 +27,8 @@ import {
   CloseOutlined,
   ReloadOutlined,
   DeleteOutlined,
+  ArrowUpOutlined,
+  ArrowDownOutlined,
 } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -37,6 +38,21 @@ import { usersApi } from '../../api/endpoints';
 import { StatusBadge, RoleBadge } from '../../components/StatusBadge';
 import StatCard from '../../components/StatCard';
 import type { AuditLog, NotificationLog, Controller, UserDetail, TokenHistoryEntry } from '../../api/types';
+
+const REASON_LABELS: Record<string, string> = {
+  PLAN_GRANT:                         'Начальный грант',
+  MONTHLY_GRANT:                      'Ежемес. грант',
+  TOPUP:                              'Пополнение',
+  ADMIN_GRANT:                        'Админ: начисление',
+  ADMIN_DEDUCT:                       'Админ: списание',
+  CONTROLLER_BK_CHARGE:               'Букмекер-слот',
+  MONTHLY_BK_CHARGE:                  'Ежемес. букмекер',
+  FILTER_CHARGE:                      'Фильтр',
+  MONTHLY_FILTER_CHARGE:              'Ежемес. фильтр',
+  CONTROLLER_FILTER_CHARGE:           'Фильтр контроллера',
+  MONTHLY_CONTROLLER_FILTER_CHARGE:   'Ежемес. фильтр контроллера',
+  NOTIFICATION_SENT:                  'Уведомление',
+};
 
 interface ProfileDraft {
   tokenBalance: number;
@@ -51,6 +67,7 @@ export default function UserDetailPage() {
   const qc = useQueryClient();
   const [auditPage, setAuditPage] = useState(0);
   const [notifPage, setNotifPage] = useState(0);
+  const [activeTab, setActiveTab] = useState('controllers');
   const [editing, setEditing] = useState(false);
   const [editForm] = Form.useForm<ProfileDraft>();
   const [resetModalOpen, setResetModalOpen] = useState(false);
@@ -83,7 +100,7 @@ export default function UserDetailPage() {
   const { data: tokenStatsData, isLoading: tokenStatsLoading } = useQuery({
     queryKey: ['user-token-stats', id],
     queryFn: () => usersApi.tokenStats(id!),
-    enabled: !!id,
+    enabled: !!id && activeTab === 'tokens',
   });
 
   const refetchUser = () => qc.invalidateQueries({ queryKey: ['user', id] });
@@ -192,16 +209,7 @@ export default function UserDetailPage() {
     },
   ];
 
-  const REASON_LABELS: Record<string, string> = {
-    MONTHLY_GRANT: 'Ежемес. грант',
-    CONTROLLER_BK_CHARGE: 'Букмекер-слот',
-    CONTROLLER_FILTER_CHARGE: 'Фильтр',
-    TOPUP: 'Пополнение',
-    MANUAL_CREDIT: 'Ручное начисление',
-    MANUAL_DEBIT: 'Ручное списание',
-  };
-
-  const historyColumns = [
+  const historyColumns = useMemo(() => [
     {
       title: 'Дата',
       dataIndex: 'date',
@@ -232,7 +240,7 @@ export default function UserDetailPage() {
       key: 'count',
       width: 90,
     },
-  ];
+  ], []);
 
   const ctrlColumns = [
     { title: 'Букмекер', dataIndex: 'bookmaker', key: 'bookmaker', render: (v: string) => <Tag>{v}</Tag> },
@@ -433,7 +441,8 @@ export default function UserDetailPage() {
       </Modal>
 
       <Tabs
-        defaultActiveKey="controllers"
+        activeKey={activeTab}
+        onChange={setActiveTab}
         items={[
           {
             key: 'controllers',

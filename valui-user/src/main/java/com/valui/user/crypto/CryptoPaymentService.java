@@ -85,7 +85,7 @@ public class CryptoPaymentService {
         // Return existing PENDING invoice for same currency if amount matches
         var existing = invoiceRepository.findFirstByUserIdAndCurrencyAndStatus(
             user.getId(), currency, CryptoInvoiceStatus.PENDING);
-        if (existing.isPresent() && existing.get().getTokenAmount() == tokenAmount) {
+        if (existing.isPresent() && existing.get().getTokenAmount().equals(tokenAmount)) {
             log.info("[CRYPTO] Reusing existing invoice: invoiceId={} userId={}",
                 existing.get().getInvoiceId(), user.getId());
             return existing.get();
@@ -136,7 +136,8 @@ public class CryptoPaymentService {
     @Transactional
     public List<Long> expireOldAndLoadActiveIds() {
         OffsetDateTime cutoff = OffsetDateTime.now().minusHours(EXPIRE_HOURS);
-        int expired = invoiceRepository.expireOldInvoices(cutoff);
+        int expired = invoiceRepository.expireOldInvoices(
+            CryptoInvoiceStatus.PENDING, CryptoInvoiceStatus.EXPIRED, cutoff);
         if (expired > 0) log.info("[CRYPTO] Expired {} old invoices", expired);
 
         return invoiceRepository.findAllByStatus(CryptoInvoiceStatus.PENDING).stream()
@@ -147,28 +148,32 @@ public class CryptoPaymentService {
     /** Подтверждает оплату одного инвойса. Отдельная транзакция. */
     @Transactional
     public void confirmPayment(long invoiceId) {
-        invoiceRepository.findByInvoiceId(invoiceId).ifPresent(invoice -> {
-            if (invoice.getStatus() != CryptoInvoiceStatus.PENDING) return;
+        var opt = invoiceRepository.findByInvoiceId(invoiceId);
+        if (opt.isEmpty()) {
+            log.warn("[CRYPTO] Invoice not found for confirmation: invoiceId={}", invoiceId);
+            return;
+        }
+        var invoice = opt.get();
+        if (invoice.getStatus() != CryptoInvoiceStatus.PENDING) return;
 
-            invoice.setStatus(CryptoInvoiceStatus.PAID);
-            invoice.setPaidAt(OffsetDateTime.now());
-            invoiceRepository.save(invoice);
+        invoice.setStatus(CryptoInvoiceStatus.PAID);
+        invoice.setPaidAt(OffsetDateTime.now());
+        invoiceRepository.save(invoice);
 
-            tokenLedgerService.credit(
-                invoice.getUser().getId(),
-                invoice.getTokenAmount(),
-                TokenReasonCode.TOPUP,
-                invoice.getId());
+        tokenLedgerService.credit(
+            invoice.getUser().getId(),
+            invoice.getTokenAmount(),
+            TokenReasonCode.TOPUP,
+            invoice.getId());
 
-            eventPublisher.publishEvent(new CryptoPaymentSuccessEvent(
-                invoice.getUser().getTelegramId(),
-                invoice.getTokenAmount(),
-                invoice.getCurrency(),
-                invoice.getCryptoAmount()));
+        eventPublisher.publishEvent(new CryptoPaymentSuccessEvent(
+            invoice.getUser().getTelegramId(),
+            invoice.getTokenAmount(),
+            invoice.getCurrency(),
+            invoice.getCryptoAmount()));
 
-            log.info("[CRYPTO] Payment confirmed: invoiceId={} userId={} tokens={}",
-                invoiceId, invoice.getUser().getId(), invoice.getTokenAmount());
-        });
+        log.info("[CRYPTO] Payment confirmed: invoiceId={} userId={} tokens={}",
+            invoiceId, invoice.getUser().getId(), invoice.getTokenAmount());
     }
 
     // ─── update rate (admin) ──────────────────────────────────────────────────

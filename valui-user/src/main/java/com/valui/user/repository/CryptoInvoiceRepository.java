@@ -20,10 +20,13 @@ public interface CryptoInvoiceRepository extends JpaRepository<CryptoInvoiceEnti
 
     Optional<CryptoInvoiceEntity> findByInvoiceId(Long invoiceId);
 
-    @Modifying
-    @Query("UPDATE CryptoInvoiceEntity i SET i.status = com.valui.common.domain.CryptoInvoiceStatus.EXPIRED " +
-           "WHERE i.status = com.valui.common.domain.CryptoInvoiceStatus.PENDING AND i.createdAt < :cutoff")
-    int expireOldInvoices(@Param("cutoff") OffsetDateTime cutoff);
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE CryptoInvoiceEntity i SET i.status = :expired " +
+           "WHERE i.status = :pending AND i.createdAt < :cutoff")
+    int expireOldInvoices(
+        @Param("pending")  CryptoInvoiceStatus pending,
+        @Param("expired")  CryptoInvoiceStatus expired,
+        @Param("cutoff")   OffsetDateTime cutoff);
 
     /** Ищет существующий PENDING-инвойс для пользователя и валюты. */
     Optional<CryptoInvoiceEntity> findFirstByUserIdAndCurrencyAndStatus(
