@@ -31,6 +31,7 @@ import java.util.Map;
 public class TopupTextHandler implements BotUpdateHandler {
 
     private static final int MIN_TOKENS = 100;
+    private static final int MAX_TOKENS = 100_000;
 
     private final BotMessageSource      messageSource;
     private final BotSessionService     sessionService;
@@ -60,7 +61,7 @@ public class TopupTextHandler implements BotUpdateHandler {
             tokenAmount = -1;
         }
 
-        if (tokenAmount < MIN_TOKENS) {
+        if (tokenAmount < MIN_TOKENS || tokenAmount > MAX_TOKENS) {
             try {
                 var msg = ctx.sender().execute(SendMessage.builder()
                     .chatId(ctx.chatId())

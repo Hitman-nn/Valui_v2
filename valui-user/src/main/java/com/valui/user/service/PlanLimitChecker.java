@@ -112,16 +112,16 @@ public class PlanLimitChecker implements PlanLimitFacade {
         OffsetDateTime monthStart = now.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
         OffsetDateTime statsFloor = (resetAt != null && resetAt.isAfter(monthStart)) ? resetAt : monthStart;
 
-        int spentThisMonth = (int) Math.abs(txRepository.sumSpentInPeriod(userId, statsFloor, now));
-        int spentAllTime   = resetAt != null
-            ? (int) Math.abs(txRepository.sumSpentFrom(userId, resetAt))
-            : (int) Math.abs(txRepository.sumSpentTotal(userId));
+        long spentThisMonth = Math.abs(txRepository.sumSpentInPeriod(userId, statsFloor, now));
+        long spentAllTime   = resetAt != null
+            ? Math.abs(txRepository.sumSpentFrom(userId, resetAt))
+            : Math.abs(txRepository.sumSpentTotal(userId));
 
-        int avgPerMonth = 0;
+        long avgPerMonth = 0L;
         OffsetDateTime baseDate = resetAt != null ? resetAt : txRepository.findEarliestCreatedAt(userId).orElse(null);
         if (baseDate != null) {
             long months = java.time.temporal.ChronoUnit.MONTHS.between(baseDate, now);
-            avgPerMonth = months > 0 ? (int) (spentAllTime / months) : spentAllTime;
+            avgPerMonth = months > 0 ? spentAllTime / months : spentAllTime;
         }
 
         return new TokenInfoDto(

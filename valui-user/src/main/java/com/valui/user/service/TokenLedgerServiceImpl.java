@@ -231,14 +231,14 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
         });
 
         List<Long> distinctChats = resumedChatIds.stream().distinct().collect(Collectors.toList());
-        boolean needsPersonalChat = hasPersonalChatCtrl;
-        if (needsPersonalChat || !distinctChats.isEmpty()) {
-            userRepository.findById(userId).ifPresent(u -> {
-                if (needsPersonalChat) distinctChats.add(0, u.getTelegramId());
-                if (!distinctChats.isEmpty()) {
-                    eventPublisher.publishEvent(new UserControllersResumedEvent(u.getTelegramId(), distinctChats));
-                }
-            });
+        if (hasPersonalChatCtrl) {
+            UserEntity u = userRepository.findById(userId)
+                .orElseThrow(() -> new com.valui.common.exception.UserNotFoundException(userId));
+            distinctChats.add(0, u.getTelegramId());
+            eventPublisher.publishEvent(new UserControllersResumedEvent(u.getTelegramId(), distinctChats));
+        } else if (!distinctChats.isEmpty()) {
+            userRepository.findById(userId).ifPresent(u ->
+                eventPublisher.publishEvent(new UserControllersResumedEvent(u.getTelegramId(), distinctChats)));
         }
 
         log.info("[TOKEN] Восстановили подписки+фильтры userId={} ctrlFilters={}", userId, restoredCtrlFilters);

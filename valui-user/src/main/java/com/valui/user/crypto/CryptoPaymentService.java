@@ -1,5 +1,6 @@
 package com.valui.user.crypto;
 
+import com.valui.common.domain.CryptoInvoiceStatus;
 import com.valui.common.domain.TokenReasonCode;
 import com.valui.common.entity.CryptoInvoiceEntity;
 import com.valui.common.entity.TokenExchangeRateEntity;
@@ -83,7 +84,7 @@ public class CryptoPaymentService {
 
         // Return existing PENDING invoice for same currency if amount matches
         var existing = invoiceRepository.findFirstByUserIdAndCurrencyAndStatus(
-            user.getId(), currency, "PENDING");
+            user.getId(), currency, CryptoInvoiceStatus.PENDING);
         if (existing.isPresent() && existing.get().getTokenAmount() == tokenAmount) {
             log.info("[CRYPTO] Reusing existing invoice: invoiceId={} userId={}",
                 existing.get().getInvoiceId(), user.getId());
@@ -135,15 +136,10 @@ public class CryptoPaymentService {
     @Transactional
     public List<Long> expireOldAndLoadActiveIds() {
         OffsetDateTime cutoff = OffsetDateTime.now().minusHours(EXPIRE_HOURS);
-        List<CryptoInvoiceEntity> expired =
-            invoiceRepository.findAllByStatusAndCreatedAtBefore("PENDING", cutoff);
-        for (CryptoInvoiceEntity inv : expired) {
-            inv.setStatus("EXPIRED");
-            invoiceRepository.save(inv);
-            log.info("[CRYPTO] Invoice expired: invoiceId={}", inv.getInvoiceId());
-        }
+        int expired = invoiceRepository.expireOldInvoices(cutoff);
+        if (expired > 0) log.info("[CRYPTO] Expired {} old invoices", expired);
 
-        return invoiceRepository.findAllByStatus("PENDING").stream()
+        return invoiceRepository.findAllByStatus(CryptoInvoiceStatus.PENDING).stream()
             .map(CryptoInvoiceEntity::getInvoiceId)
             .toList();
     }
@@ -152,9 +148,9 @@ public class CryptoPaymentService {
     @Transactional
     public void confirmPayment(long invoiceId) {
         invoiceRepository.findByInvoiceId(invoiceId).ifPresent(invoice -> {
-            if (!"PENDING".equals(invoice.getStatus())) return;
+            if (invoice.getStatus() != CryptoInvoiceStatus.PENDING) return;
 
-            invoice.setStatus("PAID");
+            invoice.setStatus(CryptoInvoiceStatus.PAID);
             invoice.setPaidAt(OffsetDateTime.now());
             invoiceRepository.save(invoice);
 
@@ -180,7 +176,7 @@ public class CryptoPaymentService {
     @Transactional
     public TokenExchangeRateEntity updateRate(String currency, BigDecimal tokensPerUnit) {
         TokenExchangeRateEntity rate = rateRepository.findById(currency)
-            .orElse(TokenExchangeRateEntity.builder().currency(currency).build());
+            .orElseGet(() -> TokenExchangeRateEntity.builder().currency(currency).build());
         rate.setTokensPerUnit(tokensPerUnit);
         rate.setUpdatedAt(OffsetDateTime.now());
         return rateRepository.save(rate);

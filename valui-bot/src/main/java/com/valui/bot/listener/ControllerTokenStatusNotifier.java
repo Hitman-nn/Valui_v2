@@ -43,7 +43,7 @@ public class ControllerTokenStatusNotifier {
                 bot.execute(SendMessage.builder()
                     .chatId(chatId)
                     .text(text)
-                    .parseMode("MarkdownV2")
+                    .parseMode("Markdown")
                     .build());
                 log.info("[TOKEN] {} notification sent to chatId={} telegramId={}", action, chatId, telegramId);
             } catch (TelegramApiException e) {

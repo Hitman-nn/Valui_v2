@@ -75,7 +75,7 @@ public class CryptoBotClient {
             .retrieve()
             .bodyToMono(new org.springframework.core.ParameterizedTypeReference<
                 CryptoBotResponse<InvoiceResult>>() {})
-            .block();
+            .block(Duration.ofSeconds(20));
 
         if (resp == null || !resp.ok()) {
             throw new IllegalStateException("CryptoBot createInvoice failed");
@@ -90,14 +90,13 @@ public class CryptoBotClient {
         if (invoiceIds.isEmpty()) return List.of();
         String ids = invoiceIds.stream()
             .map(String::valueOf)
-            .reduce((a, b) -> a + "," + b)
-            .orElse("");
+            .collect(java.util.stream.Collectors.joining(","));
         var resp = client.get()
             .uri(u -> u.path("/getInvoices").queryParam("invoice_ids", ids).build())
             .retrieve()
             .bodyToMono(new org.springframework.core.ParameterizedTypeReference<
                 CryptoBotResponse<InvoiceListResult>>() {})
-            .block();
+            .block(Duration.ofSeconds(20));
 
         if (resp == null || !resp.ok()) {
             log.warn("[CRYPTO] getInvoices failed for ids={}", ids);

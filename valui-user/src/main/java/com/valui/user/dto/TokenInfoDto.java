@@ -8,7 +8,7 @@ public record TokenInfoDto(
     int monthlyTokenGrant,
     Integer tokenLowThreshold,
     List<TokenHistoryEntry> recentHistory,
-    int spentThisMonth,
-    int avgPerMonth,
-    int spentAllTime
+    long spentThisMonth,
+    long avgPerMonth,
+    long spentAllTime
 ) {}

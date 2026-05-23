@@ -36,7 +36,7 @@ public class CryptoPaymentBotListener {
                 .parseMode("Markdown")
                 .build());
         } catch (TelegramApiException e) {
-            log.error("[CRYPTO] Failed to notify telegramId={}: {}", event.telegramId(), e.getMessage());
+            log.error("[CRYPTO] Failed to notify telegramId={}", event.telegramId(), e);
         }
     }
 }

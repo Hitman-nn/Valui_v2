@@ -19,7 +19,7 @@ public class CryptoPaymentScheduler {
         try {
             paymentService.processPendingInvoices();
         } catch (Exception e) {
-            log.error("[CRYPTO] Poll failed: {}", e.getMessage());
+            log.error("[CRYPTO] Poll failed", e);
         }
     }
 }

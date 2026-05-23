@@ -1,5 +1,6 @@
 package com.valui.common.entity;
 
+import com.valui.common.domain.CryptoInvoiceStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -38,9 +39,10 @@ public class CryptoInvoiceEntity {
     @Column(name = "token_amount", nullable = false)
     private Integer tokenAmount;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 16)
     @Builder.Default
-    private String status = "PENDING";
+    private CryptoInvoiceStatus status = CryptoInvoiceStatus.PENDING;
 
     @Column(name = "pay_url", nullable = false, columnDefinition = "text")
     private String payUrl;
