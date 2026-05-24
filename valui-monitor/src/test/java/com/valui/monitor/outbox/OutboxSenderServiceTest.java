@@ -70,7 +70,7 @@ class OutboxSenderServiceTest {
     @DisplayName("publishImmediate: found unsent row → claims lock, sends to Kafka, marks sent")
     void publishImmediate_found_sendsAndMarks() {
         given(outboxRepo.findAllByExternalEventIdAndSentAtIsNull("ext-1")).willReturn(List.of(outbox));
-        given(outboxRepo.tryLock(eq(1L), any())).willReturn(1);
+        given(outboxRepo.tryLock(eq(1L), any(), any())).willReturn(1);
         given(mapper.fromOutbox(outbox)).willReturn(message);
         CompletableFuture<SendResult<String, Object>> future = CompletableFuture.completedFuture(null);
         given(kafkaTemplate.send(any(ProducerRecord.class))).willReturn(future);
@@ -96,7 +96,7 @@ class OutboxSenderServiceTest {
     @DisplayName("publishImmediate: row already locked → skips Kafka send")
     void publishImmediate_alreadyLocked_skips() {
         given(outboxRepo.findAllByExternalEventIdAndSentAtIsNull("ext-1")).willReturn(List.of(outbox));
-        given(outboxRepo.tryLock(eq(1L), any())).willReturn(0); // already locked
+        given(outboxRepo.tryLock(eq(1L), any(), any())).willReturn(0); // already locked
 
         service.publishImmediate("ext-1");
 
@@ -109,7 +109,7 @@ class OutboxSenderServiceTest {
     @DisplayName("scanAndSend: unsent events older than cutoff → claims lock, sends, marks sent")
     void scanAndSend_unsentOldEvents_allSent() {
         given(outboxRepo.findUnsentBefore(any(), any())).willReturn(List.of(outbox));
-        given(outboxRepo.tryLock(eq(1L), any())).willReturn(1);
+        given(outboxRepo.tryLock(eq(1L), any(), any())).willReturn(1);
         given(mapper.fromOutbox(outbox)).willReturn(message);
         given(kafkaTemplate.send(any(ProducerRecord.class))).willReturn(CompletableFuture.completedFuture(null));
 
@@ -133,7 +133,7 @@ class OutboxSenderServiceTest {
     @DisplayName("scanAndSend: Kafka send failure → metrics recorded, row stays unsent")
     void scanAndSend_kafkaFailure_metricsAndNoMark() {
         given(outboxRepo.findUnsentBefore(any(), any())).willReturn(List.of(outbox));
-        given(outboxRepo.tryLock(eq(1L), any())).willReturn(1);
+        given(outboxRepo.tryLock(eq(1L), any(), any())).willReturn(1);
         given(mapper.fromOutbox(outbox)).willReturn(message);
         CompletableFuture<SendResult<String, Object>> failed = new CompletableFuture<>();
         failed.completeExceptionally(new RuntimeException("broker unavailable"));

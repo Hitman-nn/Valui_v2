@@ -221,10 +221,7 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
         }
 
         int restoredCtrlFilters = controllerRepository.restoreFilterPauseForUser(userId);
-        globalFilterRepository.findAllByUserIdAndPausedByTokensTrue(userId).forEach(f -> {
-            f.setPausedByTokens(false);
-            globalFilterRepository.save(f);
-        });
+        globalFilterRepository.unpauseAllByUserId(userId);
 
         List<Long> distinctChats = resumedChatIds.stream().distinct().collect(Collectors.toList());
         if (hasPersonalChatCtrl) {

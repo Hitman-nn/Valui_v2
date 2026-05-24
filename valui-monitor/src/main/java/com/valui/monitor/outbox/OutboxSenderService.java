@@ -68,7 +68,9 @@ public class OutboxSenderService {
     private void doPublish(OutboxEvent outbox) {
         // Atomically claim the row before sending to prevent concurrent duplicate sends
         // from publishImmediate() and scanAndSend() racing on the same row.
-        int claimed = outboxRepo.tryLock(outbox.getId(), OffsetDateTime.now());
+        // Stale cutoff of 30 s allows reclaiming rows locked by a crashed sender.
+        OffsetDateTime now = OffsetDateTime.now();
+        int claimed = outboxRepo.tryLock(outbox.getId(), now, now.minusSeconds(30));
         if (claimed == 0) {
             log.debug("Outbox row {} already locked or sent — skipping", outbox.getId());
             return;

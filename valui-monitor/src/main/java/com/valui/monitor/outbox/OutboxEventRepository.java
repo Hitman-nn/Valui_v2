@@ -31,11 +31,15 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> 
     @Query("UPDATE OutboxEvent o SET o.sentAt = :sentAt, o.retryCount = o.retryCount + 1 WHERE o.id = :id")
     void markSentAt(@Param("id") Long id, @Param("sentAt") OffsetDateTime sentAt);
 
-    /** Atomically claims the row for sending. Returns 1 if claimed, 0 if already locked or sent. */
+    /**
+     * Atomically claims the row for sending. Returns 1 if claimed, 0 if already locked or sent.
+     * Also reclaims rows whose lock is stale (lockedAt older than {@code staleCutoff}) so that
+     * rows stuck by a crash or failed send are eventually retried by scanAndSend.
+     */
     @Modifying
     @Transactional
-    @Query("UPDATE OutboxEvent o SET o.lockedAt = :now WHERE o.id = :id AND o.sentAt IS NULL AND o.lockedAt IS NULL")
-    int tryLock(@Param("id") Long id, @Param("now") OffsetDateTime now);
+    @Query("UPDATE OutboxEvent o SET o.lockedAt = :now WHERE o.id = :id AND o.sentAt IS NULL AND (o.lockedAt IS NULL OR o.lockedAt < :staleCutoff)")
+    int tryLock(@Param("id") Long id, @Param("now") OffsetDateTime now, @Param("staleCutoff") OffsetDateTime staleCutoff);
 
     boolean existsByExternalEventIdAndChatId(String externalEventId, Long chatId);
 

@@ -238,23 +238,31 @@ public class DrrDispatcher {
         ControllerJob inflight = job.markInFlight(Instant.now());
         jobRegistry.forceUpdate(inflight);
 
-        workerPool.submit(() -> {
-            try {
-                new ControllerTask(
-                        controllerId,
-                        inflight.userId(),
-                        taskExecutor,
-                        metrics,
-                        pollHistory,
-                        props.getFetchBudgetMs()
-                ).run();
-            } catch (Exception e) {
-                log.error("[DRR] Unhandled exception in task controllerId={}", controllerId, e);
-            } finally {
+        boolean submitted = false;
+        try {
+            workerPool.submit(() -> {
+                try {
+                    new ControllerTask(
+                            controllerId,
+                            inflight.userId(),
+                            taskExecutor,
+                            metrics,
+                            pollHistory,
+                            props.getFetchBudgetMs()
+                    ).run();
+                } catch (Exception e) {
+                    log.error("[DRR] Unhandled exception in task controllerId={}", controllerId, e);
+                } finally {
+                    globalSlots.release();
+                    onTaskComplete(controllerId);
+                }
+            });
+            submitted = true;
+        } finally {
+            if (!submitted) {
                 globalSlots.release();
-                onTaskComplete(controllerId);
             }
-        });
+        }
     }
 
     /** Called from virtual worker thread after task execution (success or failure). */

@@ -2,6 +2,9 @@ package com.valui.user.repository;
 
 import com.valui.common.entity.GlobalFilterEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -30,4 +33,8 @@ public interface GlobalFilterRepository extends JpaRepository<GlobalFilterEntity
     Optional<GlobalFilterEntity> findByIdAndChatId(UUID id, Long chatId);
 
     void deleteByIdAndUserId(UUID id, UUID userId);
+
+    @Modifying
+    @Query("UPDATE GlobalFilterEntity f SET f.pausedByTokens = false WHERE f.userId = :userId AND f.pausedByTokens = true")
+    void unpauseAllByUserId(@Param("userId") UUID userId);
 }

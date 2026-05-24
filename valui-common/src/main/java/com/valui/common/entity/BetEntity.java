@@ -28,6 +28,10 @@ public class BetEntity implements HasUpdatedAt {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @Column(name = "telegram_id")
     private Long telegramId;
 

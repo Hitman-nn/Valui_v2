@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 public class WsClientBorrowingPool implements SmartLifecycle {
@@ -42,6 +43,7 @@ public class WsClientBorrowingPool implements SmartLifecycle {
         Slot s = slots.get(id);
         long leftMs = Math.max(1, TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime()));
         if (!s.awaitReady(leftMs, TimeUnit.MILLISECONDS)) {
+            free.offer(id); // return slot so it can be borrowed again once ready
             log.warn("Pool: Connection #{} not ready after {} ms", id, leftMs);
             throw new TimeoutException("Connection #" + id + " not ready");
         }
@@ -109,6 +111,7 @@ public class WsClientBorrowingPool implements SmartLifecycle {
         volatile boolean connected = false;
         volatile int failures = 0;
         volatile CountDownLatch readyOnce = new CountDownLatch(1);
+        final AtomicBoolean reconnecting = new AtomicBoolean(false);
 
         Slot(int id) { this.id = id; }
 
@@ -118,6 +121,7 @@ public class WsClientBorrowingPool implements SmartLifecycle {
 
         void connect(int attempt) {
             if (!running.get()) return;
+            reconnecting.set(false);
             resetReadyLatch();
 
             client = WsClient.builder()
@@ -156,6 +160,7 @@ public class WsClientBorrowingPool implements SmartLifecycle {
         }
 
         void scheduleReconnect() {
+            if (!reconnecting.compareAndSet(false, true)) return; // only one reconnect at a time
             connected = false;
             failures++;
             free.remove(id);
@@ -163,7 +168,10 @@ public class WsClientBorrowingPool implements SmartLifecycle {
             long backoff = Math.min(base * (1L << Math.min(6, failures)), max);
             long jitter = ThreadLocalRandom.current().nextLong(backoff / 3 + 1);
             long delay  = backoff / 2 + jitter;
-            if (!running.get()) return;
+            if (!running.get()) {
+                reconnecting.set(false);
+                return;
+            }
             log.warn("Pool: scheduling reconnect slot #{}, failures={}, delay={} ms", id, failures, delay);
             scheduler.schedule(() -> slots.get(id).connect(failures), delay, TimeUnit.MILLISECONDS);
         }

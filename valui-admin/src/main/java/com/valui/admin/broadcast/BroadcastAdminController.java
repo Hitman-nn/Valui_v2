@@ -2,7 +2,6 @@ package com.valui.admin.broadcast;
 
 import com.valui.admin.notifications.dto.BroadcastRequest;
 import com.valui.admin.notifications.dto.BroadcastResultDto;
-import java.util.concurrent.atomic.AtomicInteger;
 import com.valui.common.kafka.AdminBroadcastMessage;
 import com.valui.common.kafka.KafkaTopics;
 import com.valui.user.service.UserService;
@@ -34,13 +33,11 @@ public class BroadcastAdminController {
             ? null : req.status().toUpperCase();
 
         List<Long> telegramIds = userService.findTelegramIdsByStatus(statusFilter);
-        AtomicInteger failed = new AtomicInteger();
         for (Long chatId : telegramIds) {
             kafkaTemplate.send(KafkaTopics.ADMIN_BROADCAST, String.valueOf(chatId),
                     new AdminBroadcastMessage(chatId, req.text()))
                 .whenComplete((result, ex) -> {
                     if (ex != null) {
-                        failed.incrementAndGet();
                         log.warn("[BROADCAST] Failed to enqueue message for chatId={}: {}", chatId, ex.getMessage());
                     }
                 });

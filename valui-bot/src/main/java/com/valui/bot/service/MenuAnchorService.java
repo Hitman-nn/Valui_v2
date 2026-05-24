@@ -34,8 +34,9 @@ public class MenuAnchorService {
      */
     public void replaceAnchor(long chatId, AbsSender sender, int newMsgId) {
         String key = KEY_PREFIX + chatId;
-        String prev = redis.opsForValue().get(key);
-        redis.delete(key);
+        // Atomic: set new value and get old one in a single Redis round-trip.
+        String prev = redis.opsForValue().getAndSet(key, String.valueOf(newMsgId));
+        redis.expire(key, TTL);
 
         if (prev != null) {
             try {
@@ -47,7 +48,5 @@ public class MenuAnchorService {
                 log.debug("Could not delete old menu anchor chatId={}: {}", chatId, e.getMessage());
             }
         }
-
-        redis.opsForValue().set(key, String.valueOf(newMsgId), TTL);
     }
 }
