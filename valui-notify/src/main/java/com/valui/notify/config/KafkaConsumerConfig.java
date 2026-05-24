@@ -57,6 +57,12 @@ public class KafkaConsumerConfig {
     private String retryGroupId;
     @Value("${valui.kafka.groups.audit:valui-audit-group}")
     private String auditGroupId;
+    @Value("${valui.kafka.groups.vk-dispatch:valui-vk-dispatch-group}")
+    private String vkDispatchGroupId;
+    @Value("${valui.kafka.groups.vk-retry:valui-vk-retry-group}")
+    private String vkRetryGroupId;
+    @Value("${valui.kafka.groups.vk-dlq:valui-vk-dlq-group}")
+    private String vkDlqGroupId;
 
     // ── Shared consumer factory ────────────────────────────────────────────────
 
@@ -188,6 +194,60 @@ public class KafkaConsumerConfig {
             t.setDaemon(true);
             return t;
         };
+    }
+
+    // ── VK dispatch factory ───────────────────────────────────────────────────
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, Object> vkDispatchContainerFactory(
+            KafkaProperties kafkaProperties,
+            KafkaTemplate<String, Object> kafkaTemplate) {
+
+        var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, vkDispatchGroupId, OFFSET_LATEST));
+        factory.setConcurrency(1);
+        factory.setCommonErrorHandler(notifyErrorHandler(kafkaTemplate));
+        return factory;
+    }
+
+    // ── VK retry factory ──────────────────────────────────────────────────────
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, Object> vkRetryContainerFactory(
+            KafkaProperties kafkaProperties) {
+
+        var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, vkRetryGroupId, OFFSET_EARLIEST));
+        factory.setConcurrency(1);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
+        factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(0L, 0)));
+        return factory;
+    }
+
+    /** 3-thread scheduler for VK retry-topic delayed processing. */
+    @Bean(destroyMethod = "shutdownNow")
+    public ScheduledExecutorService vkRetryScheduler() {
+        return Executors.newScheduledThreadPool(3, daemonThread("vk-retry-scheduler"));
+    }
+
+    // ── VK DLQ factory ────────────────────────────────────────────────────────
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, Object> vkDlqContainerFactory(
+            KafkaProperties kafkaProperties) {
+
+        var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, vkDlqGroupId, OFFSET_EARLIEST));
+        factory.setConcurrency(1);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
+        factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(0L, 0)));
+        return factory;
+    }
+
+    /** Single-thread scheduler for VK DLQ delayed retries. */
+    @Bean(destroyMethod = "shutdownNow")
+    public ScheduledExecutorService vkDlqRetryScheduler() {
+        return Executors.newSingleThreadScheduledExecutor(daemonThread("vk-dlq-retry"));
     }
 
     // ── Audit factory ──────────────────────────────────────────────────────────

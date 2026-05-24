@@ -2,6 +2,7 @@ package com.valui.notify.monitor;
 
 import com.valui.notify.retry.DeadLetterPublisher;
 import com.valui.notify.service.AdminNotificationService;
+import com.valui.notify.vk.VkDeadLetterPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -27,19 +28,31 @@ public class DlqMonitor {
 
     @Scheduled(fixedDelay = 15 * 60 * 1_000L, initialDelay = 60_000L)
     public void checkDlqFinal() {
-        long count = getDlqFinalCount();
-        log.debug("[DLQ-MONITOR] dlq.final count={}", count);
-
-        if (count > ALERT_THRESHOLD) {
-            String alert = String.format(
+        long tgCount = getDlqFinalCount();
+        log.debug("[DLQ-MONITOR] dlq.final count={}", tgCount);
+        if (tgCount > ALERT_THRESHOLD) {
+            adminNotificationService.alertAdmin(String.format(
                     "⚠️ *DLQ накопился*: %d сообщений в `notifications.dlq.final`.\n"
-                    + "Используйте `/api/v1/admin/dlq/replay` для переотправки.", count);
-            adminNotificationService.alertAdmin(alert);
+                    + "Используйте `/api/v1/admin/dlq/replay` для переотправки.", tgCount));
+        }
+
+        long vkCount = getVkDlqFinalCount();
+        log.debug("[DLQ-MONITOR] vk.dlq.final count={}", vkCount);
+        if (vkCount > ALERT_THRESHOLD) {
+            adminNotificationService.alertAdmin(String.format(
+                    "⚠️ *VK DLQ накопился*: %d сообщений в `vk.notifications.dlq.final`.", vkCount));
         }
     }
 
     public long getDlqFinalCount() {
         String value = redisTemplate.opsForValue().get(DeadLetterPublisher.DLQ_FINAL_COUNTER_KEY);
+        if (value == null) return 0L;
+        try { return Long.parseLong(value); }
+        catch (NumberFormatException e) { return 0L; }
+    }
+
+    public long getVkDlqFinalCount() {
+        String value = redisTemplate.opsForValue().get(VkDeadLetterPublisher.DLQ_FINAL_COUNTER_KEY);
         if (value == null) return 0L;
         try { return Long.parseLong(value); }
         catch (NumberFormatException e) { return 0L; }

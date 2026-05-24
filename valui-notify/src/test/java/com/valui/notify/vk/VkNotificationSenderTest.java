@@ -1,5 +1,6 @@
 package com.valui.notify.vk;
 
+import com.valui.notify.exception.RetryableNotificationException;
 import com.valui.notify.stats.NotificationStats;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -9,6 +10,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.*;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -59,26 +63,39 @@ class VkNotificationSenderTest {
         given(props.isEnabled()).willReturn(true);
         given(props.getCommunityToken()).willReturn("token");
         given(rateLimiter.tryAcquire(PEER_ID)).willReturn(0L);
-        given(apiClient.sendMessage(PEER_ID, PLAIN_TEXT)).willReturn(1L);
+        given(apiClient.sendMessage(eq(PEER_ID), eq(PLAIN_TEXT), anyLong())).willReturn(1L);
 
         sender.send(PEER_ID, MARKDOWN_TEXT);
 
-        verify(apiClient).sendMessage(PEER_ID, PLAIN_TEXT);
+        verify(apiClient).sendMessage(eq(PEER_ID), eq(PLAIN_TEXT), anyLong());
         verify(stats).incVkSent();
     }
 
     @Test
-    @DisplayName("API вернул ошибку → incVkSkipped")
-    void apiError_incrementsSkipped() throws Exception {
+    @DisplayName("send(): API бросает ошибку → ошибка поглощается, vkSent не инкрементируется")
+    void apiError_swallowedBySend() throws Exception {
         given(props.isEnabled()).willReturn(true);
         given(props.getCommunityToken()).willReturn("token");
         given(rateLimiter.tryAcquire(PEER_ID)).willReturn(0L);
-        given(apiClient.sendMessage(PEER_ID, PLAIN_TEXT)).willReturn(-1L);
+        given(apiClient.sendMessage(eq(PEER_ID), eq(PLAIN_TEXT), anyLong()))
+                .willThrow(new RetryableNotificationException("VK API error 9: flood", null, true, 0));
 
-        sender.send(PEER_ID, MARKDOWN_TEXT);
+        sender.send(PEER_ID, MARKDOWN_TEXT);  // must not throw
 
-        verify(stats).incVkSkipped();
         verify(stats, never()).incVkSent();
+    }
+
+    @Test
+    @DisplayName("dispatch(): API бросает ошибку → RetryableNotificationException пробрасывается")
+    void apiError_propagatedByDispatch() throws Exception {
+        given(props.isEnabled()).willReturn(true);
+        given(props.getCommunityToken()).willReturn("token");
+        given(rateLimiter.tryAcquire(PEER_ID)).willReturn(0L);
+        given(apiClient.sendMessage(eq(PEER_ID), eq(PLAIN_TEXT), anyLong()))
+                .willThrow(new RetryableNotificationException("VK API error 9: flood", null, true, 0));
+
+        assertThatThrownBy(() -> sender.dispatch(PEER_ID, MARKDOWN_TEXT, 42L))
+                .isInstanceOf(RetryableNotificationException.class);
     }
 
     @Test
@@ -89,12 +106,12 @@ class VkNotificationSenderTest {
         given(rateLimiter.tryAcquire(PEER_ID))
             .willReturn(1L)   // первый вызов: подождать 1ms
             .willReturn(0L);  // повторный: разрешено
-        given(apiClient.sendMessage(PEER_ID, PLAIN_TEXT)).willReturn(2L);
+        given(apiClient.sendMessage(eq(PEER_ID), eq(PLAIN_TEXT), anyLong())).willReturn(2L);
 
         sender.send(PEER_ID, MARKDOWN_TEXT);
 
         verify(rateLimiter, times(2)).tryAcquire(PEER_ID);
-        verify(apiClient).sendMessage(PEER_ID, PLAIN_TEXT);
+        verify(apiClient).sendMessage(eq(PEER_ID), eq(PLAIN_TEXT), anyLong());
     }
 
     @Test

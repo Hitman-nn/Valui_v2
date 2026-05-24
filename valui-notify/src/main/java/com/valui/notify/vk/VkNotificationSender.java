@@ -1,5 +1,6 @@
 package com.valui.notify.vk;
 
+import com.valui.notify.exception.RetryableNotificationException;
 import com.valui.notify.stats.NotificationStats;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,10 +30,25 @@ public class VkNotificationSender {
     }
 
     /**
-     * Sends a plain-text VK message. No-op when VK is disabled.
-     * Thread-safe; intended for virtual-thread callers.
+     * Best-effort send — swallows all errors. Used for non-critical side-channel calls.
+     * Passes {@code random_id=0} so VK skips deduplication — safe for one-off sends
+     * that are not part of the retry pipeline.
      */
     public void send(long peerId, String markdownText) {
+        try {
+            dispatch(peerId, markdownText, 0L);
+        } catch (Exception e) {
+            log.warn("[VK] Best-effort send failed peerId={}: {}", peerId, e.getMessage());
+        }
+    }
+
+    /**
+     * Reliable send — throws {@link RetryableNotificationException} on failure.
+     * Intended for use in the Kafka retry pipeline.
+     *
+     * @param randomId deterministic dedup key derived from notificationLogId (0 = no dedup)
+     */
+    public void dispatch(long peerId, String markdownText, long randomId) {
         if (!isEnabled()) return;
 
         String plain = stripMarkdown(markdownText);
@@ -44,24 +60,24 @@ public class VkNotificationSender {
                 if (waitMs <= 0) break;
                 long remaining = MAX_RATE_WAIT_MS - totalWaited;
                 if (remaining <= 0 || waitMs >= remaining) {
-                    log.warn("[VK] Rate limit exceeded peerId={} — skipping after {}ms", peerId, totalWaited);
                     stats.incVkSkipped();
-                    return;
+                    throw new RetryableNotificationException(
+                            "VK rate limit exceeded peerId=" + peerId + " after " + totalWaited + "ms",
+                            null, true, 0);
                 }
                 Thread.sleep(waitMs + 10);
                 totalWaited += waitMs + 10;
             }
-            long msgId = apiClient.sendMessage(peerId, plain);
-            if (msgId > 0) {
-                stats.incVkSent();
-                log.debug("[VK] Sent to peerId={} msgId={}", peerId, msgId);
-            } else {
-                stats.incVkSkipped();
-            }
+            // VkApiClient throws RetryableNotificationException on any VK API error
+            long msgId = apiClient.sendMessage(peerId, plain, randomId);
+            stats.incVkSent();
+            log.debug("[VK] Sent peerId={} msgId={}", peerId, msgId);
+        } catch (RetryableNotificationException e) {
+            throw e;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        } catch (Exception e) {
-            log.warn("[VK] Send failed peerId={}: {}", peerId, e.getMessage());
+            throw new RetryableNotificationException(
+                    "VK send interrupted peerId=" + peerId, e, true, 0);
         }
     }
 

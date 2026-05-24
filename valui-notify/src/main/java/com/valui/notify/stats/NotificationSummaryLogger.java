@@ -28,17 +28,23 @@ public class NotificationSummaryLogger {
         long rateLimit                = stats.drainRateLimitBackoff();
         long vkSent                   = stats.drainVkSent();
         long vkSkipped                = stats.drainVkSkipped();
+        long vkDlqRetry               = stats.drainVkDlqRetry();
+        long vkDlqFinal               = stats.drainVkDlqFinal();
         Map<String, Long> byBookmaker = stats.drainSentByBookmaker();
 
-        boolean hasProblems = dlqRetry > 0 || dlqFinal > 0 || rateLimit > 0 || vkSkipped > 0;
+        boolean hasProblems = dlqRetry > 0 || dlqFinal > 0 || rateLimit > 0
+                || vkSkipped > 0 || vkDlqRetry > 0 || vkDlqFinal > 0;
         boolean allZero     = sent == 0 && vkSent == 0 && !hasProblems;
 
         String bkBreakdown = byBookmaker.isEmpty() ? "" :
                 " (" + byBookmaker.entrySet().stream()
                         .map(e -> e.getKey() + ":" + e.getValue())
                         .collect(Collectors.joining(" ")) + ")";
-        String vkPart = (vkSent > 0 || vkSkipped > 0)
-                ? " VK=" + vkSent + (vkSkipped > 0 ? "(skipped=" + vkSkipped + ")" : "")
+        String vkPart = (vkSent > 0 || vkSkipped > 0 || vkDlqRetry > 0 || vkDlqFinal > 0)
+                ? " VK=" + vkSent
+                    + (vkSkipped  > 0 ? "(skipped="   + vkSkipped  + ")" : "")
+                    + (vkDlqRetry > 0 ? "(dlq-retry=" + vkDlqRetry + ")" : "")
+                    + (vkDlqFinal > 0 ? "(dlq-final=" + vkDlqFinal + ")" : "")
                 : "";
 
         String msg = "[SUMMARY 10m] отправлено={}{} DLQ-retry={} DLQ-final={} rate-limit-backoff={}{}";

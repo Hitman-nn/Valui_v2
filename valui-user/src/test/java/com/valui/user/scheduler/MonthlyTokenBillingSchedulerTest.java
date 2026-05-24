@@ -12,6 +12,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import java.time.YearMonth;
@@ -128,6 +129,34 @@ class MonthlyTokenBillingSchedulerTest {
             verify(billingProcessor, times(3)).process(any(), any());
             verify(billingProcessor).process(eq(u1), any());
             verify(billingProcessor).process(eq(u2), any());
+            verify(billingProcessor).process(eq(u3), any());
+        }
+
+        @Test
+        @DisplayName("pagination: users spanning two pages are all processed")
+        void multiPage_allUsersProcessed() {
+            UserEntity u1 = activeUser();
+            UserEntity u2 = activeUser();
+            UserEntity u3 = activeUser();
+            UserEntity u4 = activeUser();
+
+            // page 0: 2 users, hasNext=true (totalElements=4 > offset+size=2)
+            PageImpl<UserEntity> page0 = new PageImpl<>(
+                    List.of(u1, u2), PageRequest.of(0, 2), 4);
+            // page 1: 2 users, hasNext=false
+            PageImpl<UserEntity> page1 = new PageImpl<>(
+                    List.of(u3, u4), PageRequest.of(1, 2), 4);
+
+            given(userRepository.findAllByStatus(eq(UserStatus.ACTIVE), any(Pageable.class)))
+                    .willReturn(page0)
+                    .willReturn(page1);
+            given(billingProcessor.process(any(), any()))
+                    .willReturn(new MonthlyTokenBillingScheduler.BillingResult(0, 0, 0));
+
+            scheduler.runMonthlyBilling();
+
+            verify(billingProcessor, times(4)).process(any(), any());
+            verify(billingProcessor).process(eq(u1), any());
             verify(billingProcessor).process(eq(u3), any());
         }
     }

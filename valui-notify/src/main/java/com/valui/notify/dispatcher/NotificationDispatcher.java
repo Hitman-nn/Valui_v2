@@ -10,12 +10,12 @@ import com.valui.notify.log.NotificationLogService;
 import com.valui.notify.retry.DeadLetterPublisher;
 import com.valui.notify.retry.NotificationRetryPolicy;
 import com.valui.notify.stats.NotificationStats;
-import com.valui.notify.vk.VkNotificationSender;
 import com.valui.user.service.TokenLedgerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -33,14 +33,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class NotificationDispatcher {
 
-    private final NotificationDispatchService dispatchService;
-    private final NotificationLogService      logService;
-    private final DeadLetterPublisher         deadLetterPublisher;
-    private final NotificationRetryPolicy     retryPolicy;
-    private final TokenLedgerService          tokenLedgerService;
-    private final TitleDedupCacheService      titleDedupCache;
-    private final NotificationStats           stats;
-    private final VkNotificationSender        vkSender;
+    private final NotificationDispatchService    dispatchService;
+    private final NotificationLogService         logService;
+    private final DeadLetterPublisher            deadLetterPublisher;
+    private final NotificationRetryPolicy        retryPolicy;
+    private final TokenLedgerService             tokenLedgerService;
+    private final TitleDedupCacheService         titleDedupCache;
+    private final NotificationStats              stats;
+    private final KafkaTemplate<String, Object>  kafkaTemplate;
 
     @KafkaListener(
         topics           = KafkaTopics.USER_NOTIFICATIONS_PENDING,
@@ -86,6 +86,12 @@ public class NotificationDispatcher {
             }
         }
 
+        // Publish to VK pipeline independently — VK delivery does not depend on Telegram outcome.
+        if (request.vkPeerId() != null) {
+            kafkaTemplate.send(KafkaTopics.VK_NOTIFICATIONS_PENDING,
+                    String.valueOf(request.vkPeerId()), request);
+        }
+
         try {
             Integer telegramMessageId = dispatchService.dispatch(request);
             if (logId != null) logService.markSent(logId, telegramMessageId);
@@ -107,11 +113,6 @@ public class NotificationDispatcher {
                 } else {
                     titleDedupCache.store(request.dedupKey(), dedupEntry);
                 }
-            }
-
-            // VK side-channel: best-effort, failures don't affect Telegram delivery
-            if (request.vkPeerId() != null) {
-                vkSender.send(request.vkPeerId(), request.messageText());
             }
         } catch (Exception e) {
             log.warn("[DISPATCH] Ошибка [logId={} channel={} userId={}]: {} ({})",

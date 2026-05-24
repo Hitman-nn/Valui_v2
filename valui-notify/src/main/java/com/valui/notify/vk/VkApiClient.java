@@ -2,6 +2,7 @@ package com.valui.notify.vk;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.valui.notify.exception.RetryableNotificationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -12,7 +13,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.Map;
 
 /**
@@ -33,14 +33,16 @@ public class VkApiClient {
 
     /**
      * Sends a plain-text message to a VK user.
+     * Throws {@link RetryableNotificationException} on any failure; caller decides retry behaviour.
      *
-     * @return VK message_id on success, -1 on error.
+     * @param randomId deterministic dedup key; 0 = VK skips dedup check
+     * @return VK message_id on success (always > 0)
      */
-    public long sendMessage(long peerId, String text) {
+    public long sendMessage(long peerId, String text, long randomId) {
         String body = buildForm(Map.of(
                 "peer_id",      String.valueOf(peerId),
                 "message",      text,
-                "random_id",    String.valueOf(ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE)),
+                "random_id",    String.valueOf(randomId),
                 "access_token", props.getCommunityToken(),
                 "v",            API_VER));
 
@@ -54,19 +56,23 @@ public class VkApiClient {
             if (root.has("error")) {
                 int code = root.path("error").path("error_code").asInt(-1);
                 String msg = root.path("error").path("error_msg").asText();
-                if (code == 9) {
-                    log.warn("[VK] messages.send rate-limited peerId={} (code=9) — reduce send frequency", peerId);
-                } else if (code == 5) {
-                    log.warn("[VK] messages.send auth error peerId={}: {} (code=5) — check VK_COMMUNITY_TOKEN", peerId, msg);
-                } else {
-                    log.warn("[VK] messages.send failed peerId={}: {} (code={})", peerId, msg, code);
-                }
-                return -1;
+                log.warn("[VK] messages.send failed peerId={}: {} (code={})", peerId, msg, code);
+                // 5=auth, 7=permissions → permanent failure, don't retry
+                boolean retryable = (code != 5 && code != 7);
+                throw new RetryableNotificationException(
+                        "VK API error " + code + ": " + msg, null, retryable, 0);
             }
-            return root.path("response").asLong(-1);
+            long msgId = root.path("response").asLong(-1);
+            if (msgId <= 0) {
+                throw new RetryableNotificationException(
+                        "VK API returned no message_id for peerId=" + peerId, null, true, 0);
+            }
+            return msgId;
+        } catch (RetryableNotificationException e) {
+            throw e;
         } catch (Exception e) {
-            log.warn("[VK] messages.send exception peerId={}: {}", peerId, e.getMessage());
-            return -1;
+            throw new RetryableNotificationException(
+                    "VK HTTP error peerId=" + peerId + ": " + e.getMessage(), e, true, 0);
         }
     }
 
