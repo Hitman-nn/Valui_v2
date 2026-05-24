@@ -175,6 +175,62 @@ public class KafkaTopicsConfig {
 
     // ── helpers ────────────────────────────────────────────────────────────────
 
+    // ── VK notification pipeline ──────────────────────────────────────────────
+
+    @Bean
+    public org.apache.kafka.clients.admin.NewTopic vkNotificationsPending() {
+        return TopicBuilder.name(KafkaTopics.VK_NOTIFICATIONS_PENDING)
+                .partitions(3).replicas(replicationFactor)
+                .config(TopicConfig.RETENTION_MS_CONFIG,   ms(1, ChronoUnit.DAYS))
+                .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE)
+                .build();
+    }
+
+    @Bean
+    public org.apache.kafka.clients.admin.NewTopic vkNotificationsRetry1s() {
+        return TopicBuilder.name(KafkaTopics.VK_NOTIFICATIONS_RETRY_1S)
+                .partitions(2).replicas(replicationFactor)
+                .config(TopicConfig.RETENTION_MS_CONFIG,   ms(1, ChronoUnit.DAYS))
+                .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE)
+                .build();
+    }
+
+    @Bean
+    public org.apache.kafka.clients.admin.NewTopic vkNotificationsRetry5s() {
+        return TopicBuilder.name(KafkaTopics.VK_NOTIFICATIONS_RETRY_5S)
+                .partitions(2).replicas(replicationFactor)
+                .config(TopicConfig.RETENTION_MS_CONFIG,   ms(1, ChronoUnit.DAYS))
+                .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE)
+                .build();
+    }
+
+    @Bean
+    public org.apache.kafka.clients.admin.NewTopic vkNotificationsRetry30s() {
+        return TopicBuilder.name(KafkaTopics.VK_NOTIFICATIONS_RETRY_30S)
+                .partitions(2).replicas(replicationFactor)
+                .config(TopicConfig.RETENTION_MS_CONFIG,   ms(1, ChronoUnit.DAYS))
+                .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE)
+                .build();
+    }
+
+    @Bean
+    public org.apache.kafka.clients.admin.NewTopic vkNotificationsDlq() {
+        return TopicBuilder.name(KafkaTopics.VK_NOTIFICATIONS_DLQ)
+                .partitions(2).replicas(replicationFactor)
+                .config(TopicConfig.RETENTION_MS_CONFIG,   ms(7, ChronoUnit.DAYS))
+                .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE)
+                .build();
+    }
+
+    @Bean
+    public org.apache.kafka.clients.admin.NewTopic vkNotificationsDlqFinal() {
+        return TopicBuilder.name(KafkaTopics.VK_NOTIFICATIONS_DLQ_FINAL)
+                .partitions(2).replicas(replicationFactor)
+                .config(TopicConfig.RETENTION_MS_CONFIG,   ms(30, ChronoUnit.DAYS))
+                .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE)
+                .build();
+    }
+
     // ── admin.broadcast ────────────────────────────────────────────────────────
 
     /** One record per recipient; produced by BroadcastController, consumed by BroadcastConsumer. */
