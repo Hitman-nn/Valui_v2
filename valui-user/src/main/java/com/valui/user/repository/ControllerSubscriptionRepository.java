@@ -63,6 +63,9 @@ public interface ControllerSubscriptionRepository
     @Query("SELECT (COUNT(s) > 0) FROM ControllerSubscriptionEntity s WHERE s.userId = :userId AND s.chatId = :chatId AND s.vkPeerId IS NOT NULL")
     boolean existsVkLinkedByUserIdAndChatId(@Param("userId") UUID userId, @Param("chatId") Long chatId);
 
+    @Query("SELECT s.vkPeerId FROM ControllerSubscriptionEntity s WHERE s.controllerId = :controllerId AND s.chatId = :chatId AND s.vkPeerId IS NOT NULL")
+    Optional<Long> findVkPeerIdByControllerIdAndChatId(@Param("controllerId") UUID controllerId, @Param("chatId") Long chatId);
+
     @Query("SELECT s.vkPeerId FROM ControllerSubscriptionEntity s WHERE s.userId = :userId AND s.chatId = :chatId AND s.vkPeerId IS NOT NULL ORDER BY s.createdAt DESC")
     Optional<Long> findFirstVkPeerIdByUserIdAndChatId(@Param("userId") UUID userId, @Param("chatId") Long chatId);
 

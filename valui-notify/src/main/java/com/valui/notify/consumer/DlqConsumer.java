@@ -46,7 +46,7 @@ public class DlqConsumer {
 
     @KafkaListener(
             topics           = KafkaTopics.NOTIFICATIONS_DLQ,
-            groupId          = "valui-dlq-group",
+            groupId          = "${valui.kafka.groups.dlq:valui-dlq-group}",
             containerFactory = "dlqContainerFactory"
     )
     public void handleDlq(ConsumerRecord<String, Object> record, Acknowledgment ack) {

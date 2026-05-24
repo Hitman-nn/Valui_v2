@@ -85,9 +85,10 @@ public class DeadLetterPublisher {
     // ── private ───────────────────────────────────────────────────────────────
 
     private void alertDlqFinal(int retries, String error) {
-        long now = System.currentTimeMillis();
-        if (now - lastDlqAlertAt.get() < DLQ_ALERT_THROTTLE_MS) return;
-        lastDlqAlertAt.set(now);
+        long now  = System.currentTimeMillis();
+        long prev = lastDlqAlertAt.get();
+        if (now - prev < DLQ_ALERT_THROTTLE_MS) return;
+        if (!lastDlqAlertAt.compareAndSet(prev, now)) return;
         String msg = String.format(
             "🔴 *DLQ-final*: уведомление безвозвратно потеряно после %d попыток\n`%s`",
             retries, error != null ? error : "unknown error");

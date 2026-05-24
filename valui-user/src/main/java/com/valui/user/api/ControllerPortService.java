@@ -55,6 +55,9 @@ public interface ControllerPortService {
     boolean hasActiveSubscriptions(UUID controllerId);
     Optional<ControllerSubscriptionEntity> findSubscription(UUID controllerId, Long chatId);
 
+    /** Returns vkPeerId for the subscription without loading the full entity. */
+    Optional<Long> findVkPeerId(UUID controllerId, Long chatId);
+
     /** Links VK peer_id to all subscriptions of the user from the given Telegram chat. */
     void linkVk(UUID userId, long telegramChatId, long vkPeerId);
 

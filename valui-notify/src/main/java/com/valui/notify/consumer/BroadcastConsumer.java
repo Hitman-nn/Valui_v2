@@ -21,15 +21,11 @@ public class BroadcastConsumer {
 
     @KafkaListener(
             topics = KafkaTopics.ADMIN_BROADCAST,
-            groupId = "valui-broadcast",
+            groupId = "${valui.kafka.groups.broadcast:valui-broadcast}",
             containerFactory = "kafkaListenerContainerFactory"
     )
-    public void consume(AdminBroadcastMessage message) {
-        try {
-            telegramSender.send(message.chatId(), message.text());
-            log.debug("[BROADCAST] Sent to chatId={}", message.chatId());
-        } catch (Exception e) {
-            log.error("[BROADCAST] Failed to deliver to chatId={}: {}", message.chatId(), e.getMessage());
-        }
+    public void consume(AdminBroadcastMessage message) throws Exception {
+        telegramSender.send(message.chatId(), message.text());
+        log.debug("[BROADCAST] Sent to chatId={}", message.chatId());
     }
 }

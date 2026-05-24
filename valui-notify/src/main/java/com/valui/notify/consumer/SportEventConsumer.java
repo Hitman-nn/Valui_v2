@@ -29,6 +29,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -169,9 +170,7 @@ public class SportEventConsumer {
                     new BetNotifData(event.title(), event.url(), event.bookmaker()));
         }
 
-        Long vkPeerId = controllerPort.findSubscription(controllerId, targetChatId)
-                .map(com.valui.common.entity.ControllerSubscriptionEntity::getVkPeerId)
-                .orElse(null);
+        Long vkPeerId = controllerPort.findVkPeerId(controllerId, targetChatId).orElse(null);
 
         UserNotificationRequestMessage request = new UserNotificationRequestMessage(
                 logEntry.getId().toString(),
@@ -282,13 +281,16 @@ public class SportEventConsumer {
         catch (NumberFormatException e) { return 0; }
     }
 
-    private static boolean passesFilterRule(String filterRule, String title) {
+    private static final ConcurrentHashMap<String, Pattern> PATTERN_CACHE = new ConcurrentHashMap<>();
+
+    private boolean passesFilterRule(String filterRule, String title) {
         if (filterRule == null || filterRule.isBlank()) return true;
         if (title == null) return false;
         try {
-            return Pattern.compile(filterRule, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE |
-                    Pattern.UNICODE_CHARACTER_CLASS)
-                    .matcher(title).find();
+            Pattern p = PATTERN_CACHE.computeIfAbsent(filterRule, k ->
+                    Pattern.compile(k, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE |
+                            Pattern.UNICODE_CHARACTER_CLASS));
+            return p.matcher(title).find();
         } catch (PatternSyntaxException e) {
             log.warn("Invalid filterRule regex '{}': {}", filterRule, e.getMessage());
             return true;

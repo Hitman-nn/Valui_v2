@@ -104,6 +104,11 @@ public class ControllerPortServiceImpl implements ControllerPortService {
         return subscriptionRepository.findByControllerIdAndChatId(controllerId, chatId);
     }
 
+    @Override
+    public Optional<Long> findVkPeerId(UUID controllerId, Long chatId) {
+        return subscriptionRepository.findVkPeerIdByControllerIdAndChatId(controllerId, chatId);
+    }
+
     @Override @Transactional
     public void linkVk(UUID userId, long telegramChatId, long vkPeerId) {
         subscriptionRepository.updateVkPeerIdByUserIdAndChatId(userId, telegramChatId, vkPeerId);
