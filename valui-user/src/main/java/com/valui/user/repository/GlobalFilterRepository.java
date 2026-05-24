@@ -35,11 +35,11 @@ public interface GlobalFilterRepository extends JpaRepository<GlobalFilterEntity
     void deleteByIdAndUserId(UUID id, UUID userId);
 
     @Modifying
-    @Query("UPDATE GlobalFilterEntity f SET f.pausedByTokens = false WHERE f.userId = :userId AND f.pausedByTokens = true")
+    @Query("UPDATE GlobalFilterEntity f SET f.pausedByTokens = false WHERE f.user.id = :userId AND f.pausedByTokens = true")
     void unpauseAllByUserId(@Param("userId") UUID userId);
 
     /** Single query covering both group-member access (chatId) and owner access (userId). */
-    @Query("SELECT f FROM GlobalFilterEntity f WHERE f.id = :id AND (f.chatId = :chatId OR f.userId = :userId)")
+    @Query("SELECT f FROM GlobalFilterEntity f WHERE f.id = :id AND (f.chatId = :chatId OR f.user.id = :userId)")
     Optional<GlobalFilterEntity> findByIdAndChatIdOrUserId(@Param("id") UUID id,
                                                            @Param("chatId") Long chatId,
                                                            @Param("userId") UUID userId);
