@@ -60,7 +60,6 @@ public class VkNotificationSender {
                 if (waitMs <= 0) break;
                 long remaining = MAX_RATE_WAIT_MS - totalWaited;
                 if (remaining <= 0 || waitMs >= remaining) {
-                    stats.incVkSkipped();
                     throw new RetryableNotificationException(
                             "VK rate limit exceeded peerId=" + peerId + " after " + totalWaited + "ms",
                             null, true, 0);

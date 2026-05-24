@@ -87,8 +87,11 @@ public class NotificationDispatcher {
         }
 
         // Publish to VK pipeline independently — VK delivery does not depend on Telegram outcome.
-        // Swallow any producer exception (e.g. topic not yet created, broker timeout) so that
+        // Synchronous exceptions (e.g. topic not yet created, broker timeout) are caught so that
         // a VK failure never blocks or retries the Telegram delivery path.
+        // Async send failures (CompletableFuture) are intentionally not handled here — they are
+        // logged at WARN by LoggingProducerListener. Silent loss on async failure is acceptable
+        // since VK is a supplemental channel and the Telegram notification is still delivered.
         if (request.vkPeerId() != null) {
             try {
                 kafkaTemplate.send(KafkaTopics.VK_NOTIFICATIONS_PENDING,

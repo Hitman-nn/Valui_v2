@@ -115,7 +115,7 @@ class VkNotificationSenderTest {
     }
 
     @Test
-    @DisplayName("rate limit: исчерпан бюджет ожидания → incVkSkipped, сообщение пропускается")
+    @DisplayName("rate limit: исчерпан бюджет ожидания → send() не бросает, API не вызывается")
     void rateLimitExhausted_skips() throws Exception {
         given(props.isEnabled()).willReturn(true);
         given(props.getCommunityToken()).willReturn("token");
@@ -124,7 +124,7 @@ class VkNotificationSenderTest {
         sender.send(PEER_ID, MARKDOWN_TEXT);
 
         verifyNoInteractions(apiClient);
-        verify(stats).incVkSkipped();
+        verifyNoInteractions(stats);
     }
 
     // ── stripMarkdown ─────────────────────────────────────────────────────────

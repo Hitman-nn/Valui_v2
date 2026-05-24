@@ -45,7 +45,11 @@ public class VkDlqConsumer {
                 log.warn("[VK-DLQ] Unexpected payload type, skipping");
                 return;
             }
-            if (request.vkPeerId() == null) return;
+            if (request.vkPeerId() == null) {
+                log.warn("[VK-DLQ] vkPeerId is null logId={} — anomaly, skipping",
+                        request.notificationLogId());
+                return;
+            }
 
             long randomId = KafkaNotifyUtil.vkRandomId(request.notificationLogId());
             try {

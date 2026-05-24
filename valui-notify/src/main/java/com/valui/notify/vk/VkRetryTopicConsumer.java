@@ -67,7 +67,11 @@ public class VkRetryTopicConsumer {
                 log.warn("[VK-RETRY] Unexpected payload on {}, skipping", record.topic());
                 return;
             }
-            if (request.vkPeerId() == null) return;
+            if (request.vkPeerId() == null) {
+                log.warn("[VK-RETRY] vkPeerId is null on topic={} logId={} — anomaly, skipping",
+                        record.topic(), request.notificationLogId());
+                return;
+            }
 
             long randomId = KafkaNotifyUtil.vkRandomId(request.notificationLogId());
             try {

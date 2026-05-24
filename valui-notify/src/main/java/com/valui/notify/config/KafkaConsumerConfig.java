@@ -57,12 +57,6 @@ public class KafkaConsumerConfig {
     private String retryGroupId;
     @Value("${valui.kafka.groups.audit:valui-audit-group}")
     private String auditGroupId;
-    @Value("${valui.kafka.groups.vk-dispatch:valui-vk-dispatch-group}")
-    private String vkDispatchGroupId;
-    @Value("${valui.kafka.groups.vk-retry:valui-vk-retry-group}")
-    private String vkRetryGroupId;
-    @Value("${valui.kafka.groups.vk-dlq:valui-vk-dlq-group}")
-    private String vkDlqGroupId;
 
     // ── Shared consumer factory ────────────────────────────────────────────────
 
@@ -204,7 +198,8 @@ public class KafkaConsumerConfig {
             KafkaTemplate<String, Object> kafkaTemplate) {
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
-        factory.setConsumerFactory(consumerFactory(kafkaProperties, vkDispatchGroupId, OFFSET_LATEST));
+        // group.id is overridden by @KafkaListener.groupId in VkNotificationDispatcher
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-vk-dispatch-group", OFFSET_LATEST));
         factory.setConcurrency(1);
         factory.setCommonErrorHandler(notifyErrorHandler(kafkaTemplate));
         return factory;
@@ -217,7 +212,8 @@ public class KafkaConsumerConfig {
             KafkaProperties kafkaProperties) {
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
-        factory.setConsumerFactory(consumerFactory(kafkaProperties, vkRetryGroupId, OFFSET_EARLIEST));
+        // group.id is overridden by @KafkaListener.groupId in VkRetryTopicConsumer
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-vk-retry-group", OFFSET_EARLIEST));
         factory.setConcurrency(1);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
         factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(0L, 0)));
@@ -237,7 +233,8 @@ public class KafkaConsumerConfig {
             KafkaProperties kafkaProperties) {
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
-        factory.setConsumerFactory(consumerFactory(kafkaProperties, vkDlqGroupId, OFFSET_EARLIEST));
+        // group.id is overridden by @KafkaListener.groupId in VkDlqConsumer
+        factory.setConsumerFactory(consumerFactory(kafkaProperties, "valui-vk-dlq-group", OFFSET_EARLIEST));
         factory.setConcurrency(1);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
         factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(0L, 0)));

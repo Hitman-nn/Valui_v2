@@ -80,9 +80,10 @@ public class VkDeadLetterPublisher {
     }
 
     private void alertDlqFinal(int retries, String error) {
-        long now = System.currentTimeMillis();
-        if (now - lastAlertAt.get() < ALERT_THROTTLE_MS) return;
-        lastAlertAt.set(now);
+        long now  = System.currentTimeMillis();
+        long prev = lastAlertAt.get();
+        if (now - prev < ALERT_THROTTLE_MS) return;
+        if (!lastAlertAt.compareAndSet(prev, now)) return;
         adminNotificationService.alertAdmin(String.format(
                 "🔴 *VK DLQ-final*: VK-уведомление безвозвратно потеряно после %d попыток\n`%s`",
                 retries, error != null ? error : "unknown error"));
