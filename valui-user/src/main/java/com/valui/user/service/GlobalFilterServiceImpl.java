@@ -70,8 +70,8 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
     public void deleteFilter(Long telegramId, Long chatId, UUID filterId) {
         UserEntity user = requireUser(telegramId);
         // Group member can delete by chatId; owner can delete any of their own filters (e.g. from personal chat)
-        GlobalFilterEntity f = globalFilterRepository.findByIdAndChatId(filterId, chatId)
-                .or(() -> globalFilterRepository.findByIdAndUserId(filterId, user.getId()))
+        GlobalFilterEntity f = globalFilterRepository
+                .findByIdAndChatIdOrUserId(filterId, chatId, user.getId())
                 .orElse(null);
         if (f != null) {
             Long filterChatId = f.getChatId();
@@ -84,8 +84,7 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
     @Transactional
     public void updateFilter(Long telegramId, Long chatId, UUID filterId, String newRule) {
         UserEntity user = requireUser(telegramId);
-        globalFilterRepository.findByIdAndChatId(filterId, chatId)
-                .or(() -> globalFilterRepository.findByIdAndUserId(filterId, user.getId()))
+        globalFilterRepository.findByIdAndChatIdOrUserId(filterId, chatId, user.getId())
                 .ifPresent(f -> {
                     Long filterChatId = f.getChatId();
                     f.setFilterRule(newRule);
