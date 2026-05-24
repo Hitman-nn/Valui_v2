@@ -4,9 +4,9 @@ import com.valui.common.kafka.KafkaTopics;
 import com.valui.common.kafka.UserNotificationRequestMessage;
 import com.valui.notify.exception.RetryableNotificationException;
 import com.valui.notify.util.KafkaNotifyUtil;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
@@ -20,15 +20,22 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class VkDlqConsumer {
-
-    /** Package-private to allow zero-delay override in unit tests. */
-    long delayMs = 5 * 60 * 1_000L;
 
     private final VkNotificationSender     vkSender;
     private final VkDeadLetterPublisher    deadLetterPublisher;
     private final ScheduledExecutorService vkDlqRetryScheduler;
+    private final long                     delayMs;
+
+    public VkDlqConsumer(VkNotificationSender vkSender,
+                         VkDeadLetterPublisher deadLetterPublisher,
+                         ScheduledExecutorService vkDlqRetryScheduler,
+                         @Value("${valui.vk.dlq-delay-ms:300000}") long delayMs) {
+        this.vkSender             = vkSender;
+        this.deadLetterPublisher  = deadLetterPublisher;
+        this.vkDlqRetryScheduler  = vkDlqRetryScheduler;
+        this.delayMs              = delayMs;
+    }
 
     @KafkaListener(
             topics           = KafkaTopics.VK_NOTIFICATIONS_DLQ,

@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 public class WsClientBorrowingPool implements SmartLifecycle {

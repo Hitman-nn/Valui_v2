@@ -31,14 +31,14 @@ class VkDlqConsumerTest {
     @Mock ScheduledExecutorService vkDlqRetryScheduler;
     @Mock Acknowledgment           ack;
 
-    @InjectMocks VkDlqConsumer consumer;
+    VkDlqConsumer consumer;
 
     static final long   PEER_ID = 2000000001L;
     static final String LOG_ID  = UUID.randomUUID().toString();
 
     @BeforeEach
     void setUp() {
-        consumer.delayMs = 0L;
+        consumer = new VkDlqConsumer(vkSender, deadLetterPublisher, vkDlqRetryScheduler, 0L);
 
         // Run the scheduled task synchronously
         given(vkDlqRetryScheduler.schedule(any(Runnable.class), anyLong(), any(TimeUnit.class)))
