@@ -87,9 +87,16 @@ public class NotificationDispatcher {
         }
 
         // Publish to VK pipeline independently — VK delivery does not depend on Telegram outcome.
+        // Swallow any producer exception (e.g. topic not yet created, broker timeout) so that
+        // a VK failure never blocks or retries the Telegram delivery path.
         if (request.vkPeerId() != null) {
-            kafkaTemplate.send(KafkaTopics.VK_NOTIFICATIONS_PENDING,
-                    String.valueOf(request.vkPeerId()), request);
+            try {
+                kafkaTemplate.send(KafkaTopics.VK_NOTIFICATIONS_PENDING,
+                        String.valueOf(request.vkPeerId()), request);
+            } catch (Exception e) {
+                log.warn("[DISPATCH] VK publish failed logId={} peerId={}: {}",
+                        logId, request.vkPeerId(), e.getMessage());
+            }
         }
 
         try {
