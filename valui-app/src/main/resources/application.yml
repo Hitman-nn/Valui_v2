@@ -188,7 +188,7 @@ valui:
     # Shared secret between the Telegram bot and this API (set BOT_AUTH_SECRET in production)
     bot-secret: ${BOT_AUTH_SECRET:change-me}
     # Password for admin panel web UI login (POST /api/v1/auth/admin/login)
-    admin-password: ${ADMIN_UI_PASSWORD:admin123}
+    admin-password: ${ADMIN_UI_PASSWORD:change-me}
 
 # Telegram admin notification (used by AdminNotificationService for DLQ alerts)
 telegram:
