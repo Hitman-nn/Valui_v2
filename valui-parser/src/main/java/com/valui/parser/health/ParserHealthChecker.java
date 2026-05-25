@@ -81,9 +81,10 @@ public class ParserHealthChecker {
         }
     }
 
-    /** Fires at consecutive=12 (~1h), 24 (~2h), then every 24 after that. */
+    /** Fires at REPEAT_INTERVAL/2 (~1h), then every REPEAT_INTERVAL (~2h) after that. */
     private static boolean isRepeatAlert(int failures) {
-        return failures == 12 || (failures >= 24 && failures % REPEAT_INTERVAL == 0);
+        return failures == REPEAT_INTERVAL / 2
+                || (failures >= REPEAT_INTERVAL && failures % REPEAT_INTERVAL == 0);
     }
 
     private static String formatDuration(Duration d) {

@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -40,19 +39,20 @@ public class BookmakerIncidentNotifier {
 
     @Async
     @EventListener
-    @Transactional(readOnly = true)
     public void onParserUnavailable(ParserUnavailableEvent event) {
         BookmakerType bm = event.getBookmaker();
 
         availabilityRegistry.markUnavailable(bm);
 
-        // Only notify chats on the first alert per incident; repeat alerts (consecutive=12,24) go to admin only
-        if (notifiedChats.containsKey(bm)) return;
+        // Atomic claim: only the first caller for this incident proceeds to notify chats.
+        // Repeat alerts (consecutive=12,24) update the registry but skip chat notifications.
+        Set<Long> slot = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        if (notifiedChats.putIfAbsent(bm, slot) != null) return;
 
+        // Spring Data repository methods are @Transactional by default — no wrapper needed here
         List<Long> chatIds = subscriptionRepo.findActiveChatIdsByBookmaker(bm);
         log.info("[BK-INCIDENT] {} unavailable — notifying {} chats", bm, chatIds.size());
 
-        Set<Long> sent = Collections.newSetFromMap(new ConcurrentHashMap<>());
         String text = "⚠️ *" + bm.name() + "* временно недоступна. Мониторинг может задерживаться.";
         for (Long chatId : chatIds) {
             try {
@@ -61,12 +61,11 @@ public class BookmakerIncidentNotifier {
                         .text(text)
                         .parseMode("Markdown")
                         .build());
-                sent.add(chatId);
+                slot.add(chatId);
             } catch (TelegramApiException e) {
                 log.warn("[BK-INCIDENT] Failed to notify chatId={} bm={}: {}", chatId, bm, e.getMessage());
             }
         }
-        notifiedChats.put(bm, sent);
     }
 
     @Async

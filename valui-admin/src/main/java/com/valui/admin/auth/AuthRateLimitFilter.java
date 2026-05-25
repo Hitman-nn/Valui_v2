@@ -61,8 +61,11 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         });
 
         if (state[1] > maxAttempts) {
-            log.error("[AUTH-RL] Admin login brute-force detected ip={} attempts={}", ip, state[1]);
-            eventPublisher.publishEvent(new BruteForceAlertEvent(this, ip, state[1], request.getServletPath()));
+            if (state[1] == maxAttempts + 1) {
+                // Fire only once per window — exactly on the transition from allowed to blocked
+                log.error("[AUTH-RL] Admin login brute-force detected ip={} attempts={}", ip, state[1]);
+                eventPublisher.publishEvent(new BruteForceAlertEvent(this, ip, state[1], request.getServletPath()));
+            }
             response.setContentType("application/json;charset=UTF-8");
             response.setStatus(429);
             response.getWriter().write(

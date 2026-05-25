@@ -8,6 +8,8 @@ import org.springframework.context.ApplicationEvent;
  */
 public class BruteForceAlertEvent extends ApplicationEvent {
 
+    private static final long serialVersionUID = 1L;
+
     private final String ip;
     private final long   attempts;
     private final String path;
