@@ -1,5 +1,6 @@
 package com.valui.app.alert;
 
+import com.valui.admin.auth.BruteForceAlertEvent;
 import com.valui.notify.service.AdminNotificationService;
 import com.valui.parser.health.ParserRecoveredEvent;
 import com.valui.parser.health.ParserUnavailableEvent;
@@ -65,5 +66,14 @@ public class IncidentAlertListener {
     public void onParserRecovered(ParserRecoveredEvent event) {
         adminNotificationService.alertAdmin(
             "✅ *Парсер восстановлен*: `" + event.getBookmaker() + "`");
+    }
+
+    // ── C: Admin login brute-force alerts ────────────────────────────────────
+
+    @EventListener
+    public void onBruteForce(BruteForceAlertEvent event) {
+        adminNotificationService.alertAdmin(
+            "🚨 *Подозрительная активность*: `" + event.getPath() + "`\n"
+            + "IP: `" + event.getIp() + "` — " + event.getAttempts() + " попыток за 60 с");
     }
 }

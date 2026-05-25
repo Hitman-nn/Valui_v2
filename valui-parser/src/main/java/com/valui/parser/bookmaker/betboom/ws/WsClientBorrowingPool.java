@@ -164,9 +164,10 @@ public class WsClientBorrowingPool implements SmartLifecycle {
             failures++;
             free.remove(id);
             long base = props.getBackoffBase().toMillis(), max = props.getBackoffMax().toMillis();
-            long backoff = Math.min(base * (1L << Math.min(6, failures)), max);
-            long jitter = ThreadLocalRandom.current().nextLong(backoff / 3 + 1);
-            long delay  = backoff / 2 + jitter;
+            long backoff    = Math.min(base * (1L << Math.min(6, failures)), max);
+            long jitter     = ThreadLocalRandom.current().nextLong(backoff / 3 + 1);
+            long slotOffset = id * 500L; // stagger slots so they don't all reconnect simultaneously
+            long delay      = backoff / 2 + jitter + slotOffset;
             if (!running.get()) {
                 reconnecting.set(false);
                 return;

@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -13,8 +14,8 @@ import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Sliding-window rate limiter for /api/v1/auth/** endpoints.
- * Keyed by remote IP; returns 429 when attempts exceed the configured limit.
+ * Sliding-window rate limiter for the admin login endpoint.
+ * Keyed by remote IP; returns 429 after maxAttempts in the window and fires a BruteForceAlertEvent.
  *
  * State is in-process only — resets on app restart, not shared across instances.
  * Sufficient for a single-node admin panel with no reverse proxy in front.
@@ -23,22 +24,27 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class AuthRateLimitFilter extends OncePerRequestFilter {
 
-    private final int  maxAttempts;
-    private final long windowMs;
+    private static final String ADMIN_LOGIN_PATH = "/api/v1/auth/admin/login";
+
+    private final int                      maxAttempts;
+    private final long                     windowMs;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ip → [windowStartMs, requestCount]
     private final ConcurrentHashMap<String, long[]> windows = new ConcurrentHashMap<>();
 
     public AuthRateLimitFilter(
-            @Value("${valui.auth.rate-limit.max-attempts:10}") int maxAttempts,
-            @Value("${valui.auth.rate-limit.window-seconds:60}") int windowSeconds) {
-        this.maxAttempts = maxAttempts;
-        this.windowMs    = windowSeconds * 1000L;
+            @Value("${valui.auth.rate-limit.max-attempts:3}") int maxAttempts,
+            @Value("${valui.auth.rate-limit.window-seconds:60}") int windowSeconds,
+            ApplicationEventPublisher eventPublisher) {
+        this.maxAttempts    = maxAttempts;
+        this.windowMs       = windowSeconds * 1000L;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getServletPath().startsWith("/api/v1/auth/");
+        return !ADMIN_LOGIN_PATH.equals(request.getServletPath());
     }
 
     @Override
@@ -55,7 +61,8 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         });
 
         if (state[1] > maxAttempts) {
-            log.warn("[AUTH-RL] Rate limit exceeded ip={} attempts={}", ip, state[1]);
+            log.error("[AUTH-RL] Admin login brute-force detected ip={} attempts={}", ip, state[1]);
+            eventPublisher.publishEvent(new BruteForceAlertEvent(this, ip, state[1], request.getServletPath()));
             response.setContentType("application/json;charset=UTF-8");
             response.setStatus(429);
             response.getWriter().write(
