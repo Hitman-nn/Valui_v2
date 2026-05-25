@@ -5,6 +5,7 @@ import com.valui.bot.handler.CommandHandler;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
+import com.valui.bot.listener.ParserAvailabilityRegistry;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.service.WizardMessageTracker;
 import com.valui.bot.state.BotState;
@@ -25,9 +26,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AddControllerHandler implements CommandHandler {
 
-    private final BotSessionService    sessionService;
-    private final BotMessageSource     messageSource;
-    private final WizardMessageTracker wizardMessageTracker;
+    private final BotSessionService         sessionService;
+    private final BotMessageSource          messageSource;
+    private final WizardMessageTracker      wizardMessageTracker;
+    private final ParserAvailabilityRegistry availabilityRegistry;
 
     @Override
     public String command() { return "/add"; }
@@ -46,7 +48,9 @@ public class AddControllerHandler implements CommandHandler {
 
         var kb = InlineKeyboardBuilder.create().columns(2);
         for (String bm : allBk) {
-            kb.button(bm, CallbackData.bookmakerSelect(bm));
+            BookmakerType type = BookmakerType.valueOf(bm);
+            String label = availabilityRegistry.isUnavailable(type) ? "⚠️ " + bm : bm;
+            kb.button(label, CallbackData.bookmakerSelect(bm));
         }
 
         sessionService.setStateWithContext(ctx.fromId(), BotState.SELECTING_BOOKMAKER, new HashMap<>());

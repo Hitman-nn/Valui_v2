@@ -8,6 +8,7 @@ import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.KeyboardButton;
 import com.valui.bot.keyboard.PagedKeyboardBuilder;
+import com.valui.bot.listener.ParserAvailabilityRegistry;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.service.WizardCacheService;
 import com.valui.bot.state.BotState;
@@ -31,11 +32,12 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class BookmakerSelectCallback implements CallbackHandler {
 
-    private final BotSessionService    sessionService;
-    private final BotMessageSource     messageSource;
-    private final ParserFactory        parserFactory;
-    private final WizardCacheService   wizardCache;
-    private final BotWizardProperties  wizardProps;
+    private final BotSessionService         sessionService;
+    private final BotMessageSource          messageSource;
+    private final ParserFactory             parserFactory;
+    private final WizardCacheService        wizardCache;
+    private final BotWizardProperties       wizardProps;
+    private final ParserAvailabilityRegistry availabilityRegistry;
 
     private static final List<String> PRIORITY_KEYWORDS =
             List.of("футбол", "теннис", "хоккей", "баскетбол");
@@ -58,9 +60,24 @@ public class BookmakerSelectCallback implements CallbackHandler {
             return;
         }
 
+        BookmakerType bookmakerType;
+        try {
+            bookmakerType = BookmakerType.valueOf(bookmakerCode.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                "❌ Не удалось загрузить данные. Попробуйте ещё раз.");
+            return;
+        }
+
+        if (availabilityRegistry.isUnavailable(bookmakerType)) {
+            MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                "⚠️ " + bookmakerType.name() + " временно недоступна. Попробуйте позже.");
+            return;
+        }
+
         BookmakerParser parser;
         try {
-            parser = parserFactory.getParser(BookmakerType.valueOf(bookmakerCode.toUpperCase()));
+            parser = parserFactory.getParser(bookmakerType);
         } catch (Exception e) {
             MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
                 "❌ Не удалось загрузить данные. Попробуйте ещё раз.");

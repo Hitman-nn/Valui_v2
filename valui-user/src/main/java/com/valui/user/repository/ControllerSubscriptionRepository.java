@@ -1,5 +1,6 @@
 package com.valui.user.repository;
 
+import com.valui.common.domain.BookmakerType;
 import com.valui.common.entity.ControllerSubscriptionEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -56,6 +57,16 @@ public interface ControllerSubscriptionRepository
 
     @Query("SELECT DISTINCT s.chatId FROM ControllerSubscriptionEntity s WHERE s.telegramId = :telegramId AND s.chatId < 0 AND s.isMuted = false AND s.pausedByTokens = false")
     List<Long> findActiveGroupChatIdsByTelegramId(@Param("telegramId") Long telegramId);
+
+    /** All distinct chatIds with at least one active (not muted, not token-paused) subscription for the given bookmaker. */
+    @Query("""
+           SELECT DISTINCT s.chatId FROM ControllerSubscriptionEntity s
+           JOIN ControllerEntity c ON c.id = s.controllerId
+           WHERE c.bookmaker = :bookmaker
+             AND c.isActive = true AND c.pausedByTokens = false
+             AND s.isMuted = false AND s.pausedByTokens = false
+           """)
+    List<Long> findActiveChatIdsByBookmaker(@Param("bookmaker") BookmakerType bookmaker);
 
     @Query("SELECT s.chatId FROM ControllerSubscriptionEntity s WHERE s.telegramId = :telegramId AND s.chatId < 0 GROUP BY s.chatId ORDER BY COUNT(s.controllerId) DESC")
     List<Long> findGroupChatIdsSortedByControllerCount(@Param("telegramId") Long telegramId);

@@ -7,6 +7,7 @@ import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
 import com.valui.bot.keyboard.menu.MainMenuKeyboard;
+import com.valui.bot.listener.ParserAvailabilityRegistry;
 import com.valui.bot.service.BotSessionService;
 import com.valui.bot.service.WizardCacheService;
 import com.valui.bot.service.WizardMessageTracker;
@@ -37,20 +38,22 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class WizardBackNavigator {
 
-    private final BotSessionService      sessionService;
-    private final BotMessageSource       messageSource;
-    private final ControllerService      controllerService;
-    private final ParserFactory          parserFactory;
-    private final WizardCacheService     wizardCache;
-    private final BotWizardProperties    wizardProps;
-    private final BotProperties          botProperties;
-    private final WizardMessageTracker   tracker;
+    private final BotSessionService         sessionService;
+    private final BotMessageSource          messageSource;
+    private final ControllerService         controllerService;
+    private final ParserFactory             parserFactory;
+    private final WizardCacheService        wizardCache;
+    private final BotWizardProperties       wizardProps;
+    private final BotProperties             botProperties;
+    private final WizardMessageTracker      tracker;
+    private final ParserAvailabilityRegistry availabilityRegistry;
 
     public void returnToBookmakerSelection(AbsSender sender, long fromId, long chatId, int messageId) {
         sessionService.setStateWithContext(fromId, BotState.SELECTING_BOOKMAKER, new HashMap<>());
         var kb = InlineKeyboardBuilder.create().columns(2);
-        for (com.valui.common.domain.BookmakerType bm : com.valui.common.domain.BookmakerType.values()) {
-            kb.button(bm.name(), CallbackData.bookmakerSelect(bm.name()));
+        for (BookmakerType bm : BookmakerType.values()) {
+            String label = availabilityRegistry.isUnavailable(bm) ? "⚠️ " + bm.name() : bm.name();
+            kb.button(label, CallbackData.bookmakerSelect(bm.name()));
         }
         tracker.replaceAndTrack(sender, chatId, messageId,
                 messageSource.getMessage("wizard.select_bookmaker", fromId),
