@@ -244,26 +244,35 @@ public class PrintCallback implements CallbackHandler {
         List<BetAccountTransactionDto> txs = accountService.getTransactions(accountId, personId, ctx.chatId());
         Set<String> selected = loadSelected(ctx);
 
-        // Merge, filter by selected, sort by date
-        List<PrintItem> all = new ArrayList<>();
+        // Build full list (for computing balance-before), then filter to selected
+        List<PrintItem> allItems = new ArrayList<>();
         for (BetDto b : bets) {
-            if (b.status() != BetStatus.CANCELLED) {
-                String key = "B:" + b.id();
-                if (selected.contains(key)) all.add(new PrintItem("B", b.id().toString(), b.createdAt(), formatBetLine(b, personId), calcBetPnl(b, personId)));
-            }
+            if (b.status() != BetStatus.CANCELLED)
+                allItems.add(new PrintItem("B", b.id().toString(), b.createdAt(), formatBetLine(b, personId), calcBetPnl(b, personId)));
         }
         for (BetAccountTransactionDto tx : txs) {
-            String key = "X:" + tx.id();
-            if (selected.contains(key)) all.add(new PrintItem("X", tx.id().toString(), tx.createdAt(), formatTxLine(tx), tx.amount()));
+            allItems.add(new PrintItem("X", tx.id().toString(), tx.createdAt(), formatTxLine(tx), tx.amount()));
         }
-        all.sort(Comparator.comparing(PrintItem::date));
+        allItems.sort(Comparator.comparing(PrintItem::date));
+
+        List<PrintItem> all = allItems.stream()
+                .filter(item -> selected.contains(item.type() + ":" + item.id()))
+                .toList();
 
         if (all.isEmpty()) {
             MessageSend.answerCallback(ctx.sender(), ctx.update().getCallbackQuery().getId());
             return;
         }
 
-        // Get person name and balance
+        // Sum of all items strictly before the first selected item
+        OffsetDateTime firstDate = all.get(0).date();
+        BigDecimal balanceBefore = BigDecimal.ZERO;
+        for (PrintItem item : allItems) {
+            if (!item.date().isBefore(firstDate)) break;
+            balanceBefore = balanceBefore.add(item.pnl());
+        }
+
+        // Get person name and current account balance
         String personName = bets.stream()
                 .flatMap(b -> b.participants().stream())
                 .filter(p -> p.personId() != null && p.personId().equals(personId))
@@ -276,10 +285,9 @@ public class PrintCallback implements CallbackHandler {
                 .findFirst().orElse(BigDecimal.ZERO);
 
         StringBuilder sb = new StringBuilder();
-        BigDecimal running = BigDecimal.ZERO;
+        sb.append(fmtK(balanceBefore)).append("\n");
         for (PrintItem item : all) {
-            sb.append(fmtK(running)).append(" → ").append(item.label()).append("\n");
-            running = running.add(item.pnl());
+            sb.append(item.label()).append("\n");
         }
         sb.append("—\n");
         sb.append(fmtK(balance)).append(" ").append(escape(personName));
