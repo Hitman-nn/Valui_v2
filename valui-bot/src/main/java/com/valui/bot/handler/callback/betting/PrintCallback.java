@@ -276,8 +276,10 @@ public class PrintCallback implements CallbackHandler {
                 .findFirst().orElse(BigDecimal.ZERO);
 
         StringBuilder sb = new StringBuilder();
+        BigDecimal running = BigDecimal.ZERO;
         for (PrintItem item : all) {
-            sb.append(item.label()).append("\n");
+            sb.append(fmtK(running)).append(" → ").append(item.label()).append("\n");
+            running = running.add(item.pnl());
         }
         sb.append("—\n");
         sb.append(fmtK(balance)).append(" ").append(escape(personName));
