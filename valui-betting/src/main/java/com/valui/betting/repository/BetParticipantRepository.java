@@ -14,6 +14,8 @@ public interface BetParticipantRepository extends JpaRepository<BetParticipantEn
 
     List<BetParticipantEntity> findAllByBetId(UUID betId);
 
+    boolean existsByTelegramIdAndBet_ChatId(Long telegramId, Long chatId);
+
     /**
      * Returns distinct (telegramId, displayName) pairs for all participants in bets
      * placed in the given chat. Uses MAX(displayName) to pick any non-null name per ID.

@@ -164,6 +164,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         long returned = active.stream().filter(b -> b.getStatus() == BetStatus.RETURNED).count();
 
         BigDecimal staked = active.stream()
+                .filter(b -> b.getStatus() != BetStatus.OPEN)
                 .map(b -> participantStake(b, personId))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 

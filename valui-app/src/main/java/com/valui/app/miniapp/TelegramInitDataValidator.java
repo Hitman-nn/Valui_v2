@@ -83,8 +83,11 @@ public class TelegramInitDataValidator {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No id in user object");
         }
         int colon = userJson.indexOf(':', idIdx);
-        int comma = userJson.indexOf(',', colon);
         int brace = userJson.indexOf('}', colon);
+        if (colon < 0 || brace < 0) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Malformed user object");
+        }
+        int comma = userJson.indexOf(',', colon);
         int end   = comma > 0 && comma < brace ? comma : brace;
         String idStr = userJson.substring(colon + 1, end).trim().replace("\"", "");
         try {

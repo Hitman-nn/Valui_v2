@@ -111,7 +111,7 @@ public interface BetRepository extends JpaRepository<BetEntity, UUID> {
                                                    @Param("from") OffsetDateTime from,
                                                    @Param("to") OffsetDateTime to);
 
-    @Query("SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.participants p LEFT JOIN FETCH p.person WHERE p.person.id = :pid AND b.chatId = :chatId AND b.createdAt BETWEEN :from AND :to")
+    @Query("SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.participants p LEFT JOIN FETCH p.person WHERE b.id IN (SELECT DISTINCT b2.id FROM BetEntity b2 JOIN b2.participants p2 WHERE p2.person.id = :pid AND b2.chatId = :chatId AND b2.createdAt BETWEEN :from AND :to)")
     List<BetEntity> findWithParticipantsByPersonIdBetween(@Param("pid") UUID personId,
                                                           @Param("chatId") Long chatId,
                                                           @Param("from") OffsetDateTime from,

@@ -4,6 +4,7 @@ import com.valui.betting.dto.BetAccountDto;
 import com.valui.betting.dto.BetPersonDto;
 import com.valui.betting.dto.analytics.AnalyticsResponse;
 import com.valui.betting.repository.BetAccountRepository;
+import com.valui.betting.repository.BetParticipantRepository;
 import com.valui.betting.repository.BetPersonRepository;
 import com.valui.betting.repository.BetRepository;
 import com.valui.betting.service.AnalyticsService;
@@ -27,6 +28,7 @@ public class MiniAppController {
 
     private final TelegramInitDataValidator validator;
     private final BetRepository             betRepository;
+    private final BetParticipantRepository  participantRepository;
     private final BetAccountRepository      accountRepository;
     private final BetPersonRepository       personRepository;
     private final AnalyticsService          analyticsService;
@@ -79,9 +81,10 @@ public class MiniAppController {
     private void assertChatAccess(long userId, long chatId) {
         // Private chat: chatId == telegramId — always has access
         if (userId == chatId) return;
-        // Group chat: verify the user has placed bets in this chat
-        if (!betRepository.existsByTelegramIdAndChatId(userId, chatId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No access to chatId " + chatId);
-        }
+        // Group chat: user created at least one bet in this chat
+        if (betRepository.existsByTelegramIdAndChatId(userId, chatId)) return;
+        // Or user is a participant (BetPerson) in a bet in this chat
+        if (participantRepository.existsByTelegramIdAndBet_ChatId(userId, chatId)) return;
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No access to chatId " + chatId);
     }
 }
