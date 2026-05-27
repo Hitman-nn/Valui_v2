@@ -27,7 +27,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BetListCallback implements CallbackHandler {
 
-    private static final int PAGE_SIZE = 5;
+    private static final int PAGE_SIZE = 10;
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd.MM.yy");
 
     private final BettingService bettingService;
@@ -77,9 +77,18 @@ public class BetListCallback implements CallbackHandler {
 
         StringBuilder sb = new StringBuilder(title).append("\n\n");
         for (BetDto bet : bets) {
-            sb.append(statusEmoji(bet.status())).append(" ")
-              .append(escape(bet.mainTitle())).append(" @ ")
-              .append(bet.totalOdds().setScale(2, RoundingMode.HALF_UP))
+            sb.append(statusEmoji(bet.status())).append(" ");
+            if (bet.slips().size() <= 1) {
+                sb.append(escape(bet.mainTitle()));
+            } else {
+                // Express: show all legs
+                for (int i = 0; i < bet.slips().size(); i++) {
+                    if (i > 0) sb.append(" / ");
+                    sb.append(escape(bet.slips().get(i).matchTitle()));
+                }
+                sb.append(" *(э)*");
+            }
+            sb.append(" @ ").append(bet.totalOdds().setScale(2, RoundingMode.HALF_UP))
               .append(" — ").append(bet.totalStake().setScale(0, RoundingMode.HALF_UP)).append(" ₽")
               .append(" [").append(bet.createdAt().format(FMT)).append("]\n");
         }

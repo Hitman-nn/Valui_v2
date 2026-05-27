@@ -1,6 +1,7 @@
 package com.valui.betting.service;
 
 import com.valui.betting.dto.BetAccountDto;
+import com.valui.betting.dto.BetAccountTransactionDto;
 import com.valui.betting.dto.BetPersonBalanceDto;
 
 import java.math.BigDecimal;
@@ -26,4 +27,10 @@ public interface BetAccountService {
 
     /** Returns the sum of all person balances in an account. */
     java.math.BigDecimal getTotalBalance(UUID accountId, long chatId);
+
+    /** Records a single deposit (positive) or withdrawal (negative) transaction. */
+    void recordTransaction(UUID accountId, UUID personId, long chatId, BigDecimal amount);
+
+    /** Returns all transactions for a person in an account, sorted by date ASC. */
+    List<BetAccountTransactionDto> getTransactions(UUID accountId, UUID personId, long chatId);
 }

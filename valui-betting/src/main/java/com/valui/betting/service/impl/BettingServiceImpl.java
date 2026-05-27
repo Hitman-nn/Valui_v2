@@ -275,6 +275,19 @@ public class BettingServiceImpl implements BettingService {
         return page.map(BetDto::from);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<BetDto> listBetsForPrint(UUID accountId, UUID personId, long chatId) {
+        List<UUID> accountIds = List.of(accountId);
+        List<UUID> personIds  = List.of(personId);
+        OffsetDateTime from = OffsetDateTime.of(2000, 1, 1, 0, 0, 0, 0, java.time.ZoneOffset.UTC);
+        OffsetDateTime to   = OffsetDateTime.now(java.time.ZoneOffset.UTC).plusYears(10);
+        // Two-query L1 cache pattern: prime participants, then return slips
+        betRepo.findWithParticipantsByAccountIdsAndPersonIdsAndBetween(accountIds, personIds, from, to);
+        return betRepo.findWithSlipsByAccountIdsAndPersonIdsAndBetween(accountIds, personIds, from, to)
+                .stream().map(BetDto::from).toList();
+    }
+
     // ── stats ─────────────────────────────────────────────────────────────────
 
     @Override

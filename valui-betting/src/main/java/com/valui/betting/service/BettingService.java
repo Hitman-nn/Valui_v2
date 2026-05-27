@@ -29,6 +29,9 @@ public interface BettingService {
 
     Page<BetDto> listBets(long chatId, BetStatus statusFilter, Pageable pageable);
 
+    /** All bets for a person on an account, sorted by createdAt ASC, with slips and participants loaded. */
+    List<BetDto> listBetsForPrint(UUID accountId, UUID personId, long chatId);
+
     BetStatsDto getStats(long chatId);
 
     BetAccountStatsDto getAccountStats(UUID accountId, long chatId);

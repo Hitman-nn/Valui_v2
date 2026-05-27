@@ -204,6 +204,21 @@ public final class CallbackData {
     public static final String TOPUP_CURRENCY_PREFIX = "TOPUP:CUR:";
     public static String topupCurrency(String currency) { return TOPUP_CURRENCY_PREFIX + currency; }
 
+    // ─── Print (PrintCallback: PRINT:) ───────────────────────────────────────
+    public static final String PRINT_MENU     = "PRINT:MENU";
+    public static final String PRINT_GO       = "PRINT:GO";
+    public static final String PRINT_SEL_ALL  = "PRINT:ALL";
+    public static final String PRINT_ACCT_PREFIX  = "PRINT:A:";   // PRINT:A:{accountId}
+    public static final String PRINT_PERS_PREFIX  = "PRINT:P:";   // PRINT:P:{personId}
+    public static final String PRINT_TOGGLE_PREFIX = "PRINT:T:";  // PRINT:T:B:{betId} or PRINT:T:X:{txId}
+    public static final String PRINT_PAGE_PREFIX   = "PRINT:PG:"; // PRINT:PG:{n}
+
+    public static String printAcct(String id)         { return PRINT_ACCT_PREFIX + id; }
+    public static String printPers(String id)         { return PRINT_PERS_PREFIX + id; }
+    public static String printToggleBet(String id)    { return PRINT_TOGGLE_PREFIX + "B:" + id; }
+    public static String printToggleTx(String id)     { return PRINT_TOGGLE_PREFIX + "X:" + id; }
+    public static String printPage(int n)              { return PRINT_PAGE_PREFIX + n; }
+
     // ─── Pagination ───────────────────────────────────────────────────────────
     public static String page(String listKey, int pageNum) { return "PAGE:" + listKey + ":" + pageNum; }
     public static String betListPage(boolean openOnly, int pageNum) {

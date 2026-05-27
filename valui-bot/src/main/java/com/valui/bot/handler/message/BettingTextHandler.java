@@ -234,9 +234,15 @@ public class BettingTextHandler implements BotUpdateHandler {
             UUID accountId = UUID.fromString(accountIdStr);
             UUID personId  = UUID.fromString(personIdStr);
             switch (op) {
-                case "ADD" -> accountService.adjustPersonBalance(accountId, personId, ctx.chatId(), amount);
-                case "SUB" -> accountService.adjustPersonBalance(accountId, personId, ctx.chatId(), amount.negate());
-                default    -> accountService.setPersonBalance(accountId, personId, ctx.chatId(), amount);
+                case "ADD" -> {
+                    accountService.adjustPersonBalance(accountId, personId, ctx.chatId(), amount);
+                    accountService.recordTransaction(accountId, personId, ctx.chatId(), amount);
+                }
+                case "SUB" -> {
+                    accountService.adjustPersonBalance(accountId, personId, ctx.chatId(), amount.negate());
+                    accountService.recordTransaction(accountId, personId, ctx.chatId(), amount.negate());
+                }
+                default -> accountService.setPersonBalance(accountId, personId, ctx.chatId(), amount);
             }
             sessionService.setStateAndMergeContext(ctx.fromId(), BotState.IDLE, Map.of());
             replaceWizardViaCallback(ctx);

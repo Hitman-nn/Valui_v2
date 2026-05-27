@@ -66,6 +66,13 @@ public class UserBotSession {
     public static final String CTX_ACCT_EDIT_PERSON_ID  = "acctEditPersonId"; // UUID of person being linked/edited in account
     public static final String CTX_ACCT_EDIT_OP         = "acctEditOp";       // "SET" | "ADD" | "SUB"
 
+    // ── Print wizard ──────────────────────────────────────────────────────────
+    public static final String CTX_PRINT_ACCOUNT_ID = "printAccountId"; // UUID of selected account
+    public static final String CTX_PRINT_PERSON_ID  = "printPersonId";  // UUID of selected person
+    public static final String CTX_PRINT_SELECTED   = "printSelected";  // JSON array of "B:uuid" / "X:uuid"
+    public static final String CTX_PRINT_PAGE       = "printPage";      // current page (int as string)
+    public static final String CTX_PRINT_MSG        = "printMsg";       // message ID for wizard
+
     // ── Controller event search keys ──────────────────────────────────────────
     public static final String CTX_EVT_SEARCH_CTRL_ID  = "evtSearchCtrlId"; // UUID of controller being searched
     public static final String CTX_EVT_SEARCH_QUERY    = "evtSearchQuery";  // last search query (for pagination)

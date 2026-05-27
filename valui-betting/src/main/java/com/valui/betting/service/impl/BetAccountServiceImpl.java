@@ -1,12 +1,15 @@
 package com.valui.betting.service.impl;
 
 import com.valui.betting.dto.BetAccountDto;
+import com.valui.betting.dto.BetAccountTransactionDto;
 import com.valui.betting.dto.BetPersonBalanceDto;
 import com.valui.betting.repository.BetAccountRepository;
+import com.valui.betting.repository.BetAccountTransactionRepository;
 import com.valui.betting.repository.BetPersonBalanceRepository;
 import com.valui.betting.repository.BetPersonRepository;
 import com.valui.betting.service.BetAccountService;
 import com.valui.common.entity.BetAccountEntity;
+import com.valui.common.entity.BetAccountTransactionEntity;
 import com.valui.common.entity.BetPersonBalanceEntity;
 import com.valui.common.entity.BetPersonEntity;
 import lombok.RequiredArgsConstructor;
@@ -26,9 +29,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class BetAccountServiceImpl implements BetAccountService {
 
-    private final BetAccountRepository      repo;
-    private final BetPersonRepository       personRepo;
-    private final BetPersonBalanceRepository balanceRepo;
+    private final BetAccountRepository           repo;
+    private final BetPersonRepository            personRepo;
+    private final BetPersonBalanceRepository     balanceRepo;
+    private final BetAccountTransactionRepository txRepo;
 
     @Override
     @Transactional
@@ -128,6 +132,29 @@ public class BetAccountServiceImpl implements BetAccountService {
     public java.math.BigDecimal getTotalBalance(UUID accountId, long chatId) {
         requireAccount(accountId, chatId);
         return balanceRepo.sumBalanceByAccountId(accountId);
+    }
+
+    @Override
+    @Transactional
+    public void recordTransaction(UUID accountId, UUID personId, long chatId, BigDecimal amount) {
+        BetAccountEntity account = requireAccount(accountId, chatId);
+        BetPersonEntity person = personRepo.findById(personId)
+                .filter(p -> p.getChatId().equals(chatId))
+                .orElseThrow(() -> new NoSuchElementException("Участник не найден"));
+        txRepo.save(BetAccountTransactionEntity.builder()
+                .account(account)
+                .person(person)
+                .amount(amount)
+                .createdAt(OffsetDateTime.now())
+                .build());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BetAccountTransactionDto> getTransactions(UUID accountId, UUID personId, long chatId) {
+        requireAccount(accountId, chatId);
+        return txRepo.findByAccountAndPerson(accountId, personId)
+                .stream().map(BetAccountTransactionDto::from).toList();
     }
 
     private BetAccountEntity requireAccount(UUID accountId, long chatId) {

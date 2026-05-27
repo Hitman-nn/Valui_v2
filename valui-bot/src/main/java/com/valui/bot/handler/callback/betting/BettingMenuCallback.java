@@ -120,7 +120,8 @@ public class BettingMenuCallback implements CallbackHandler {
                 .button("🎰 Экспресс",        CallbackData.BET_NEW_EXPRESS).row()
                 .button("📋 Открытые ставки", CallbackData.BET_LIST_OPEN)
                 .button("📚 Все ставки",      CallbackData.BET_LIST_ALL).row()
-                .button("📊 Статистика",      CallbackData.BET_STAT).row()
+                .button("📊 Статистика",      CallbackData.BET_STAT)
+                .button("🖨 Печать",          CallbackData.PRINT_MENU).row()
                 .button("💰 Счета",           CallbackData.ACCT_LIST)
                 .button("👥 Участники",       CallbackData.PERS_LIST).row();
         // WebApp-кнопки работают только в личке (chatId > 0)
