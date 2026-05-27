@@ -143,6 +143,9 @@ valui:
     # a new notification. Set to 0 to disable.
     dedup-ttl-minutes: ${NOTIFICATIONS_DEDUP_TTL_MINUTES:60}
 
+  miniapp:
+    url: ${MINIAPP_URL:}
+
   bot:
     token: ${TELEGRAM_BOT_TOKEN:change-me}
     username: ${TELEGRAM_BOT_USERNAME:ValuiForRelease_bot}

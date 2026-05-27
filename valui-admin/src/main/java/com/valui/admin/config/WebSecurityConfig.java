@@ -6,6 +6,7 @@ import com.valui.admin.auth.jwt.JwtProperties;
 import com.valui.admin.security.CurrentUserArgumentResolver;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +19,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -29,12 +33,16 @@ import java.util.List;
 @RequiredArgsConstructor
 public class WebSecurityConfig implements WebMvcConfigurer {
 
-    private final JwtAuthenticationFilter jwtAuthFilter;
-    private final CurrentUserArgumentResolver currentUserArgumentResolver;
+    private final JwtAuthenticationFilter       jwtAuthFilter;
+    private final CurrentUserArgumentResolver   currentUserArgumentResolver;
+
+    @Value("${valui.miniapp.url:}")
+    private String miniAppUrl;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
+            .cors(c -> c.configurationSource(corsConfigurationSource()))
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
@@ -43,6 +51,8 @@ public class WebSecurityConfig implements WebMvcConfigurer {
                 .requestMatchers("/api/v1/payment/webhook").permitAll()
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                // Mini App: custom auth via Telegram initData (validated in controller)
+                .requestMatchers("/api/miniapp/**").permitAll()
                 // Admin-only
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 // Everything else requires a valid JWT
@@ -66,6 +76,20 @@ public class WebSecurityConfig implements WebMvcConfigurer {
                 })
             )
             .build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration cors = new CorsConfiguration();
+        // Allow admin-ui dev server and Mini App origin
+        cors.setAllowedOriginPatterns(List.of("http://localhost:*", "https://localhost:*",
+                miniAppUrl.isBlank() ? "https://*.telegram.org" : miniAppUrl));
+        cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        cors.setAllowedHeaders(List.of("*"));
+        cors.setAllowCredentials(true);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", cors);
+        return source;
     }
 
     /** Registers @CurrentUser ValuiPrincipal injection in controller methods. */

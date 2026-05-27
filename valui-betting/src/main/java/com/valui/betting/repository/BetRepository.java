@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -94,4 +95,25 @@ public interface BetRepository extends JpaRepository<BetEntity, UUID> {
 
     @Query("SELECT COALESCE(SUM(p.profitShare * b.actualPayout), 0) FROM BetParticipantEntity p JOIN p.bet b WHERE p.person.id = :pid AND b.chatId = :chatId AND b.status IN ('WON', 'RETURNED')")
     BigDecimal sumPayoutByPersonId(@Param("pid") UUID personId, @Param("chatId") Long chatId);
+
+    boolean existsByTelegramIdAndChatId(Long telegramId, Long chatId);
+
+    // ── Analytics queries ─────────────────────────────────────────────────────
+
+    @Query("SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.slips WHERE b.account.id = :aid AND b.createdAt BETWEEN :from AND :to ORDER BY b.createdAt")
+    List<BetEntity> findWithSlipsByAccountIdBetween(@Param("aid") UUID accountId,
+                                                    @Param("from") OffsetDateTime from,
+                                                    @Param("to") OffsetDateTime to);
+
+    @Query("SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.slips JOIN b.participants p WHERE p.person.id = :pid AND b.chatId = :chatId AND b.createdAt BETWEEN :from AND :to ORDER BY b.createdAt")
+    List<BetEntity> findWithSlipsByPersonIdBetween(@Param("pid") UUID personId,
+                                                   @Param("chatId") Long chatId,
+                                                   @Param("from") OffsetDateTime from,
+                                                   @Param("to") OffsetDateTime to);
+
+    @Query("SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.participants p LEFT JOIN FETCH p.person WHERE p.person.id = :pid AND b.chatId = :chatId AND b.createdAt BETWEEN :from AND :to")
+    List<BetEntity> findWithParticipantsByPersonIdBetween(@Param("pid") UUID personId,
+                                                          @Param("chatId") Long chatId,
+                                                          @Param("from") OffsetDateTime from,
+                                                          @Param("to") OffsetDateTime to);
 }

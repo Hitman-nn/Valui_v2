@@ -16,7 +16,8 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class BetCommandHandler implements CommandHandler {
 
-    private final BotSessionService sessionService;
+    private final BotSessionService  sessionService;
+    private final BettingMenuCallback bettingMenu;
 
     @Override
     public String command() { return "/bet"; }
@@ -29,7 +30,7 @@ public class BetCommandHandler implements CommandHandler {
         sessionService.clearSession(ctx.fromId());
         int id = MessageSend.sendMarkdownGetId(ctx.sender(), ctx.chatId(),
                 BettingMenuCallback.buildMenuText(ctx),
-                BettingMenuCallback.buildMenuKeyboard());
+                bettingMenu.buildMenuKeyboard(ctx.chatId()));
         if (id > 0) ctx.tracker().track(ctx.chatId(), id);
     }
 }

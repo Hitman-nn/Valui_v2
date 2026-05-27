@@ -20,6 +20,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -38,12 +39,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class BettingMenuCallback implements CallbackHandler {
 
-    private final BotSessionService  sessionService;
-    private final BettingService     bettingService;
-    private final BetAccountService  accountService;
-    private final BetPersonService   personService;
-    private final ObjectMapper       objectMapper;
+    private final BotSessionService   sessionService;
+    private final BettingService      bettingService;
+    private final BetAccountService   accountService;
+    private final BetPersonService    personService;
+    private final ObjectMapper        objectMapper;
     private final PreMatchOddsService preMatchOddsService;
+
+    @Value("${valui.miniapp.url:}")
+    private String miniAppUrl;
 
     @Override
     public String callbackPrefix() { return "BET:"; }
@@ -103,23 +107,26 @@ public class BettingMenuCallback implements CallbackHandler {
         MessageSend.answerCallback(ctx.sender(), callbackId);
         sessionService.clearSession(ctx.fromId());
         MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-                buildMenuText(ctx), buildMenuKeyboard());
+                buildMenuText(ctx), buildMenuKeyboard(ctx.chatId()));
     }
 
     public static String buildMenuText(BotUpdateContext ctx) {
         return "💸 *Журнал ставок*\n\nВыберите действие:";
     }
 
-    public static org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup buildMenuKeyboard() {
-        return InlineKeyboardBuilder.create()
+    public org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup buildMenuKeyboard(long chatId) {
+        InlineKeyboardBuilder kb = InlineKeyboardBuilder.create()
                 .button("💸 Новая ставка",    CallbackData.BET_NEW_SINGLE)
                 .button("🎰 Экспресс",        CallbackData.BET_NEW_EXPRESS).row()
                 .button("📋 Открытые ставки", CallbackData.BET_LIST_OPEN)
                 .button("📚 Все ставки",      CallbackData.BET_LIST_ALL).row()
                 .button("📊 Статистика",      CallbackData.BET_STAT).row()
                 .button("💰 Счета",           CallbackData.ACCT_LIST)
-                .button("👥 Участники",       CallbackData.PERS_LIST).row()
-                .build();
+                .button("👥 Участники",       CallbackData.PERS_LIST).row();
+        if (miniAppUrl != null && !miniAppUrl.isBlank()) {
+            kb.webAppButton("📈 Аналитика", miniAppUrl + "?chatId=" + chatId).row();
+        }
+        return kb.build();
     }
 
     // ── New single bet ────────────────────────────────────────────────────────
@@ -638,7 +645,7 @@ public class BettingMenuCallback implements CallbackHandler {
             MessageSend.answerCallback(ctx.sender(), callbackId);
             sessionService.clearSession(ctx.fromId());
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-                    buildMenuText(ctx), buildMenuKeyboard());
+                    buildMenuText(ctx), buildMenuKeyboard(ctx.chatId()));
         } catch (Exception e) {
             log.warn("[BET] deleteBet failed id={}: {}", betIdStr, e.getMessage());
             MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, "❌ " + e.getMessage());
@@ -668,7 +675,7 @@ public class BettingMenuCallback implements CallbackHandler {
         MessageSend.answerCallback(ctx.sender(), callbackId);
         sessionService.clearSession(ctx.fromId());
         MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-                buildMenuText(ctx), buildMenuKeyboard());
+                buildMenuText(ctx), buildMenuKeyboard(ctx.chatId()));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
