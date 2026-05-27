@@ -264,14 +264,6 @@ public class PrintCallback implements CallbackHandler {
             return;
         }
 
-        // Sum of all items strictly before the first selected item
-        OffsetDateTime firstDate = all.get(0).date();
-        BigDecimal balanceBefore = BigDecimal.ZERO;
-        for (PrintItem item : allItems) {
-            if (!item.date().isBefore(firstDate)) break;
-            balanceBefore = balanceBefore.add(item.pnl());
-        }
-
         // Get person name and current account balance
         String personName = bets.stream()
                 .flatMap(b -> b.participants().stream())
@@ -283,6 +275,10 @@ public class PrintCallback implements CallbackHandler {
                 .filter(b -> b.personId().equals(personId))
                 .map(BetPersonBalanceDto::balance)
                 .findFirst().orElse(BigDecimal.ZERO);
+
+        // balance_before = current_balance - sum(selected) → balance_before + selected = current_balance
+        BigDecimal selectedSum = all.stream().map(PrintItem::pnl).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal balanceBefore = balance.subtract(selectedSum);
 
         StringBuilder sb = new StringBuilder();
         sb.append(fmtK(balanceBefore)).append("\n");
