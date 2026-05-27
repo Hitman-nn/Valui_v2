@@ -276,12 +276,7 @@ public class PrintCallback implements CallbackHandler {
                 .map(BetPersonBalanceDto::balance)
                 .findFirst().orElse(BigDecimal.ZERO);
 
-        // balance_before = current_balance - sum(selected) → balance_before + selected = current_balance
-        BigDecimal selectedSum = all.stream().map(PrintItem::pnl).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal balanceBefore = balance.subtract(selectedSum);
-
         StringBuilder sb = new StringBuilder();
-        sb.append(fmtK(balanceBefore)).append("\n");
         for (PrintItem item : all) {
             sb.append(item.label()).append("\n");
         }
