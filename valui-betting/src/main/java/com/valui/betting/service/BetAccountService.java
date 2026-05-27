@@ -31,6 +31,9 @@ public interface BetAccountService {
     /** Records a single deposit (positive) or withdrawal (negative) transaction. */
     void recordTransaction(UUID accountId, UUID personId, long chatId, BigDecimal amount);
 
+    /** Adjusts balance and records the transaction atomically in a single @Transactional. */
+    void adjustAndRecord(UUID accountId, UUID personId, long chatId, BigDecimal delta);
+
     /** Returns all transactions for a person in an account, sorted by date ASC. */
     List<BetAccountTransactionDto> getTransactions(UUID accountId, UUID personId, long chatId);
 }

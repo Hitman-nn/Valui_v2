@@ -98,9 +98,6 @@ public interface BetRepository extends JpaRepository<BetEntity, UUID> {
 
     boolean existsByTelegramIdAndChatId(Long telegramId, Long chatId);
 
-    @Query("SELECT DISTINCT b.chatId FROM BetEntity b WHERE b.telegramId = :tid ORDER BY b.chatId")
-    List<Long> findDistinctChatIdsByTelegramId(@Param("tid") Long telegramId);
-
     // ── Analytics queries ─────────────────────────────────────────────────────
 
     @Query("SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.slips WHERE b.account.id = :aid AND b.createdAt BETWEEN :from AND :to ORDER BY b.createdAt")

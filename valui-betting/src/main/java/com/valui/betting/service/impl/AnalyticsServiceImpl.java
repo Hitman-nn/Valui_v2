@@ -33,7 +33,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         if (hasPersonFilter) {
             // Admin: bets on selected accounts where selected persons participated
             effectivePersonIds = personIds;
-            betRepository.findWithParticipantsByAccountIdsAndPersonIdsAndBetween(accountIds, personIds, from, to);
+            List<BetEntity> ignored = betRepository.findWithParticipantsByAccountIdsAndPersonIdsAndBetween(accountIds, personIds, from, to);
             bets = betRepository.findWithSlipsByAccountIdsAndPersonIdsAndBetween(accountIds, personIds, from, to);
         } else if (telegramId != null) {
             // Regular user: only their own bets on selected accounts

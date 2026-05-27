@@ -176,8 +176,9 @@ public class PrintCallback implements CallbackHandler {
             String key    = item.type() + ":" + item.id();
             boolean isSel = selected.contains(key);
             String label  = (isSel ? "✅ " : "☐ ") + item.label();
-            kb.button(label, isSel ? CallbackData.printToggleBet(item.id()) : // reuse toggle, key carries type prefix
-                    (item.type().equals("B") ? CallbackData.printToggleBet(item.id()) : CallbackData.printToggleTx(item.id()))).row();
+            kb.button(label, item.type().equals("B")
+                    ? CallbackData.printToggleBet(item.id())
+                    : CallbackData.printToggleTx(item.id())).row();
         }
 
         // Navigation

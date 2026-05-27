@@ -150,6 +150,29 @@ public class BetAccountServiceImpl implements BetAccountService {
     }
 
     @Override
+    @Transactional
+    public void adjustAndRecord(UUID accountId, UUID personId, long chatId, BigDecimal delta) {
+        BetAccountEntity account = requireAccount(accountId, chatId);
+        BetPersonEntity person = personRepo.findById(personId)
+                .filter(p -> p.getChatId().equals(chatId))
+                .orElseThrow(() -> new NoSuchElementException("Участник не найден"));
+        BetPersonBalanceEntity bal = balanceRepo.findByAccountIdAndPersonId(accountId, personId)
+                .orElseGet(() -> BetPersonBalanceEntity.builder()
+                        .account(account).person(person)
+                        .balance(BigDecimal.ZERO).updatedAt(OffsetDateTime.now())
+                        .build());
+        bal.setBalance(bal.getBalance().add(delta));
+        bal.setUpdatedAt(OffsetDateTime.now());
+        balanceRepo.save(bal);
+        txRepo.save(BetAccountTransactionEntity.builder()
+                .account(account)
+                .person(person)
+                .amount(delta)
+                .createdAt(OffsetDateTime.now())
+                .build());
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<BetAccountTransactionDto> getTransactions(UUID accountId, UUID personId, long chatId) {
         requireAccount(accountId, chatId);

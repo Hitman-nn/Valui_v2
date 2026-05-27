@@ -34,8 +34,10 @@ export default function AnalyticsPage() {
   useEffect(() => {
     if (selectedAccIds.size === 0) { setPersons([]); setSelectedPerIds(new Set()); return }
     const ids = Array.from(selectedAccIds)
-    api.get<BetPersonDto[]>('/persons', { params: ids, paramsSerializer: () =>
-      ids.map(id => `accountIds=${id}`).join('&')
+    api.get<BetPersonDto[]>('/persons', {
+      params: { accountIds: ids },
+      paramsSerializer: (p: { accountIds: string[] }) =>
+        p.accountIds.map(id => `accountIds=${id}`).join('&')
     }).then(r => {
       setPersons(r.data)
       // drop person selection if they're no longer in the list

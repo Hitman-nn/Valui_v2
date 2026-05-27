@@ -16,9 +16,6 @@ public interface BetParticipantRepository extends JpaRepository<BetParticipantEn
 
     boolean existsByTelegramIdAndBet_ChatId(Long telegramId, Long chatId);
 
-    @Query("SELECT DISTINCT b.chatId FROM BetParticipantEntity p JOIN p.bet b WHERE p.telegramId = :tid ORDER BY b.chatId")
-    List<Long> findDistinctChatIdsByTelegramId(@Param("tid") Long telegramId);
-
     /**
      * Returns distinct (telegramId, displayName) pairs for all participants in bets
      * placed in the given chat. Uses MAX(displayName) to pick any non-null name per ID.

@@ -50,7 +50,7 @@ public class MiniAppController {
             @RequestHeader(INIT_DATA_HEADER) String initData,
             @RequestParam List<UUID> accountIds) {
         long userId = validator.validate(initData);
-        if (userId != adminChatId || accountIds.isEmpty()) return List.of();
+        if (adminChatId <= 0 || userId != adminChatId || accountIds.isEmpty()) return List.of();
         return personRepository.findPersonsByAccountIds(accountIds)
                 .stream().map(BetPersonDto::from).toList();
     }
@@ -69,7 +69,7 @@ public class MiniAppController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "accountIds must not be empty");
         }
 
-        boolean isAdmin = (userId == adminChatId);
+        boolean isAdmin = adminChatId > 0 && userId == adminChatId;
 
         if (personIds != null && !personIds.isEmpty() && !isAdmin) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Person filter requires admin");
