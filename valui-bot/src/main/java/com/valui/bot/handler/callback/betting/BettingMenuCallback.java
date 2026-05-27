@@ -123,8 +123,10 @@ public class BettingMenuCallback implements CallbackHandler {
                 .button("📊 Статистика",      CallbackData.BET_STAT).row()
                 .button("💰 Счета",           CallbackData.ACCT_LIST)
                 .button("👥 Участники",       CallbackData.PERS_LIST).row();
-        if (miniAppUrl != null && !miniAppUrl.isBlank()) {
-            kb.webAppButton("📈 Аналитика", miniAppUrl + "?chatId=" + chatId).row();
+        // WebApp-кнопки работают только в личке (chatId > 0)
+        // В группах initData недоступен — кнопку не показываем
+        if (miniAppUrl != null && !miniAppUrl.isBlank() && chatId > 0) {
+            kb.webAppButton("📈 Аналитика", miniAppUrl + "/?chatId=" + chatId).row();
         }
         return kb.build();
     }

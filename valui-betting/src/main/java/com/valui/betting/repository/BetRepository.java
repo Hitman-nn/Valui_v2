@@ -98,6 +98,9 @@ public interface BetRepository extends JpaRepository<BetEntity, UUID> {
 
     boolean existsByTelegramIdAndChatId(Long telegramId, Long chatId);
 
+    @Query("SELECT DISTINCT b.chatId FROM BetEntity b WHERE b.telegramId = :tid ORDER BY b.chatId")
+    List<Long> findDistinctChatIdsByTelegramId(@Param("tid") Long telegramId);
+
     // ── Analytics queries ─────────────────────────────────────────────────────
 
     @Query("SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.slips WHERE b.account.id = :aid AND b.createdAt BETWEEN :from AND :to ORDER BY b.createdAt")
@@ -116,4 +119,40 @@ public interface BetRepository extends JpaRepository<BetEntity, UUID> {
                                                           @Param("chatId") Long chatId,
                                                           @Param("from") OffsetDateTime from,
                                                           @Param("to") OffsetDateTime to);
+
+    // ── Analytics: multi-select, no chatId filter ─────────────────────────────
+
+    @Query("SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.slips WHERE b.account.id IN :aids AND b.createdAt BETWEEN :from AND :to ORDER BY b.createdAt")
+    List<BetEntity> findWithSlipsByAccountIdsBetween(@Param("aids") List<UUID> accountIds,
+                                                     @Param("from") OffsetDateTime from,
+                                                     @Param("to") OffsetDateTime to);
+
+    @Query("SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.slips WHERE b.account.id IN :aids AND b.telegramId = :tid AND b.createdAt BETWEEN :from AND :to ORDER BY b.createdAt")
+    List<BetEntity> findWithSlipsByAccountIdsAndTelegramIdBetween(@Param("aids") List<UUID> accountIds,
+                                                                   @Param("tid") Long telegramId,
+                                                                   @Param("from") OffsetDateTime from,
+                                                                   @Param("to") OffsetDateTime to);
+
+    @Query("SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.slips JOIN b.participants p WHERE p.person.id IN :pids AND b.createdAt BETWEEN :from AND :to ORDER BY b.createdAt")
+    List<BetEntity> findWithSlipsByPersonIdsAndBetween(@Param("pids") List<UUID> personIds,
+                                                       @Param("from") OffsetDateTime from,
+                                                       @Param("to") OffsetDateTime to);
+
+    @Query("SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.participants p LEFT JOIN FETCH p.person WHERE b.id IN (SELECT DISTINCT b2.id FROM BetEntity b2 JOIN b2.participants p2 WHERE p2.person.id IN :pids AND b2.createdAt BETWEEN :from AND :to)")
+    List<BetEntity> findWithParticipantsByPersonIdsAndBetween(@Param("pids") List<UUID> personIds,
+                                                              @Param("from") OffsetDateTime from,
+                                                              @Param("to") OffsetDateTime to);
+
+    // Admin: bets on selected accounts filtered by selected persons
+    @Query("SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.slips JOIN b.participants p WHERE b.account.id IN :aids AND p.person.id IN :pids AND b.createdAt BETWEEN :from AND :to ORDER BY b.createdAt")
+    List<BetEntity> findWithSlipsByAccountIdsAndPersonIdsAndBetween(@Param("aids") List<UUID> accountIds,
+                                                                     @Param("pids") List<UUID> personIds,
+                                                                     @Param("from") OffsetDateTime from,
+                                                                     @Param("to") OffsetDateTime to);
+
+    @Query("SELECT DISTINCT b FROM BetEntity b LEFT JOIN FETCH b.participants p LEFT JOIN FETCH p.person WHERE b.id IN (SELECT DISTINCT b2.id FROM BetEntity b2 JOIN b2.participants p2 WHERE b2.account.id IN :aids AND p2.person.id IN :pids AND b2.createdAt BETWEEN :from AND :to)")
+    List<BetEntity> findWithParticipantsByAccountIdsAndPersonIdsAndBetween(@Param("aids") List<UUID> accountIds,
+                                                                            @Param("pids") List<UUID> personIds,
+                                                                            @Param("from") OffsetDateTime from,
+                                                                            @Param("to") OffsetDateTime to);
 }

@@ -21,7 +21,8 @@ SSH_OPTS = $(if $(SSH_KEY),-i $(SSH_KEY),)
         up down reset logs psql redis-cli \
         test-up test-down test-restart test-logs test-status test-psql test-redis \
         prod-up prod-down prod-restart prod-logs prod-status prod-deploy \
-        ui-build ui-push ui-deploy
+        ui-build ui-push ui-deploy \
+        miniapp-build miniapp-deploy
 
 # ── Помощь ────────────────────────────────────────────────────────────────────
 help:
@@ -47,6 +48,11 @@ help:
 	@echo "    make ui-build       — собрать образ локально"
 	@echo "    make ui-push        — собрать и запушить в GHCR (текущая ветка + latest)"
 	@echo "    make ui-deploy      — pull образа на сервере + перезапуск контейнера"
+	@echo ""
+	@echo "  MINIAPP (Telegram Mini App — запускать ЛОКАЛЬНО, не на сервере):"
+	@echo "    make miniapp-build  — npm install + build (dist/ в valui-miniapp-ui/)"
+	@echo "    make miniapp-deploy — build + rsync dist/ на сервер + nginx reload"
+	@echo "    Требует в .env: SERVER, SSH_KEY (опц.), MINIAPP_DEPLOY_PATH"
 	@echo ""
 
 # ── Обратная совместимость (старые цели без префикса = prod) ──────────────────
@@ -131,3 +137,18 @@ ui-push:
 
 ui-deploy: ui-push
 	ssh $(SSH_OPTS) $(SERVER) "cd app && docker compose -p valui-prod -f docker-compose.prod.yml --env-file .env.prod pull admin-ui && docker compose -p valui-prod -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps admin-ui"
+
+# ── Telegram Mini App ─────────────────────────────────────────────────────────
+# miniapp-build  — локальная сборка (dist/)
+# miniapp-deploy — сборка + rsync на сервер + nginx reload
+# Требует в .env: SERVER, MINIAPP_DEPLOY_PATH (напр. /opt/valui/miniapp)
+MINIAPP_DEPLOY_PATH ?= /app/miniapp
+
+miniapp-build:
+	cd valui-miniapp-ui && npm install --silent && npm run build
+
+miniapp-deploy: miniapp-build
+	ssh $(SSH_OPTS) $(SERVER) "sudo mkdir -p $(MINIAPP_DEPLOY_PATH) && sudo chown $(shell ssh $(SSH_OPTS) $(SERVER) whoami) $(MINIAPP_DEPLOY_PATH)"
+	rsync -az --delete $(if $(SSH_KEY),--rsh="ssh -i $(SSH_KEY)",) \
+		valui-miniapp-ui/dist/ $(SERVER):$(MINIAPP_DEPLOY_PATH)/
+	ssh $(SSH_OPTS) $(SERVER) "sudo nginx -s reload"

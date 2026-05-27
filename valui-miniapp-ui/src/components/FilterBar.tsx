@@ -1,50 +1,54 @@
-import type { BetAccountDto, BetPersonDto, AnalyticsScope, DateRange } from '../api/types'
+import type { BetAccountDto, BetPersonDto, DateRange } from '../api/types'
 import dayjs from 'dayjs'
 
 interface Props {
-  accounts:     BetAccountDto[]
-  persons:      BetPersonDto[]
-  scope:        AnalyticsScope
-  selectedId:   string
-  dateRange:    DateRange
-  customFrom:   string
-  customTo:     string
-  onScopeChange:      (s: AnalyticsScope) => void
-  onSelectedIdChange: (id: string) => void
-  onDateRangeChange:  (r: DateRange) => void
-  onCustomFromChange: (v: string) => void
-  onCustomToChange:   (v: string) => void
+  accounts:       BetAccountDto[]
+  persons:        BetPersonDto[]       // non-empty only for admin after accounts selected
+  selectedAccIds: Set<string>
+  selectedPerIds: Set<string>
+  dateRange:      DateRange
+  customFrom:     string
+  customTo:       string
+  onToggleAccount:   (id: string) => void
+  onTogglePerson:    (id: string) => void
+  onDateRangeChange: (r: DateRange) => void
+  onCustomFromChange:(v: string) => void
+  onCustomToChange:  (v: string) => void
 }
 
 export default function FilterBar({
-  accounts, persons, scope, selectedId, dateRange,
+  accounts, persons, selectedAccIds, selectedPerIds, dateRange,
   customFrom, customTo,
-  onScopeChange, onSelectedIdChange, onDateRangeChange,
+  onToggleAccount, onTogglePerson, onDateRangeChange,
   onCustomFromChange, onCustomToChange,
 }: Props) {
-  const items = scope === 'ACCOUNT'
-    ? accounts.map(a => ({ id: a.id, label: a.name }))
-    : persons.map(p => ({ id: p.id, label: p.displayName }))
+  const isAdmin = persons.length > 0
 
   return (
     <div style={containerStyle}>
-      {/* Scope toggle */}
-      <div style={rowStyle}>
-        <ToggleBtn active={scope === 'ACCOUNT'} onClick={() => { onScopeChange('ACCOUNT'); onSelectedIdChange('') }}>
-          Счёт
-        </ToggleBtn>
-        <ToggleBtn active={scope === 'PERSON'} onClick={() => { onScopeChange('PERSON'); onSelectedIdChange('') }}>
-          Участник
-        </ToggleBtn>
+
+      {/* Accounts */}
+      <SectionLabel>Счета</SectionLabel>
+      <div style={checkListStyle}>
+        {accounts.length === 0 && <div style={emptyStyle}>Нет счетов со ставками</div>}
+        {accounts.map(a => (
+          <CheckItem key={a.id} id={a.id} label={a.name}
+                     checked={selectedAccIds.has(a.id)} onToggle={onToggleAccount} />
+        ))}
       </div>
 
-      {/* Entity selector */}
-      <select style={selectStyle} value={selectedId} onChange={e => onSelectedIdChange(e.target.value)}>
-        <option value="">— Выберите {scope === 'ACCOUNT' ? 'счёт' : 'участника'} —</option>
-        {items.map(item => (
-          <option key={item.id} value={item.id}>{item.label}</option>
-        ))}
-      </select>
+      {/* Persons — only for admin, only when accounts are selected */}
+      {isAdmin && (
+        <>
+          <SectionLabel>Участники</SectionLabel>
+          <div style={checkListStyle}>
+            {persons.map(p => (
+              <CheckItem key={p.id} id={p.id} label={p.displayName}
+                         checked={selectedPerIds.has(p.id)} onToggle={onTogglePerson} />
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Date range */}
       <div style={rowStyle}>
@@ -55,7 +59,6 @@ export default function FilterBar({
         ))}
       </div>
 
-      {/* Custom date inputs */}
       {dateRange === 'custom' && (
         <div style={rowStyle}>
           <input type="date" style={dateInputStyle} value={customFrom}
@@ -68,6 +71,22 @@ export default function FilterBar({
         </div>
       )}
     </div>
+  )
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <div style={sectionLabelStyle}>{children}</div>
+}
+
+function CheckItem({ id, label, checked, onToggle }: {
+  id: string; label: string; checked: boolean; onToggle: (id: string) => void
+}) {
+  return (
+    <label style={checkItemStyle}>
+      <input type="checkbox" checked={checked} onChange={() => onToggle(id)}
+             style={{ marginRight: 8, accentColor: 'var(--tg-theme-button-color, #3b82f6)' }} />
+      {label}
+    </label>
   )
 }
 
@@ -96,16 +115,24 @@ const containerStyle: React.CSSProperties = {
   borderBottom: '1px solid var(--tg-theme-hint-color, #eee)',
   display: 'flex', flexDirection: 'column', gap: 8,
 }
+const sectionLabelStyle: React.CSSProperties = {
+  fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
+  color: 'var(--tg-theme-hint-color, #888)', letterSpacing: '0.05em',
+}
 const rowStyle: React.CSSProperties = { display: 'flex', gap: 6, flexWrap: 'wrap' }
 const btnStyle: React.CSSProperties = {
   padding: '5px 12px', borderRadius: 8, fontSize: 13,
   cursor: 'pointer', transition: 'all 0.15s',
 }
-const selectStyle: React.CSSProperties = {
-  width: '100%', padding: '7px 10px', borderRadius: 8, fontSize: 13,
-  border: '1px solid var(--tg-theme-hint-color, #ddd)',
-  background: 'var(--tg-theme-bg-color, #fff)',
-  color: 'var(--tg-theme-text-color, #000)',
+const checkListStyle: React.CSSProperties = {
+  display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 120, overflowY: 'auto',
+}
+const checkItemStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', padding: '4px 2px',
+  fontSize: 14, color: 'var(--tg-theme-text-color, #000)', cursor: 'pointer',
+}
+const emptyStyle: React.CSSProperties = {
+  fontSize: 13, color: 'var(--tg-theme-hint-color, #888)', padding: '2px 0',
 }
 const dateInputStyle: React.CSSProperties = {
   flex: 1, padding: '6px 8px', borderRadius: 8, fontSize: 13,

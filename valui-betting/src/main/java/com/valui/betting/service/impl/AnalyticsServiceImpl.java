@@ -23,31 +23,37 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
     @Override
     @Transactional(readOnly = true)
-    public AnalyticsResponse getAnalytics(Scope scope, UUID id, Long chatId,
-                                          OffsetDateTime from, OffsetDateTime to) {
+    public AnalyticsResponse getAnalytics(List<UUID> accountIds, Long telegramId,
+                                          List<UUID> personIds, OffsetDateTime from, OffsetDateTime to) {
         List<BetEntity> bets;
-        UUID personId = null;
+        List<UUID> effectivePersonIds = null;
 
-        if (scope == Scope.ACCOUNT) {
-            bets = betRepository.findWithSlipsByAccountIdBetween(id, from, to);
+        boolean hasPersonFilter = personIds != null && !personIds.isEmpty();
+
+        if (hasPersonFilter) {
+            // Admin: bets on selected accounts where selected persons participated
+            effectivePersonIds = personIds;
+            betRepository.findWithParticipantsByAccountIdsAndPersonIdsAndBetween(accountIds, personIds, from, to);
+            bets = betRepository.findWithSlipsByAccountIdsAndPersonIdsAndBetween(accountIds, personIds, from, to);
+        } else if (telegramId != null) {
+            // Regular user: only their own bets on selected accounts
+            bets = betRepository.findWithSlipsByAccountIdsAndTelegramIdBetween(accountIds, telegramId, from, to);
         } else {
-            personId = id;
-            // Two-query pattern to avoid MultipleBagFetchException
-            betRepository.findWithParticipantsByPersonIdBetween(id, chatId, from, to);
-            bets = betRepository.findWithSlipsByPersonIdBetween(id, chatId, from, to);
+            // Admin without person filter: all bets on selected accounts
+            bets = betRepository.findWithSlipsByAccountIdsBetween(accountIds, from, to);
         }
 
-        List<BalancePoint>  balance = computeBalanceDynamics(bets, personId);
-        List<BetPlPoint>    pl      = computePlPoints(bets, personId);
-        DistributionData    dist    = computeDistribution(bets, personId);
-        AnalyticsResponse.Summary summary = computeSummary(bets, balance, personId);
+        List<BalancePoint>        balance = computeBalanceDynamics(bets, effectivePersonIds);
+        List<BetPlPoint>          pl      = computePlPoints(bets, effectivePersonIds);
+        DistributionData          dist    = computeDistribution(bets, effectivePersonIds);
+        AnalyticsResponse.Summary summary = computeSummary(bets, balance, effectivePersonIds);
 
         return new AnalyticsResponse(balance, pl, dist, summary);
     }
 
     // ── Balance dynamics ──────────────────────────────────────────────────────
 
-    private List<BalancePoint> computeBalanceDynamics(List<BetEntity> bets, UUID personId) {
+    private List<BalancePoint> computeBalanceDynamics(List<BetEntity> bets, List<UUID> personIds) {
         List<BetEntity> resolved = bets.stream()
                 .filter(b -> b.getResolvedAt() != null
                         && b.getStatus() != BetStatus.OPEN
@@ -55,12 +61,9 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 .sorted(Comparator.comparing(BetEntity::getResolvedAt))
                 .toList();
 
-        // Group by day, accumulate P&L
         Map<java.time.LocalDate, BigDecimal> dailyPnl = new LinkedHashMap<>();
         for (BetEntity b : resolved) {
-            java.time.LocalDate day = b.getResolvedAt().toLocalDate();
-            BigDecimal pnl = betPnl(b, personId);
-            dailyPnl.merge(day, pnl, BigDecimal::add);
+            dailyPnl.merge(b.getResolvedAt().toLocalDate(), betPnl(b, personIds), BigDecimal::add);
         }
 
         List<BalancePoint> points = new ArrayList<>();
@@ -74,7 +77,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
     // ── P&L per bet ───────────────────────────────────────────────────────────
 
-    private List<BetPlPoint> computePlPoints(List<BetEntity> bets, UUID personId) {
+    private List<BetPlPoint> computePlPoints(List<BetEntity> bets, List<UUID> personIds) {
         return bets.stream()
                 .filter(b -> b.getStatus() != BetStatus.CANCELLED)
                 .sorted(Comparator.comparing(BetEntity::getCreatedAt))
@@ -82,8 +85,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                         b.getId(),
                         b.getCreatedAt().toLocalDate(),
                         betTitle(b),
-                        participantStake(b, personId),
-                        b.getStatus() == BetStatus.OPEN ? BigDecimal.ZERO : betPnl(b, personId),
+                        participantStake(b, personIds),
+                        b.getStatus() == BetStatus.OPEN ? BigDecimal.ZERO : betPnl(b, personIds),
                         b.getTotalOdds(),
                         b.getStatus().name()
                 ))
@@ -92,37 +95,28 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
     // ── Distribution ──────────────────────────────────────────────────────────
 
-    private DistributionData computeDistribution(List<BetEntity> bets, UUID personId) {
+    private DistributionData computeDistribution(List<BetEntity> bets, List<UUID> personIds) {
         List<BetEntity> active = bets.stream()
-                .filter(b -> b.getStatus() != BetStatus.CANCELLED)
-                .toList();
+                .filter(b -> b.getStatus() != BetStatus.CANCELLED).toList();
 
-        // By outcome
         Map<String, Long> byOutcome = new LinkedHashMap<>();
         for (BetStatus s : List.of(BetStatus.WON, BetStatus.LOST, BetStatus.RETURNED, BetStatus.OPEN)) {
             long cnt = active.stream().filter(b -> b.getStatus() == s).count();
             if (cnt > 0) byOutcome.put(s.name(), cnt);
         }
 
-        // By stake (buckets)
-        List<DistributionData.BucketEntry> byStake = stakeDistribution(active, personId);
-
-        // By odds (buckets)
-        List<DistributionData.BucketEntry> byOdds = oddsDistribution(active);
-
-        return new DistributionData(byOutcome, byStake, byOdds);
+        return new DistributionData(byOutcome, stakeDistribution(active, personIds), oddsDistribution(active));
     }
 
-    private List<DistributionData.BucketEntry> stakeDistribution(List<BetEntity> bets, UUID personId) {
+    private List<DistributionData.BucketEntry> stakeDistribution(List<BetEntity> bets, List<UUID> personIds) {
         long[] buckets = new long[5];
         for (BetEntity b : bets) {
-            BigDecimal stake = participantStake(b, personId);
-            double s = stake.doubleValue();
-            if      (s < 100)   buckets[0]++;
-            else if (s < 500)   buckets[1]++;
-            else if (s < 1000)  buckets[2]++;
-            else if (s < 5000)  buckets[3]++;
-            else                buckets[4]++;
+            double s = participantStake(b, personIds).doubleValue();
+            if      (s < 100)  buckets[0]++;
+            else if (s < 500)  buckets[1]++;
+            else if (s < 1000) buckets[2]++;
+            else if (s < 5000) buckets[3]++;
+            else               buckets[4]++;
         }
         String[] labels = {"<100", "100–500", "500–1000", "1000–5000", "5000+"};
         List<DistributionData.BucketEntry> result = new ArrayList<>();
@@ -136,10 +130,10 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         long[] buckets = new long[4];
         for (BetEntity b : bets) {
             double o = b.getTotalOdds().doubleValue();
-            if      (o < 1.5)  buckets[0]++;
-            else if (o < 2.0)  buckets[1]++;
-            else if (o < 3.0)  buckets[2]++;
-            else               buckets[3]++;
+            if      (o < 1.5) buckets[0]++;
+            else if (o < 2.0) buckets[1]++;
+            else if (o < 3.0) buckets[2]++;
+            else              buckets[3]++;
         }
         String[] labels = {"1.0–1.5", "1.5–2.0", "2.0–3.0", "3.0+"};
         List<DistributionData.BucketEntry> result = new ArrayList<>();
@@ -153,19 +147,19 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
     private AnalyticsResponse.Summary computeSummary(List<BetEntity> bets,
                                                       List<BalancePoint> balance,
-                                                      UUID personId) {
+                                                      List<UUID> personIds) {
         List<BetEntity> active = bets.stream()
                 .filter(b -> b.getStatus() != BetStatus.CANCELLED).toList();
 
-        long total   = active.size();
-        long open    = active.stream().filter(b -> b.getStatus() == BetStatus.OPEN).count();
-        long won     = active.stream().filter(b -> b.getStatus() == BetStatus.WON).count();
-        long lost    = active.stream().filter(b -> b.getStatus() == BetStatus.LOST).count();
+        long total    = active.size();
+        long open     = active.stream().filter(b -> b.getStatus() == BetStatus.OPEN).count();
+        long won      = active.stream().filter(b -> b.getStatus() == BetStatus.WON).count();
+        long lost     = active.stream().filter(b -> b.getStatus() == BetStatus.LOST).count();
         long returned = active.stream().filter(b -> b.getStatus() == BetStatus.RETURNED).count();
 
         BigDecimal staked = active.stream()
                 .filter(b -> b.getStatus() != BetStatus.OPEN)
-                .map(b -> participantStake(b, personId))
+                .map(b -> participantStake(b, personIds))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalPnl = balance.isEmpty() ? BigDecimal.ZERO
@@ -181,23 +175,29 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private BigDecimal betPnl(BetEntity b, UUID personId) {
+    private BigDecimal betPnl(BetEntity b, List<UUID> personIds) {
         if (b.getStatus() == BetStatus.OPEN || b.getActualPayout() == null) return BigDecimal.ZERO;
-        if (personId == null) {
-            // account scope
+        if (personIds == null) {
             return b.getActualPayout().subtract(b.getTotalStake());
         }
-        // person scope
-        BetParticipantEntity part = findParticipant(b, personId);
-        if (part == null) return BigDecimal.ZERO;
-        BigDecimal personPayout = part.getProfitShare().multiply(b.getActualPayout());
-        return personPayout.subtract(part.getStake());
+        BigDecimal pnl = BigDecimal.ZERO;
+        for (UUID pid : personIds) {
+            BetParticipantEntity p = findParticipant(b, pid);
+            if (p != null) {
+                pnl = pnl.add(p.getProfitShare().multiply(b.getActualPayout()).subtract(p.getStake()));
+            }
+        }
+        return pnl;
     }
 
-    private BigDecimal participantStake(BetEntity b, UUID personId) {
-        if (personId == null) return b.getTotalStake();
-        BetParticipantEntity part = findParticipant(b, personId);
-        return part != null ? part.getStake() : BigDecimal.ZERO;
+    private BigDecimal participantStake(BetEntity b, List<UUID> personIds) {
+        if (personIds == null) return b.getTotalStake();
+        BigDecimal total = BigDecimal.ZERO;
+        for (UUID pid : personIds) {
+            BetParticipantEntity p = findParticipant(b, pid);
+            if (p != null) total = total.add(p.getStake());
+        }
+        return total;
     }
 
     private BetParticipantEntity findParticipant(BetEntity b, UUID personId) {
@@ -210,8 +210,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     private String betTitle(BetEntity b) {
         if (b.getSlips() != null && !b.getSlips().isEmpty()) {
             String first = b.getSlips().get(0).getMatchTitle();
-            if (b.getSlips().size() > 1) return first + " +" + (b.getSlips().size() - 1);
-            return first;
+            return b.getSlips().size() > 1 ? first + " +" + (b.getSlips().size() - 1) : first;
         }
         return b.getType().name();
     }

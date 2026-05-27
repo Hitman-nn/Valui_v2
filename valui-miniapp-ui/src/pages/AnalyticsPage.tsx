@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import dayjs from 'dayjs'
 import api from '../api/client'
-import type {
-  AnalyticsResponse, AnalyticsScope, BetAccountDto, BetPersonDto, DateRange,
-} from '../api/types'
+import type { AnalyticsResponse, BetAccountDto, BetPersonDto, DateRange } from '../api/types'
 import FilterBar from '../components/FilterBar'
 import BalanceDynamicsChart from '../components/BalanceDynamicsChart'
 import PlChart from '../components/PlChart'
@@ -12,52 +10,84 @@ import DistributionCharts from '../components/DistributionCharts'
 const TABS = ['Баланс', 'P&L', 'Распределение'] as const
 type Tab = typeof TABS[number]
 
-interface Props {
-  chatId: number
-}
+export default function AnalyticsPage() {
+  const [accounts,        setAccounts]        = useState<BetAccountDto[]>([])
+  const [persons,         setPersons]         = useState<BetPersonDto[]>([])
+  const [selectedAccIds,  setSelectedAccIds]  = useState<Set<string>>(new Set())
+  const [selectedPerIds,  setSelectedPerIds]  = useState<Set<string>>(new Set())
+  const [dateRange,       setDateRange]       = useState<DateRange>('month')
+  const [customFrom,      setCustomFrom]      = useState('')
+  const [customTo,        setCustomTo]        = useState('')
+  const [activeTab,       setActiveTab]       = useState<Tab>('Баланс')
+  const [data,            setData]            = useState<AnalyticsResponse | null>(null)
+  const [loading,         setLoading]         = useState(false)
+  const [error,           setError]           = useState<string | null>(null)
 
-export default function AnalyticsPage({ chatId }: Props) {
-  const [accounts, setAccounts] = useState<BetAccountDto[]>([])
-  const [persons,  setPersons]  = useState<BetPersonDto[]>([])
-  const [scope,       setScope]       = useState<AnalyticsScope>('ACCOUNT')
-  const [selectedId,  setSelectedId]  = useState('')
-  const [dateRange,   setDateRange]   = useState<DateRange>('month')
-  const [customFrom,  setCustomFrom]  = useState('')
-  const [customTo,    setCustomTo]    = useState('')
-  const [activeTab,   setActiveTab]   = useState<Tab>('Баланс')
-  const [data,        setData]        = useState<AnalyticsResponse | null>(null)
-  const [loading,     setLoading]     = useState(false)
-  const [error,       setError]       = useState<string | null>(null)
-
-  // Load accounts + persons once
+  // Load accounts once
   useEffect(() => {
-    const params = { chatId }
-    Promise.all([
-      api.get<BetAccountDto[]>('/accounts', { params }),
-      api.get<BetPersonDto[]>('/persons',  { params }),
-    ]).then(([a, p]) => {
-      setAccounts(a.data)
-      setPersons(p.data)
-    }).catch(() => setError('Не удалось загрузить данные'))
-  }, [chatId])
+    api.get<BetAccountDto[]>('/accounts')
+      .then(r => setAccounts(r.data))
+      .catch(() => setError('Не удалось загрузить счета'))
+  }, [])
 
-  // Load analytics when selection changes
+  // When accounts selection changes — reload persons (admin gets non-empty list)
   useEffect(() => {
-    if (!selectedId) { setData(null); return }
+    if (selectedAccIds.size === 0) { setPersons([]); setSelectedPerIds(new Set()); return }
+    const ids = Array.from(selectedAccIds)
+    api.get<BetPersonDto[]>('/persons', { params: ids, paramsSerializer: () =>
+      ids.map(id => `accountIds=${id}`).join('&')
+    }).then(r => {
+      setPersons(r.data)
+      // drop person selection if they're no longer in the list
+      setSelectedPerIds(prev => {
+        const valid = new Set(r.data.map(p => p.id))
+        return new Set([...prev].filter(id => valid.has(id)))
+      })
+    }).catch(() => setPersons([]))
+  }, [selectedAccIds])
+
+  const handleToggleAccount = (id: string) => {
+    setSelectedAccIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+    setData(null)
+  }
+
+  const handleTogglePerson = (id: string) => {
+    setSelectedPerIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  // Load analytics when selection or filters change
+  useEffect(() => {
+    if (selectedAccIds.size === 0) { setData(null); return }
 
     const { from, to } = resolveDates(dateRange, customFrom, customTo)
     if (dateRange === 'custom' && (!from || !to)) return
 
     setLoading(true)
     setError(null)
-    api.get<AnalyticsResponse>('/analytics', {
-      params: { chatId, scope, id: selectedId, from, to },
-    }).then(r => {
-      setData(r.data)
-    }).catch(() => {
-      setError('Ошибка загрузки аналитики')
-    }).finally(() => setLoading(false))
-  }, [chatId, scope, selectedId, dateRange, customFrom, customTo])
+
+    const accIds  = Array.from(selectedAccIds)
+    const perIds  = Array.from(selectedPerIds)
+
+    const parts: string[] = [
+      ...accIds.map(id => `accountIds=${id}`),
+      ...perIds.map(id => `personIds=${id}`),
+    ]
+    if (from) parts.push(`from=${encodeURIComponent(from)}`)
+    if (to)   parts.push(`to=${encodeURIComponent(to)}`)
+
+    api.get<AnalyticsResponse>(`/analytics?${parts.join('&')}`)
+      .then(r => setData(r.data))
+      .catch(() => setError('Ошибка загрузки аналитики'))
+      .finally(() => setLoading(false))
+  }, [selectedAccIds, selectedPerIds, dateRange, customFrom, customTo])
 
   const summary = data?.summary
 
@@ -65,49 +95,51 @@ export default function AnalyticsPage({ chatId }: Props) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <FilterBar
         accounts={accounts} persons={persons}
-        scope={scope} selectedId={selectedId}
+        selectedAccIds={selectedAccIds} selectedPerIds={selectedPerIds}
         dateRange={dateRange} customFrom={customFrom} customTo={customTo}
-        onScopeChange={setScope} onSelectedIdChange={setSelectedId}
+        onToggleAccount={handleToggleAccount} onTogglePerson={handleTogglePerson}
         onDateRangeChange={setDateRange}
         onCustomFromChange={setCustomFrom} onCustomToChange={setCustomTo}
       />
 
-      {/* Summary chips */}
       {summary && (
         <div style={summaryStyle}>
           <Chip label="Ставок" value={String(summary.totalBets)} />
-          <Chip label="P&L" value={fmtPnl(summary.totalPnl)} color={summary.totalPnl >= 0 ? '#22c55e' : '#ef4444'} />
-          <Chip label="ROI" value={`${summary.roi >= 0 ? '+' : ''}${summary.roi.toFixed(1)}%`}
+          <Chip label="P&L"    value={fmtPnl(summary.totalPnl)}
+                color={summary.totalPnl >= 0 ? '#22c55e' : '#ef4444'} />
+          <Chip label="ROI"    value={`${summary.roi >= 0 ? '+' : ''}${summary.roi.toFixed(1)}%`}
                 color={summary.roi >= 0 ? '#22c55e' : '#ef4444'} />
-          <Chip label="W/L" value={`${summary.wonBets}/${summary.lostBets}`} />
+          <Chip label="W/L"   value={`${summary.wonBets}/${summary.lostBets}`} />
         </div>
       )}
 
-      {/* Tabs */}
       <div style={tabBarStyle}>
         {TABS.map(t => (
           <button key={t} onClick={() => setActiveTab(t)} style={{
             ...tabBtnStyle,
-            borderBottom: t === activeTab ? '2px solid var(--tg-theme-button-color, #3b82f6)' : '2px solid transparent',
-            color: t === activeTab ? 'var(--tg-theme-button-color, #3b82f6)' : 'var(--tg-theme-hint-color, #888)',
+            borderBottom: t === activeTab
+              ? '2px solid var(--tg-theme-button-color, #3b82f6)'
+              : '2px solid transparent',
+            color: t === activeTab
+              ? 'var(--tg-theme-button-color, #3b82f6)'
+              : 'var(--tg-theme-hint-color, #888)',
           }}>
             {t}
           </button>
         ))}
       </div>
 
-      {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px 24px' }}>
-        {!selectedId && (
-          <div style={hintStyle}>Выберите счёт или участника для отображения аналитики</div>
+        {selectedAccIds.size === 0 && !loading && (
+          <div style={hintStyle}>Выберите один или несколько счетов</div>
         )}
         {loading && <div style={hintStyle}>Загрузка...</div>}
-        {error && <div style={{ ...hintStyle, color: '#ef4444' }}>{error}</div>}
+        {error   && <div style={{ ...hintStyle, color: '#ef4444' }}>{error}</div>}
 
         {data && !loading && (
           <>
-            {activeTab === 'Баланс' && <BalanceDynamicsChart data={data.balanceDynamics} />}
-            {activeTab === 'P&L'    && <PlChart data={data.plPoints} />}
+            {activeTab === 'Баланс'        && <BalanceDynamicsChart data={data.balanceDynamics} />}
+            {activeTab === 'P&L'           && <PlChart data={data.plPoints} />}
             {activeTab === 'Распределение' && <DistributionCharts data={data.distribution} />}
           </>
         )}
@@ -127,18 +159,16 @@ function Chip({ label, value, color }: { label: string; value: string; color?: s
 
 function resolveDates(range: DateRange, customFrom: string, customTo: string) {
   const now = dayjs()
-  if (range === 'week')   return { from: now.subtract(7, 'day').toISOString(),   to: now.toISOString() }
-  if (range === 'month')  return { from: now.subtract(30, 'day').toISOString(),  to: now.toISOString() }
+  if (range === 'week')   return { from: now.subtract(7, 'day').toISOString(),  to: now.toISOString() }
+  if (range === 'month')  return { from: now.subtract(30, 'day').toISOString(), to: now.toISOString() }
   if (range === 'custom') return {
     from: customFrom ? dayjs(customFrom).startOf('day').toISOString() : '',
     to:   customTo   ? dayjs(customTo).endOf('day').toISOString()     : '',
   }
-  return { from: undefined, to: undefined }  // all time
+  return { from: undefined, to: undefined }
 }
 
-function fmtPnl(v: number) {
-  return (v >= 0 ? '+' : '') + v.toFixed(0)
-}
+function fmtPnl(v: number) { return (v >= 0 ? '+' : '') + v.toFixed(0) }
 
 const summaryStyle: React.CSSProperties = {
   display: 'flex', justifyContent: 'space-around', padding: '10px 16px',

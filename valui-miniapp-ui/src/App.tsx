@@ -1,11 +1,6 @@
 import AnalyticsPage from './pages/AnalyticsPage'
 
-function getChatId(): number {
-  const params = new URLSearchParams(window.location.search)
-  const fromUrl = params.get('chatId')
-  if (fromUrl) return Number(fromUrl)
-
-  // Fallback: use Telegram user ID from WebApp (private chat = userId == chatId)
+function getTelegramUserId(): number {
   try {
     const tg = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number } } } } }).Telegram
     return tg?.WebApp?.initDataUnsafe?.user?.id ?? 0
@@ -15,9 +10,9 @@ function getChatId(): number {
 }
 
 export default function App() {
-  const chatId = getChatId()
+  const userId = getTelegramUserId()
 
-  if (!chatId) {
+  if (!userId) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 24px',
                     color: 'var(--tg-theme-hint-color, #888)' }}>
@@ -26,5 +21,5 @@ export default function App() {
     )
   }
 
-  return <AnalyticsPage chatId={chatId} />
+  return <AnalyticsPage />
 }

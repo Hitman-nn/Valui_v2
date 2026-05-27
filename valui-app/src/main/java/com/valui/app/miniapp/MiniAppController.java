@@ -4,11 +4,10 @@ import com.valui.betting.dto.BetAccountDto;
 import com.valui.betting.dto.BetPersonDto;
 import com.valui.betting.dto.analytics.AnalyticsResponse;
 import com.valui.betting.repository.BetAccountRepository;
-import com.valui.betting.repository.BetParticipantRepository;
 import com.valui.betting.repository.BetPersonRepository;
-import com.valui.betting.repository.BetRepository;
 import com.valui.betting.service.AnalyticsService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -27,64 +26,61 @@ public class MiniAppController {
     private static final String INIT_DATA_HEADER = "X-Telegram-Init-Data";
 
     private final TelegramInitDataValidator validator;
-    private final BetRepository             betRepository;
-    private final BetParticipantRepository  participantRepository;
     private final BetAccountRepository      accountRepository;
     private final BetPersonRepository       personRepository;
     private final AnalyticsService          analyticsService;
 
+    @Value("${telegram.admin-chat-id:0}")
+    private long adminChatId;
+
+    /** Счета, с которых этот пользователь ставил. */
     @GetMapping("/accounts")
-    public List<BetAccountDto> listAccounts(
-            @RequestHeader(INIT_DATA_HEADER) String initData,
-            @RequestParam long chatId) {
+    public List<BetAccountDto> listAccounts(@RequestHeader(INIT_DATA_HEADER) String initData) {
         long userId = validator.validate(initData);
-        assertChatAccess(userId, chatId);
-        return accountRepository.findAllByChatIdOrderByNameAsc(chatId)
+        return accountRepository.findAccountsByTelegramId(userId)
                 .stream().map(BetAccountDto::from).toList();
     }
 
+    /**
+     * Участники выбранных счетов. Доступно только админу.
+     * Не-админ всегда получает пустой список (не 403, чтобы фронт мог определить роль по наличию данных).
+     */
     @GetMapping("/persons")
     public List<BetPersonDto> listPersons(
             @RequestHeader(INIT_DATA_HEADER) String initData,
-            @RequestParam long chatId) {
+            @RequestParam List<UUID> accountIds) {
         long userId = validator.validate(initData);
-        assertChatAccess(userId, chatId);
-        return personRepository.findAllByChatIdOrderByDisplayNameAsc(chatId)
+        if (userId != adminChatId || accountIds.isEmpty()) return List.of();
+        return personRepository.findPersonsByAccountIds(accountIds)
                 .stream().map(BetPersonDto::from).toList();
     }
 
     @GetMapping("/analytics")
     public AnalyticsResponse getAnalytics(
             @RequestHeader(INIT_DATA_HEADER) String initData,
-            @RequestParam long   chatId,
-            @RequestParam String scope,
-            @RequestParam UUID   id,
+            @RequestParam List<UUID>   accountIds,
+            @RequestParam(required = false) List<UUID> personIds,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to) {
 
         long userId = validator.validate(initData);
-        assertChatAccess(userId, chatId);
+
+        if (accountIds == null || accountIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "accountIds must not be empty");
+        }
+
+        boolean isAdmin = (userId == adminChatId);
+
+        if (personIds != null && !personIds.isEmpty() && !isAdmin) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Person filter requires admin");
+        }
 
         OffsetDateTime resolvedFrom = from != null ? from : OffsetDateTime.of(2000, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         OffsetDateTime resolvedTo   = to   != null ? to   : OffsetDateTime.now(ZoneOffset.UTC).plusYears(10);
 
-        AnalyticsService.Scope analyticsScope;
-        try {
-            analyticsScope = AnalyticsService.Scope.valueOf(scope.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scope must be ACCOUNT or PERSON");
-        }
+        // telegramId=null для админа без фильтра по участникам → видит все ставки на счетах
+        Long telegramId = isAdmin ? null : userId;
 
-        return analyticsService.getAnalytics(analyticsScope, id, chatId, resolvedFrom, resolvedTo);
-    }
-
-    private void assertChatAccess(long userId, long chatId) {
-        // Private chat: chatId == telegramId — always has access
-        if (userId == chatId) return;
-        // Group chat: user created at least one bet in this chat
-        if (betRepository.existsByTelegramIdAndChatId(userId, chatId)) return;
-        // Or user is a participant (BetPerson) in a bet in this chat
-        if (participantRepository.existsByTelegramIdAndBet_ChatId(userId, chatId)) return;
-        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No access to chatId " + chatId);
+        return analyticsService.getAnalytics(accountIds, telegramId, personIds, resolvedFrom, resolvedTo);
     }
 }

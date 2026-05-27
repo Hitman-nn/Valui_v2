@@ -146,6 +146,7 @@ services:
       BOT_PROXY_PORT:         ${BOT_PROXY_PORT:-}
       BOT_PROXY_USER:         ${BOT_PROXY_USER:-}
       BOT_PROXY_PASS:         ${BOT_PROXY_PASS:-}
+      MINIAPP_URL:            ${MINIAPP_URL:-}
       PROXY_ENABLED:          ${PROXY_ENABLED:-false}
       PROXY_HOST:             ${PROXY_HOST:-}
       PROXY_PORT:             ${PROXY_PORT:-}
