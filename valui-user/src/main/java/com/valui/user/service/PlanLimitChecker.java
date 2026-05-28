@@ -103,10 +103,12 @@ public class PlanLimitChecker implements PlanLimitFacade {
 
         OffsetDateTime resetAt = user.getTokenStatsResetAt();
 
-        // History: group last 50 transactions by (reasonCode, day), take first 10 groups
-        List<TokenTransactionEntity> rawTxs = resetAt != null
-            ? txRepository.findTop50ByUserIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(userId, resetAt)
-            : txRepository.findTop50ByUserIdOrderByCreatedAtDesc(userId);
+        // History: transactions for last 30 days grouped by (reasonCode, day), take first 10 groups.
+        // Date-based window instead of top-N to avoid showing only 1-2 days for active users.
+        OffsetDateTime historyFrom = OffsetDateTime.now(ZoneOffset.UTC).minusDays(30);
+        if (resetAt != null && resetAt.isAfter(historyFrom)) historyFrom = resetAt;
+        List<TokenTransactionEntity> rawTxs =
+            txRepository.findByUserIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(userId, historyFrom);
         Map<GroupKey, List<TokenTransactionEntity>> grouped = new LinkedHashMap<>();
         for (TokenTransactionEntity tx : rawTxs) {
             LocalDate day = tx.getCreatedAt().toLocalDate();

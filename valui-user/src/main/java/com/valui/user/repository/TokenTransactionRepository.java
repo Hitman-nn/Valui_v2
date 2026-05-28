@@ -23,6 +23,9 @@ public interface TokenTransactionRepository extends JpaRepository<TokenTransacti
     List<TokenTransactionEntity> findTop50ByUserIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(
         UUID userId, OffsetDateTime from);
 
+    List<TokenTransactionEntity> findByUserIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(
+        UUID userId, OffsetDateTime from);
+
     @Query("SELECT COALESCE(SUM(t.delta), 0L) FROM TokenTransactionEntity t " +
            "WHERE t.user.id = :userId AND t.delta < 0 AND t.createdAt >= :from")
     long sumSpentFrom(@Param("userId") UUID userId, @Param("from") OffsetDateTime from);
