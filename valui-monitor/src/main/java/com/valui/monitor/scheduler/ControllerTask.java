@@ -64,7 +64,8 @@ public class ControllerTask implements Runnable {
         TaskContext ctx = ctxOpt.get();
 
         if (!executor.isParserAvailable(ctx.bookmaker())) {
-            log.debug("⏭  Parser {} not available — controller {} skipped", ctx.bookmaker(), controllerId);
+            log.debug("⏭  Parser {} not available (CB open) — controller {} skipped", ctx.bookmaker(), controllerId);
+            metrics.onPollCbSkipped();
             return;
         }
 

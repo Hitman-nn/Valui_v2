@@ -22,6 +22,7 @@ public class MonitorMetrics {
     private final Counter eventsDetected;
     private final Counter tasksSkipped;
     private final Counter tasksDeferred;
+    private final Counter pollsCbSkipped;
     private final Timer taskTimer;
     private final DistributionSummary dispatchLag;
     private final Counter dedupHit;
@@ -29,9 +30,10 @@ public class MonitorMetrics {
     private final ConcurrentHashMap<UUID, AtomicInteger> dedupSetSizes = new ConcurrentHashMap<>();
 
     // Drainable window counters for log summaries (reset every 10 min by MonitorSummaryLogger)
-    private final AtomicLong windowPollsOk    = new AtomicLong();
-    private final AtomicLong windowPollsError = new AtomicLong();
-    private final AtomicLong windowEvents     = new AtomicLong();
+    private final AtomicLong windowPollsOk       = new AtomicLong();
+    private final AtomicLong windowPollsError    = new AtomicLong();
+    private final AtomicLong windowPollsCbSkipped = new AtomicLong();
+    private final AtomicLong windowEvents        = new AtomicLong();
 
     public MonitorMetrics(MeterRegistry registry) {
         this.registry = registry;
@@ -47,6 +49,10 @@ public class MonitorMetrics {
 
         this.tasksSkipped = Counter.builder("monitor.tasks.skipped")
                 .description("Tasks skipped due to concurrency limits (legacy, should stay zero with DRR)")
+                .register(registry);
+
+        this.pollsCbSkipped = Counter.builder("monitor.polls.cb_skipped")
+                .description("Polls skipped because the parser circuit breaker is OPEN")
                 .register(registry);
 
         this.tasksDeferred = Counter.builder("monitor.tasks.deferred")
@@ -85,12 +91,14 @@ public class MonitorMetrics {
     public void onDedupMiss()             { dedupMiss.increment(); }
     public Timer taskTimer()              { return taskTimer; }
 
-    public void onPollOk()    { windowPollsOk.incrementAndGet(); }
-    public void onPollError() { windowPollsError.incrementAndGet(); }
+    public void onPollOk()       { windowPollsOk.incrementAndGet(); }
+    public void onPollError()    { windowPollsError.incrementAndGet(); }
+    public void onPollCbSkipped() { pollsCbSkipped.increment(); windowPollsCbSkipped.incrementAndGet(); }
 
-    public long drainPollsOk()    { return windowPollsOk.getAndSet(0); }
-    public long drainPollsError() { return windowPollsError.getAndSet(0); }
-    public long drainWindowEvents() { return windowEvents.getAndSet(0); }
+    public long drainPollsOk()        { return windowPollsOk.getAndSet(0); }
+    public long drainPollsError()     { return windowPollsError.getAndSet(0); }
+    public long drainPollsCbSkipped() { return windowPollsCbSkipped.getAndSet(0); }
+    public long drainWindowEvents()   { return windowEvents.getAndSet(0); }
     public int  currentQueueDepth() { return queueDepth != null ? queueDepth.get() : 0; }
     public long currentScheduled()  { return scheduledCount != null ? scheduledCount.get() : 0; }
 

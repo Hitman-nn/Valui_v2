@@ -24,12 +24,15 @@ public class MonitorSummaryLogger {
     public void logSummary() {
         long pollsOk    = metrics.drainPollsOk();
         long pollsError = metrics.drainPollsError();
+        long cbSkipped  = metrics.drainPollsCbSkipped();
         long events     = metrics.drainWindowEvents();
         int  queue      = metrics.currentQueueDepth();
         long scheduled  = metrics.currentScheduled();
 
+        String cbPart = cbSkipped > 0 ? " cb-skip=" + cbSkipped : "";
+
         boolean hasErrors = pollsError > 0;
-        boolean allQuiet  = pollsOk == 0 && pollsError == 0 && events == 0;
+        boolean allQuiet  = pollsOk == 0 && pollsError == 0 && cbSkipped == 0 && events == 0;
 
         if (allQuiet) {
             log.debug("[MONITOR 10m] опросов={} ошибок={} событий={} queue={} scheduled={}",
@@ -37,11 +40,11 @@ public class MonitorSummaryLogger {
         } else if (hasErrors) {
             long total = pollsOk + pollsError;
             String errPct = String.format("%.1f%%", pollsError * 100.0 / total);
-            log.warn("[MONITOR 10m] опросов={} ошибок={} ({}) событий={} queue={} scheduled={}",
-                    pollsOk, pollsError, errPct, events, queue, scheduled);
+            log.warn("[MONITOR 10m] опросов={} ошибок={} ({}){} событий={} queue={} scheduled={}",
+                    pollsOk, pollsError, errPct, cbPart, events, queue, scheduled);
         } else {
-            log.info("[MONITOR 10m] опросов={} ошибок={} событий={} queue={} scheduled={}",
-                    pollsOk, pollsError, events, queue, scheduled);
+            log.info("[MONITOR 10m] опросов={} ошибок={}{} событий={} queue={} scheduled={}",
+                    pollsOk, pollsError, cbPart, events, queue, scheduled);
         }
     }
 }
