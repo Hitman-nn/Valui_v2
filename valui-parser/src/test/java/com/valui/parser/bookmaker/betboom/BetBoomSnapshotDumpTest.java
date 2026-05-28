@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.context.ApplicationEventPublisher;
 import proto.betboom.Current;
 import proto.betboom.Envelope;
 import proto.betboom.MatchesBody;
@@ -68,7 +69,7 @@ class BetBoomSnapshotDumpTest {
         System.out.printf("Pool: connected=%d available=%d%n", pool.connected(), pool.available());
 
         WsRequestService wsService = new WsRequestService(pool, 5);
-        parser = new BetBoomParser(wsService);
+        parser = new BetBoomParser(wsService, e -> {});
     }
 
     @AfterAll

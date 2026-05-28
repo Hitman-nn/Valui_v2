@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import proto.betboom.*;
 
 import java.util.List;
@@ -24,14 +25,15 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class BetBoomParserTest {
 
-    @Mock private WsRequestService wsService;
-    @Mock private WsClientBorrowingPool pool;
+    @Mock private WsRequestService              wsService;
+    @Mock private WsClientBorrowingPool          pool;
+    @Mock private ApplicationEventPublisher      eventPublisher;
 
     private BetBoomParser parser;
 
     @BeforeEach
     void setUp() {
-        parser = new BetBoomParser(wsService);
+        parser = new BetBoomParser(wsService, eventPublisher);
     }
 
     @Test
