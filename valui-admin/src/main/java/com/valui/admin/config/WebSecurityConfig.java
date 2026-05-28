@@ -6,7 +6,6 @@ import com.valui.admin.auth.jwt.JwtProperties;
 import com.valui.admin.security.CurrentUserArgumentResolver;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,9 +34,6 @@ public class WebSecurityConfig implements WebMvcConfigurer {
 
     private final JwtAuthenticationFilter       jwtAuthFilter;
     private final CurrentUserArgumentResolver   currentUserArgumentResolver;
-
-    @Value("${valui.miniapp.url:}")
-    private String miniAppUrl;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -81,12 +77,11 @@ public class WebSecurityConfig implements WebMvcConfigurer {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cors = new CorsConfiguration();
-        // Allow admin-ui dev server and Mini App origin
-        cors.setAllowedOriginPatterns(List.of("http://localhost:*", "https://localhost:*",
-                miniAppUrl.isBlank() ? "https://*.telegram.org" : miniAppUrl));
+        // API uses stateless JWT Bearer auth (no cookies), so any origin is safe to allow.
+        // Mini App and admin UI both send tokens via Authorization / X-Telegram-Init-Data headers.
+        cors.setAllowedOriginPatterns(List.of("*"));
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cors.setAllowedHeaders(List.of("*"));
-        cors.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cors);
         return source;
