@@ -281,15 +281,24 @@ public class SportEventConsumer {
         catch (NumberFormatException e) { return 0; }
     }
 
-    private static final ConcurrentHashMap<String, Pattern> PATTERN_CACHE = new ConcurrentHashMap<>();
+    // Bounded cache: one entry per unique controller filterRule string.
+    // Soft cap prevents unbounded growth if many users configure distinct patterns.
+    private static final int PATTERN_CACHE_MAX = 1000;
+    private static final ConcurrentHashMap<String, Pattern> PATTERN_CACHE = new ConcurrentHashMap<>(256);
 
     private boolean passesFilterRule(String filterRule, String title) {
         if (filterRule == null || filterRule.isBlank()) return true;
         if (title == null) return false;
         try {
-            Pattern p = PATTERN_CACHE.computeIfAbsent(filterRule, k ->
-                    Pattern.compile(k, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE |
-                            Pattern.UNICODE_CHARACTER_CLASS));
+            Pattern p = PATTERN_CACHE.get(filterRule);
+            if (p == null) {
+                p = Pattern.compile(filterRule, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE |
+                        Pattern.UNICODE_CHARACTER_CLASS);
+                if (PATTERN_CACHE.size() < PATTERN_CACHE_MAX) {
+                    Pattern existing = PATTERN_CACHE.putIfAbsent(filterRule, p);
+                    if (existing != null) p = existing;
+                }
+            }
             return p.matcher(title).find();
         } catch (PatternSyntaxException e) {
             log.warn("Invalid filterRule regex '{}': {}", filterRule, e.getMessage());

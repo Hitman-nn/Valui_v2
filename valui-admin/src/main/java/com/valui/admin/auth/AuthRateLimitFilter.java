@@ -12,6 +12,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import org.springframework.scheduling.annotation.Scheduled;
 
 /**
  * Sliding-window rate limiter for the admin login endpoint.
@@ -76,5 +78,11 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    @Scheduled(fixedDelay = 5, timeUnit = TimeUnit.MINUTES)
+    void cleanupExpiredWindows() {
+        long now = System.currentTimeMillis();
+        windows.entrySet().removeIf(e -> now - e.getValue()[0] >= windowMs);
     }
 }
