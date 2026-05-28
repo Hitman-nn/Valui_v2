@@ -140,6 +140,7 @@ services:
       JWT_SECRET:             ${JWT_SECRET}
       ADMIN_API_KEY:          ${ADMIN_API_KEY}
       BOT_AUTH_SECRET:        ${BOT_AUTH_SECRET}
+      ADMIN_UI_PASSWORD:      ${ADMIN_UI_PASSWORD}
       BOT_PROXY_ENABLED:      ${BOT_PROXY_ENABLED:-false}
       BOT_PROXY_TYPE:         ${BOT_PROXY_TYPE:-SOCKS5}
       BOT_PROXY_HOST:         ${BOT_PROXY_HOST:-}
