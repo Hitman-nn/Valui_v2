@@ -29,6 +29,11 @@ resilience4j:
     instances:
       xbet-cb:
         base-config: parser-default
+        # Tighter window: with 77 controllers in flight, the default 10-call window
+        # lets too many tasks burn their 8s budget before CB opens.
+        # 6-call window at 40% threshold → opens after 3 failures instead of 5.
+        sliding-window-size: 6
+        failure-rate-threshold: 40
       fonbet-cb:
         base-config: parser-default
       olimp-cb:

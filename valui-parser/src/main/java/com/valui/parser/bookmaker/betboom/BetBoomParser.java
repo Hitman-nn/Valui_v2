@@ -25,6 +25,10 @@ import proto.betboom.SportAllBody;
 import proto.betboom.TournamentListFrame;
 
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import com.valui.parser.health.BetBoomWsHighTimeoutRateEvent;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -33,6 +37,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
@@ -49,9 +54,15 @@ public class BetBoomParser implements BookmakerParser {
     private static final int TIMEOUT_WARN_THRESHOLD = 3;
     private static final Current.TypeLine LINE = Current.TypeLine.LINE;
 
-    private final WsRequestService ws;
-    private final ConcurrentHashMap<String, Integer> tournamentTimeoutCount = new ConcurrentHashMap<>();
-    final AtomicLong wsTimeoutTotal = new AtomicLong();
+    private final WsRequestService          ws;
+    private final ApplicationEventPublisher eventPublisher;
+
+    @Value("${valui.parser.betboom.ws-timeout-window-threshold:10}")
+    private int wsTimeoutAlertThreshold;
+
+    private final ConcurrentHashMap<String, Integer> tournamentTimeoutCount  = new ConcurrentHashMap<>();
+    final AtomicLong wsTimeoutTotal       = new AtomicLong();
+    private final AtomicLong wsTimeoutWindowCount = new AtomicLong();
 
     @Override
     public BookmakerType getBookmaker() { return BookmakerType.BETBOOM; }
@@ -277,6 +288,7 @@ public class BetBoomParser implements BookmakerParser {
             log.debug("betboom fetchMatches tournamentId={}: circuit breaker OPEN — skipped", tournamentId);
         } else {
             long total = wsTimeoutTotal.incrementAndGet();
+            wsTimeoutWindowCount.incrementAndGet();
             int consecutive = tournamentConsecutiveTimeouts(tournamentId, 1);
             if (consecutive <= TIMEOUT_WARN_THRESHOLD) {
                 log.warn("betboom fetchMatches tournamentId={}: {} — no data returned (consecutive={}, total={})",
@@ -301,6 +313,15 @@ public class BetBoomParser implements BookmakerParser {
             tournamentTimeoutCount.clear();
         }
         return count;
+    }
+
+    @Scheduled(fixedDelay = 30, timeUnit = TimeUnit.MINUTES)
+    void checkWsTimeoutRate() {
+        long count = wsTimeoutWindowCount.getAndSet(0);
+        if (count >= wsTimeoutAlertThreshold) {
+            log.error("[BB] WS timeout rate elevated: {} timeouts in 30 min (threshold={})", count, wsTimeoutAlertThreshold);
+            eventPublisher.publishEvent(new BetBoomWsHighTimeoutRateEvent(this, count, 30));
+        }
     }
 
     private static String fallbackReason(Throwable t) {

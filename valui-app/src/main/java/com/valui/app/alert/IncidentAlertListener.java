@@ -2,6 +2,7 @@ package com.valui.app.alert;
 
 import com.valui.admin.auth.BruteForceAlertEvent;
 import com.valui.notify.service.AdminNotificationService;
+import com.valui.parser.health.BetBoomWsHighTimeoutRateEvent;
 import com.valui.parser.health.ParserRecoveredEvent;
 import com.valui.parser.health.ParserUnavailableEvent;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -68,7 +69,16 @@ public class IncidentAlertListener {
             "✅ *Парсер восстановлен*: `" + event.getBookmaker() + "`");
     }
 
-    // ── C: Admin login brute-force alerts ────────────────────────────────────
+    // ── C: BetBoom WS degradation alert ──────────────────────────────────────
+
+    @EventListener
+    public void onBetBoomWsHighTimeoutRate(BetBoomWsHighTimeoutRateEvent event) {
+        adminNotificationService.alertAdmin(
+            "⚠️ *BetBoom WS деградация*: " + event.getCount()
+            + " таймаутов за " + event.getWindowMinutes() + " мин");
+    }
+
+    // ── D: Admin login brute-force alerts ────────────────────────────────────
 
     @EventListener
     public void onBruteForce(BruteForceAlertEvent event) {

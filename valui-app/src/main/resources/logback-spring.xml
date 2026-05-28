@@ -136,6 +136,10 @@
         <logger name="org.flywaydb"         level="WARN"/>
         <logger name="org.springframework"  level="WARN"/>
         <logger name="org.telegram"         level="WARN"/>
+        <!-- Netty TLS — transient SSL resets from geo-blocked servers (BetCity/XBet) -->
+        <logger name="reactor.netty.http.client.HttpClientConnect" level="ERROR"/>
+        <logger name="io.netty.handler.ssl"                        level="ERROR"/>
+        <logger name="io.netty.channel"                            level="ERROR"/>
         <root level="INFO">
             <appender-ref ref="ASYNC_JSON"/>
         </root>
@@ -149,6 +153,10 @@
         <logger name="org.flywaydb"         level="INFO"/>
         <logger name="org.springframework"  level="WARN"/>
         <logger name="org.telegram"         level="WARN"/>
+        <!-- Netty TLS — transient SSL resets from geo-blocked servers (BetCity/XBet) -->
+        <logger name="reactor.netty.http.client.HttpClientConnect" level="ERROR"/>
+        <logger name="io.netty.handler.ssl"                        level="ERROR"/>
+        <logger name="io.netty.channel"                            level="ERROR"/>
         <root level="WARN">
             <appender-ref ref="ASYNC_CONSOLE"/>
         </root>
