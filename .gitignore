@@ -40660,3 +40660,9 @@ docker-compose.override.yml
 /admin-ui/node_modules/victory-vendor/d3-timer.js
 /admin-ui/node_modules/victory-vendor/package.json
 /admin-ui/node_modules/victory-vendor/README.md
+
+# Claude Code worktrees
+.claude/worktrees/
+
+# Frontend build output
+admin-ui/dist/
