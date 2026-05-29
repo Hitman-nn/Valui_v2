@@ -1,8 +1,10 @@
 package com.valui.app.logging;
 
 import com.valui.bot.vk.VkLinkService;
+import com.valui.common.domain.BookmakerType;
 import com.valui.monitor.outbox.OutboxEventRepository;
 import com.valui.parser.bookmaker.betboom.ws.WsClientBorrowingPool;
+import com.valui.parser.bookmaker.fonbet.FonbetEndpointPool;
 import com.valui.parser.health.ParserHealthService;
 import com.valui.user.repository.ControllerRepository;
 import com.valui.user.repository.UserRepository;
@@ -14,6 +16,8 @@ import org.flywaydb.core.api.MigrationInfo;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.stereotype.Component;
@@ -38,12 +42,15 @@ public class StartupLogger {
     private static final String CYAN   = "\033[36m";
     private static final String GREEN  = "\033[32m";
     private static final String YELLOW = "\033[33m";
+    private static final String RED    = "\033[31m";
     private static final String DIM    = "\033[2m";
 
-    private static final String FULL_LINE = "═".repeat(62);
-    private static final String SUB_LINE  = "  " + "─".repeat(58);
-    private static final int    LABEL_W   = 13;
-    private static final int    COL1_W    = 22; // left column width for 2-col rows
+    private static final String FULL_LINE     = "═".repeat(62);
+    private static final String SUB_LINE      = "  " + "─".repeat(58);
+    private static final int    LABEL_W       = 13;
+    private static final int    COL1_W        = 22;
+    private static final int    PARSER_NAME_W = 9;
+    private static final int    PARSER_INFO_W = 22;
 
     private final Environment                   env;
     private final Flyway                        flyway;
@@ -53,6 +60,7 @@ public class StartupLogger {
     private final KafkaListenerEndpointRegistry kafkaRegistry;
     private final OutboxEventRepository         outboxRepository;
     private final WsClientBorrowingPool         wsPool;
+    private final FonbetEndpointPool            fonbetPool;
     private final ParserHealthService           parserHealth;
     private final VkLinkService                 vkLinkService;
 
@@ -64,6 +72,7 @@ public class StartupLogger {
                          KafkaListenerEndpointRegistry kafkaRegistry,
                          OutboxEventRepository outboxRepository,
                          WsClientBorrowingPool wsPool,
+                         FonbetEndpointPool fonbetPool,
                          ParserHealthService parserHealth,
                          VkLinkService vkLinkService) {
         this.env                  = env;
@@ -74,6 +83,7 @@ public class StartupLogger {
         this.kafkaRegistry        = kafkaRegistry;
         this.outboxRepository     = outboxRepository;
         this.wsPool               = wsPool;
+        this.fonbetPool           = fonbetPool;
         this.parserHealth         = parserHealth;
         this.vkLinkService        = vkLinkService;
     }
@@ -84,6 +94,12 @@ public class StartupLogger {
         log.info(CYAN + "── ALL BEANS INITIALIZED" + " ─".repeat(18) + RESET);
     }
 
+    /**
+     * @Order(LOWEST_PRECEDENCE) ensures this fires AFTER all other ApplicationReadyEvent
+     * listeners (BotCommandsRegistrar, VkLinkService, etc.), so the READY block always
+     * appears last in the startup log.
+     */
+    @Order(Ordered.LOWEST_PRECEDENCE)
     @EventListener(ApplicationReadyEvent.class)
     public void onReady(ApplicationReadyEvent event) {
         String profile  = String.join(", ", env.getActiveProfiles());
@@ -107,8 +123,7 @@ public class StartupLogger {
         String ctrls     = controllersBreakdown();
         String groups    = kafkaConsumerGroups();
         String outbox    = outboxPending();
-        String wsInfo    = wsPoolInfo();
-        String cbInfo    = circuitBreakersInfo();
+        String parsers   = parsersSection();
         String vkInfo    = vkStatus();
         String swagger   = swaggerUrl(port);
 
@@ -116,7 +131,7 @@ public class StartupLogger {
             + "\n" + CYAN + BOLD + "  ✅  VALUI READY" + RESET
             + "\n" + CYAN + FULL_LINE + RESET
 
-            // ── row 1: profile + started ─────────────────────────────────────
+            // ── overview ──────────────────────────────────────────────────────
             + "\n  " + lbl("Profile")  + pad(profile, COL1_W)   + lbl("Started")  + startedIn
             + "\n  " + lbl("Port")     + pad(port, COL1_W)      + lbl("JVM heap") + heapInfo
             + "\n" + SUB_LINE
@@ -135,11 +150,14 @@ public class StartupLogger {
             + "\n  " + lbl("VK")       + vkInfo
             + "\n" + SUB_LINE
 
-            // ── stats ─────────────────────────────────────────────────────────
-            + "\n  " + lbl("Users")    + pad(users + " active", COL1_W) + lbl("Outbox")    + outbox
+            // ── data & pipeline ───────────────────────────────────────────────
+            + "\n  " + lbl("Users")       + pad(users + " active", COL1_W) + lbl("Outbox")  + outbox
             + "\n  " + lbl("Controllers") + ctrls
-            + "\n  " + lbl("WS Pool")  + pad(wsInfo, COL1_W)           + lbl("CBs")        + cbInfo
-            + "\n  " + lbl("Dedup TTL") + dedupTtl + " min"
+            + "\n  " + lbl("Dedup TTL")   + dedupTtl + " min"
+            + "\n" + SUB_LINE
+
+            // ── parsers (one line per bookmaker) ──────────────────────────────
+            + parsers
             + "\n" + SUB_LINE
 
             // ── admin ─────────────────────────────────────────────────────────
@@ -253,10 +271,9 @@ public class StartupLogger {
                     .toList();
             if (sorted.isEmpty()) return "—";
 
-            // Wrap groups into lines of ~3 per line
             int count = sorted.size();
             List<String> lines = new ArrayList<>();
-            String indent = " ".repeat(LABEL_W + 2 + 2); // align under value
+            String indent = " ".repeat(LABEL_W + 2 + 2);
             StringBuilder line = new StringBuilder();
             for (int i = 0; i < sorted.size(); i++) {
                 if (i > 0 && i % 3 == 0) {
@@ -280,40 +297,85 @@ public class StartupLogger {
         }
     }
 
-    private String wsPoolInfo() {
+    /**
+     * Builds the Parsers section: one line per bookmaker with pool info + CB state.
+     *
+     * Format:
+     *   Parsers    5 / 5 available
+     *     BETBOOM  WS: 6/6 ready        ● CLOSED
+     *     FONBET   ep: 20/200           ● CLOSED
+     *     XBET                          ● CLOSED
+     *     OLIMP                         ● CLOSED
+     *     BETCITY                       ● CLOSED
+     */
+    private String parsersSection() {
         try {
-            int avail = wsPool.available();
-            int total = wsPool.size();
-            String status = avail == total ? GREEN + avail + "/" + total + " ready" + RESET
-                                           : YELLOW + avail + "/" + total + " ready" + RESET;
-            return status + "  " + DIM + "(BetBoom WS)" + RESET;
+            Map<BookmakerType, ParserHealthService.CircuitBreakerInfo> cbState =
+                    parserHealth.getCurrentState();
+
+            long available = cbState.values().stream()
+                    .filter(i -> i.state() == CircuitBreaker.State.CLOSED
+                              || i.state() == CircuitBreaker.State.HALF_OPEN)
+                    .count();
+            long total = cbState.size();
+            String summary = available == total
+                    ? GREEN + total + " / " + total + " available" + RESET
+                    : YELLOW + available + " / " + total + " available" + RESET;
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("\n  ").append(lbl("Parsers")).append(summary);
+
+            String parserIndent = "    ";
+            for (Map.Entry<BookmakerType, ParserHealthService.CircuitBreakerInfo> entry
+                    : cbState.entrySet()) {
+                BookmakerType bk = entry.getKey();
+                ParserHealthService.CircuitBreakerInfo info = entry.getValue();
+
+                String name  = String.format("%-" + PARSER_NAME_W + "s", bk.name());
+                String extra = parserExtraInfo(bk);
+                String cb    = cbDot(info.state()) + " " + info.state().name();
+
+                sb.append("\n").append(parserIndent)
+                  .append(DIM).append(name).append(RESET)
+                  .append(pad(extra, PARSER_INFO_W))
+                  .append(cb);
+            }
+            return sb.toString();
         } catch (Exception e) {
-            log.debug("WS pool info unavailable: {}", e.getMessage());
-            return "—";
+            log.debug("Parsers section unavailable: {}", e.getMessage());
+            return "\n  " + lbl("Parsers") + "—";
         }
     }
 
-    private String circuitBreakersInfo() {
+    private String parserExtraInfo(BookmakerType bk) {
         try {
-            Map<?, ParserHealthService.CircuitBreakerInfo> state = parserHealth.getCurrentState();
-            if (state.isEmpty()) return "—";
-            long open = state.values().stream()
-                    .filter(i -> i.state() == CircuitBreaker.State.OPEN
-                              || i.state() == CircuitBreaker.State.HALF_OPEN
-                              || i.state() == CircuitBreaker.State.FORCED_OPEN)
-                    .count();
-            if (open == 0) {
-                return GREEN + state.size() + " × CLOSED" + RESET;
-            }
-            String detail = state.entrySet().stream()
-                    .filter(e -> e.getValue().state() != CircuitBreaker.State.CLOSED)
-                    .map(e -> e.getKey() + "=" + e.getValue().state())
-                    .collect(Collectors.joining(", "));
-            return YELLOW + open + " OPEN  " + RESET + DIM + "(" + detail + ")" + RESET;
+            return switch (bk) {
+                case BETBOOM -> {
+                    int avail = wsPool.available();
+                    int total = wsPool.size();
+                    String col = avail == total ? GREEN : YELLOW;
+                    yield "WS: " + col + avail + "/" + total + " ready" + RESET;
+                }
+                case FONBET -> {
+                    int alive = fonbetPool.aliveCount();
+                    int tot   = fonbetPool.totalCount();
+                    String col = alive >= 3 ? GREEN : YELLOW;
+                    yield "ep: " + col + alive + "/" + tot + RESET;
+                }
+                default -> "";
+            };
         } catch (Exception e) {
-            log.debug("CB info unavailable: {}", e.getMessage());
-            return "—";
+            return "";
         }
+    }
+
+    private static String cbDot(CircuitBreaker.State state) {
+        return switch (state) {
+            case CLOSED                         -> GREEN  + "●" + RESET;
+            case HALF_OPEN                      -> YELLOW + "◑" + RESET;
+            case OPEN, FORCED_OPEN              -> RED    + "●" + RESET;
+            default                             -> DIM    + "○" + RESET;
+        };
     }
 
     private String vkStatus() {

@@ -70,6 +70,21 @@ public class FonbetEndpointPool {
         return (best == null || best.isEmpty()) ? FALLBACK : best.iterator().next();
     }
 
+    /** Endpoints with score > 0 are alive (probed successfully). */
+    public int aliveCount() {
+        try {
+            Long n = redis.opsForZSet().count(ZSET_KEY, 1.0, Double.MAX_VALUE);
+            return n != null ? n.intValue() : 0;
+        } catch (Exception e) { return 0; }
+    }
+
+    public int totalCount() {
+        try {
+            Long n = redis.opsForZSet().zCard(ZSET_KEY);
+            return n != null ? n.intValue() : 0;
+        } catch (Exception e) { return 0; }
+    }
+
     public void markSuccess(String url) {
         redis.opsForZSet().add(ZSET_KEY, url, (double) System.currentTimeMillis());
     }
