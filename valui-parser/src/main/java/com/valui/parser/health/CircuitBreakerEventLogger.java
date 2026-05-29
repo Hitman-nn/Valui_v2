@@ -38,8 +38,14 @@ public class CircuitBreakerEventLogger {
             CircuitBreaker.State from = event.getStateTransition().getFromState();
             switch (to) {
                 case OPEN -> {
-                    openedAt.put(name, Instant.now());
-                    log.warn("[CB] {} OPEN — failure threshold exceeded ({}→OPEN)", name, from);
+                    if (from == CircuitBreaker.State.CLOSED) {
+                        openedAt.put(name, Instant.now());
+                        log.warn("[CB] {} OPEN — failure threshold exceeded (CLOSED→OPEN)", name);
+                    } else {
+                        // HALF_OPEN→OPEN: probe failed, re-opening; preserve original openedAt for duration tracking
+                        openedAt.putIfAbsent(name, Instant.now());
+                        log.warn("[CB] {} OPEN — probe failed, still unavailable ({}→OPEN)", name, from);
+                    }
                 }
                 case HALF_OPEN -> log.info("[CB] {} HALF_OPEN — testing recovery", name);
                 case CLOSED -> {

@@ -34,17 +34,24 @@ resilience4j:
         # 6-call window at 40% threshold → opens after 3 failures instead of 5.
         sliding-window-size: 6
         failure-rate-threshold: 40
+        # Explicit: base-config inheritance of this flag is unreliable in r4j Spring Boot autoconfiguration.
+        # Without it the CB stays OPEN until a manual call arrives (not auto-testing every 30s).
+        automatic-transition-from-open-to-half-open-enabled: true
       fonbet-cb:
         base-config: parser-default
+        automatic-transition-from-open-to-half-open-enabled: true
       olimp-cb:
         base-config: parser-default
+        automatic-transition-from-open-to-half-open-enabled: true
       betcity-cb:
         base-config: parser-default
+        automatic-transition-from-open-to-half-open-enabled: true
       betboom-cb:
         base-config: parser-default
         # WS is slower — give more time before opening
         wait-duration-in-open-state: 60s
         sliding-window-size: 6
+        automatic-transition-from-open-to-half-open-enabled: true
 
   retry:
     instances:
