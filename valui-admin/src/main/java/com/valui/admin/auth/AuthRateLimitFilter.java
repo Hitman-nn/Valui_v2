@@ -1,5 +1,7 @@
 package com.valui.admin.auth;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,8 +14,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import org.springframework.scheduling.annotation.Scheduled;
 
 /**
  * Sliding-window rate limiter for the admin login endpoint.
@@ -34,6 +37,8 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
 
     // ip → [windowStartMs, requestCount]
     private final ConcurrentHashMap<String, long[]> windows = new ConcurrentHashMap<>();
+
+    private ScheduledExecutorService cleaner;
 
     public AuthRateLimitFilter(
             @Value("${valui.auth.rate-limit.max-attempts:3}") int maxAttempts,
@@ -80,7 +85,18 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    @Scheduled(fixedDelay = 5, timeUnit = TimeUnit.MINUTES)
+    @PostConstruct
+    void startCleanup() {
+        cleaner = Executors.newSingleThreadScheduledExecutor(
+                r -> Thread.ofVirtual().name("auth-rl-cleanup").unstarted(r));
+        cleaner.scheduleWithFixedDelay(this::cleanupExpiredWindows, 5, 5, TimeUnit.MINUTES);
+    }
+
+    @PreDestroy
+    void stopCleanup() {
+        if (cleaner != null) cleaner.shutdownNow();
+    }
+
     void cleanupExpiredWindows() {
         long now = System.currentTimeMillis();
         windows.entrySet().removeIf(e -> now - e.getValue()[0] >= windowMs);
