@@ -7,6 +7,7 @@ import com.valui.notify.util.KafkaNotifyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.slf4j.MDC;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
@@ -64,26 +65,38 @@ public class VkRetryTopicConsumer {
     private void doProcess(ConsumerRecord<String, Object> record, Acknowledgment ack) {
         try {
             if (!(record.value() instanceof UserNotificationRequestMessage request)) {
-                log.warn("[VK-RETRY] Unexpected payload on {}, skipping", record.topic());
+                log.atWarn().addKeyValue("topic", record.topic()).log("[VK-RETRY] Unexpected payload, skipping");
                 return;
             }
             if (request.vkPeerId() == null) {
-                log.warn("[VK-RETRY] vkPeerId is null on topic={} logId={} — anomaly, skipping",
-                        record.topic(), request.notificationLogId());
+                log.atWarn().addKeyValue("topic", record.topic())
+                   .addKeyValue("logId", request.notificationLogId())
+                   .log("[VK-RETRY] vkPeerId is null — anomaly, skipping");
                 return;
             }
 
-            long randomId = KafkaNotifyUtil.vkRandomId(request.notificationLogId());
+            MDC.put("logId",    request.notificationLogId() != null ? request.notificationLogId() : "");
+            MDC.put("vkPeerId", request.vkPeerId().toString());
+            MDC.put("retryTopic", record.topic());
             try {
-                vkSender.dispatch(request.vkPeerId(), request.messageText(), randomId);
-                log.info("[VK-RETRY] Success on topic={} logId={}", record.topic(), request.notificationLogId());
-            } catch (RetryableNotificationException e) {
-                log.warn("[VK-RETRY] Failed on topic={} logId={}: {}", record.topic(), request.notificationLogId(), e.getMessage());
-                deadLetterPublisher.publishToDlq(record, e);
-            } catch (Exception e) {
-                log.warn("[VK-RETRY] Непредвиденная ошибка topic={}: {}", record.topic(), e.getMessage());
-                deadLetterPublisher.publishToDlq(record,
-                        new RetryableNotificationException(e.getMessage(), e, true, 0));
+                long randomId = KafkaNotifyUtil.vkRandomId(request.notificationLogId());
+                try {
+                    vkSender.dispatch(request.vkPeerId(), request.messageText(), randomId);
+                    log.info("[VK-RETRY] Delivered");
+                } catch (RetryableNotificationException e) {
+                    log.atWarn().addKeyValue("retryable", e.isRetryable())
+                       .log("[VK-RETRY] Failed: {}", e.getMessage());
+                    deadLetterPublisher.publishToDlq(record, e);
+                } catch (Exception e) {
+                    log.atWarn().addKeyValue("errorType", e.getClass().getSimpleName())
+                       .log("[VK-RETRY] Unexpected error: {}", e.getMessage());
+                    deadLetterPublisher.publishToDlq(record,
+                            new RetryableNotificationException(e.getMessage(), e, true, 0));
+                }
+            } finally {
+                MDC.remove("logId");
+                MDC.remove("vkPeerId");
+                MDC.remove("retryTopic");
             }
         } finally {
             ack.acknowledge();

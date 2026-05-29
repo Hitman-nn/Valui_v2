@@ -6,21 +6,35 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import java.util.Map;
 
 /**
- * Logback converter: appends " [u=X c=Y r=Z]" to log lines only when at least one
- * MDC field is set (i.e., inside an HTTP request context populated by MdcFilter).
- * Background tasks (scheduler, Kafka consumers) produce no MDC fields → silent.
+ * Logback converter: appends context fields to console log lines when MDC is populated.
+ *
+ * HTTP requests:    [T=<traceId> r=<requestId> u=<userId> c=<chatId>]
+ * Kafka consumers:  [T=<traceId> log=<logId>]
+ * Scheduler tasks:  [ctrl=<controllerId> bk=<bookmaker>]
+ * Background tasks with no context produce no output.
  */
 public class MdcContextConverter extends ClassicConverter {
+
+    private static final String[] KEYS     = {"traceId", "logId", "controllerId", "bookmaker", "userId", "chatId", "requestId"};
+    private static final String[] ABBREVS  = {"T",        "log",   "ctrl",         "bk",        "u",      "c",      "r"};
 
     @Override
     public String convert(ILoggingEvent event) {
         Map<String, String> mdc = event.getMDCPropertyMap();
-        String userId    = mdc.getOrDefault("userId",    "");
-        String chatId    = mdc.getOrDefault("chatId",    "");
-        String requestId = mdc.getOrDefault("requestId", "");
-        if (userId.isEmpty() && chatId.isEmpty() && requestId.isEmpty()) {
-            return "";
+        if (mdc == null || mdc.isEmpty()) return "";
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < KEYS.length; i++) {
+            String val = mdc.get(KEYS[i]);
+            if (val != null && !val.isEmpty()) {
+                sb.append(sb.isEmpty() ? " [" : " ");
+                sb.append(ABBREVS[i]).append('=');
+                // traceId is 32 hex chars — show only the first 8 in console to keep lines short
+                sb.append("traceId".equals(KEYS[i]) && val.length() > 8 ? val.substring(0, 8) : val);
+            }
         }
-        return " [u=" + userId + " c=" + chatId + " r=" + requestId + "]";
+        if (sb.isEmpty()) return "";
+        sb.append(']');
+        return sb.toString();
     }
 }

@@ -13,6 +13,8 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
+import org.slf4j.MDC;
+
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -74,23 +76,32 @@ public class RetryTopicConsumer {
     private void doProcess(ConsumerRecord<String, Object> record, Acknowledgment ack) {
         try {
             if (!(record.value() instanceof UserNotificationRequestMessage request)) {
-                log.warn("[RETRY] Unexpected payload on {}, skipping", record.topic());
+                log.atWarn().addKeyValue("topic", record.topic()).log("[RETRY] Unexpected payload, skipping");
                 return;
             }
 
             UUID logId = KafkaNotifyUtil.parseLogId(request.notificationLogId());
-            if (logId != null && logService.isAlreadySent(logId)) {
-                log.debug("[RETRY] Already sent — skipping logId={}", logId);
-                return;
-            }
+            MDC.put("logId", logId != null ? logId.toString() : "");
+            MDC.put("retryTopic", record.topic());
             try {
-                dispatchService.dispatch(request);
-                if (logId != null) logService.markSent(logId);
-                log.info("[RETRY] Success on topic={} logId={}", record.topic(), logId);
-            } catch (Exception e) {
-                RetryableNotificationException rne = retryPolicy.classify(e);
-                log.warn("[RETRY] Failed on topic={} logId={}: {}", record.topic(), logId, e.getMessage());
-                deadLetterPublisher.publishToDlq(record, rne);
+                if (logId != null && logService.isAlreadySent(logId)) {
+                    log.debug("[RETRY] Already sent — skipping");
+                    return;
+                }
+                try {
+                    dispatchService.dispatch(request);
+                    if (logId != null) logService.markSent(logId);
+                    log.info("[RETRY] Delivered");
+                } catch (Exception e) {
+                    RetryableNotificationException rne = retryPolicy.classify(e);
+                    log.atWarn()
+                       .addKeyValue("retryable", rne.isRetryable())
+                       .log("[RETRY] Failed: {}", e.getMessage());
+                    deadLetterPublisher.publishToDlq(record, rne);
+                }
+            } finally {
+                MDC.remove("logId");
+                MDC.remove("retryTopic");
             }
         } finally {
             ack.acknowledge();

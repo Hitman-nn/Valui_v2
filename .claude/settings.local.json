@@ -101,7 +101,14 @@
       "Read(//tmp/**)",
       "PowerShell(Get-Command *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git *)",
+      "Bash(jar xf *)",
+      "Bash(npm run *)",
+      "Bash(awk '{print $NF}')",
+      "Bash(make -n miniapp-deploy --dry-run -C /Users/danilabogatyrev/Documents/java/Valui_v2)",
+      "Read(//etc/nginx/**)",
+      "Bash(make -n miniapp-deploy -C /Users/danilabogatyrev/Documents/java/Valui_v2)"
     ]
   }
 }

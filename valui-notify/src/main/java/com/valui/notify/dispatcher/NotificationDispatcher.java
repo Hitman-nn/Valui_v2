@@ -18,6 +18,8 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
+import org.slf4j.MDC;
+
 import java.time.Duration;
 import java.util.UUID;
 
@@ -58,7 +60,7 @@ public class NotificationDispatcher {
         // before offset commit) just re-edits the same message — safe.
         if (request.editMessageId() != null) {
             dispatchService.edit(request);
-            log.debug("[DISPATCH] Отредактировано [chatId={} messageId={}]",
+            log.debug("[DISPATCH] Edit delivered chatId={} messageId={}",
                     request.telegramId(), request.editMessageId());
             return;
         }
@@ -66,70 +68,82 @@ public class NotificationDispatcher {
         UUID logId  = parseLogId(request.notificationLogId());
         UUID userId = parseUserId(request.userId());
 
-        // Guard against Kafka consumer replay (rebalance after dispatch but before offset commit):
-        // if the log is already SENT, the Telegram message was already delivered — skip.
-        if (logId != null && logService.isAlreadySent(logId)) {
-            log.debug("[DISPATCH] Повтор — уже отправлено logId={}", logId);
-            return;
-        }
-
-        // Debit before dispatch: prevents the concurrent over-dispatch race where two threads
-        // both pass the balance>0 check and both send the same user's notification for free.
-        // If dispatch subsequently fails the token is consumed — the retry path delivers the
-        // notification for free, so the user still pays exactly once per notification.
-        if (userId != null) {
-            int cost = tokenLedgerService.getCost("NOTIFICATION_SENT");
-            if (!tokenLedgerService.tryDebit(userId, cost, TokenReasonCode.NOTIFICATION_SENT, null)) {
-                log.debug("[DISPATCH] Пропуск: нулевой баланс userId={}", userId);
-                if (logId != null) logService.markFailed(logId, "Нулевой баланс токенов");
+        if (logId  != null) MDC.put("logId",  logId.toString());
+        if (userId != null) MDC.put("userId", userId.toString());
+        if (request.telegramId() != null) MDC.put("chatId", request.telegramId().toString());
+        try {
+            // Guard against Kafka consumer replay (rebalance after dispatch but before offset commit):
+            // if the log is already SENT, the Telegram message was already delivered — skip.
+            if (logId != null && logService.isAlreadySent(logId)) {
+                log.debug("[DISPATCH] Already sent — skipping");
                 return;
             }
-        }
 
-        // Publish to VK pipeline independently — VK delivery does not depend on Telegram outcome.
-        // Synchronous exceptions (e.g. topic not yet created, broker timeout) are caught so that
-        // a VK failure never blocks or retries the Telegram delivery path.
-        // Async send failures (CompletableFuture) are intentionally not handled here — they are
-        // logged at WARN by LoggingProducerListener. Silent loss on async failure is acceptable
-        // since VK is a supplemental channel and the Telegram notification is still delivered.
-        if (request.vkPeerId() != null) {
-            try {
-                kafkaTemplate.send(KafkaTopics.VK_NOTIFICATIONS_PENDING,
-                        String.valueOf(request.vkPeerId()), request);
-            } catch (Exception e) {
-                log.warn("[DISPATCH] VK publish failed logId={} peerId={}: {}",
-                        logId, request.vkPeerId(), e.getMessage());
-            }
-        }
-
-        try {
-            Integer telegramMessageId = dispatchService.dispatch(request);
-            if (logId != null) logService.markSent(logId, telegramMessageId);
-            stats.incSent(request.bookmaker());
-            log.debug("[DISPATCH] Отправлено [logId={} channel={}]", logId, request.channel());
-
-            // After successful Telegram delivery: populate dedup cache so subsequent
-            // duplicates (same match, different event ID) edit this message instead.
-            if (telegramMessageId != null && request.dedupKey() != null
-                    && request.telegramId() != null) {
-                TitleDedupEntry dedupEntry = new TitleDedupEntry(
-                        telegramMessageId,
-                        request.telegramId(),
-                        request.betKey(),
-                        request.quickAddKey());
-                if (request.dedupTtlMinutes() != null && request.dedupTtlMinutes() > 0) {
-                    titleDedupCache.store(request.dedupKey(), dedupEntry,
-                            Duration.ofMinutes(request.dedupTtlMinutes()));
-                } else {
-                    titleDedupCache.store(request.dedupKey(), dedupEntry);
+            // Debit before dispatch: prevents the concurrent over-dispatch race where two threads
+            // both pass the balance>0 check and both send the same user's notification for free.
+            // If dispatch subsequently fails the token is consumed — the retry path delivers the
+            // notification for free, so the user still pays exactly once per notification.
+            if (userId != null) {
+                int cost = tokenLedgerService.getCost("NOTIFICATION_SENT");
+                if (!tokenLedgerService.tryDebit(userId, cost, TokenReasonCode.NOTIFICATION_SENT, null)) {
+                    log.debug("[DISPATCH] Zero balance — skipping");
+                    if (logId != null) logService.markFailed(logId, "Zero token balance");
+                    return;
                 }
             }
-        } catch (Exception e) {
-            log.warn("[DISPATCH] Ошибка [logId={} channel={} userId={}]: {} ({})",
-                logId, request.channel(), userId, e.getMessage(), e.getClass().getSimpleName());
-            if (logId != null) logService.markFailed(logId, e.getMessage());
-            RetryableNotificationException rne = retryPolicy.classify(e);
-            deadLetterPublisher.publishToDlq(record, rne);
+
+            // Publish to VK pipeline independently — VK delivery does not depend on Telegram outcome.
+            // Synchronous exceptions (e.g. topic not yet created, broker timeout) are caught so that
+            // a VK failure never blocks or retries the Telegram delivery path.
+            // Async send failures (CompletableFuture) are intentionally not handled here — they are
+            // logged at WARN by LoggingProducerListener. Silent loss on async failure is acceptable
+            // since VK is a supplemental channel and the Telegram notification is still delivered.
+            if (request.vkPeerId() != null) {
+                try {
+                    kafkaTemplate.send(KafkaTopics.VK_NOTIFICATIONS_PENDING,
+                            String.valueOf(request.vkPeerId()), request);
+                } catch (Exception e) {
+                    log.atWarn()
+                       .addKeyValue("peerId", request.vkPeerId())
+                       .log("[DISPATCH] VK publish failed: {}", e.getMessage());
+                }
+            }
+
+            try {
+                Integer telegramMessageId = dispatchService.dispatch(request);
+                if (logId != null) logService.markSent(logId, telegramMessageId);
+                stats.incSent(request.bookmaker());
+                log.debug("[DISPATCH] Delivered channel={}", request.channel());
+
+                // After successful Telegram delivery: populate dedup cache so subsequent
+                // duplicates (same match, different event ID) edit this message instead.
+                if (telegramMessageId != null && request.dedupKey() != null
+                        && request.telegramId() != null) {
+                    TitleDedupEntry dedupEntry = new TitleDedupEntry(
+                            telegramMessageId,
+                            request.telegramId(),
+                            request.betKey(),
+                            request.quickAddKey());
+                    if (request.dedupTtlMinutes() != null && request.dedupTtlMinutes() > 0) {
+                        titleDedupCache.store(request.dedupKey(), dedupEntry,
+                                Duration.ofMinutes(request.dedupTtlMinutes()));
+                    } else {
+                        titleDedupCache.store(request.dedupKey(), dedupEntry);
+                    }
+                }
+            } catch (Exception e) {
+                log.atWarn()
+                   .addKeyValue("channel", request.channel())
+                   .addKeyValue("errorType", e.getClass().getSimpleName())
+                   .log("[DISPATCH] Dispatch failed: {}", e.getMessage());
+                if (logId != null) logService.markFailed(logId, e.getMessage());
+                RetryableNotificationException rne = retryPolicy.classify(e);
+                deadLetterPublisher.publishToDlq(record, rne);
+            }
+        } finally {
+            MDC.remove("logId");
+            MDC.remove("userId");
+            MDC.remove("chatId");
         }
     }
 

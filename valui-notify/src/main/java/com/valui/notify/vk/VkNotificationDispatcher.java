@@ -7,6 +7,7 @@ import com.valui.notify.util.KafkaNotifyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.slf4j.MDC;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -42,17 +43,26 @@ public class VkNotificationDispatcher {
             return;
         }
 
-        long randomId = KafkaNotifyUtil.vkRandomId(request.notificationLogId());
+        MDC.put("logId", request.notificationLogId() != null ? request.notificationLogId() : "");
+        MDC.put("vkPeerId", request.vkPeerId().toString());
         try {
-            vkSender.dispatch(request.vkPeerId(), request.messageText(), randomId);
-            log.debug("[VK-DISPATCH] Отправлено peerId={} logId={}", request.vkPeerId(), request.notificationLogId());
-        } catch (RetryableNotificationException e) {
-            log.warn("[VK-DISPATCH] Ошибка peerId={} logId={}: {}", request.vkPeerId(), request.notificationLogId(), e.getMessage());
-            deadLetterPublisher.publishToDlq(record, e);
-        } catch (Exception e) {
-            log.warn("[VK-DISPATCH] Непредвиденная ошибка peerId={}: {}", request.vkPeerId(), e.getMessage());
-            deadLetterPublisher.publishToDlq(record,
-                    new RetryableNotificationException(e.getMessage(), e, true, 0));
+            long randomId = KafkaNotifyUtil.vkRandomId(request.notificationLogId());
+            try {
+                vkSender.dispatch(request.vkPeerId(), request.messageText(), randomId);
+                log.debug("[VK-DISPATCH] Delivered");
+            } catch (RetryableNotificationException e) {
+                log.atWarn().addKeyValue("retryable", e.isRetryable())
+                   .log("[VK-DISPATCH] Failed: {}", e.getMessage());
+                deadLetterPublisher.publishToDlq(record, e);
+            } catch (Exception e) {
+                log.atWarn().addKeyValue("errorType", e.getClass().getSimpleName())
+                   .log("[VK-DISPATCH] Unexpected error: {}", e.getMessage());
+                deadLetterPublisher.publishToDlq(record,
+                        new RetryableNotificationException(e.getMessage(), e, true, 0));
+            }
+        } finally {
+            MDC.remove("logId");
+            MDC.remove("vkPeerId");
         }
     }
 

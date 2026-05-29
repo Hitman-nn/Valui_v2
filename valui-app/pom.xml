@@ -75,6 +75,12 @@
             <version>8.0</version>
         </dependency>
 
+        <!-- Distributed tracing: adds traceId/spanId to MDC for all HTTP request logs -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-brave</artifactId>
+        </dependency>
+
         <!-- Integration tests use Testcontainers for all infra -->
         <dependency>
             <groupId>org.testcontainers</groupId>

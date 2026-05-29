@@ -6,6 +6,7 @@ import com.valui.notify.exception.RetryableNotificationException;
 import com.valui.notify.util.KafkaNotifyUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
@@ -53,22 +54,30 @@ public class VkDlqConsumer {
                 return;
             }
             if (request.vkPeerId() == null) {
-                log.warn("[VK-DLQ] vkPeerId is null logId={} — anomaly, skipping",
-                        request.notificationLogId());
+                log.atWarn().addKeyValue("logId", request.notificationLogId())
+                   .log("[VK-DLQ] vkPeerId is null — anomaly, skipping");
                 return;
             }
 
-            long randomId = KafkaNotifyUtil.vkRandomId(request.notificationLogId());
+            MDC.put("logId",    request.notificationLogId() != null ? request.notificationLogId() : "");
+            MDC.put("vkPeerId", request.vkPeerId().toString());
             try {
-                vkSender.dispatch(request.vkPeerId(), request.messageText(), randomId);
-                log.info("[VK-DLQ] 5-min retry succeeded peerId={} logId={}", request.vkPeerId(), request.notificationLogId());
-            } catch (RetryableNotificationException e) {
-                log.error("[VK-DLQ] Final attempt failed peerId={} logId={}: {}", request.vkPeerId(), request.notificationLogId(), e.getMessage());
-                deadLetterPublisher.publishToDlq(record, e);
-            } catch (Exception e) {
-                log.error("[VK-DLQ] Непредвиденная ошибка peerId={}: {}", request.vkPeerId(), e.getMessage());
-                deadLetterPublisher.publishToDlq(record,
-                        new RetryableNotificationException(e.getMessage(), e, true, 0));
+                long randomId = KafkaNotifyUtil.vkRandomId(request.notificationLogId());
+                try {
+                    vkSender.dispatch(request.vkPeerId(), request.messageText(), randomId);
+                    log.info("[VK-DLQ] 5-min retry succeeded");
+                } catch (RetryableNotificationException e) {
+                    log.atError().setCause(e).log("[VK-DLQ] Final attempt failed: {}", e.getMessage());
+                    deadLetterPublisher.publishToDlq(record, e);
+                } catch (Exception e) {
+                    log.atError().addKeyValue("errorType", e.getClass().getSimpleName()).setCause(e)
+                       .log("[VK-DLQ] Unexpected error: {}", e.getMessage());
+                    deadLetterPublisher.publishToDlq(record,
+                            new RetryableNotificationException(e.getMessage(), e, true, 0));
+                }
+            } finally {
+                MDC.remove("logId");
+                MDC.remove("vkPeerId");
             }
         } finally {
             ack.acknowledge();

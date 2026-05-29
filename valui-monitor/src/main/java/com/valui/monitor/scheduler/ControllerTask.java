@@ -5,6 +5,7 @@ import com.valui.monitor.scheduler.ControllerTaskExecutor.ParsedItem;
 import com.valui.monitor.scheduler.ControllerTaskExecutor.TaskContext;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 
 import java.time.Instant;
 import java.util.List;
@@ -55,55 +56,62 @@ public class ControllerTask implements Runnable {
     }
 
     private void executeTask() {
-        // TX 1: load fresh controller context
-        Optional<TaskContext> ctxOpt = executor.loadContext(controllerId);
-        if (ctxOpt.isEmpty()) {
-            log.debug("⏭  Контроллер {} неактивен или URL не распознан — пропуск", controllerId);
-            return;
-        }
-        TaskContext ctx = ctxOpt.get();
-
-        if (!executor.isParserAvailable(ctx.bookmaker())) {
-            log.debug("⏭  Parser {} not available (CB open) — controller {} skipped", ctx.bookmaker(), controllerId);
-            metrics.onPollCbSkipped();
-            return;
-        }
-
-        Instant startedAt = Instant.now();
-        long    startNs   = System.nanoTime();
-
-        // External HTTP call wrapped with a hard budget timeout.
-        List<ParsedItem> fetched;
+        MDC.put("controllerId", controllerId.toString());
         try {
-            fetched = fetchWithBudget(ctx);
-        } catch (TimeoutException e) {
-            log.warn("⏱  Fetch budget exceeded ({}ms) for controller {} ({})", fetchBudgetMs, controllerId, ctx.bookmaker());
-            pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "timeout");
-            metrics.onPollError();
-            return;
-        } catch (Exception e) {
-            log.warn("⚠️  Ошибка парсера для контроллера {} ({}): {}", controllerId, ctx.bookmaker(), e.getMessage());
-            pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "error");
-            metrics.onPollError();
-            return;
-        }
-
-        // TX 2: dedup, persist, update timestamps, publish domain events
-        int    eventsFound = 0;
-        String status      = "ok";
-        try {
-            eventsFound = executor.persistNewEvents(ctx, fetched);
-            if (eventsFound > 0) {
-                metrics.onEventsDetected(eventsFound);
-                log.debug("🔔 Контроллер {}: {} новых событий обнаружено", controllerId, eventsFound);
+            // TX 1: load fresh controller context
+            Optional<TaskContext> ctxOpt = executor.loadContext(controllerId);
+            if (ctxOpt.isEmpty()) {
+                log.debug("Controller inactive or URL unrecognized — skipping");
+                return;
             }
-        } catch (Exception e) {
-            log.error("❌ Ошибка сохранения событий для контроллера {}: {}", controllerId, e.getMessage(), e);
-            eventsFound = -1;
-            status      = "error";
+            TaskContext ctx = ctxOpt.get();
+            MDC.put("bookmaker", ctx.bookmaker().name());
+
+            if (!executor.isParserAvailable(ctx.bookmaker())) {
+                log.debug("Parser not available (CB open) — skipping");
+                metrics.onPollCbSkipped();
+                return;
+            }
+
+            Instant startedAt = Instant.now();
+            long    startNs   = System.nanoTime();
+
+            // External HTTP call wrapped with a hard budget timeout.
+            List<ParsedItem> fetched;
+            try {
+                fetched = fetchWithBudget(ctx);
+            } catch (TimeoutException e) {
+                log.warn("Fetch budget exceeded ({}ms)", fetchBudgetMs);
+                pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "timeout");
+                metrics.onPollError();
+                return;
+            } catch (Exception e) {
+                log.warn("Parser error: {}", e.getMessage());
+                pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "error");
+                metrics.onPollError();
+                return;
+            }
+
+            // TX 2: dedup, persist, update timestamps, publish domain events
+            int    eventsFound = 0;
+            String status      = "ok";
+            try {
+                eventsFound = executor.persistNewEvents(ctx, fetched);
+                if (eventsFound > 0) {
+                    metrics.onEventsDetected(eventsFound);
+                    log.debug("{} new event(s) detected", eventsFound);
+                }
+            } catch (Exception e) {
+                log.error("Event persistence failed: {}", e.getMessage(), e);
+                eventsFound = -1;
+                status      = "error";
+            }
+            pollHistory.record(controllerId, startedAt, msElapsed(startNs), eventsFound, status);
+            if ("ok".equals(status)) metrics.onPollOk(); else metrics.onPollError();
+        } finally {
+            MDC.remove("controllerId");
+            MDC.remove("bookmaker");
         }
-        pollHistory.record(controllerId, startedAt, msElapsed(startNs), eventsFound, status);
-        if ("ok".equals(status)) metrics.onPollOk(); else metrics.onPollError();
     }
 
     /**

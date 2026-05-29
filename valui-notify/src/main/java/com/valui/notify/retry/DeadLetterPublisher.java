@@ -64,20 +64,28 @@ public class DeadLetterPublisher {
             target = KafkaTopics.NOTIFICATIONS_DLQ_FINAL;
             redisTemplate.opsForValue().increment(DLQ_FINAL_COUNTER_KEY);
             stats.incDlqFinal();
-            log.error("[DLQ-FINAL] Permanently failed after {} retries: topic={} error={}",
-                    currentCount, original.topic(), ex.getMessage());
+            log.atError()
+               .addKeyValue("retries", currentCount)
+               .addKeyValue("originalTopic", original.topic())
+               .addKeyValue("retryable", ex.isRetryable())
+               .log("[DLQ-FINAL] Permanently failed: {}", ex.getMessage());
             alertDlqFinal(currentCount, ex.getMessage());
         } else {
             target = RETRY_TOPICS[newCount - 1];
             stats.incDlqRetry();
-            log.warn("[DLQ] Routing to {} (attempt {}/{}): {}", target, newCount, MAX_RETRIES, ex.getMessage());
+            log.atWarn()
+               .addKeyValue("target", target)
+               .addKeyValue("attempt", newCount)
+               .addKeyValue("maxRetries", MAX_RETRIES)
+               .log("[DLQ] Routing to retry tier: {}", ex.getMessage());
         }
 
         ProducerRecord<String, Object> out = buildRecord(target, original, newCount, ex);
         kafkaTemplate.send(out)
                 .whenComplete((r, sendEx) -> {
                     if (sendEx != null) {
-                        log.error("[DLQ] Failed to publish to {}: {}", target, sendEx.getMessage());
+                        log.atError().addKeyValue("target", target)
+                           .log("[DLQ] Failed to publish to retry topic: {}", sendEx.getMessage());
                     }
                 });
     }

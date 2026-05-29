@@ -15,6 +15,8 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
+import org.slf4j.MDC;
+
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -56,25 +58,36 @@ public class DlqConsumer {
     private void doProcess(ConsumerRecord<String, Object> record, Acknowledgment ack) {
         try {
             if (!(record.value() instanceof UserNotificationRequestMessage request)) {
-                log.warn("[DLQ] Unexpected payload type {}, skipping",
-                        record.value() != null ? record.value().getClass().getSimpleName() : "null");
+                log.atWarn()
+                   .addKeyValue("payloadType", record.value() != null ? record.value().getClass().getSimpleName() : "null")
+                   .log("[DLQ] Unexpected payload type, skipping");
                 return;
             }
 
             UUID logId = KafkaNotifyUtil.parseLogId(request.notificationLogId());
-            if (logId != null && logService.isAlreadySent(logId)) {
-                log.debug("[DLQ] Already sent — skipping logId={}", logId);
-                return;
-            }
+            MDC.put("logId", logId != null ? logId.toString() : "");
             try {
-                dispatchService.dispatch(request);
-                if (logId != null) logService.markSent(logId);
-                log.info("[DLQ] 5-min retry succeeded [logId={} channel={}]", logId, request.channel());
-            } catch (Exception e) {
-                log.error("[DLQ] Final attempt failed [logId={} userId={}]: {}", logId, request.userId(), e.getMessage());
-                if (logId != null) logService.markFailed(logId, e.getMessage());
-                RetryableNotificationException rne = retryPolicy.classify(e);
-                deadLetterPublisher.publishToDlq(record, rne);
+                if (logId != null && logService.isAlreadySent(logId)) {
+                    log.debug("[DLQ] Already sent — skipping");
+                    return;
+                }
+                try {
+                    dispatchService.dispatch(request);
+                    if (logId != null) logService.markSent(logId);
+                    log.atInfo()
+                       .addKeyValue("channel", request.channel())
+                       .log("[DLQ] 5-min retry succeeded");
+                } catch (Exception e) {
+                    log.atError()
+                       .addKeyValue("userId", request.userId())
+                       .setCause(e)
+                       .log("[DLQ] Final attempt failed: {}", e.getMessage());
+                    if (logId != null) logService.markFailed(logId, e.getMessage());
+                    RetryableNotificationException rne = retryPolicy.classify(e);
+                    deadLetterPublisher.publishToDlq(record, rne);
+                }
+            } finally {
+                MDC.remove("logId");
             }
         } finally {
             ack.acknowledge();
