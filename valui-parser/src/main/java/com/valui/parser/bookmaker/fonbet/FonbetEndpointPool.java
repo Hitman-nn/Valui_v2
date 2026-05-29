@@ -70,10 +70,10 @@ public class FonbetEndpointPool {
         return (best == null || best.isEmpty()) ? FALLBACK : best.iterator().next();
     }
 
-    /** Endpoints with score > 0 are alive (probed successfully). */
+    /** Endpoints with score > 0 are alive (probed successfully). Uses +inf consistent with checkAliveAndRescan(). */
     public int aliveCount() {
         try {
-            Long n = redis.opsForZSet().count(ZSET_KEY, 1.0, Double.MAX_VALUE);
+            Long n = redis.opsForZSet().count(ZSET_KEY, 1.0, Double.POSITIVE_INFINITY);
             return n != null ? n.intValue() : 0;
         } catch (Exception e) { return 0; }
     }

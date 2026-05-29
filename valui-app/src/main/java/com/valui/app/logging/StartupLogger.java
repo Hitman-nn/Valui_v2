@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -44,6 +45,9 @@ public class StartupLogger {
     private static final String YELLOW = "\033[33m";
     private static final String RED    = "\033[31m";
     private static final String DIM    = "\033[2m";
+
+    // Strip ANSI for JSON-logging profiles (docker) — LogstashEncoder does not strip them
+    private static final Pattern ANSI_RE = Pattern.compile("\033\\[[0-9;]*m");
 
     private static final String FULL_LINE     = "═".repeat(62);
     private static final String SUB_LINE      = "  " + "─".repeat(58);
@@ -91,7 +95,7 @@ public class StartupLogger {
     /** Prints a separator when all beans are initialized but before ApplicationReadyEvent. */
     @EventListener(ApplicationStartedEvent.class)
     public void onStarted() {
-        log.info(CYAN + "── ALL BEANS INITIALIZED" + " ─".repeat(18) + RESET);
+        logBlock(CYAN + "── ALL BEANS INITIALIZED" + " ─".repeat(18) + RESET);
     }
 
     /**
@@ -127,7 +131,7 @@ public class StartupLogger {
         String vkInfo    = vkStatus();
         String swagger   = swaggerUrl(port);
 
-        log.info("\n" + CYAN + BOLD + FULL_LINE + RESET
+        logBlock("\n" + CYAN + BOLD + FULL_LINE + RESET
             + "\n" + CYAN + BOLD + "  ✅  VALUI READY" + RESET
             + "\n" + CYAN + FULL_LINE + RESET
 
@@ -172,26 +176,44 @@ public class StartupLogger {
 
     // ── private helpers ───────────────────────────────────────────────────────
 
+    /** Logs msg with ANSI colors in console mode; strips ANSI for JSON-logging profiles. */
+    private void logBlock(String msg) {
+        log.info(env.matchesProfiles("docker") ? stripAnsi(msg) : msg);
+    }
+
+    private static String stripAnsi(String s) {
+        return ANSI_RE.matcher(s).replaceAll("");
+    }
+
     private static String lbl(String text) {
         return GREEN + String.format("%-" + LABEL_W + "s", text) + RESET;
     }
 
+    /** Pads value to `width` visible characters, accounting for invisible ANSI escape codes. */
     private static String pad(String value, int width) {
         if (value == null) return " ".repeat(width);
-        return value.length() >= width ? value + "  " : value + " ".repeat(width - value.length());
+        int vlen = visibleLength(value);
+        return vlen >= width ? value + "  " : value + " ".repeat(width - vlen);
+    }
+
+    private static int visibleLength(String s) {
+        return s == null ? 0 : ANSI_RE.matcher(s).replaceAll("").length();
     }
 
     private String jvmHeap() {
-        long maxMb  = Runtime.getRuntime().maxMemory()   / 1024 / 1024;
-        long usedMb = (Runtime.getRuntime().totalMemory()
-                     - Runtime.getRuntime().freeMemory()) / 1024 / 1024;
+        Runtime rt    = Runtime.getRuntime();
+        long maxMb    = rt.maxMemory()                      / 1024 / 1024;
+        long usedMb   = (rt.totalMemory() - rt.freeMemory()) / 1024 / 1024;
         return usedMb + " / " + maxMb + " MB";
     }
 
     private String swaggerUrl(String port) {
+        // Docker: getLocalHost() returns the container-internal IP, not the host machine's address.
+        if (env.matchesProfiles("docker")) {
+            return "http://localhost:" + port + "/swagger-ui.html";
+        }
         try {
-            String host = InetAddress.getLocalHost().getHostAddress();
-            return "http://" + host + ":" + port + "/swagger-ui.html";
+            return "http://" + InetAddress.getLocalHost().getHostAddress() + ":" + port + "/swagger-ui.html";
         } catch (Exception e) {
             return "http://localhost:" + port + "/swagger-ui.html";
         }
@@ -273,7 +295,8 @@ public class StartupLogger {
 
             int count = sorted.size();
             List<String> lines = new ArrayList<>();
-            String indent = " ".repeat(LABEL_W + 2 + 2);
+            // indent aligns with content start: 2 (prefix "  ") + LABEL_W (label)
+            String indent = " ".repeat(2 + LABEL_W);
             StringBuilder line = new StringBuilder();
             for (int i = 0; i < sorted.size(); i++) {
                 if (i > 0 && i % 3 == 0) {
@@ -300,8 +323,10 @@ public class StartupLogger {
     /**
      * Builds the Parsers section: one line per bookmaker with pool info + CB state.
      *
-     * Format:
-     *   Parsers    5 / 5 available
+     * Summary counts only CLOSED parsers as fully available;
+     * HALF_OPEN (probe mode, rejecting most calls) is shown separately as "recovering".
+     *
+     *   Parsers    5 / 5 CLOSED
      *     BETBOOM  WS: 6/6 ready        ● CLOSED
      *     FONBET   ep: 20/200           ● CLOSED
      *     XBET                          ● CLOSED
@@ -313,14 +338,22 @@ public class StartupLogger {
             Map<BookmakerType, ParserHealthService.CircuitBreakerInfo> cbState =
                     parserHealth.getCurrentState();
 
-            long available = cbState.values().stream()
-                    .filter(i -> i.state() == CircuitBreaker.State.CLOSED
-                              || i.state() == CircuitBreaker.State.HALF_OPEN)
-                    .count();
-            long total = cbState.size();
-            String summary = available == total
-                    ? GREEN + total + " / " + total + " available" + RESET
-                    : YELLOW + available + " / " + total + " available" + RESET;
+            long total    = cbState.size();
+            long closed   = cbState.values().stream()
+                    .filter(i -> i.state() == CircuitBreaker.State.CLOSED).count();
+            long halfOpen = cbState.values().stream()
+                    .filter(i -> i.state() == CircuitBreaker.State.HALF_OPEN).count();
+            long open     = total - closed - halfOpen;
+
+            String summary;
+            if (open == 0 && halfOpen == 0) {
+                summary = GREEN + total + " / " + total + " CLOSED" + RESET;
+            } else if (open == 0) {
+                summary = YELLOW + closed + " CLOSED  " + halfOpen + " recovering" + RESET;
+            } else {
+                summary = RED + open + " OPEN  " + RESET + closed + " closed"
+                        + (halfOpen > 0 ? "  " + halfOpen + " recovering" : "");
+            }
 
             StringBuilder sb = new StringBuilder();
             sb.append("\n  ").append(lbl("Parsers")).append(summary);
@@ -365,16 +398,17 @@ public class StartupLogger {
                 default -> "";
             };
         } catch (Exception e) {
-            return "";
+            log.debug("parserExtraInfo({}) unavailable: {}", bk, e.getMessage());
+            return "?";
         }
     }
 
     private static String cbDot(CircuitBreaker.State state) {
         return switch (state) {
-            case CLOSED                         -> GREEN  + "●" + RESET;
-            case HALF_OPEN                      -> YELLOW + "◑" + RESET;
-            case OPEN, FORCED_OPEN              -> RED    + "●" + RESET;
-            default                             -> DIM    + "○" + RESET;
+            case CLOSED                -> GREEN  + "●" + RESET;
+            case HALF_OPEN             -> YELLOW + "◑" + RESET;
+            case OPEN, FORCED_OPEN     -> RED    + "●" + RESET;
+            default                    -> DIM    + "○" + RESET;
         };
     }
 

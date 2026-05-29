@@ -108,7 +108,8 @@
       "Bash(awk '{print $NF}')",
       "Bash(make -n miniapp-deploy --dry-run -C /Users/danilabogatyrev/Documents/java/Valui_v2)",
       "Read(//etc/nginx/**)",
-      "Bash(make -n miniapp-deploy -C /Users/danilabogatyrev/Documents/java/Valui_v2)"
+      "Bash(make -n miniapp-deploy -C /Users/danilabogatyrev/Documents/java/Valui_v2)",
+      "Bash(find *)"
     ]
   }
 }
