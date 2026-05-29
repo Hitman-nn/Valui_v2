@@ -88,7 +88,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     @PostConstruct
     void startCleanup() {
         cleaner = Executors.newSingleThreadScheduledExecutor(
-                r -> Thread.ofVirtual().name("auth-rl-cleanup").unstarted(r));
+                r -> Thread.ofPlatform().daemon(true).name("auth-rl-cleanup").unstarted(r));
         cleaner.scheduleWithFixedDelay(this::cleanupExpiredWindows, 5, 5, TimeUnit.MINUTES);
     }
 

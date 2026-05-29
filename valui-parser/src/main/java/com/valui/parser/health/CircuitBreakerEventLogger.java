@@ -61,11 +61,6 @@ public class CircuitBreakerEventLogger {
     }
 
     private static String formatDuration(Duration d) {
-        long h = d.toHours();
-        long m = d.toMinutesPart();
-        long s = d.toSecondsPart();
-        if (h > 0) return h + "h" + m + "m";
-        if (m > 0) return m + "m" + s + "s";
-        return s + "s";
+        return HealthFormatUtils.formatDuration(d);
     }
 }

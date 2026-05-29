@@ -15,8 +15,8 @@ import java.util.Map;
  */
 public class MdcContextConverter extends ClassicConverter {
 
-    private static final String[] KEYS     = {"traceId", "logId", "controllerId", "bookmaker", "userId", "chatId", "requestId"};
-    private static final String[] ABBREVS  = {"T",        "log",   "ctrl",         "bk",        "u",      "c",      "r"};
+    private static final String[] KEYS    = {"traceId", "logId", "controllerId", "bookmaker", "kafkaTopic", "userId", "chatId", "requestId"};
+    private static final String[] ABBREVS = {"T",       "log",   "ctrl",         "bk",        "topic",      "u",      "c",      "r"};
 
     @Override
     public String convert(ILoggingEvent event) {
@@ -29,7 +29,9 @@ public class MdcContextConverter extends ClassicConverter {
             if (val != null && !val.isEmpty()) {
                 sb.append(sb.isEmpty() ? " [" : " ");
                 sb.append(ABBREVS[i]).append('=');
-                // traceId is 32 hex chars — show only the first 8 in console to keep lines short
+                // Intentionally compare by key name (not by array index) so truncation
+                // logic stays correct if the KEYS array is ever reordered.
+                // traceId is 32 hex chars — show only the first 8 in console to keep lines short.
                 sb.append("traceId".equals(KEYS[i]) && val.length() > 8 ? val.substring(0, 8) : val);
             }
         }

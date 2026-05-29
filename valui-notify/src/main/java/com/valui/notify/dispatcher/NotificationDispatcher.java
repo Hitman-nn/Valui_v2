@@ -68,10 +68,9 @@ public class NotificationDispatcher {
         UUID logId  = parseLogId(request.notificationLogId());
         UUID userId = parseUserId(request.userId());
 
-        if (logId  != null) MDC.put("logId",  logId.toString());
-        if (userId != null) MDC.put("userId", userId.toString());
-        if (request.telegramId() != null) MDC.put("chatId", request.telegramId().toString());
-        try {
+        try (var logCtx  = logId  != null ? MDC.putCloseable("logId",  logId.toString())  : null;
+             var uidCtx  = userId != null ? MDC.putCloseable("userId", userId.toString()) : null;
+             var chatCtx = request.telegramId() != null ? MDC.putCloseable("chatId", request.telegramId().toString()) : null) {
             // Guard against Kafka consumer replay (rebalance after dispatch but before offset commit):
             // if the log is already SENT, the Telegram message was already delivered — skip.
             if (logId != null && logService.isAlreadySent(logId)) {
@@ -140,10 +139,6 @@ public class NotificationDispatcher {
                 RetryableNotificationException rne = retryPolicy.classify(e);
                 deadLetterPublisher.publishToDlq(record, rne);
             }
-        } finally {
-            MDC.remove("logId");
-            MDC.remove("userId");
-            MDC.remove("chatId");
         }
     }
 

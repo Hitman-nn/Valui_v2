@@ -51,14 +51,17 @@ public class BetBoomParser implements BookmakerParser {
     private static final long WS_TIMEOUT_MS = 3_000L;
     // First N consecutive timeouts for the same tournament are logged WARN; after that → DEBUG.
     // Counter resets when the tournament returns data successfully.
-    private static final int TIMEOUT_WARN_THRESHOLD = 3;
+    private static final int TIMEOUT_WARN_THRESHOLD    = 3;
+    private static final int WS_TIMEOUT_WINDOW_MINUTES = 30;
     private static final Current.TypeLine LINE = Current.TypeLine.LINE;
 
     private final WsRequestService          ws;
     private final ApplicationEventPublisher eventPublisher;
 
+    // Field initializer matches the @Value default so unit tests that construct
+    // this class directly (without Spring context) get a sensible threshold.
     @Value("${valui.parser.betboom.ws-timeout-window-threshold:10}")
-    private int wsTimeoutAlertThreshold;
+    private int wsTimeoutAlertThreshold = 10;
 
     private final ConcurrentHashMap<String, Integer> tournamentTimeoutCount  = new ConcurrentHashMap<>();
     final AtomicLong wsTimeoutTotal       = new AtomicLong();
@@ -315,12 +318,14 @@ public class BetBoomParser implements BookmakerParser {
         return count;
     }
 
-    @Scheduled(fixedDelay = 30, timeUnit = TimeUnit.MINUTES)
+    @Scheduled(fixedDelay = WS_TIMEOUT_WINDOW_MINUTES, timeUnit = TimeUnit.MINUTES)
     void checkWsTimeoutRate() {
         long count = wsTimeoutWindowCount.getAndSet(0);
         if (count >= wsTimeoutAlertThreshold) {
-            log.error("[BB] WS timeout rate elevated: {} timeouts in 30 min (threshold={})", count, wsTimeoutAlertThreshold);
-            eventPublisher.publishEvent(new BetBoomWsHighTimeoutRateEvent(this, count, 30));
+            log.error("[BB] WS timeout rate elevated: {} timeouts in {} min (threshold={})",
+                    count, WS_TIMEOUT_WINDOW_MINUTES, wsTimeoutAlertThreshold);
+            eventPublisher.publishEvent(
+                    new BetBoomWsHighTimeoutRateEvent(this, count, WS_TIMEOUT_WINDOW_MINUTES));
         }
     }
 

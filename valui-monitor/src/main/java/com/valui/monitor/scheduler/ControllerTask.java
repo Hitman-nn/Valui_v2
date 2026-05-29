@@ -56,8 +56,7 @@ public class ControllerTask implements Runnable {
     }
 
     private void executeTask() {
-        MDC.put("controllerId", controllerId.toString());
-        try {
+        try (var ctrlCtx = MDC.putCloseable("controllerId", controllerId.toString())) {
             // TX 1: load fresh controller context
             Optional<TaskContext> ctxOpt = executor.loadContext(controllerId);
             if (ctxOpt.isEmpty()) {
@@ -65,52 +64,51 @@ public class ControllerTask implements Runnable {
                 return;
             }
             TaskContext ctx = ctxOpt.get();
-            MDC.put("bookmaker", ctx.bookmaker().name());
 
-            if (!executor.isParserAvailable(ctx.bookmaker())) {
-                log.debug("Parser not available (CB open) — skipping");
-                metrics.onPollCbSkipped();
-                return;
-            }
-
-            Instant startedAt = Instant.now();
-            long    startNs   = System.nanoTime();
-
-            // External HTTP call wrapped with a hard budget timeout.
-            List<ParsedItem> fetched;
-            try {
-                fetched = fetchWithBudget(ctx);
-            } catch (TimeoutException e) {
-                log.warn("Fetch budget exceeded ({}ms)", fetchBudgetMs);
-                pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "timeout");
-                metrics.onPollError();
-                return;
-            } catch (Exception e) {
-                log.warn("Parser error: {}", e.getMessage());
-                pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "error");
-                metrics.onPollError();
-                return;
-            }
-
-            // TX 2: dedup, persist, update timestamps, publish domain events
-            int    eventsFound = 0;
-            String status      = "ok";
-            try {
-                eventsFound = executor.persistNewEvents(ctx, fetched);
-                if (eventsFound > 0) {
-                    metrics.onEventsDetected(eventsFound);
-                    log.debug("{} new event(s) detected", eventsFound);
+            // bookmaker key scoped to the block where ctx is available
+            try (var bkCtx = MDC.putCloseable("bookmaker", ctx.bookmaker().name())) {
+                if (!executor.isParserAvailable(ctx.bookmaker())) {
+                    log.debug("Parser not available (CB open) — skipping");
+                    metrics.onPollCbSkipped();
+                    return;
                 }
-            } catch (Exception e) {
-                log.error("Event persistence failed: {}", e.getMessage(), e);
-                eventsFound = -1;
-                status      = "error";
+
+                Instant startedAt = Instant.now();
+                long    startNs   = System.nanoTime();
+
+                // External HTTP call wrapped with a hard budget timeout.
+                List<ParsedItem> fetched;
+                try {
+                    fetched = fetchWithBudget(ctx);
+                } catch (TimeoutException e) {
+                    log.warn("Fetch budget exceeded ({}ms)", fetchBudgetMs);
+                    pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "timeout");
+                    metrics.onPollError();
+                    return;
+                } catch (Exception e) {
+                    log.warn("Parser error: {}", e.getMessage());
+                    pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "error");
+                    metrics.onPollError();
+                    return;
+                }
+
+                // TX 2: dedup, persist, update timestamps, publish domain events
+                int    eventsFound = 0;
+                String status      = "ok";
+                try {
+                    eventsFound = executor.persistNewEvents(ctx, fetched);
+                    if (eventsFound > 0) {
+                        metrics.onEventsDetected(eventsFound);
+                        log.debug("{} new event(s) detected", eventsFound);
+                    }
+                } catch (Exception e) {
+                    log.error("Event persistence failed: {}", e.getMessage(), e);
+                    eventsFound = -1;
+                    status      = "error";
+                }
+                pollHistory.record(controllerId, startedAt, msElapsed(startNs), eventsFound, status);
+                if ("ok".equals(status)) metrics.onPollOk(); else metrics.onPollError();
             }
-            pollHistory.record(controllerId, startedAt, msElapsed(startNs), eventsFound, status);
-            if ("ok".equals(status)) metrics.onPollOk(); else metrics.onPollError();
-        } finally {
-            MDC.remove("controllerId");
-            MDC.remove("bookmaker");
         }
     }
 

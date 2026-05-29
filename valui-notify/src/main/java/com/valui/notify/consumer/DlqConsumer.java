@@ -65,8 +65,8 @@ public class DlqConsumer {
             }
 
             UUID logId = KafkaNotifyUtil.parseLogId(request.notificationLogId());
-            MDC.put("logId", logId != null ? logId.toString() : "");
-            try {
+            try (var logCtx   = MDC.putCloseable("logId",      logId != null ? logId.toString() : "");
+                 var topicCtx = MDC.putCloseable("kafkaTopic", record.topic())) {
                 if (logId != null && logService.isAlreadySent(logId)) {
                     log.debug("[DLQ] Already sent — skipping");
                     return;
@@ -86,8 +86,6 @@ public class DlqConsumer {
                     RetryableNotificationException rne = retryPolicy.classify(e);
                     deadLetterPublisher.publishToDlq(record, rne);
                 }
-            } finally {
-                MDC.remove("logId");
             }
         } finally {
             ack.acknowledge();

@@ -75,10 +75,9 @@ public class VkRetryTopicConsumer {
                 return;
             }
 
-            MDC.put("logId",    request.notificationLogId() != null ? request.notificationLogId() : "");
-            MDC.put("vkPeerId", request.vkPeerId().toString());
-            MDC.put("retryTopic", record.topic());
-            try {
+            try (var logCtx   = MDC.putCloseable("logId",      request.notificationLogId() != null ? request.notificationLogId() : "");
+                 var peerCtx  = MDC.putCloseable("vkPeerId",   request.vkPeerId().toString());
+                 var topicCtx = MDC.putCloseable("kafkaTopic", record.topic())) {
                 long randomId = KafkaNotifyUtil.vkRandomId(request.notificationLogId());
                 try {
                     vkSender.dispatch(request.vkPeerId(), request.messageText(), randomId);
@@ -93,10 +92,6 @@ public class VkRetryTopicConsumer {
                     deadLetterPublisher.publishToDlq(record,
                             new RetryableNotificationException(e.getMessage(), e, true, 0));
                 }
-            } finally {
-                MDC.remove("logId");
-                MDC.remove("vkPeerId");
-                MDC.remove("retryTopic");
             }
         } finally {
             ack.acknowledge();

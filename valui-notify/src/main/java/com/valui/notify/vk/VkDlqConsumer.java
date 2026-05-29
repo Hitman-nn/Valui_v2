@@ -59,9 +59,9 @@ public class VkDlqConsumer {
                 return;
             }
 
-            MDC.put("logId",    request.notificationLogId() != null ? request.notificationLogId() : "");
-            MDC.put("vkPeerId", request.vkPeerId().toString());
-            try {
+            try (var logCtx   = MDC.putCloseable("logId",      request.notificationLogId() != null ? request.notificationLogId() : "");
+                 var peerCtx  = MDC.putCloseable("vkPeerId",   request.vkPeerId().toString());
+                 var topicCtx = MDC.putCloseable("kafkaTopic", record.topic())) {
                 long randomId = KafkaNotifyUtil.vkRandomId(request.notificationLogId());
                 try {
                     vkSender.dispatch(request.vkPeerId(), request.messageText(), randomId);
@@ -75,9 +75,6 @@ public class VkDlqConsumer {
                     deadLetterPublisher.publishToDlq(record,
                             new RetryableNotificationException(e.getMessage(), e, true, 0));
                 }
-            } finally {
-                MDC.remove("logId");
-                MDC.remove("vkPeerId");
             }
         } finally {
             ack.acknowledge();
