@@ -34,8 +34,12 @@ resilience4j:
         # 6-call window at 40% threshold → opens after 3 failures instead of 5.
         sliding-window-size: 6
         failure-rate-threshold: 40
+        # Longer wait: 30s produces a probe cycle every ~30s during outages, generating
+        # hundreds of HALF_OPEN→OPEN log entries for multi-hour incidents.
+        # 2m reduces log noise while still recovering within 2 minutes of XBET coming back.
+        wait-duration-in-open-state: 2m
         # Explicit: base-config inheritance of this flag is unreliable in r4j Spring Boot autoconfiguration.
-        # Without it the CB stays OPEN until a manual call arrives (not auto-testing every 30s).
+        # Without it the CB stays OPEN until a manual call arrives (not auto-testing every 2m).
         automatic-transition-from-open-to-half-open-enabled: true
       fonbet-cb:
         base-config: parser-default

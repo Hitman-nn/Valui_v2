@@ -13,7 +13,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Logs Resilience4j circuit breaker state transitions for all parser circuit breakers.
- * OPEN → WARN (failure threshold exceeded, parser calls will short-circuit)
+ * CLOSED→OPEN → WARN (failure threshold exceeded, parser calls will short-circuit)
+ * HALF_OPEN→OPEN → INFO (probe failed, still unavailable — not a new incident)
  * HALF_OPEN → INFO (probe requests allowed)
  * CLOSED → INFO (fully recovered)
  */
@@ -42,9 +43,9 @@ public class CircuitBreakerEventLogger {
                         openedAt.put(name, Instant.now());
                         log.warn("[CB] {} OPEN — failure threshold exceeded (CLOSED→OPEN)", name);
                     } else {
-                        // HALF_OPEN→OPEN: probe failed, re-opening; preserve original openedAt for duration tracking
+                        // HALF_OPEN→OPEN: probe failed; preserve original openedAt for duration tracking
                         openedAt.putIfAbsent(name, Instant.now());
-                        log.warn("[CB] {} OPEN — probe failed, still unavailable ({}→OPEN)", name, from);
+                        log.info("[CB] {} OPEN — probe failed, still unavailable ({}→OPEN)", name, from);
                     }
                 }
                 case HALF_OPEN -> log.info("[CB] {} HALF_OPEN — testing recovery", name);

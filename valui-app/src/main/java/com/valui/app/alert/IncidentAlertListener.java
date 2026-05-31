@@ -3,8 +3,6 @@ package com.valui.app.alert;
 import com.valui.admin.auth.BruteForceAlertEvent;
 import com.valui.notify.service.AdminNotificationService;
 import com.valui.parser.health.BetBoomWsHighTimeoutRateEvent;
-import com.valui.parser.health.ParserRecoveredEvent;
-import com.valui.parser.health.ParserUnavailableEvent;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import jakarta.annotation.PostConstruct;
@@ -15,11 +13,13 @@ import org.springframework.stereotype.Component;
 
 /**
  * Sends Telegram alerts to the admin chat on serious incidents:
- *   A — parser unavailable (ParserUnavailableEvent, consecutive >= threshold)
  *   B — circuit breaker opened (CLOSED→OPEN only; HALF_OPEN→OPEN is a probe failure, not a new incident)
+ *   C — BetBoom WS high timeout rate
+ *   D — admin login brute-force
  *
- * DLQ-final alerts (C) are handled directly in DeadLetterPublisher.
- * Recovery notifications are sent for both A and B.
+ * DLQ-final alerts are handled directly in DeadLetterPublisher.
+ * Parser health (ParserUnavailableEvent/ParserRecoveredEvent) is covered by CB alerts,
+ * which fire faster and avoid duplicate admin notifications.
  */
 @Slf4j
 @Component
@@ -52,21 +52,6 @@ public class IncidentAlertListener {
                 default -> { /* остальные переходы не требуют алерта */ }
             }
         });
-    }
-
-    // ── A: Parser health alerts ───────────────────────────────────────────────
-
-    @EventListener
-    public void onParserUnavailable(ParserUnavailableEvent event) {
-        adminNotificationService.alertAdmin(
-            "🔴 *Парсер недоступен*: `" + event.getBookmaker() + "`\n"
-            + "consecutive=" + event.getConsecutiveFailures());
-    }
-
-    @EventListener
-    public void onParserRecovered(ParserRecoveredEvent event) {
-        adminNotificationService.alertAdmin(
-            "✅ *Парсер восстановлен*: `" + event.getBookmaker() + "`");
     }
 
     // ── C: BetBoom WS degradation alert ──────────────────────────────────────
