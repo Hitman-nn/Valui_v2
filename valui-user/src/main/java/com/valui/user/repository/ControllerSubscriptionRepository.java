@@ -77,7 +77,7 @@ public interface ControllerSubscriptionRepository
     @Query("SELECT s.vkPeerId FROM ControllerSubscriptionEntity s WHERE s.controllerId = :controllerId AND s.chatId = :chatId AND s.vkPeerId IS NOT NULL")
     Optional<Long> findVkPeerIdByControllerIdAndChatId(@Param("controllerId") UUID controllerId, @Param("chatId") Long chatId);
 
-    @Query("SELECT s.vkPeerId FROM ControllerSubscriptionEntity s WHERE s.userId = :userId AND s.chatId = :chatId AND s.vkPeerId IS NOT NULL ORDER BY s.createdAt DESC")
+    @Query(value = "SELECT vk_peer_id FROM controller_subscriptions WHERE user_id = :userId AND chat_id = :chatId AND vk_peer_id IS NOT NULL ORDER BY created_at DESC LIMIT 1", nativeQuery = true)
     Optional<Long> findFirstVkPeerIdByUserIdAndChatId(@Param("userId") UUID userId, @Param("chatId") Long chatId);
 
     @Modifying
