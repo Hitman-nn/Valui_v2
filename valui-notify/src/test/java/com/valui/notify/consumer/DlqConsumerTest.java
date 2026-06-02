@@ -60,8 +60,8 @@ class DlqConsumerTest {
                 UUID.randomUUID().toString(),
                 null,
                 null,
-                null);
-
+                null
+        );
         // Run the scheduled task synchronously so tests remain deterministic
         given(dlqRetryScheduler.schedule(any(Runnable.class), anyLong(), any(TimeUnit.class)))
                 .willAnswer(inv -> { inv.getArgument(0, Runnable.class).run(); return null; });

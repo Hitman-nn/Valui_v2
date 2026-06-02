@@ -111,7 +111,6 @@ class TelegramNotificationSenderTest {
     @DisplayName("editNotification → EditMessageText sent to Telegram API")
     void editNotification_sendsEditMessageText() throws Exception {
         UserNotificationRequestMessage request = editRequest(null, null);
-
         sender.editNotification(CHAT_ID, 42, request);
 
         verify(absSender).execute(any(EditMessageText.class));
@@ -166,7 +165,9 @@ class TelegramNotificationSenderTest {
                 null,
                 42,
                 null,
+                null,   // dedupTtlMinutes
                 null,   // vkPeerId
-                null);
+                null,   // hasHcap
+                null);  // hasTotal
     }
 }

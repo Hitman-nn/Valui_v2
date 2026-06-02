@@ -106,6 +106,13 @@ public class ControllerTask implements Runnable {
                     eventsFound = -1;
                     status      = "error";
                 }
+
+                // TX 3 (independent): check if any watched market appeared in this fetch
+                try {
+                    executor.checkMarketWatches(controllerId, fetched);
+                } catch (Exception e) {
+                    log.warn("Market watch check failed: {}", e.getMessage());
+                }
                 pollHistory.record(controllerId, startedAt, msElapsed(startNs), eventsFound, status);
                 if ("ok".equals(status)) metrics.onPollOk(); else metrics.onPollError();
             }

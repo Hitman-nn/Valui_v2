@@ -20,6 +20,7 @@ import com.valui.user.api.DetectedEventPortService;
 import com.valui.user.api.UserPortService;
 import com.valui.user.quickadd.QuickAddCacheService;
 import com.valui.user.service.GlobalFilterService;
+import com.valui.user.watch.WatchCacheService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,6 +59,7 @@ class SportEventConsumerTest {
     @Mock QuickAddCacheService           quickAddCacheService;
     @Mock BetNotifCacheService           betNotifCacheService;
     @Mock TitleDedupCacheService         titleDedupCache;
+    @Mock WatchCacheService              watchCacheService;
 
     @InjectMocks SportEventConsumer consumer;
 

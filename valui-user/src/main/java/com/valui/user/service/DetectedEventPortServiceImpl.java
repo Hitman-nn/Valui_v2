@@ -52,6 +52,12 @@ public class DetectedEventPortServiceImpl implements DetectedEventPortService {
     }
 
     @Override
+    public Optional<String> findExtraDataByControllerIdAndExternalId(UUID controllerId, String externalId) {
+        return repository.findByControllerIdAndEventExternalId(controllerId, externalId)
+                .map(DetectedEventEntity::getExtraData);
+    }
+
+    @Override
     public DetectedEventEntity getReferenceById(UUID id) {
         return repository.getReferenceById(id);
     }

@@ -219,6 +219,13 @@ public final class CallbackData {
     public static String printToggleTx(String id)     { return PRINT_TOGGLE_PREFIX + "X:" + id; }
     public static String printPage(int n)              { return PRINT_PAGE_PREFIX + n; }
 
+    // ─── Market watch ─────────────────────────────────────────────────────────
+    public static final String WATCH_HCAP_PREFIX  = "WATCH:HCAP:";
+    public static final String WATCH_TOTAL_PREFIX = "WATCH:TOTAL:";
+
+    public static String watchHcap(String notifLogId)  { return WATCH_HCAP_PREFIX  + notifLogId; }
+    public static String watchTotal(String notifLogId) { return WATCH_TOTAL_PREFIX + notifLogId; }
+
     // ─── Pagination ───────────────────────────────────────────────────────────
     public static String page(String listKey, int pageNum) { return "PAGE:" + listKey + ":" + pageNum; }
     public static String betListPage(boolean openOnly, int pageNum) {

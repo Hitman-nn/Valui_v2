@@ -18,8 +18,10 @@ import com.valui.parser.factory.ParserFactory;
 import com.valui.parser.health.ParserHealthService;
 import com.valui.parser.util.ParsedUrlIds;
 import com.valui.parser.util.UrlParser;
+import com.valui.monitor.watch.MarketWatchFiredEvent;
 import com.valui.user.api.ControllerPortService;
 import com.valui.user.api.DetectedEventPortService;
+import com.valui.user.watch.MarketWatchService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -41,12 +43,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ControllerTaskExecutor {
 
-    private final ControllerPortService controllerPort;
-    private final DetectedEventPortService detectedEventPort;
-    private final ParserFactory parserFactory;
-    private final ParserHealthService parserHealthService;
+    private final ControllerPortService     controllerPort;
+    private final DetectedEventPortService  detectedEventPort;
+    private final MarketWatchService        marketWatchService;
+    private final ParserFactory             parserFactory;
+    private final ParserHealthService       parserHealthService;
     private final ApplicationEventPublisher events;
-    private final MonitorProperties props;
+    private final MonitorProperties         props;
     private final EventDeduplicationService dedup;
     private final OutboxEventRepository outboxRepo;
     private final OutboxSenderService outboxSenderService;
@@ -270,6 +273,52 @@ public class ControllerTaskExecutor {
         }
 
         return saved.size();
+    }
+
+    // ── Market watch check ────────────────────────────────────────────────────
+
+    /**
+     * For each active market watch on this controller, checks if the watched market (hcap or total)
+     * has appeared in the latest fetch result. Fires {@link MarketWatchFiredEvent} for each match.
+     * Called after every successful fetch, including cycles with no new events.
+     */
+    public void checkMarketWatches(UUID controllerId, List<ParsedItem> fetched) {
+        if (fetched.isEmpty()) return;
+
+        List<String> fetchedIds = fetched.stream().map(ParsedItem::id).toList();
+        var watches = marketWatchService.findActiveByController(controllerId, fetchedIds);
+        if (watches.isEmpty()) return;
+
+        // Build a lookup map: externalEventId → extraData from latest fetch
+        java.util.Map<String, String> extraByEventId = new java.util.HashMap<>();
+        for (ParsedItem item : fetched) {
+            if (item.extraData() != null) extraByEventId.put(item.id(), item.extraData());
+        }
+
+        for (var watch : watches) {
+            String extraData = extraByEventId.get(watch.getExternalEventId());
+            if (extraData == null) continue; // event not in this fetch (may have ended)
+
+            boolean appeared = "HCAP".equals(watch.getMarketType())
+                    ? extraData.contains("\"h1\":")
+                    : extraData.contains("\"tb\":");
+
+            if (appeared) {
+                marketWatchService.markFired(watch.getId());
+                events.publishEvent(new MarketWatchFiredEvent(
+                        this,
+                        watch.getId(),
+                        watch.getChatId(),
+                        watch.getTelegramId(),
+                        watch.getMarketType(),
+                        watch.getMatchTitle(),
+                        watch.getMatchUrl(),
+                        watch.getBookmaker(),
+                        extraData));
+                log.info("[WATCH] {} appeared for event={} chatId={}",
+                        watch.getMarketType(), watch.getExternalEventId(), watch.getChatId());
+            }
+        }
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

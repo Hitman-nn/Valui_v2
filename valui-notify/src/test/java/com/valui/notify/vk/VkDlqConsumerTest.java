@@ -103,6 +103,6 @@ class VkDlqConsumerTest {
         return new UserNotificationRequestMessage(
                 LOG_ID, UUID.randomUUID().toString(), 123456L,
                 "TELEGRAM", "test message", UUID.randomUUID().toString(),
-                null, null, null, null, null, null, null, vkPeerId);
+                null, null, null, null, null, null, null, vkPeerId, null, null);
     }
 }

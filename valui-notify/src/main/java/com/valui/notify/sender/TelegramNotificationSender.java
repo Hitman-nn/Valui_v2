@@ -145,6 +145,9 @@ public class TelegramNotificationSender implements NotificationSender {
         boolean hasQuickAdd = request.quickAddKey() != null && !request.quickAddKey().isBlank();
         boolean hasBetKey   = request.betKey()      != null && !request.betKey().isBlank();
         boolean hasUrl      = request.eventUrl()    != null && !request.eventUrl().isBlank();
+        // Watch buttons: shown only when the market is known to be absent (false, not null)
+        boolean showWatchHcap  = hasBetKey && Boolean.FALSE.equals(request.hasHcap());
+        boolean showWatchTotal = hasBetKey && Boolean.FALSE.equals(request.hasTotal());
 
         if (!hasQuickAdd && !hasBetKey && !hasUrl) return null;
 
@@ -155,6 +158,12 @@ public class TelegramNotificationSender implements NotificationSender {
         }
         if (hasUrl) {
             kb.urlButton("🔗 Открыть матч", request.eventUrl()).row();
+        }
+        // Watch buttons share one row, appear above "Поставил"
+        if (showWatchHcap || showWatchTotal) {
+            if (showWatchHcap)  kb.button("👁 Фора",  CallbackData.watchHcap(request.betKey()));
+            if (showWatchTotal) kb.button("👁 Тотал", CallbackData.watchTotal(request.betKey()));
+            kb.row();
         }
         if (hasBetKey) {
             kb.button("💸 Поставил", CallbackData.betNotif(request.betKey())).row();

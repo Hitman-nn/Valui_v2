@@ -33,6 +33,9 @@ public interface DetectedEventPortService {
      */
     java.util.Optional<UUID> findIdByControllerIdAndExternalId(UUID controllerId, String externalId);
 
+    /** Returns the latest extraData JSON for the event, for race-condition checks at watch-button tap time. */
+    java.util.Optional<String> findExtraDataByControllerIdAndExternalId(UUID controllerId, String externalId);
+
     /**
      * Returns a JPA proxy reference. Must only be used to establish a FK association
      * on a new entity within an active transaction — never dereference the proxy.

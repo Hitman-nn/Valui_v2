@@ -50,6 +50,35 @@ public class NotificationFormatter {
     }
 
     /**
+     * Extracts and formats a single market line from extraData for watch-fire notifications.
+     *
+     * @param marketType "HCAP" → handicap line; "TOTAL" → totals line
+     * @return formatted MarkdownV2 line, or null if the market is absent or extraData is unparseable
+     */
+    public String buildMarketLine(String extraData, String marketType) {
+        if (extraData == null || extraData.isBlank()) return null;
+        try {
+            JsonNode root = objectMapper.readTree(extraData);
+            if ("HCAP".equals(marketType)) {
+                JsonNode h1 = root.path("h1"), h2 = root.path("h2");
+                if (h1.isMissingNode() || h2.isMissingNode()) return null;
+                String pt1 = escapeMarkdown(h1.path("pt").asText("0"));
+                String pt2 = escapeMarkdown(h2.path("pt").asText("0"));
+                return "Ф: \\(" + pt1 + "\\) " + esc(h1.path("v"))
+                     + " / \\(" + pt2 + "\\) " + esc(h2.path("v"));
+            } else {
+                JsonNode tb = root.path("tb"), tm = root.path("tm");
+                if (tb.isMissingNode() || tm.isMissingNode()) return null;
+                return "ТБ\\(" + escapeMarkdown(tb.path("pt").asText("?")) + "\\): " + esc(tb.path("v"))
+                     + "   ТМ\\(" + escapeMarkdown(tm.path("pt").asText("?")) + "\\): " + esc(tm.path("v"));
+            }
+        } catch (Exception e) {
+            log.debug("Failed to parse market line from extraData: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Parses extraData JSON and formats odds for display.
      * JSON keys: w1 (П1), wX (draw), w2 (П2), h1/h2 (handicap, each with v + pt).
      * Returns null if no odds data or on parse error.

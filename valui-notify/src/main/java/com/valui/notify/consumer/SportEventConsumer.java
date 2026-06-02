@@ -20,6 +20,8 @@ import com.valui.user.api.DetectedEventPortService;
 import com.valui.user.api.UserPortService;
 import com.valui.user.quickadd.QuickAddCacheService;
 import com.valui.user.quickadd.QuickAddData;
+import com.valui.user.watch.WatchCacheData;
+import com.valui.user.watch.WatchCacheService;
 import com.valui.user.service.GlobalFilterService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -62,6 +64,7 @@ public class SportEventConsumer {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final QuickAddCacheService         quickAddCacheService;
     private final BetNotifCacheService         betNotifCacheService;
+    private final WatchCacheService            watchCacheService;
     private final TitleDedupCacheService       titleDedupCache;
 
     @KafkaListener(
@@ -156,6 +159,8 @@ public class SportEventConsumer {
         String quickAddKey = null;
         String eventUrl    = null;
         String betKey      = null;
+        Boolean hasHcap    = null;
+        Boolean hasTotal   = null;
 
         if (ControllerType.SPORT == controller.getType() && hasUrl(event.url())) {
             // SPORT controller → "➕ Следить за турниром" button only; no bet on a tournament
@@ -164,10 +169,19 @@ public class SportEventConsumer {
                     new QuickAddData(event.url(), event.bookmaker(), event.title()));
             log.debug("[QUICK-ADD] Cached tournament data for notifLogId={}", quickAddKey);
         } else {
-            // TOURNAMENT / MATCH → "💸 Поставил" button; no URL button
-            betKey = logEntry.getId().toString();
+            // TOURNAMENT / MATCH → "💸 Поставил" button + optional market-watch buttons
+            betKey   = logEntry.getId().toString();
+            hasHcap  = extraDataHasHcap(event.extraData());
+            hasTotal = extraDataHasTotal(event.extraData());
             betNotifCacheService.store(betKey,
                     new BetNotifData(event.title(), event.url(), event.bookmaker()));
+            // Store watch cache when at least one market is missing (buttons will be shown)
+            if (!hasHcap || !hasTotal) {
+                long watchStartEpoch = extractStartEpoch(event.extraData());
+                watchCacheService.store(betKey, new WatchCacheData(
+                        event.controllerId(), event.externalEventId(), event.bookmaker(),
+                        event.title(), event.url(), watchStartEpoch > 0 ? watchStartEpoch : null));
+            }
         }
 
         Long vkPeerId = controllerPort.findVkPeerId(controllerId, targetChatId).orElse(null);
@@ -186,7 +200,9 @@ public class SportEventConsumer {
                 null,       // editMessageId = null → normal send
                 event.bookmaker(),
                 computeDedupTtlMinutes(event.extraData()),
-                vkPeerId
+                vkPeerId,
+                hasHcap,
+                hasTotal
         );
 
         final boolean hasQuickAdd = quickAddKey != null;
@@ -238,7 +254,9 @@ public class SportEventConsumer {
                 existing.telegramMessageId(),           // tells dispatcher to edit, not send
                 event.bookmaker(),
                 null,                                   // dedupTtlMinutes not needed for edits
-                null                                    // vkPeerId: no VK edit in phase 1
+                null,                                   // vkPeerId: no VK edit in phase 1
+                null,                                   // hasHcap: N/A for edits (preserve existing buttons)
+                null                                    // hasTotal: N/A for edits
         );
 
         kafkaTemplate.send(KafkaTopics.USER_NOTIFICATIONS_PENDING, event.userId(), editRequest)
@@ -308,5 +326,13 @@ public class SportEventConsumer {
 
     private static boolean hasUrl(String url) {
         return url != null && !url.isBlank();
+    }
+
+    static boolean extraDataHasHcap(String extraData) {
+        return extraData != null && extraData.contains("\"h1\":");
+    }
+
+    static boolean extraDataHasTotal(String extraData) {
+        return extraData != null && extraData.contains("\"tb\":");
     }
 }

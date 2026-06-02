@@ -116,7 +116,9 @@ class VkNotificationDispatcherTest {
                 null,                         // editMessageId
                 null,                         // bookmaker
                 null,                         // dedupTtlMinutes
-                vkPeerId);                    // vkPeerId
+                vkPeerId,                     // vkPeerId
+                null,                         // hasHcap
+                null);                        // hasTotal
     }
 
     // Thin wrapper to test KafkaNotifyUtil without importing it directly

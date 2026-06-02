@@ -22,6 +22,7 @@ import com.valui.user.api.DetectedEventPortService;
 import com.valui.user.api.UserPortService;
 import com.valui.user.quickadd.QuickAddCacheService;
 import com.valui.user.service.GlobalFilterService;
+import com.valui.user.watch.WatchCacheService;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -199,6 +200,11 @@ class SportEventPipelineE2ETest {
         @Bean
         public BetNotifCacheService betNotifCacheService() {
             return mock(BetNotifCacheService.class);
+        }
+
+        @Bean
+        public WatchCacheService watchCacheService() {
+            return mock(WatchCacheService.class);
         }
 
         @Bean
