@@ -269,20 +269,29 @@ public class XBetParser implements BookmakerParser {
 
     private void recordTournamentReset(String tournamentId) {
         long now = System.currentTimeMillis();
-        long[] stats = tournamentResetStats.compute(tournamentId, (k, v) -> {
-            if (v == null) return new long[]{1L, 0L};
+        // stats[0] = total reset count, stats[1] = timestamp of last WARN log.
+        // Both reads and the conditional write of stats[1] are inside compute() so no
+        // two threads can simultaneously pass the interval check and both log a WARN.
+        boolean[] shouldWarn  = {false};
+        long[]    warnContext = {0L, 0L}; // [count, reduced]
+        tournamentResetStats.compute(tournamentId, (k, v) -> {
+            if (v == null) v = new long[]{0L, 0L};
             v[0]++;
+            if (now - v[1] > RESET_WARN_INTERVAL_MS) {
+                v[1] = now;
+                shouldWarn[0]   = true;
+                warnContext[0]  = v[0];
+                warnContext[1]  = v[0] >= RESET_REDUCED_THRESHOLD ? 1L : 0L;
+            }
             return v;
         });
-        if (now - stats[1] > RESET_WARN_INTERVAL_MS) {
-            stats[1] = now;
-            long count = stats[0];
-            boolean reduced = count >= RESET_REDUCED_THRESHOLD;
+        if (shouldWarn[0]) {
+            boolean reduced = warnContext[1] == 1L;
             log.warn("xbet fetchMatches: connection reset tournamentId={} — proxy rotation? (total={}{} resets)",
-                tournamentId, count, reduced ? ", count reduced to " + RESET_REDUCED_COUNT : "");
+                tournamentId, warnContext[0], reduced ? ", count reduced to " + RESET_REDUCED_COUNT : "");
         } else {
-            log.debug("xbet fetchMatches: connection reset tournamentId={} (suppressed, total={})",
-                tournamentId, stats[0]);
+            log.debug("xbet fetchMatches: connection reset tournamentId={} (suppressed)",
+                tournamentId);
         }
     }
 

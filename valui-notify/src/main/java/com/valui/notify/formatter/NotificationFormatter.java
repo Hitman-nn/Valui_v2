@@ -137,7 +137,7 @@ public class NotificationFormatter {
     }
 
     /** Escapes all MarkdownV2 special characters as required by the Telegram Bot API. */
-    private static String escapeMarkdown(String s) {
+    public static String escapeMarkdown(String s) {
         if (s == null) return "";
         // '\' must be escaped first to avoid double-escaping
         return s.replace("\\", "\\\\")

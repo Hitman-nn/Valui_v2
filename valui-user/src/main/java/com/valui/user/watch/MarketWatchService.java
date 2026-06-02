@@ -22,7 +22,4 @@ public interface MarketWatchService {
     List<MarketWatchEntity> findActiveByController(UUID controllerId, List<String> externalEventIds);
 
     void markFired(UUID watchId);
-
-    /** Expire watches whose match has already started. Called nightly. */
-    int expireStarted();
 }

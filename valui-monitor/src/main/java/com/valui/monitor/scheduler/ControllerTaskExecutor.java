@@ -27,6 +27,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -281,7 +283,12 @@ public class ControllerTaskExecutor {
      * For each active market watch on this controller, checks if the watched market (hcap or total)
      * has appeared in the latest fetch result. Fires {@link MarketWatchFiredEvent} for each match.
      * Called after every successful fetch, including cycles with no new events.
+     *
+     * Delivery guarantee: {@code markFired} and {@code publishEvent} run inside a single
+     * transaction; the event is published AFTER_COMMIT so the listener can never see a watch
+     * row that is not yet FIRED in the DB.  If the transaction rolls back, no alert is sent.
      */
+    @Transactional
     public void checkMarketWatches(UUID controllerId, List<ParsedItem> fetched) {
         if (fetched.isEmpty()) return;
 
@@ -299,12 +306,16 @@ public class ControllerTaskExecutor {
             String extraData = extraByEventId.get(watch.getExternalEventId());
             if (extraData == null) continue; // event not in this fetch (may have ended)
 
+            // Use "key":{ pattern to match JSON object values only — prevents false positives
+            // from string fields that might contain "h1": or "tb": as substrings.
             boolean appeared = "HCAP".equals(watch.getMarketType())
-                    ? extraData.contains("\"h1\":")
-                    : extraData.contains("\"tb\":");
+                    ? extraData.contains("\"h1\":{")
+                    : extraData.contains("\"tb\":{");
 
             if (appeared) {
                 marketWatchService.markFired(watch.getId());
+                // Publish AFTER_COMMIT: listener only receives the event once the DB row is
+                // durably committed as FIRED, preventing duplicate alerts on rollback.
                 events.publishEvent(new MarketWatchFiredEvent(
                         this,
                         watch.getId(),

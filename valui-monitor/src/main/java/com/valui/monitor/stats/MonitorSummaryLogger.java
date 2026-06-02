@@ -67,7 +67,12 @@ public class MonitorSummaryLogger {
             int consecutive = consecutiveStormWindows.incrementAndGet();
             if (consecutive == STORM_CONSECUTIVE_WINDOWS) {
                 eventPublisher.publishEvent(new MonitorStormEvent(this, errors, total, consecutive));
-                consecutiveStormWindows.set(0); // reset to avoid spamming on subsequent windows
+                // Reset after firing so the alert does not repeat on every subsequent bad window.
+                // If the storm continues beyond this point the counter restarts from 0, meaning
+                // another alert fires only after STORM_CONSECUTIVE_WINDOWS more bad windows in a row.
+                // A clean window resets the counter as well (see else-branch), so a single recovery
+                // interval followed by a new storm will produce a fresh alert as expected.
+                consecutiveStormWindows.set(0);
             }
         } else {
             consecutiveStormWindows.set(0);

@@ -328,11 +328,13 @@ public class SportEventConsumer {
         return url != null && !url.isBlank();
     }
 
+    // Match JSON object values only: "h1":{ / "tb":{ — prevents false positives from
+    // string values that happen to contain these substrings (e.g. custom bookmaker fields).
     static boolean extraDataHasHcap(String extraData) {
-        return extraData != null && extraData.contains("\"h1\":");
+        return extraData != null && extraData.contains("\"h1\":{");
     }
 
     static boolean extraDataHasTotal(String extraData) {
-        return extraData != null && extraData.contains("\"tb\":");
+        return extraData != null && extraData.contains("\"tb\":{");
     }
 }

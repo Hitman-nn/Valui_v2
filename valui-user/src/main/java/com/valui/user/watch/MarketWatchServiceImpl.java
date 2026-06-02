@@ -62,7 +62,6 @@ public class MarketWatchServiceImpl implements MarketWatchService {
         log.debug("[WATCH] Fired watch id={}", watchId);
     }
 
-    @Override
     @Transactional
     @Scheduled(cron = "0 0 3 * * *")
     public int expireStarted() {

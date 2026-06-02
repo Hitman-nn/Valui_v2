@@ -79,13 +79,16 @@ public class WatchMarketCallback implements CallbackHandler {
 
         UUID controllerId = UUID.fromString(cache.controllerId());
 
-        // Race-condition check: market may have appeared since the notification was sent
+        // Race-condition check: market may have appeared between the notification send and this tap.
+        // If the detected_event row is absent (event not yet persisted or already cleaned up by
+        // the nightly dedup purge), we skip the check and create the watch anyway — it will either
+        // fire on the next poll or expire naturally when the match starts.
         Optional<String> currentExtraData = detectedEventPort
                 .findExtraDataByControllerIdAndExternalId(controllerId, cache.externalEventId());
         if (currentExtraData.isPresent()) {
             boolean alreadyPresent = isHcap
-                    ? currentExtraData.get().contains("\"h1\":")
-                    : currentExtraData.get().contains("\"tb\":");
+                    ? currentExtraData.get().contains("\"h1\":{")
+                    : currentExtraData.get().contains("\"tb\":{");
             if (alreadyPresent) {
                 MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
                         "✅ " + capitalise(marketLabel) + " уже появилась — проверьте уведомления");
@@ -162,6 +165,9 @@ public class WatchMarketCallback implements CallbackHandler {
 
     private static UUID parseUuid(String s) {
         try { return UUID.fromString(s); }
-        catch (IllegalArgumentException e) { return null; }
+        catch (IllegalArgumentException e) {
+            log.warn("[WATCH] Malformed notifLogId in callback data: '{}'", s);
+            return null;
+        }
     }
 }
