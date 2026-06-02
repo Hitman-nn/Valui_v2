@@ -1,6 +1,7 @@
 package com.valui.user.service;
 
 import com.valui.common.annotation.Audit;
+import com.valui.common.domain.TokenReasonCode;
 import com.valui.common.domain.UserRole;
 import com.valui.common.domain.UserStatus;
 import com.valui.common.entity.UserEntity;
@@ -35,6 +36,7 @@ public class UserServiceImpl implements UserService {
     private static final String USERS_CACHE = "users";
 
     private final UserRepository userRepository;
+    private final TokenLedgerService tokenLedgerService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
@@ -158,10 +160,23 @@ public class UserServiceImpl implements UserService {
     public UserEntity updateProfile(UUID userId, Integer tokenBalance, Integer tokenLowThreshold, Integer tokenMonthlyGrantRef) {
         UserEntity user = userRepository.findById(userId)
             .orElseThrow(() -> new UserNotFoundException(userId));
-        if (tokenBalance != null)        user.setTokenBalance(tokenBalance);
-        if (tokenLowThreshold != null)   user.setTokenLowThreshold(tokenLowThreshold);
+        if (tokenLowThreshold != null)    user.setTokenLowThreshold(tokenLowThreshold);
         if (tokenMonthlyGrantRef != null) user.setTokenMonthlyGrantRef(tokenMonthlyGrantRef);
-        return userRepository.save(user);
+        user = userRepository.save(user);
+
+        if (tokenBalance != null) {
+            int current = user.getTokenBalance() != null ? user.getTokenBalance() : 0;
+            int delta   = tokenBalance - current;
+            if (delta > 0) {
+                // credit properly restores paused subscriptions/filters, records ledger tx, resets alert flag
+                tokenLedgerService.credit(userId, delta, TokenReasonCode.ADMIN_GRANT, null);
+            } else if (delta < 0) {
+                // debit pauses everything if balance hits zero
+                tokenLedgerService.debit(userId, -delta, TokenReasonCode.ADMIN_DEDUCT, null);
+            }
+            user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+        }
+        return user;
     }
 
     @Override

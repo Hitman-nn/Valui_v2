@@ -49,6 +49,10 @@ class UserServiceCacheTest {
             return Mockito.mock(UserRepository.class);
         }
 
+        @Bean TokenLedgerService tokenLedgerService() {
+            return Mockito.mock(TokenLedgerService.class);
+        }
+
         @Bean ApplicationEventPublisher applicationEventPublisher() {
             return Mockito.mock(ApplicationEventPublisher.class);
         }
