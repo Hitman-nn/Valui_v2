@@ -3,22 +3,34 @@ package com.valui.monitor.stats;
 import com.valui.monitor.scheduler.MonitorMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Logs a one-liner summary of monitor activity every 10 minutes.
  * Mirrors the pattern of NotificationSummaryLogger in valui-notify.
  * Counters are drained after each log so numbers reflect the last window only.
+ *
+ * Publishes {@link MonitorStormEvent} when >= STORM_THRESHOLD errors appear in
+ * STORM_CONSECUTIVE_WINDOWS consecutive 10-minute windows — signals a sustained
+ * network or infrastructure incident rather than an isolated transient failure.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class MonitorSummaryLogger {
 
-    private final MonitorMetrics metrics;
+    private static final long STORM_THRESHOLD           = 5;
+    private static final int  STORM_CONSECUTIVE_WINDOWS = 2;
+
+    private final MonitorMetrics            metrics;
+    private final ApplicationEventPublisher eventPublisher;
+
+    private final AtomicInteger consecutiveStormWindows = new AtomicInteger(0);
 
     @Scheduled(fixedRate = 10, timeUnit = TimeUnit.MINUTES, initialDelay = 10)
     public void logSummary() {
@@ -45,6 +57,20 @@ public class MonitorSummaryLogger {
         } else {
             log.info("[MONITOR 10m] опросов={} ошибок={}{} событий={} queue={} scheduled={}",
                     pollsOk, pollsError, cbPart, events, queue, scheduled);
+        }
+
+        checkStorm(pollsError, pollsOk + pollsError);
+    }
+
+    private void checkStorm(long errors, long total) {
+        if (errors >= STORM_THRESHOLD) {
+            int consecutive = consecutiveStormWindows.incrementAndGet();
+            if (consecutive == STORM_CONSECUTIVE_WINDOWS) {
+                eventPublisher.publishEvent(new MonitorStormEvent(this, errors, total, consecutive));
+                consecutiveStormWindows.set(0); // reset to avoid spamming on subsequent windows
+            }
+        } else {
+            consecutiveStormWindows.set(0);
         }
     }
 }

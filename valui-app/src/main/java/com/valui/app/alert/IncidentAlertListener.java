@@ -1,6 +1,7 @@
 package com.valui.app.alert;
 
 import com.valui.admin.auth.BruteForceAlertEvent;
+import com.valui.monitor.stats.MonitorStormEvent;
 import com.valui.notify.service.AdminNotificationService;
 import com.valui.parser.health.BetBoomWsHighTimeoutRateEvent;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -63,7 +64,16 @@ public class IncidentAlertListener {
             + " таймаутов за " + event.getWindowMinutes() + " мин");
     }
 
-    // ── D: Admin login brute-force alerts ────────────────────────────────────
+    // ── D: Monitor storm alerts ──────────────────────────────────────────────
+
+    @EventListener
+    public void onMonitorStorm(MonitorStormEvent event) {
+        adminNotificationService.alertAdmin(String.format(
+            "⚠️ *Шторм монитора*: ошибок=%d/%d (%.1f%%) в %d окнах подряд",
+            event.getErrors(), event.getTotal(), event.getRate(), event.getConsecutiveWindows()));
+    }
+
+    // ── E: Admin login brute-force alerts ────────────────────────────────────
 
     @EventListener
     public void onBruteForce(BruteForceAlertEvent event) {

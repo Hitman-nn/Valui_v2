@@ -23,6 +23,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static com.valui.parser.http.BookmakerHttpClient.BLOCK_TIMEOUT;
@@ -35,6 +36,12 @@ public class XBetParser implements BookmakerParser {
     private static final String CHAMPS_KEY    = "xbet:champs";
     private static final Duration CHAMPS_TTL  = Duration.ofMinutes(1);
 
+    // Per-tournament connection-reset tracking: value = [totalResets, lastWarnedAtMs]
+    private static final int  RESET_REDUCED_COUNT      = 300;
+    private static final int  RESET_FULL_COUNT         = 1000;
+    private static final int  RESET_REDUCED_THRESHOLD  = 3;
+    private static final long RESET_WARN_INTERVAL_MS   = 4 * 60 * 60 * 1000L;
+
     private final String sportsApi;
     private final String champsApi;
     private final String matchesApi;
@@ -42,6 +49,8 @@ public class XBetParser implements BookmakerParser {
     @Nullable private final ParserCacheService cache;
 
     private final AtomicLong lastResetAt = new AtomicLong(0);
+    // [0] = total reset count, [1] = last WARN timestamp (ms)
+    private final ConcurrentHashMap<String, long[]> tournamentResetStats = new ConcurrentHashMap<>();
 
     @Autowired
     public XBetParser(@Qualifier("xbetHttpClient") BookmakerHttpClient http, ParserCacheService cache) {
@@ -123,8 +132,12 @@ public class XBetParser implements BookmakerParser {
             }
         }
         String tournPath = tournSlug.isEmpty() ? tournamentId : tournamentId + "-" + tournSlug;
+        long[] stats = tournamentResetStats.get(tournamentId);
+        int fetchCount = stats != null && stats[0] >= RESET_REDUCED_THRESHOLD
+                         ? RESET_REDUCED_COUNT : RESET_FULL_COUNT;
         JsonNode root = block(http.getJson(
-                matchesApi + "sports=" + sportId + "&champs=" + tournamentId + "&count=1000&mode=4",
+                matchesApi + "sports=" + sportId + "&champs=" + tournamentId
+                + "&count=" + fetchCount + "&mode=4",
                 JsonNode.class));
         List<ParsedMatchDto> matches = new ArrayList<>();
         for (JsonNode v : valueArray(root)) {
@@ -247,11 +260,30 @@ public class XBetParser implements BookmakerParser {
         if (t instanceof CallNotPermittedException) {
             log.debug("xbet fetchMatches skipped — CB open/half-open tournamentId={}", tournamentId);
         } else if (isConnectionReset(t)) {
-            logBurstReset("xbet fetchMatches: connection reset tournamentId=" + tournamentId + " — proxy rotation?");
+            recordTournamentReset(tournamentId);
         } else {
             log.warn("xbet fetchMatches fallback tournamentId={} [{}]: {}", tournamentId, t.getClass().getSimpleName(), describe(t));
         }
         return ParseResult.error("xbet-cb: " + t.getMessage());
+    }
+
+    private void recordTournamentReset(String tournamentId) {
+        long now = System.currentTimeMillis();
+        long[] stats = tournamentResetStats.compute(tournamentId, (k, v) -> {
+            if (v == null) return new long[]{1L, 0L};
+            v[0]++;
+            return v;
+        });
+        if (now - stats[1] > RESET_WARN_INTERVAL_MS) {
+            stats[1] = now;
+            long count = stats[0];
+            boolean reduced = count >= RESET_REDUCED_THRESHOLD;
+            log.warn("xbet fetchMatches: connection reset tournamentId={} — proxy rotation? (total={}{} resets)",
+                tournamentId, count, reduced ? ", count reduced to " + RESET_REDUCED_COUNT : "");
+        } else {
+            log.debug("xbet fetchMatches: connection reset tournamentId={} (suppressed, total={})",
+                tournamentId, stats[0]);
+        }
     }
 
     private void logBurstReset(String msg) {

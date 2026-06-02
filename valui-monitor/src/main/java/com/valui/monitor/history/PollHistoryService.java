@@ -8,7 +8,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -35,9 +37,10 @@ public class PollHistoryService {
     static final String KEY_PREFIX = "poll:history:";
     static final int    MAX_REDIS  = 5;
 
-    private final StringRedisTemplate redis;
-    private final ObjectMapper        mapper;
-    private final JdbcTemplate        jdbc;
+    private final StringRedisTemplate        redis;
+    private final ObjectMapper               mapper;
+    private final JdbcTemplate               jdbc;
+    private final PlatformTransactionManager txManager;
 
     // ── Write ─────────────────────────────────────────────────────────────────
 
@@ -113,13 +116,27 @@ public class PollHistoryService {
 
     // ── Purge ─────────────────────────────────────────────────────────────────
 
-    /** Deletes rows older than 7 days. Runs nightly at 2 AM. */
+    /**
+     * Deletes rows older than 7 days in batches of 10 000 to avoid holding a long table lock.
+     * Each batch is its own transaction so concurrent inserts and reads are not blocked.
+     * Runs nightly at 2 AM.
+     */
     @Scheduled(cron = "0 0 2 * * *")
-    @Transactional
     public void purgeOld() {
-        int deleted = jdbc.update(
-                "DELETE FROM poll_history WHERE started_at < now() - INTERVAL '7 days'");
-        if (deleted > 0) log.info("[PollHistory] Purged {} old records", deleted);
+        var tx = new TransactionTemplate(txManager);
+        int total = 0;
+        int batch;
+        do {
+            Integer deleted = tx.execute(status -> jdbc.update("""
+                    DELETE FROM poll_history WHERE id IN (
+                        SELECT id FROM poll_history
+                        WHERE started_at < now() - INTERVAL '7 days'
+                        LIMIT 10000
+                    )"""));
+            batch = deleted != null ? deleted : 0;
+            total += batch;
+        } while (batch > 0);
+        if (total > 0) log.info("[PollHistory] Purged {} old records", total);
     }
 
     // ── internals ─────────────────────────────────────────────────────────────

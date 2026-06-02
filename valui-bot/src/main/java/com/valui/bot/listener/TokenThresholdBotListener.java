@@ -3,6 +3,7 @@ package com.valui.bot.listener;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.user.api.ControllerPortService;
 import com.valui.user.event.TokenThresholdEvent;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -38,18 +39,16 @@ public class TokenThresholdBotListener {
             return;
         }
 
-        // Fallback: group with most controllers
-        controllerPort.findGroupChatWithMostControllers(event.getTelegramId()).ifPresentOrElse(
-            chatId -> {
-                if (trySend(chatId, text)) {
-                    log.info("[TOKEN] Alert sent to group chat={}: telegramId={}", chatId, event.getTelegramId());
-                } else {
-                    log.error("[TOKEN] Failed to deliver alert to group chat={} for telegramId={}",
-                        chatId, event.getTelegramId());
-                }
-            },
-            () -> log.error("[TOKEN] No reachable chat for telegramId={}, alert lost", event.getTelegramId())
-        );
+        // Fallback: try each active group chat until one succeeds
+        List<Long> groupChats = controllerPort.findActiveGroupChatIds(event.getTelegramId());
+        for (Long chatId : groupChats) {
+            if (trySend(chatId, text)) {
+                log.info("[TOKEN] Alert sent to group chat={}: telegramId={}", chatId, event.getTelegramId());
+                return;
+            }
+        }
+        log.error("[TOKEN] No reachable chat for telegramId={} (tried {} groups), alert lost",
+            event.getTelegramId(), groupChats.size());
     }
 
     private boolean trySend(long chatId, String text) {
