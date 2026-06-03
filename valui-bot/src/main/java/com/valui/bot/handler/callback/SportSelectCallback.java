@@ -23,6 +23,8 @@ import com.valui.monitor.service.ControllerService;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
+import com.valui.parser.util.ParsedUrlIds;
+import com.valui.parser.util.UrlParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -208,7 +210,8 @@ public class SportSelectCallback implements CallbackHandler {
         return PagedKeyboardBuilder.<TournamentDto>create()
             .items(sorted)
             .itemRenderer(t -> {
-                boolean exists = urlToLastEventAt.containsKey(t.url());
+                boolean exists = urlToLastEventAt.containsKey(t.url())
+                    || urlToLastEventAt.containsKey("#" + t.id());
                 String label;
                 if (exists) {
                     label = isStale(urlToLastEventAt.get(t.url()), staleThresholdDays)
@@ -237,10 +240,22 @@ public class SportSelectCallback implements CallbackHandler {
         List<ControllerDto> controllers = ctx.isGroupChat()
             ? controllerService.getGroupControllers(ctx.chatId())
             : controllerService.getUserControllers(ctx.fromId());
+        BookmakerType bm = BookmakerType.valueOf(bookmakerCode.toUpperCase());
         Map<String, Instant> map = new HashMap<>();
         controllers.stream()
             .filter(c -> bookmakerCode.equalsIgnoreCase(c.bookmaker()))
-            .forEach(c -> map.put(c.url(), c.lastEventAt()));
+            .forEach(c -> {
+                map.put(c.url(), c.lastEventAt());
+                // Fallback key by tournament ID to handle URL format differences between
+                // migration-imported data and current parser output (e.g. fon.bet vs www.fon.bet,
+                // 1xbet.kz/line vs 1xbet.kz/ru/line).
+                try {
+                    ParsedUrlIds ids = UrlParser.extractIds(c.url(), bm);
+                    if (ids.tournamentId() != null) {
+                        map.put("#" + ids.tournamentId(), c.lastEventAt());
+                    }
+                } catch (Exception ignored) {}
+            });
         return map;
     }
 

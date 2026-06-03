@@ -21,6 +21,8 @@ import com.valui.monitor.service.ControllerService;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
+import com.valui.parser.util.ParsedUrlIds;
+import com.valui.parser.util.UrlParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -169,6 +171,9 @@ public class WizardBackNavigator {
             wizardCache.cacheTournaments(fromId, tournaments);
         }
 
+        BookmakerType bmType = BookmakerType.valueOf(bm.toUpperCase());
+        String sportUrl = TournamentSelectCallback.buildSportUrl(bmType, sportId, sportAlias);
+
         boolean isGroupChat = chatId < 0;
         List<ControllerDto> controllers = isGroupChat
             ? controllerService.getGroupControllers(chatId)
@@ -176,10 +181,15 @@ public class WizardBackNavigator {
         Map<String, Instant> urlToLastEventAt = new HashMap<>();
         controllers.stream()
             .filter(c -> bm.equalsIgnoreCase(c.bookmaker()))
-            .forEach(c -> urlToLastEventAt.put(c.url(), c.lastEventAt()));
-
-        BookmakerType bmType = BookmakerType.valueOf(bm.toUpperCase());
-        String sportUrl = TournamentSelectCallback.buildSportUrl(bmType, sportId, sportAlias);
+            .forEach(c -> {
+                urlToLastEventAt.put(c.url(), c.lastEventAt());
+                try {
+                    ParsedUrlIds ids = UrlParser.extractIds(c.url(), bmType);
+                    if (ids.tournamentId() != null) {
+                        urlToLastEventAt.put("#" + ids.tournamentId(), c.lastEventAt());
+                    }
+                } catch (Exception ignored) {}
+            });
 
         // Apply search filter if user came from a search
         List<TournamentDto> toDisplay;
