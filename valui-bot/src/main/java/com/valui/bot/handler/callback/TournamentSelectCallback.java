@@ -117,16 +117,16 @@ public class TournamentSelectCallback implements CallbackHandler {
 
         String sName  = sportName.orElse(sportId.get());
         String sAlias = sportAlias.orElse(sportId.get());
-        Map<String, Instant> urlToLastEventAt = buildUrlToLastEventAtMap(ctx, bm.get());
         BookmakerType bookmakerType = BookmakerType.valueOf(bm.get().toUpperCase());
         String sportUrl = buildSportUrl(bookmakerType, sportId.get(), sAlias);
+        Map<String, Instant> urlToLastEventAt = buildUrlToLastEventAtMap(ctx, bm.get());
 
         String monitorAllText = messageSource.getMessage("wizard.monitor_all_sport", ctx.fromId(), sName);
         String backText   = messageSource.getMessage("menu.back",   ctx.fromId());
         String cancelText = messageSource.getMessage("menu.cancel", ctx.fromId());
         InlineKeyboardMarkup keyboard = SportSelectCallback.buildTournamentKeyboard(
             tournaments, page, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
-            wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
+            bookmakerType, wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
         ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_tournament", ctx.fromId(), sName), keyboard);
     }
@@ -269,6 +269,8 @@ public class TournamentSelectCallback implements CallbackHandler {
                     ParsedUrlIds ids = UrlParser.extractIds(c.url(), bm);
                     if (ids.tournamentId() != null) {
                         map.put("#" + ids.tournamentId(), c.lastEventAt());
+                    } else if (ids.sportId() != null) {
+                        map.put("@" + ids.sportId(), c.lastEventAt());
                     }
                 } catch (Exception ignored) {}
             });

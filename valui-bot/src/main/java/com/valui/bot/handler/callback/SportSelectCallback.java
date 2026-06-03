@@ -173,16 +173,16 @@ public class SportSelectCallback implements CallbackHandler {
                    UserBotSession.CTX_SPORT_NAME,  sportName,
                    UserBotSession.CTX_SPORT_ALIAS, sportAlias));
 
-        Map<String, Instant> urlToLastEventAt = buildUrlToLastEventAtMap(ctx, bm.get());
         BookmakerType bookmakerType = BookmakerType.valueOf(bm.get().toUpperCase());
         String sportUrl = buildSportUrl(bookmakerType, sportId, sportAlias);
+        Map<String, Instant> urlToLastEventAt = buildUrlToLastEventAtMap(ctx, bm.get());
 
         String monitorAllText = messageSource.getMessage("wizard.monitor_all_sport", ctx.fromId(), sportName);
         String backText   = messageSource.getMessage("menu.back",   ctx.fromId());
         String cancelText = messageSource.getMessage("menu.cancel", ctx.fromId());
         InlineKeyboardMarkup keyboard = buildTournamentKeyboard(
             tournsResult.data(), 0, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
-            wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
+            bookmakerType, wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
         ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_tournament", ctx.fromId(), sportName),
             keyboard);
@@ -191,17 +191,29 @@ public class SportSelectCallback implements CallbackHandler {
     public static InlineKeyboardMarkup buildTournamentKeyboard(
             List<TournamentDto> tournaments, int page,
             String monitorAllText, String backText, String cancelText,
-            Map<String, Instant> urlToLastEventAt, String sportUrl, int pageSize, int staleThresholdDays) {
+            Map<String, Instant> urlToLastEventAt, String sportUrl, BookmakerType bm,
+            int pageSize, int staleThresholdDays) {
 
         List<TournamentDto> sorted = tournaments.stream()
                 .sorted(Comparator.comparing(t -> t.title().toLowerCase()))
                 .toList();
 
+        // Sport-level: check exact URL first, then fall back to "@sportId" for cross-domain imports
         boolean sportExists = urlToLastEventAt.containsKey(sportUrl);
+        Instant sportLastEventAt = urlToLastEventAt.get(sportUrl);
+        if (!sportExists) {
+            try {
+                ParsedUrlIds sportIds = UrlParser.extractIds(sportUrl, bm);
+                if (sportIds.sportId() != null) {
+                    sportLastEventAt = urlToLastEventAt.get("@" + sportIds.sportId());
+                    sportExists = sportLastEventAt != null;
+                }
+            } catch (Exception ignored) {}
+        }
         String monitorAllCallback = sportExists ? CallbackData.TOURN_EXIST : CallbackData.TOURN_ALL;
         String monitorAllLabel;
         if (sportExists) {
-            monitorAllLabel = isStale(urlToLastEventAt.get(sportUrl), staleThresholdDays)
+            monitorAllLabel = isStale(sportLastEventAt, staleThresholdDays)
                 ? "🕰️ " + monitorAllText : "✅ " + monitorAllText;
         } else {
             monitorAllLabel = monitorAllText;
@@ -214,7 +226,11 @@ public class SportSelectCallback implements CallbackHandler {
                     || urlToLastEventAt.containsKey("#" + t.id());
                 String label;
                 if (exists) {
-                    label = isStale(urlToLastEventAt.get(t.url()), staleThresholdDays)
+                    // Resolve lastEventAt from whichever key matched
+                    Instant lastEvent = urlToLastEventAt.containsKey(t.url())
+                        ? urlToLastEventAt.get(t.url())
+                        : urlToLastEventAt.get("#" + t.id());
+                    label = isStale(lastEvent, staleThresholdDays)
                         ? "🕰️ " + t.title() : "✅ " + t.title();
                 } else {
                     label = t.title();
@@ -253,6 +269,8 @@ public class SportSelectCallback implements CallbackHandler {
                     ParsedUrlIds ids = UrlParser.extractIds(c.url(), bm);
                     if (ids.tournamentId() != null) {
                         map.put("#" + ids.tournamentId(), c.lastEventAt());
+                    } else if (ids.sportId() != null) {
+                        map.put("@" + ids.sportId(), c.lastEventAt());
                     }
                 } catch (Exception ignored) {}
             });

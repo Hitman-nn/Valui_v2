@@ -187,6 +187,8 @@ public class WizardBackNavigator {
                     ParsedUrlIds ids = UrlParser.extractIds(c.url(), bmType);
                     if (ids.tournamentId() != null) {
                         urlToLastEventAt.put("#" + ids.tournamentId(), c.lastEventAt());
+                    } else if (ids.sportId() != null) {
+                        urlToLastEventAt.put("@" + ids.sportId(), c.lastEventAt());
                     }
                 } catch (Exception ignored) {}
             });
@@ -215,7 +217,7 @@ public class WizardBackNavigator {
         String cancelText = messageSource.getMessage("menu.cancel", fromId);
         InlineKeyboardMarkup keyboard = SportSelectCallback.buildTournamentKeyboard(
             toDisplay, displayPage, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
-            wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
+            bmType, wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
 
         tracker.replaceAndTrack(sender, chatId, messageId, listText, keyboard);
     }
