@@ -3,8 +3,10 @@ package com.valui.admin.support;
 import com.valui.admin.auth.jwt.JwtProperties;
 import com.valui.admin.auth.jwt.JwtService;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.UUID;
 
@@ -20,6 +22,10 @@ import java.util.UUID;
  */
 @TestConfiguration
 public class TestJwtConfig {
+
+    // AuthRateLimitFilter requires StringRedisTemplate — mock it for @WebMvcTest slices
+    @MockBean
+    StringRedisTemplate stringRedisTemplate;
 
     // 48-byte key (384 bits) — satisfies HS256 minimum requirement
     public static final String TEST_SECRET =
