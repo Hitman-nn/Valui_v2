@@ -4,7 +4,6 @@ import com.valui.common.domain.TokenReasonCode;
 import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.InsufficientTokensException;
 import com.valui.common.exception.UserNotFoundException;
-import com.valui.user.event.UserControllersPausedEvent;
 import com.valui.user.repository.*;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -20,7 +19,6 @@ import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -118,7 +116,7 @@ class TokenLedgerServiceImplTest {
     @Test
     @DisplayName("debit: balance decreases by amount, transaction recorded")
     void debit_decreasesBalance() {
-        int newBalance = service.debit(USER_ID, 30, TokenReasonCode.CONTROLLER_POLL, null);
+        int newBalance = service.debit(USER_ID, 30, TokenReasonCode.CONTROLLER_BK_CHARGE, null);
 
         assertThat(newBalance).isEqualTo(70);
         assertThat(user.getTokenBalance()).isEqualTo(70);
@@ -128,7 +126,7 @@ class TokenLedgerServiceImplTest {
     @Test
     @DisplayName("debit: throws InsufficientTokensException when balance < amount")
     void debit_insufficientBalance_throwsException() {
-        assertThatThrownBy(() -> service.debit(USER_ID, 200, TokenReasonCode.CONTROLLER_POLL, null))
+        assertThatThrownBy(() -> service.debit(USER_ID, 200, TokenReasonCode.CONTROLLER_BK_CHARGE, null))
             .isInstanceOf(InsufficientTokensException.class)
             .satisfies(e -> {
                 InsufficientTokensException ex = (InsufficientTokensException) e;
@@ -146,7 +144,7 @@ class TokenLedgerServiceImplTest {
         user.setTokenBalance(10);
         given(controllerRepository.findAllByUserIdAndIsActiveTrue(USER_ID)).willReturn(List.of());
 
-        service.debit(USER_ID, 10, TokenReasonCode.CONTROLLER_POLL, null);
+        service.debit(USER_ID, 10, TokenReasonCode.CONTROLLER_BK_CHARGE, null);
 
         then(subscriptionRepository).should().updatePausedByTokensForUser(USER_ID, true);
     }
@@ -157,7 +155,7 @@ class TokenLedgerServiceImplTest {
         user.setTokenLowThreshold(50);
         user.setTokenAlertSent(false);
 
-        service.debit(USER_ID, 60, TokenReasonCode.CONTROLLER_POLL, null);
+        service.debit(USER_ID, 60, TokenReasonCode.CONTROLLER_BK_CHARGE, null);
 
         then(eventPublisher).should().publishEvent(any(com.valui.user.event.TokenThresholdEvent.class));
         assertThat(user.isTokenAlertSent()).isTrue();
@@ -169,7 +167,7 @@ class TokenLedgerServiceImplTest {
         user.setTokenLowThreshold(50);
         user.setTokenAlertSent(true);
 
-        service.debit(USER_ID, 10, TokenReasonCode.CONTROLLER_POLL, null);
+        service.debit(USER_ID, 10, TokenReasonCode.CONTROLLER_BK_CHARGE, null);
 
         then(eventPublisher).should(never()).publishEvent(any(com.valui.user.event.TokenThresholdEvent.class));
     }
@@ -179,13 +177,13 @@ class TokenLedgerServiceImplTest {
     @Test
     @DisplayName("tryDebit: returns true on success")
     void tryDebit_success_returnsTrue() {
-        assertThat(service.tryDebit(USER_ID, 10, TokenReasonCode.CONTROLLER_POLL, null)).isTrue();
+        assertThat(service.tryDebit(USER_ID, 10, TokenReasonCode.CONTROLLER_BK_CHARGE, null)).isTrue();
     }
 
     @Test
     @DisplayName("tryDebit: returns false on insufficient balance, no exception thrown")
     void tryDebit_insufficient_returnsFalse() {
-        assertThat(service.tryDebit(USER_ID, 999, TokenReasonCode.CONTROLLER_POLL, null)).isFalse();
+        assertThat(service.tryDebit(USER_ID, 999, TokenReasonCode.CONTROLLER_BK_CHARGE, null)).isFalse();
     }
 
     // ─── unknown user ────────────────────────────────────────────────────────
@@ -197,7 +195,7 @@ class TokenLedgerServiceImplTest {
         given(em.find(eq(UserEntity.class), eq(unknown), eq(LockModeType.PESSIMISTIC_WRITE), anyMap()))
             .willReturn(null);
 
-        assertThatThrownBy(() -> service.debit(unknown, 10, TokenReasonCode.CONTROLLER_POLL, null))
+        assertThatThrownBy(() -> service.debit(unknown, 10, TokenReasonCode.CONTROLLER_BK_CHARGE, null))
             .isInstanceOf(UserNotFoundException.class);
     }
 }
