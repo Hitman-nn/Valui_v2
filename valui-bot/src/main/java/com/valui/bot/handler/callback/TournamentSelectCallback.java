@@ -22,6 +22,7 @@ import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
 import com.valui.common.exception.InsufficientTokensException;
+import com.valui.common.exception.ValuiException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -201,6 +202,19 @@ public class TournamentSelectCallback implements CallbackHandler {
             log.info("✅ Контроллер создан: fromId={} chatId={} bm={} url={}", ctx.fromId(), ctx.chatId(), bm.get(), tournament.url());
         } catch (InsufficientTokensException e) {
             MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, e.toAlertText());
+            return;
+        } catch (ValuiException e) {
+            if (e.getHttpStatus() == 409) {
+                // Controller already exists for this tournament in this chat — not an error,
+                // just return to the list which now shows ✅ for the existing entry.
+                MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId, "✅ Уже добавлен");
+                backNavigator.returnToTournamentList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
+            } else {
+                log.error("❌ Ошибка создания контроллера chatId={}: {}", ctx.chatId(), e.getMessage());
+                sessionService.clearSession(ctx.fromId());
+                MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                    "❌ Произошла ошибка. Попробуйте ещё раз.");
+            }
             return;
         } catch (Exception e) {
             log.error("❌ Ошибка создания контроллера chatId={}: {}", ctx.chatId(), e.getMessage());

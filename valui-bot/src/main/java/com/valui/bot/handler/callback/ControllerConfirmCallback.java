@@ -11,6 +11,7 @@ import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
 import com.valui.common.domain.ControllerType;
 import com.valui.common.exception.InsufficientTokensException;
+import com.valui.common.exception.ValuiException;
 import com.valui.monitor.dto.CreateControllerRequest;
 import com.valui.monitor.service.ControllerService;
 import lombok.RequiredArgsConstructor;
@@ -98,6 +99,21 @@ public class ControllerConfirmCallback implements CallbackHandler {
         } catch (InsufficientTokensException e) {
             log.info("⚠️ Нехватка токенов для контроллера fromId={}: {}", ctx.fromId(), e.getMessage());
             MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, e.toAlertText());
+        } catch (ValuiException e) {
+            if (e.getHttpStatus() == 409) {
+                String toastName = title != null && !title.isBlank() ? title : urlOpt.get();
+                MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId, "✅ " + toastName);
+                if (ControllerType.SPORT.equals(typeHint)) {
+                    backNavigator.returnToSportList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
+                } else {
+                    backNavigator.returnToTournamentList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
+                }
+            } else {
+                log.error("❌ Ошибка создания контроллера fromId={}: {}", ctx.fromId(), e.getMessage());
+                sessionService.clearSession(ctx.fromId());
+                MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                    "❌ Произошла ошибка. Попробуйте ещё раз.");
+            }
         } catch (Exception e) {
             log.error("❌ Ошибка создания контроллера fromId={}: {}", ctx.fromId(), e.getMessage());
             sessionService.clearSession(ctx.fromId());
