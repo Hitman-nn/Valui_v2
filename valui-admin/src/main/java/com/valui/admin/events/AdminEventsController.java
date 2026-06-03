@@ -19,8 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
-import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
@@ -97,14 +98,15 @@ public class AdminEventsController {
     @Operation(summary = "Статистика событий по букмекерам")
     public ResponseEntity<EventStatsDto> stats() {
         long total   = eventRepository.count();
-        long expired = eventRepository.findExpiredBefore(OffsetDateTime.now()).size();
+        long expired = eventRepository.countExpiredBefore(OffsetDateTime.now());
 
-        List<EventStatsDto.BookmakerCount> byBookmaker = Arrays.stream(
-            com.valui.common.domain.BookmakerType.values())
-            .map(bk -> new EventStatsDto.BookmakerCount(
-                bk.name(),
-                controllerRepository.countByBookmakerType(bk)))
-            .filter(bc -> bc.count() > 0)
+        Map<com.valui.common.domain.BookmakerType, Long> counts = new EnumMap<>(com.valui.common.domain.BookmakerType.class);
+        for (Object[] row : controllerRepository.countAllGroupedByBookmaker()) {
+            counts.put((com.valui.common.domain.BookmakerType) row[0], (Long) row[1]);
+        }
+        List<EventStatsDto.BookmakerCount> byBookmaker = counts.entrySet().stream()
+            .filter(e -> e.getValue() > 0)
+            .map(e -> new EventStatsDto.BookmakerCount(e.getKey().name(), e.getValue()))
             .toList();
 
         return ResponseEntity.ok(new EventStatsDto(total, expired, byBookmaker));

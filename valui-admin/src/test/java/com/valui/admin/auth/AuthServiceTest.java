@@ -22,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -40,6 +41,7 @@ class AuthServiceTest {
     @Mock private JwtService jwtService;
     @Mock private UserService userService;
     @Mock private RefreshTokenRepository refreshTokenRepository;
+    @Mock private PasswordEncoder passwordEncoder;
 
     @InjectMocks private AuthService authService;
 

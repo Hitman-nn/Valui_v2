@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Tag(name = "Admin — Dashboard", description = "Агрегированные метрики системы (только ADMIN)")
@@ -33,7 +34,12 @@ import java.util.*;
 @RequiredArgsConstructor
 public class DashboardController {
 
-    private static final List<String> CONSUMER_GROUPS = List.of("valui-notify", "valui-broadcast", "valui-audit");
+    private static final List<String> CONSUMER_GROUPS   = List.of("valui-notify", "valui-broadcast", "valui-audit");
+    private static final Duration     KAFKA_LAG_TTL      = Duration.ofSeconds(30);
+
+    private record KafkaLagCache(List<KafkaLagDto> data, Instant cachedAt) {}
+    private final AtomicReference<KafkaLagCache> kafkaLagCache = new AtomicReference<>(
+            new KafkaLagCache(List.of(), Instant.EPOCH));
 
     private final UserRepository               userRepository;
     private final ControllerRepository         controllerRepository;
@@ -176,13 +182,13 @@ public class DashboardController {
     }
 
     private RedisInfoDto buildRedis() {
-        try {
-            Properties info = redisConnectionFactory.getConnection().serverCommands().info("memory");
+        try (var conn = redisConnectionFactory.getConnection()) {
+            Properties info  = conn.serverCommands().info("memory");
             long usedBytes   = parseLong(info, "used_memory");
             String usedHuman = info.getProperty("used_memory_human", "n/a");
             long peakBytes   = parseLong(info, "used_memory_peak");
             long maxBytes    = parseLong(info, "maxmemory");
-            Properties ks    = redisConnectionFactory.getConnection().serverCommands().info("keyspace");
+            Properties ks    = conn.serverCommands().info("keyspace");
             long totalKeys   = parseKeyCount(ks);
             return new RedisInfoDto(usedBytes, usedHuman, peakBytes, maxBytes, totalKeys);
         } catch (Exception e) {
@@ -192,6 +198,10 @@ public class DashboardController {
     }
 
     private List<KafkaLagDto> buildKafkaLag() {
+        KafkaLagCache cached = kafkaLagCache.get();
+        if (Duration.between(cached.cachedAt(), Instant.now()).compareTo(KAFKA_LAG_TTL) < 0) {
+            return cached.data();
+        }
         List<KafkaLagDto> result = new ArrayList<>();
         Properties props = new Properties();
         props.putAll(kafkaAdmin.getConfigurationProperties());
@@ -203,6 +213,7 @@ public class DashboardController {
         } catch (Exception e) {
             log.warn("[DASHBOARD] Kafka error: {}", e.getMessage());
         }
+        kafkaLagCache.set(new KafkaLagCache(result, Instant.now()));
         return result;
     }
 
