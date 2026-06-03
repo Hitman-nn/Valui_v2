@@ -21,8 +21,6 @@ import com.valui.monitor.service.ControllerService;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
-import com.valui.parser.util.ParsedUrlIds;
-import com.valui.parser.util.UrlParser;
 import com.valui.common.exception.InsufficientTokensException;
 import com.valui.common.exception.ValuiException;
 import lombok.RequiredArgsConstructor;
@@ -259,22 +257,7 @@ public class TournamentSelectCallback implements CallbackHandler {
         List<ControllerDto> controllers = ctx.isGroupChat()
             ? controllerService.getGroupControllers(ctx.chatId())
             : controllerService.getUserControllers(ctx.fromId());
-        BookmakerType bm = BookmakerType.valueOf(bookmakerCode.toUpperCase());
-        Map<String, Instant> map = new HashMap<>();
-        controllers.stream()
-            .filter(c -> bookmakerCode.equalsIgnoreCase(c.bookmaker()))
-            .forEach(c -> {
-                map.put(c.url(), c.lastEventAt());
-                try {
-                    ParsedUrlIds ids = UrlParser.extractIds(c.url(), bm);
-                    if (ids.tournamentId() != null) {
-                        map.put("#" + ids.tournamentId(), c.lastEventAt());
-                    } else if (ids.sportId() != null) {
-                        map.put("@" + ids.sportId(), c.lastEventAt());
-                    }
-                } catch (Exception ignored) {}
-            });
-        return map;
+        return SportSelectCallback.buildControllerLookupMap(controllers, bookmakerCode);
     }
 
     private BookmakerParser getParser(String bookmakerCode) {

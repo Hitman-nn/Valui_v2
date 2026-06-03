@@ -21,8 +21,6 @@ import com.valui.monitor.service.ControllerService;
 import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
-import com.valui.parser.util.ParsedUrlIds;
-import com.valui.parser.util.UrlParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -178,20 +176,8 @@ public class WizardBackNavigator {
         List<ControllerDto> controllers = isGroupChat
             ? controllerService.getGroupControllers(chatId)
             : controllerService.getUserControllers(fromId);
-        Map<String, Instant> urlToLastEventAt = new HashMap<>();
-        controllers.stream()
-            .filter(c -> bm.equalsIgnoreCase(c.bookmaker()))
-            .forEach(c -> {
-                urlToLastEventAt.put(c.url(), c.lastEventAt());
-                try {
-                    ParsedUrlIds ids = UrlParser.extractIds(c.url(), bmType);
-                    if (ids.tournamentId() != null) {
-                        urlToLastEventAt.put("#" + ids.tournamentId(), c.lastEventAt());
-                    } else if (ids.sportId() != null) {
-                        urlToLastEventAt.put("@" + ids.sportId(), c.lastEventAt());
-                    }
-                } catch (Exception ignored) {}
-            });
+        Map<String, Instant> urlToLastEventAt =
+            SportSelectCallback.buildControllerLookupMap(controllers, bm);
 
         // Apply search filter if user came from a search
         List<TournamentDto> toDisplay;

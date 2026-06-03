@@ -174,7 +174,7 @@ public class SportSelectCallback implements CallbackHandler {
                    UserBotSession.CTX_SPORT_ALIAS, sportAlias));
 
         BookmakerType bookmakerType = BookmakerType.valueOf(bm.get().toUpperCase());
-        String sportUrl = buildSportUrl(bookmakerType, sportId, sportAlias);
+        String sportUrl = TournamentSelectCallback.buildSportUrl(bookmakerType, sportId, sportAlias);
         Map<String, Instant> urlToLastEventAt = buildUrlToLastEventAtMap(ctx, bm.get());
 
         String monitorAllText = messageSource.getMessage("wizard.monitor_all_sport", ctx.fromId(), sportName);
@@ -198,7 +198,9 @@ public class SportSelectCallback implements CallbackHandler {
                 .sorted(Comparator.comparing(t -> t.title().toLowerCase()))
                 .toList();
 
-        // Sport-level: check exact URL first, then fall back to "@sportId" for cross-domain imports
+        // Sport-level: check exact URL first, then "@sportId" fallback for cross-domain imports
+        // (e.g. 1xstavka.ru vs 1xbet.kz), then effective sportId from the tournament list
+        // to handle sub-sport hierarchies (e.g. Olimp returns comp.sportId != parent sportId).
         boolean sportExists = urlToLastEventAt.containsKey(sportUrl);
         Instant sportLastEventAt = urlToLastEventAt.get(sportUrl);
         if (!sportExists) {
@@ -210,6 +212,17 @@ public class SportSelectCallback implements CallbackHandler {
                 }
             } catch (Exception ignored) {}
         }
+        if (!sportExists && !sorted.isEmpty()) {
+            String tournSportId = sorted.get(0).sportId();
+            if (tournSportId != null) {
+                sportLastEventAt = urlToLastEventAt.get("@" + tournSportId);
+                sportExists = sportLastEventAt != null;
+            }
+        }
+        // Capture as final for use inside the lambda below.
+        final boolean sportMonitored = sportExists;
+        final Instant sportEvent    = sportLastEventAt;
+
         String monitorAllCallback = sportExists ? CallbackData.TOURN_EXIST : CallbackData.TOURN_ALL;
         String monitorAllLabel;
         if (sportExists) {
@@ -222,15 +235,15 @@ public class SportSelectCallback implements CallbackHandler {
         return PagedKeyboardBuilder.<TournamentDto>create()
             .items(sorted)
             .itemRenderer(t -> {
-                boolean exists = urlToLastEventAt.containsKey(t.url())
-                    || urlToLastEventAt.containsKey("#" + t.id());
+                // Check tournament-specific keys first; a sport-level controller covers all
+                // individual tournaments within that sport, so sportMonitored counts as exists too.
+                Instant lastEvent = urlToLastEventAt.get(t.url());
+                if (lastEvent == null) lastEvent = urlToLastEventAt.get("#" + t.id());
+                boolean exists = lastEvent != null || sportMonitored;
                 String label;
                 if (exists) {
-                    // Resolve lastEventAt from whichever key matched
-                    Instant lastEvent = urlToLastEventAt.containsKey(t.url())
-                        ? urlToLastEventAt.get(t.url())
-                        : urlToLastEventAt.get("#" + t.id());
-                    label = isStale(lastEvent, staleThresholdDays)
+                    Instant displayAt = lastEvent != null ? lastEvent : sportEvent;
+                    label = isStale(displayAt, staleThresholdDays)
                         ? "🕰️ " + t.title() : "✅ " + t.title();
                 } else {
                     label = t.title();
@@ -256,15 +269,24 @@ public class SportSelectCallback implements CallbackHandler {
         List<ControllerDto> controllers = ctx.isGroupChat()
             ? controllerService.getGroupControllers(ctx.chatId())
             : controllerService.getUserControllers(ctx.fromId());
+        return buildControllerLookupMap(controllers, bookmakerCode);
+    }
+
+    /**
+     * Builds the URL→lastEventAt lookup map shared by all wizard views.
+     * Three key types per controller:
+     *   - exact URL (direct match)
+     *   - "#tournamentId" (handles URL-format differences between migration data and current parser)
+     *   - "@sportId" (sport-level controllers — e.g. "monitor all football")
+     */
+    public static Map<String, Instant> buildControllerLookupMap(
+            List<ControllerDto> controllers, String bookmakerCode) {
         BookmakerType bm = BookmakerType.valueOf(bookmakerCode.toUpperCase());
         Map<String, Instant> map = new HashMap<>();
         controllers.stream()
             .filter(c -> bookmakerCode.equalsIgnoreCase(c.bookmaker()))
             .forEach(c -> {
                 map.put(c.url(), c.lastEventAt());
-                // Fallback key by tournament ID to handle URL format differences between
-                // migration-imported data and current parser output (e.g. fon.bet vs www.fon.bet,
-                // 1xbet.kz/line vs 1xbet.kz/ru/line).
                 try {
                     ParsedUrlIds ids = UrlParser.extractIds(c.url(), bm);
                     if (ids.tournamentId() != null) {
@@ -275,16 +297,6 @@ public class SportSelectCallback implements CallbackHandler {
                 } catch (Exception ignored) {}
             });
         return map;
-    }
-
-    static String buildSportUrl(BookmakerType bm, String sportId, String alias) {
-        return switch (bm) {
-            case XBET    -> "https://1xstavka.ru/line/" + sportId;
-            case FONBET  -> "https://www.fon.bet/sports/" + sportId;
-            case OLIMP   -> "https://www.olimp.bet/line/" + sportId;
-            case BETCITY -> "https://betcity.ru/ru/line/" + alias;
-            case BETBOOM -> "https://betboom.ru/sport/" + alias;
-        };
     }
 
     private BookmakerParser getParser(String bookmakerCode) {

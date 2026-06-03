@@ -24,8 +24,6 @@ import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
-import com.valui.parser.util.ParsedUrlIds;
-import com.valui.parser.util.UrlParser;
 import com.valui.user.service.GlobalFilterService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -220,20 +218,8 @@ public class WizardTextHandler implements BotUpdateHandler {
             List<ControllerDto> controllers = isGroupChat
                 ? controllerService.getGroupControllers(ctx.chatId())
                 : controllerService.getUserControllers(ctx.fromId());
-            Map<String, Instant> urlToLastEventAt = new HashMap<>();
-            controllers.stream()
-                .filter(c -> bm.get().equalsIgnoreCase(c.bookmaker()))
-                .forEach(c -> {
-                    urlToLastEventAt.put(c.url(), c.lastEventAt());
-                    try {
-                        ParsedUrlIds ids = UrlParser.extractIds(c.url(), bmType);
-                        if (ids.tournamentId() != null) {
-                            urlToLastEventAt.put("#" + ids.tournamentId(), c.lastEventAt());
-                        } else if (ids.sportId() != null) {
-                            urlToLastEventAt.put("@" + ids.sportId(), c.lastEventAt());
-                        }
-                    } catch (Exception ignored) {}
-                });
+            Map<String, Instant> urlToLastEventAt =
+                SportSelectCallback.buildControllerLookupMap(controllers, bm.get());
 
             String monitorAllText = messageSource.getMessage("wizard.monitor_all_sport", ctx.fromId(), sName);
             String backText   = messageSource.getMessage("menu.back",   ctx.fromId());

@@ -29,14 +29,20 @@ public class GroupChatMigrationService {
     public void migrate(Long oldChatId, Long newChatId) {
         int controllers = controllerRepository.updateNotificationChatId(oldChatId, newChatId);
 
-        // controller_subscriptions has a compound PK (controller_id, chat_id), so we
-        // cannot UPDATE chat_id in-place — we INSERT new rows then DELETE the old ones.
+        // controller_subscriptions has a compound PK (controller_id, chat_id), so we cannot
+        // UPDATE chat_id in-place — INSERT new rows then DELETE only the ones that were copied.
         int subsCopied  = subscriptionRepository.migrateSubscriptionsToNewChat(oldChatId, newChatId);
-        int subsDeleted = subscriptionRepository.deleteSubscriptionsByChatId(oldChatId);
+        int subsDeleted = subscriptionRepository.deleteOldSubscriptionsAfterMigration(oldChatId, newChatId);
 
         int filters = globalFilterRepository.updateChatId(oldChatId, newChatId);
 
-        log.info("[GROUP-MIGRATE] {} → {}: controllers={} subs copied={} deleted={} filters={}",
-                oldChatId, newChatId, controllers, subsCopied, subsDeleted, filters);
+        // chat_members stores group participants for the betting-journal picker (no JPA entity).
+        int membersCopied  = subscriptionRepository.migrateChatMembersToNewChat(oldChatId, newChatId);
+        int membersDeleted = subscriptionRepository.deleteOldChatMembersAfterMigration(oldChatId, newChatId);
+
+        log.info("[GROUP-MIGRATE] {} → {}: controllers={} subs={}/{} filters={} members={}/{}",
+                oldChatId, newChatId, controllers,
+                subsCopied, subsDeleted, filters,
+                membersCopied, membersDeleted);
     }
 }
