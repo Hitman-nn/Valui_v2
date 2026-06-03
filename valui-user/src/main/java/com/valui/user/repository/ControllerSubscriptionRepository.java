@@ -83,4 +83,21 @@ public interface ControllerSubscriptionRepository
     @Modifying
     @Query("UPDATE ControllerSubscriptionEntity s SET s.vkPeerId = null WHERE s.userId = :userId AND s.chatId = :chatId")
     void clearVkPeerIdByUserIdAndChatId(@Param("userId") UUID userId, @Param("chatId") Long chatId);
+
+    // ── Group chat migration (Telegram basic group → supergroup) ─────────────
+
+    @Modifying
+    @Query(value = """
+        INSERT INTO controller_subscriptions
+            (controller_id, chat_id, user_id, telegram_id, is_muted, paused_by_tokens, vk_peer_id, created_at)
+        SELECT controller_id, :newChatId, user_id, telegram_id, is_muted, paused_by_tokens, vk_peer_id, created_at
+        FROM controller_subscriptions
+        WHERE chat_id = :oldChatId
+        ON CONFLICT DO NOTHING
+        """, nativeQuery = true)
+    int migrateSubscriptionsToNewChat(@Param("oldChatId") Long oldChatId, @Param("newChatId") Long newChatId);
+
+    @Modifying
+    @Query(value = "DELETE FROM controller_subscriptions WHERE chat_id = :chatId", nativeQuery = true)
+    int deleteSubscriptionsByChatId(@Param("chatId") Long chatId);
 }

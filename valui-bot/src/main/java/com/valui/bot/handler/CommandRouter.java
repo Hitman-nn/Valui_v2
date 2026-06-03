@@ -6,6 +6,7 @@ import com.valui.bot.service.WizardMessageTracker;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
 import com.valui.common.entity.UserEntity;
+import com.valui.user.service.GroupChatMigrationService;
 import com.valui.user.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -29,17 +30,20 @@ public class CommandRouter {
     private final BotSessionService sessionService;
     private final UserService userService;
     private final WizardMessageTracker tracker;
+    private final GroupChatMigrationService groupChatMigrationService;
 
     public CommandRouter(List<BotUpdateHandler> handlers,
                          BotSessionService sessionService,
                          UserService userService,
-                         WizardMessageTracker tracker) {
+                         WizardMessageTracker tracker,
+                         GroupChatMigrationService groupChatMigrationService) {
         this.handlers = handlers.stream()
             .sorted(Comparator.comparingInt(BotUpdateHandler::order))
             .toList();
         this.sessionService = sessionService;
         this.userService = userService;
         this.tracker = tracker;
+        this.groupChatMigrationService = groupChatMigrationService;
         long callbacks = this.handlers.stream()
                 .filter(h -> h.getClass().getSimpleName().endsWith("Callback"))
                 .count();
@@ -52,6 +56,21 @@ public class CommandRouter {
     }
 
     public void route(Update update, AbsSender sender) {
+        // Telegram sends a service message when a basic group is upgraded to a supergroup.
+        // The message has no user sender (fromId would be null), so handle it before the
+        // null-check below. We must update all notification_chat_id references in the DB
+        // so the group remains functional under its new supergroup ID.
+        if (update.hasMessage() && update.getMessage().getMigrateToChatId() != null) {
+            Long oldChatId = update.getMessage().getChatId();
+            Long newChatId = update.getMessage().getMigrateToChatId();
+            try {
+                groupChatMigrationService.migrate(oldChatId, newChatId);
+            } catch (Exception e) {
+                log.error("[GROUP-MIGRATE] Failed to migrate {} → {}: {}", oldChatId, newChatId, e.getMessage(), e);
+            }
+            return;
+        }
+
         Long chatId = extractChatId(update);
         Long fromId = extractFromId(update);
 
