@@ -2,6 +2,7 @@ package com.valui.parser.http;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
 import java.io.ByteArrayInputStream;
@@ -37,6 +38,7 @@ import java.util.zip.GZIPInputStream;
  *
  * Requires port 4232 (HTTP proxy), not 14232 (SOCKS5).
  */
+@Slf4j
 public class SocksBookmakerHttpClient extends BookmakerHttpClient {
 
     static {
@@ -123,6 +125,12 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
         checkStatus(resp);
         byte[] body = decompress(resp);
         if (body.length > 0 && body[0] == '<') {
+            // Log the challenge HTML once so we can analyze the algorithm
+            log.warn("[XBET-CHALLENGE] HTML challenge from {} — cookies={} body={}",
+                    resp.uri(),
+                    resp.headers().allValues("Set-Cookie"),
+                    new String(body, 0, Math.min(body.length, 800), java.nio.charset.StandardCharsets.UTF_8)
+                        .replaceAll("\\s+", " "));
             // Challenge received — CookieManager stored __js_p_; retry sends it back
             resp = jdkClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
             checkStatus(resp);
@@ -137,8 +145,18 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
     private static HttpRequest.Builder buildRequest(String url) {
         return HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .header("User-Agent", USER_AGENT)
-                .header("Accept-Encoding", "gzip, deflate")
+                .header("User-Agent",        USER_AGENT)
+                .header("Accept",            "application/json, text/plain, */*")
+                .header("Accept-Language",   "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7")
+                .header("Accept-Encoding",   "gzip, deflate, br")
+                .header("Referer",           "https://1xbet.kz/")
+                .header("Origin",            "https://1xbet.kz")
+                .header("sec-fetch-dest",    "empty")
+                .header("sec-fetch-mode",    "cors")
+                .header("sec-fetch-site",    "same-origin")
+                .header("sec-ch-ua",         "\"Google Chrome\";v=\"120\", \"Chromium\";v=\"120\", \"Not-A.Brand\";v=\"99\"")
+                .header("sec-ch-ua-mobile",  "?0")
+                .header("sec-ch-ua-platform","\"Windows\"")
                 .timeout(Duration.ofSeconds(20))
                 .GET();
     }
