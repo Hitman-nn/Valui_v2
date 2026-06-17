@@ -206,7 +206,7 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
                 .header("User-Agent",        USER_AGENT)
                 .header("Accept",            "application/json, text/plain, */*")
                 .header("Accept-Language",   "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7")
-                .header("Accept-Encoding",   "gzip, deflate, br")
+                .header("Accept-Encoding",   "gzip, deflate")
                 .header("Referer",           "https://1xbet.kz/")
                 .header("Origin",            "https://1xbet.kz")
                 .header("sec-fetch-dest",    "empty")
