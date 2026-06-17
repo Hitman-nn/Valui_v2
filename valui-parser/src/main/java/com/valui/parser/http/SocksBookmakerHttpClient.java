@@ -8,8 +8,6 @@ import reactor.core.publisher.Mono;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.Authenticator;
-import java.net.CookieManager;
-import java.net.CookiePolicy;
 import java.net.InetSocketAddress;
 import java.net.PasswordAuthentication;
 import java.net.Proxy;
@@ -19,6 +17,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
@@ -37,6 +36,10 @@ import java.util.zip.GZIPInputStream;
  * fingerprint is identical regardless of tunnel type (SOCKS5 vs HTTP CONNECT).
  *
  * Requires port 4232 (HTTP proxy), not 14232 (SOCKS5).
+ *
+ * JS-challenge: xbet returns HTML with Set-Cookie: __js_p_=N,TTL,sec,0,X.
+ * The page JavaScript computes __jhash_ = get_jhash(N) and sets __jua_ = encoded UA,
+ * then redirects to the same URL. This class replicates that computation in Java.
  */
 @Slf4j
 public class SocksBookmakerHttpClient extends BookmakerHttpClient {
@@ -53,8 +56,11 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-    private final HttpClient jdkClient;
-    private final ObjectMapper objectMapper;
+    // Precomputed once — encoding the UA is expensive for a constant string
+    private static final String ENCODED_USER_AGENT = fixedEncodeURIComponent(USER_AGENT);
+
+    private final HttpClient    jdkClient;
+    private final ObjectMapper  objectMapper;
 
     public SocksBookmakerHttpClient(ProxyProperties proxy, ObjectMapper objectMapper) {
         super(HttpClientConfig.buildWebClient(null));
@@ -71,11 +77,6 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
                                 proxy.getPassword().toCharArray());
                     }
                 })
-                // Accept all cookies so xbet's __js_p_ JS-challenge cookie is stored
-                // automatically and re-sent on subsequent requests. Without this the client
-                // looks like a fresh bot on every request and xbet returns an HTML challenge
-                // instead of JSON.
-                .cookieHandler(new CookieManager(null, CookiePolicy.ACCEPT_ALL))
                 .connectTimeout(Duration.ofSeconds(8))
                 .build();
     }
@@ -90,54 +91,91 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
 
     @Override
     public <T> Mono<T> getJson(String url, Class<T> type) {
-        return Mono.fromCallable(() -> {
-            byte[] body = fetchWithChallengeRetry(url);
-            return objectMapper.readValue(body, type);
-        });
+        return Mono.fromCallable(() -> objectMapper.readValue(fetchWithChallengeRetry(url), type));
     }
 
     @Override
     public <T> Mono<T> getJson(String url, TypeReference<T> type) {
-        return Mono.fromCallable(() -> {
-            byte[] body = fetchWithChallengeRetry(url);
-            return objectMapper.readValue(body, type);
-        });
+        return Mono.fromCallable(() -> objectMapper.readValue(fetchWithChallengeRetry(url), type));
     }
 
     @Override
     public Mono<byte[]> getGzip(String url) {
-        return Mono.fromCallable(() -> {
-            byte[] body = fetchWithChallengeRetry(url);
-            return body;
-        });
+        return Mono.fromCallable(() -> fetchWithChallengeRetry(url));
     }
 
+    // ── JS-challenge resolution ───────────────────────────────────────────────
+
     /**
-     * Fetches {@code url} and handles xbet's {@code __js_p_} JS-challenge transparently:
-     * if the first response is an HTML challenge page, the {@link CookieManager} already
-     * stored the {@code Set-Cookie} header, so a single immediate retry sends the cookie
-     * back and receives real JSON. This keeps circuit-breaker failure counts clean —
-     * the challenge handshake is invisible to callers.
+     * Fetches {@code url}, transparently solving xbet's {@code __js_p_} challenge when met.
+     *
+     * Flow:
+     *   1. GET url → if HTML challenge: parse code from Set-Cookie __js_p_
+     *   2. Compute __jhash_ = get_jhash(code)  (Java port of the JS function on the page)
+     *   3. Retry with Cookie: __js_p_=…; __jhash_=…; __jua_=<encoded UA>
+     *   4. Server validates and returns real JSON
+     *
+     * Each concurrent request gets its own unique challenge number, so cookies are
+     * managed per-request in the Cookie header rather than in a shared CookieManager.
      */
     private byte[] fetchWithChallengeRetry(String url) throws IOException, InterruptedException {
         HttpRequest req = buildRequest(url).build();
         HttpResponse<byte[]> resp = jdkClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
         checkStatus(resp);
         byte[] body = decompress(resp);
+
         if (body.length > 0 && body[0] == '<') {
-            // Log the challenge HTML once so we can analyze the algorithm
-            log.warn("[XBET-CHALLENGE] HTML challenge from {} — cookies={} body={}",
-                    resp.uri(),
-                    resp.headers().allValues("Set-Cookie"),
-                    new String(body, 0, Math.min(body.length, 800), java.nio.charset.StandardCharsets.UTF_8)
-                        .replaceAll("\\s+", " "));
-            // Challenge received — CookieManager stored __js_p_; retry sends it back
-            resp = jdkClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
-            checkStatus(resp);
-            body = decompress(resp);
+            String jsPValue = extractSetCookieValue(resp.headers().allValues("set-cookie"), "__js_p_");
+            if (jsPValue != null) {
+                int code  = parseField(jsPValue, 0);
+                int jhash = computeJhash(code);
+
+                String cookieHeader = "__js_p_=" + jsPValue
+                        + "; __jhash_=" + jhash
+                        + "; __jua_=" + ENCODED_USER_AGENT;
+
+                log.debug("[XBET-CHALLENGE] Solving: code={} jhash={}", code, jhash);
+
+                HttpRequest challengeReq = buildRequest(url)
+                        .header("Cookie", cookieHeader)
+                        .build();
+                resp = jdkClient.send(challengeReq, HttpResponse.BodyHandlers.ofByteArray());
+                checkStatus(resp);
+                body = decompress(resp);
+            } else {
+                log.warn("[XBET-CHALLENGE] No __js_p_ in Set-Cookie from {}", url);
+            }
         }
+
         checkNotHtml(body, resp.uri());
         return body;
+    }
+
+    /**
+     * Java port of the {@code get_jhash(b)} function from xbet's JS challenge page:
+     * <pre>
+     * function get_jhash(b) {
+     *   var x = 123456789; var i = 0; var k = 0;
+     *   for (i = 0; i &lt; 1677696; i++) {
+     *     x = ((x + b) ^ (x + (x%3) + (x%17) + b) ^ i) % 16776960;
+     *     if (x % 117 == 0) { k = (k + 1) % 1111; }
+     *   }
+     *   return k;
+     * }
+     * </pre>
+     * All intermediate values stay within Java {@code int} range (max ≈ 2^24),
+     * so no long/BigInteger needed.
+     */
+    static int computeJhash(int b) {
+        int x = 123456789;
+        int k = 0;
+        for (int i = 0; i < 1677696; i++) {
+            x = ((x + b) ^ (x + (x % 3) + (x % 17) + b) ^ i) % 16776960;
+            if (x % 117 == 0) {
+                k = (k + 1) % 1111;
+            }
+        }
+        return k;
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
@@ -159,6 +197,48 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
                 .header("sec-ch-ua-platform","\"Windows\"")
                 .timeout(Duration.ofSeconds(20))
                 .GET();
+    }
+
+    /** Finds the value of a named cookie in a list of Set-Cookie header strings. */
+    private static String extractSetCookieValue(List<String> setCookieHeaders, String name) {
+        String prefix = name + "=";
+        for (String header : setCookieHeaders) {
+            String trimmed = header.trim();
+            if (trimmed.startsWith(prefix)) {
+                int end = trimmed.indexOf(';');
+                return end > 0
+                        ? trimmed.substring(prefix.length(), end).trim()
+                        : trimmed.substring(prefix.length()).trim();
+            }
+        }
+        return null;
+    }
+
+    /** Parses a comma-separated value at {@code index} from a cookie value string. */
+    private static int parseField(String csv, int index) {
+        String[] parts = csv.split(",");
+        if (index >= parts.length) return 0;
+        try { return Integer.parseInt(parts[index].trim()); }
+        catch (NumberFormatException e) { return 0; }
+    }
+
+    /**
+     * JavaScript's {@code fixedEncodeURIComponent}: encodes everything except
+     * unreserved URI characters (A-Z a-z 0-9 - _ . ~).
+     */
+    private static String fixedEncodeURIComponent(String str) {
+        StringBuilder sb = new StringBuilder(str.length() * 3);
+        for (char c : str.toCharArray()) {
+            if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+                    || c == '-' || c == '_' || c == '.' || c == '~') {
+                sb.append(c);
+            } else {
+                for (byte b : String.valueOf(c).getBytes(StandardCharsets.UTF_8)) {
+                    sb.append(String.format("%%%02X", b & 0xFF));
+                }
+            }
+        }
+        return sb.toString();
     }
 
     private static void checkStatus(HttpResponse<?> response) throws IOException {
