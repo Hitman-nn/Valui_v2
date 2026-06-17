@@ -20,6 +20,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -69,6 +70,13 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
     }
 
     private volatile ChallengeResult lastSolvedChallenge = null;
+
+    // Limits concurrent active challenge-solving to 2 threads.
+    // With 79 xbet controllers starting simultaneously, unconstrained parallel solving floods
+    // the proxy with ~160 concurrent HTTP calls and causes 502/timeout errors.
+    // Threads waiting for a slot benefit from the result cached by whoever solves first.
+    private final java.util.concurrent.Semaphore challengeSlots =
+            new java.util.concurrent.Semaphore(2, true);
 
     private final HttpClient    jdkClient;
     private final ObjectMapper  objectMapper;
@@ -173,11 +181,34 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
 
             String jsPValue = extractSetCookieValue(resp.headers().allValues("set-cookie"), "__js_p_");
             if (jsPValue == null) {
-                log.warn("[XBET-CHALLENGE] No __js_p_ (round {})", round + 1);
-                break;
+                // Another concurrent thread may have just consumed our challenge N and cached its result.
+                // Try their cookies before giving up.
+                ChallengeResult concurrent = lastSolvedChallenge;
+                if (concurrent != null && concurrent.isValid()) {
+                    log.debug("[XBET-CHALLENGE] No __js_p_ (round {}), using concurrent solver cookies", round + 1);
+                    cookies = concurrent.cookies();
+                } else {
+                    log.warn("[XBET-CHALLENGE] No __js_p_ (round {})", round + 1);
+                    break;
+                }
+            } else {
+                // Throttle concurrent challenge-solving to avoid proxy overload.
+                // Wait up to 3s for a slot; if we get one we solve ourselves,
+                // otherwise check if another thread already cached a fresh result.
+                boolean acquired = challengeSlots.tryAcquire(3, TimeUnit.SECONDS);
+                try {
+                    ChallengeResult concurrent = lastSolvedChallenge;
+                    if (concurrent != null && concurrent.isValid()) {
+                        log.debug("[XBET-CHALLENGE] Using concurrent solver cookies (round {})", round + 1);
+                        cookies = concurrent.cookies();
+                    } else {
+                        cookies = challengeResponse(jsPValue);
+                        log.debug("[XBET-CHALLENGE] Round {}: code={}", round + 1, parseField(jsPValue, 0));
+                    }
+                } finally {
+                    if (acquired) challengeSlots.release();
+                }
             }
-            cookies = challengeResponse(jsPValue);
-            log.debug("[XBET-CHALLENGE] Round {}: code={}", round + 1, parseField(jsPValue, 0));
         }
 
         throw new IOException("HTML response (captcha/block) from " + currentUrl);
