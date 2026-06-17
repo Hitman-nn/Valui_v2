@@ -18,6 +18,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PostConstruct;
+
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -73,6 +75,22 @@ public class XBetParser implements BookmakerParser {
         this.matchesApi = apiBase + "/Get1x2_VZip?";
         this.http  = http;
         this.cache = cache;
+    }
+
+    /**
+     * Pre-warm challenge cookies before the monitor scheduler starts polling.
+     * Without this, all 79 controllers fire their first GetChampsZip simultaneously
+     * and compete to solve challenges — flooding the proxy even with the semaphore.
+     * A single call here caches the cookies; all tasks then skip challenge-solving.
+     */
+    @PostConstruct
+    public void warmUpChallengeCookies() {
+        try {
+            http.getJson(champsApi, com.fasterxml.jackson.databind.JsonNode.class).block(Duration.ofSeconds(15));
+            log.info("[XBET] Challenge cookies pre-warmed at startup");
+        } catch (Exception e) {
+            log.debug("[XBET] Challenge pre-warm failed (tasks will solve on first poll): {}", e.getMessage());
+        }
     }
 
     @Override

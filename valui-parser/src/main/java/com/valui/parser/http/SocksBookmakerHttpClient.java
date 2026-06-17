@@ -71,6 +71,13 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
 
     private volatile ChallengeResult lastSolvedChallenge = null;
 
+    // Hard limit on concurrent HTTP calls through this proxy-backed client.
+    // Without this, 79 xbet controllers firing simultaneously flood the proxy
+    // with 100+ connections and receive 502/timeout responses.
+    // 20 concurrent calls ≈ 20–40 req/s at 0.5–1s per call — well within proxy capacity.
+    private final java.util.concurrent.Semaphore httpSlots =
+            new java.util.concurrent.Semaphore(20, true);
+
     // Limits concurrent active challenge-solving to 2 threads.
     // With 79 xbet controllers starting simultaneously, unconstrained parallel solving floods
     // the proxy with ~160 concurrent HTTP calls and causes 502/timeout errors.
@@ -219,7 +226,12 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
             throws IOException, InterruptedException {
         HttpRequest.Builder b = buildRequest(url);
         if (cookies != null && !cookies.isEmpty()) b = b.header("Cookie", cookies);
-        return jdkClient.send(b.build(), HttpResponse.BodyHandlers.ofByteArray());
+        httpSlots.acquire();
+        try {
+            return jdkClient.send(b.build(), HttpResponse.BodyHandlers.ofByteArray());
+        } finally {
+            httpSlots.release();
+        }
     }
 
     /** Builds challenge-response cookies, caching them for subsequent requests. */
