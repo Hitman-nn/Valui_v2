@@ -51,6 +51,8 @@ public class XBetParser implements BookmakerParser {
     private final AtomicLong lastResetAt = new AtomicLong(0);
     // [0] = total reset count, [1] = last WARN timestamp (ms)
     private final ConcurrentHashMap<String, long[]> tournamentResetStats = new ConcurrentHashMap<>();
+    // Same structure for HTML/captcha blocks — kept separate so fetch-count reduction is not affected
+    private final ConcurrentHashMap<String, long[]> tournamentHtmlStats  = new ConcurrentHashMap<>();
 
     @Autowired
     public XBetParser(@Qualifier("xbetHttpClient") BookmakerHttpClient http, ParserCacheService cache) {
@@ -261,10 +263,31 @@ public class XBetParser implements BookmakerParser {
             log.debug("xbet fetchMatches skipped — CB open/half-open tournamentId={}", tournamentId);
         } else if (isConnectionReset(t)) {
             recordTournamentReset(tournamentId);
+        } else if (t.getMessage() != null && t.getMessage().contains("HTML response")) {
+            // Repeated HTML/captcha for the same tournament (usually a deleted tournament whose
+            // ID is no longer in GetChampsZip → sports=0 fetch). Suppress to once per 4 h.
+            recordTournamentHtml(tournamentId, t);
         } else {
             log.warn("xbet fetchMatches fallback tournamentId={} [{}]: {}", tournamentId, t.getClass().getSimpleName(), describe(t));
         }
         return ParseResult.error("xbet-cb: " + t.getMessage());
+    }
+
+    private void recordTournamentHtml(String tournamentId, Throwable t) {
+        long now = System.currentTimeMillis();
+        boolean[] shouldWarn = {false};
+        tournamentHtmlStats.compute(tournamentId, (k, v) -> {
+            if (v == null) v = new long[]{0L, 0L};
+            v[0]++;
+            if (now - v[1] > RESET_WARN_INTERVAL_MS) {
+                v[1] = now;
+                shouldWarn[0] = true;
+            }
+            return v;
+        });
+        if (shouldWarn[0]) {
+            log.warn("xbet fetchMatches fallback tournamentId={} [{}]: {}", tournamentId, t.getClass().getSimpleName(), describe(t));
+        }
     }
 
     private void recordTournamentReset(String tournamentId) {
