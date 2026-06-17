@@ -7,6 +7,8 @@ import reactor.core.publisher.Mono;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.Authenticator;
+import java.net.CookieManager;
+import java.net.CookiePolicy;
 import java.net.InetSocketAddress;
 import java.net.PasswordAuthentication;
 import java.net.Proxy;
@@ -67,6 +69,11 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
                                 proxy.getPassword().toCharArray());
                     }
                 })
+                // Accept all cookies so xbet's __js_p_ JS-challenge cookie is stored
+                // automatically and re-sent on subsequent requests. Without this the client
+                // looks like a fresh bot on every request and xbet returns an HTML challenge
+                // instead of JSON.
+                .cookieHandler(new CookieManager(null, CookiePolicy.ACCEPT_ALL))
                 .connectTimeout(Duration.ofSeconds(8))
                 .build();
     }
@@ -82,11 +89,7 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
     @Override
     public <T> Mono<T> getJson(String url, Class<T> type) {
         return Mono.fromCallable(() -> {
-            HttpRequest req = buildRequest(url).build();
-            HttpResponse<byte[]> resp = jdkClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
-            checkStatus(resp);
-            byte[] body = decompress(resp);
-            checkNotHtml(body, resp.uri());
+            byte[] body = fetchWithChallengeRetry(url);
             return objectMapper.readValue(body, type);
         });
     }
@@ -94,11 +97,7 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
     @Override
     public <T> Mono<T> getJson(String url, TypeReference<T> type) {
         return Mono.fromCallable(() -> {
-            HttpRequest req = buildRequest(url).build();
-            HttpResponse<byte[]> resp = jdkClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
-            checkStatus(resp);
-            byte[] body = decompress(resp);
-            checkNotHtml(body, resp.uri());
+            byte[] body = fetchWithChallengeRetry(url);
             return objectMapper.readValue(body, type);
         });
     }
@@ -106,11 +105,31 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
     @Override
     public Mono<byte[]> getGzip(String url) {
         return Mono.fromCallable(() -> {
-            HttpRequest req = buildRequest(url).build();
-            HttpResponse<byte[]> resp = jdkClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
-            checkStatus(resp);
-            return decompress(resp);
+            byte[] body = fetchWithChallengeRetry(url);
+            return body;
         });
+    }
+
+    /**
+     * Fetches {@code url} and handles xbet's {@code __js_p_} JS-challenge transparently:
+     * if the first response is an HTML challenge page, the {@link CookieManager} already
+     * stored the {@code Set-Cookie} header, so a single immediate retry sends the cookie
+     * back and receives real JSON. This keeps circuit-breaker failure counts clean —
+     * the challenge handshake is invisible to callers.
+     */
+    private byte[] fetchWithChallengeRetry(String url) throws IOException, InterruptedException {
+        HttpRequest req = buildRequest(url).build();
+        HttpResponse<byte[]> resp = jdkClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
+        checkStatus(resp);
+        byte[] body = decompress(resp);
+        if (body.length > 0 && body[0] == '<') {
+            // Challenge received — CookieManager stored __js_p_; retry sends it back
+            resp = jdkClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
+            checkStatus(resp);
+            body = decompress(resp);
+        }
+        checkNotHtml(body, resp.uri());
+        return body;
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
