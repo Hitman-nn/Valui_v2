@@ -59,6 +59,17 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
     // Precomputed once — encoding the UA is expensive for a constant string
     private static final String ENCODED_USER_AGENT = fixedEncodeURIComponent(USER_AGENT);
 
+    // Challenge cookies are valid for 30 min (max-age=1800). Reusing them across requests
+    // avoids repeated per-request challenges: once the domain "trusts" us, subsequent calls
+    // (e.g. Get1x2_VZip after GetChampsZip) skip the challenge entirely.
+    private static final long COOKIE_TTL_MS = 25L * 60 * 1000;
+
+    private record ChallengeResult(String cookies, long expiresAt) {
+        boolean isValid() { return System.currentTimeMillis() < expiresAt; }
+    }
+
+    private volatile ChallengeResult lastSolvedChallenge = null;
+
     private final HttpClient    jdkClient;
     private final ObjectMapper  objectMapper;
 
@@ -130,7 +141,16 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
     private byte[] fetchWithChallengeRetry(String url) throws IOException, InterruptedException {
         final int MAX_CHALLENGE_ROUNDS = 3;
 
-        HttpRequest req = buildRequest(url).build();
+        // Reuse cookies from a previously-solved challenge (valid 25 min).
+        // Without this, each request starts fresh and the server challenges again,
+        // even though GetChampsZip and Get1x2_VZip share the same domain session.
+        ChallengeResult prev = lastSolvedChallenge;
+        HttpRequest.Builder reqBuilder = buildRequest(url);
+        if (prev != null && prev.isValid()) {
+            reqBuilder = reqBuilder.header("Cookie", prev.cookies());
+        }
+
+        HttpRequest req = reqBuilder.build();
         HttpResponse<byte[]> resp = jdkClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
         checkStatus(resp);
         byte[] body = decompress(resp);
@@ -149,6 +169,7 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
             String cookies = "__js_p_=" + jsPValue + "; __jhash_=" + jhash + "; __jua_=" + ENCODED_USER_AGENT;
 
             log.debug("[XBET-CHALLENGE] Round {}: code={} jhash={} url={}", round + 1, code, jhash, currentUrl);
+            lastSolvedChallenge = new ChallengeResult(cookies, System.currentTimeMillis() + COOKIE_TTL_MS);
 
             resp = jdkClient.send(buildRequest(currentUrl).header("Cookie", cookies).build(),
                     HttpResponse.BodyHandlers.ofByteArray());
