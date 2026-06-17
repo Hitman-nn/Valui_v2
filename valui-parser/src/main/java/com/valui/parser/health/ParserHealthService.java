@@ -9,12 +9,14 @@ import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -72,6 +74,33 @@ public class ParserHealthService {
         return findCb(type)
                 .map(cb -> cb.getMetrics().getFailureRate())
                 .orElse(-1f);
+    }
+
+    /**
+     * Periodically sends a probe call through each OPEN circuit breaker so that
+     * Resilience4j can evaluate whether {@code waitDurationInOpenState} has elapsed
+     * and auto-transition to HALF_OPEN.
+     *
+     * Without this, ControllerTask skips tasks when the CB is OPEN (to avoid
+     * saturating the error budget) which means NO calls go through the CB proxy —
+     * leaving it stuck OPEN indefinitely even after the bookmaker recovers.
+     * {@code automatic-transition-from-open-to-half-open-enabled: true} handles the
+     * OPEN→HALF_OPEN timer, but that timer only fires if the CB instance receives a
+     * wakeup call in some Resilience4j builds. This probe is the backstop.
+     */
+    @Scheduled(fixedRate = 3, timeUnit = TimeUnit.MINUTES, initialDelay = 3)
+    public void probeOpenCircuitBreakers() {
+        parsers.forEach(parser -> {
+            if (!isAvailable(parser.getBookmaker())) {
+                BookmakerType bk = parser.getBookmaker();
+                log.debug("[CB-PROBE] {} OPEN — probing via fetchSports()", bk);
+                try {
+                    parser.fetchSports();
+                } catch (Exception e) {
+                    log.debug("[CB-PROBE] {} probe exception: {}", bk, e.getMessage());
+                }
+            }
+        });
     }
 
     // ── internals ─────────────────────────────────────────────────────────────

@@ -77,6 +77,12 @@ public interface ControllerSubscriptionRepository
     @Query("SELECT s.vkPeerId FROM ControllerSubscriptionEntity s WHERE s.controllerId = :controllerId AND s.chatId = :chatId AND s.vkPeerId IS NOT NULL")
     Optional<Long> findVkPeerIdByControllerIdAndChatId(@Param("controllerId") UUID controllerId, @Param("chatId") Long chatId);
 
+    /** Returns ANY vkPeerId configured for this chat (regardless of which user's subscription
+     *  set it). Used for delivery: if any group member linked VK, all controllers in the chat
+     *  send VK notifications, not just the linker's controllers. */
+    @Query(value = "SELECT vk_peer_id FROM controller_subscriptions WHERE chat_id = :chatId AND vk_peer_id IS NOT NULL LIMIT 1", nativeQuery = true)
+    Optional<Long> findAnyVkPeerIdByChatId(@Param("chatId") Long chatId);
+
     @Query(value = "SELECT vk_peer_id FROM controller_subscriptions WHERE user_id = :userId AND chat_id = :chatId AND vk_peer_id IS NOT NULL ORDER BY created_at DESC LIMIT 1", nativeQuery = true)
     Optional<Long> findFirstVkPeerIdByUserIdAndChatId(@Param("userId") UUID userId, @Param("chatId") Long chatId);
 

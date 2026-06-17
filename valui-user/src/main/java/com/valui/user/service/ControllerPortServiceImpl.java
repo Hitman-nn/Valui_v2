@@ -106,7 +106,9 @@ public class ControllerPortServiceImpl implements ControllerPortService {
 
     @Override
     public Optional<Long> findVkPeerId(UUID controllerId, Long chatId) {
-        return subscriptionRepository.findVkPeerIdByControllerIdAndChatId(controllerId, chatId);
+        // Look for any vkPeerId in the chat so that group-chat VK linking applies to ALL
+        // controllers, not just the subscriptions of the user who did the linking.
+        return subscriptionRepository.findAnyVkPeerIdByChatId(chatId);
     }
 
     @Override @Transactional
