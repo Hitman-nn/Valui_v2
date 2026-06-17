@@ -140,6 +140,26 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
                         .header("Cookie", cookieHeader)
                         .build();
                 resp = jdkClient.send(challengeReq, HttpResponse.BodyHandlers.ofByteArray());
+
+                // Server validates the challenge and responds with 302 redirect to the same URL.
+                // JDK HttpClient does not follow redirects automatically, and even if it did it
+                // would drop the Cookie header on redirect. Follow manually to carry cookies.
+                if (resp.statusCode() == 302) {
+                    String location = resp.headers().firstValue("location")
+                            .map(loc -> loc.startsWith("http") ? loc : url)
+                            .orElse(url);
+
+                    // Merge cookies: keep challenge cookies + any new cookies from the 302 response
+                    String newCookies = buildCookieString(resp.headers().allValues("set-cookie"));
+                    String allCookies = newCookies.isEmpty() ? cookieHeader : cookieHeader + "; " + newCookies;
+
+                    HttpRequest followReq = buildRequest(location)
+                            .header("Cookie", allCookies)
+                            .build();
+                    resp = jdkClient.send(followReq, HttpResponse.BodyHandlers.ofByteArray());
+                    log.debug("[XBET-CHALLENGE] Followed redirect → {}", location);
+                }
+
                 checkStatus(resp);
                 body = decompress(resp);
             } else {
@@ -197,6 +217,19 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
                 .header("sec-ch-ua-platform","\"Windows\"")
                 .timeout(Duration.ofSeconds(20))
                 .GET();
+    }
+
+    /** Builds a semicolon-joined Cookie string from a list of Set-Cookie header values. */
+    private static String buildCookieString(List<String> setCookieHeaders) {
+        StringBuilder sb = new StringBuilder();
+        for (String header : setCookieHeaders) {
+            String trimmed = header.trim();
+            int end = trimmed.indexOf(';');
+            String nameValue = end > 0 ? trimmed.substring(0, end).trim() : trimmed;
+            if (sb.length() > 0) sb.append("; ");
+            sb.append(nameValue);
+        }
+        return sb.toString();
     }
 
     /** Finds the value of a named cookie in a list of Set-Cookie header strings. */
