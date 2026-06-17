@@ -118,53 +118,69 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
      * Each concurrent request gets its own unique challenge number, so cookies are
      * managed per-request in the Cookie header rather than in a shared CookieManager.
      */
+    /**
+     * Fetches {@code url}, transparently solving up to {@code MAX_CHALLENGE_ROUNDS} rounds of
+     * xbet's {@code __js_p_} JS-challenge. Each round:
+     *   1. Detect HTML body → extract code from Set-Cookie __js_p_
+     *   2. Compute __jhash_ = get_jhash(code) — pure-Java port of the on-page JS function
+     *   3. Retry with Cookie: __js_p_=…; __jhash_=…; __jua_=<encoded UA>
+     *   4. If server replies 302: re-compute jhash if the redirect sets a NEW __js_p_, then follow
+     *   5. If the follow-redirect body is still HTML, loop back to step 1
+     */
     private byte[] fetchWithChallengeRetry(String url) throws IOException, InterruptedException {
+        final int MAX_CHALLENGE_ROUNDS = 3;
+
         HttpRequest req = buildRequest(url).build();
         HttpResponse<byte[]> resp = jdkClient.send(req, HttpResponse.BodyHandlers.ofByteArray());
         checkStatus(resp);
         byte[] body = decompress(resp);
 
-        if (body.length > 0 && body[0] == '<') {
+        String currentUrl = url;
+
+        for (int round = 0; round < MAX_CHALLENGE_ROUNDS && body.length > 0 && body[0] == '<'; round++) {
             String jsPValue = extractSetCookieValue(resp.headers().allValues("set-cookie"), "__js_p_");
-            if (jsPValue != null) {
-                int code  = parseField(jsPValue, 0);
-                int jhash = computeJhash(code);
+            if (jsPValue == null) {
+                log.warn("[XBET-CHALLENGE] No __js_p_ in challenge from {} (round {})", currentUrl, round + 1);
+                break;
+            }
 
-                String cookieHeader = "__js_p_=" + jsPValue
-                        + "; __jhash_=" + jhash
-                        + "; __jua_=" + ENCODED_USER_AGENT;
+            int code  = parseField(jsPValue, 0);
+            int jhash = computeJhash(code);
+            String cookies = "__js_p_=" + jsPValue + "; __jhash_=" + jhash + "; __jua_=" + ENCODED_USER_AGENT;
 
-                log.debug("[XBET-CHALLENGE] Solving: code={} jhash={}", code, jhash);
+            log.debug("[XBET-CHALLENGE] Round {}: code={} jhash={} url={}", round + 1, code, jhash, currentUrl);
 
-                HttpRequest challengeReq = buildRequest(url)
-                        .header("Cookie", cookieHeader)
-                        .build();
-                resp = jdkClient.send(challengeReq, HttpResponse.BodyHandlers.ofByteArray());
+            resp = jdkClient.send(buildRequest(currentUrl).header("Cookie", cookies).build(),
+                    HttpResponse.BodyHandlers.ofByteArray());
 
-                // Server validates the challenge and responds with 302 redirect to the same URL.
-                // JDK HttpClient does not follow redirects automatically, and even if it did it
-                // would drop the Cookie header on redirect. Follow manually to carry cookies.
-                if (resp.statusCode() == 302) {
-                    String location = resp.headers().firstValue("location")
-                            .map(loc -> loc.startsWith("http") ? loc : url)
-                            .orElse(url);
+            // Server validates and replies with 302 redirect (same URL). Follow manually —
+            // JDK would drop Cookie header on automatic redirect. If the 302 carries a NEW
+            // __js_p_, solve it immediately so the follow-up request carries fresh cookies.
+            if (resp.statusCode() == 302) {
+                final String snapUrl = currentUrl;
+                String location = resp.headers().firstValue("location")
+                        .map(loc -> loc.startsWith("http") ? loc : snapUrl)
+                        .orElse(snapUrl);
 
-                    // Merge cookies: keep challenge cookies + any new cookies from the 302 response
-                    String newCookies = buildCookieString(resp.headers().allValues("set-cookie"));
-                    String allCookies = newCookies.isEmpty() ? cookieHeader : cookieHeader + "; " + newCookies;
-
-                    HttpRequest followReq = buildRequest(location)
-                            .header("Cookie", allCookies)
-                            .build();
-                    resp = jdkClient.send(followReq, HttpResponse.BodyHandlers.ofByteArray());
-                    log.debug("[XBET-CHALLENGE] Followed redirect → {}", location);
+                String newJsP = extractSetCookieValue(resp.headers().allValues("set-cookie"), "__js_p_");
+                if (newJsP != null && !newJsP.equals(jsPValue)) {
+                    int nc  = parseField(newJsP, 0);
+                    int nh  = computeJhash(nc);
+                    cookies = "__js_p_=" + newJsP + "; __jhash_=" + nh + "; __jua_=" + ENCODED_USER_AGENT;
+                    log.debug("[XBET-CHALLENGE] 302 new challenge: code={} jhash={}", nc, nh);
+                } else {
+                    String extra = buildCookieString(resp.headers().allValues("set-cookie"));
+                    if (!extra.isEmpty()) cookies = cookies + "; " + extra;
                 }
 
-                checkStatus(resp);
-                body = decompress(resp);
-            } else {
-                log.warn("[XBET-CHALLENGE] No __js_p_ in Set-Cookie from {}", url);
+                currentUrl = location;
+                resp = jdkClient.send(buildRequest(currentUrl).header("Cookie", cookies).build(),
+                        HttpResponse.BodyHandlers.ofByteArray());
+                log.debug("[XBET-CHALLENGE] Followed redirect → {}", currentUrl);
             }
+
+            checkStatus(resp);
+            body = decompress(resp);
         }
 
         checkNotHtml(body, resp.uri());
