@@ -25,6 +25,7 @@ import {
   BarChartOutlined,
   FieldTimeOutlined,
   DollarOutlined,
+  AlertOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -47,6 +48,7 @@ const MENU_ITEMS = [
   { key: '/broadcast',   icon: <NotificationOutlined />, label: 'Broadcast' },
   { key: '/token-costs',  icon: <DollarOutlined />,      label: 'Token Costs' },
   { key: '/crypto-rates', icon: <DollarOutlined />,      label: 'Crypto Rates' },
+  { key: '/dlq',          icon: <AlertOutlined />,        label: 'DLQ' },
 ];
 
 const BREADCRUMB_MAP: Record<string, string> = {
@@ -63,6 +65,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   broadcast:     'Broadcast',
   'token-costs':  'Token Costs',
   'crypto-rates': 'Crypto Rates',
+  dlq:            'DLQ',
 };
 
 function buildBreadcrumbs(pathname: string): { title: ReactNode }[] {

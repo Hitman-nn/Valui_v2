@@ -19,6 +19,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -49,6 +50,9 @@ public class XBetParser implements BookmakerParser {
     private final String matchesApi;
     private final BookmakerHttpClient http;
     @Nullable private final ParserCacheService cache;
+
+    @Value("${parser.xbet.enabled:true}")
+    private boolean parserEnabled = true;
 
     private final AtomicLong lastResetAt = new AtomicLong(0);
     // [0] = total reset count, [1] = last WARN timestamp (ms)
@@ -85,6 +89,10 @@ public class XBetParser implements BookmakerParser {
      */
     @PostConstruct
     public void warmUpChallengeCookies() {
+        if (!parserEnabled) {
+            log.info("[XBET] Parser disabled — skipping challenge pre-warm");
+            return;
+        }
         try {
             http.getJson(champsApi, com.fasterxml.jackson.databind.JsonNode.class).block(Duration.ofSeconds(15));
             log.info("[XBET] Challenge cookies pre-warmed at startup");
@@ -100,6 +108,7 @@ public class XBetParser implements BookmakerParser {
     @Retry(name = "parser-retry")
     @Override
     public ParseResult<List<SportDto>> fetchSports() {
+        if (!parserEnabled) return ParseResult.error("xbet parser disabled");
         long start = ms();
         JsonNode root = block(http.getJson(sportsApi, JsonNode.class));
         List<SportDto> sports = new ArrayList<>();
@@ -114,6 +123,7 @@ public class XBetParser implements BookmakerParser {
     @Retry(name = "parser-retry")
     @Override
     public ParseResult<List<TournamentDto>> fetchTournaments(String sportId) {
+        if (!parserEnabled) return ParseResult.error("xbet parser disabled");
         long start = ms();
         List<TournamentDto> tournaments = new ArrayList<>();
         for (JsonNode v : valueArray(getChampsJson())) {
@@ -139,6 +149,7 @@ public class XBetParser implements BookmakerParser {
     @Retry(name = "parser-retry")
     @Override
     public ParseResult<List<ParsedMatchDto>> fetchMatches(String tournamentId) {
+        if (!parserEnabled) return ParseResult.error("xbet parser disabled");
         long start = ms();
         // Single pass through the champs cache to get both sportId and tournamentSlug
         String sportId   = "0";
@@ -248,6 +259,7 @@ public class XBetParser implements BookmakerParser {
 
     @Override
     public boolean isAvailable() {
+        if (!parserEnabled) return false;
         try { block(http.getJson(sportsApi, JsonNode.class)); return true; }
         catch (Exception e) { return false; }
     }

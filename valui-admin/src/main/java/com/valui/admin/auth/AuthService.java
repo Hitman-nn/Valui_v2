@@ -15,6 +15,7 @@ import com.valui.user.dto.TelegramUserDto;
 import com.valui.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -29,6 +30,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final UserService userService;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final PasswordEncoder passwordEncoder;
 
     /**
      * Issues JWT tokens for a Telegram user.
@@ -82,7 +84,7 @@ public class AuthService {
      */
     public AuthResponse authenticateAdmin(AdminLoginRequest request) {
         if (authProperties.adminPassword() == null ||
-                !authProperties.adminPassword().equals(request.adminPassword())) {
+                !passwordEncoder.matches(request.adminPassword(), authProperties.adminPassword())) {
             throw new ValuiException("Invalid admin password", 401);
         }
 

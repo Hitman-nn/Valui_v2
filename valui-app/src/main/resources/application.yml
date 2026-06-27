@@ -226,6 +226,10 @@ cryptobot:
   api-url: ${CRYPTOBOT_API_URL:https://pay.crypt.bot/api}
   invoice-expires-in-seconds: ${CRYPTOBOT_INVOICE_EXPIRES:3600}
 
+parser:
+  xbet:
+    enabled: ${XBET_PARSER_ENABLED:true}
+
 # Logging levels — logback-spring.xml handles appenders and patterns
 logging:
   level:

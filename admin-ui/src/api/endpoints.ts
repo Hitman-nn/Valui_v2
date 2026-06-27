@@ -44,6 +44,7 @@ import type {
   ExchangeRate,
   UpdateExchangeRateRequest,
   TokenStats,
+  DlqStats,
 } from './types';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -351,6 +352,15 @@ export const cryptoRatesApi = {
     apiClient
       .put<ExchangeRate>(`/api/v1/admin/crypto-rates/${currency}`, data)
       .then((r) => r.data),
+};
+
+// ─── DLQ ──────────────────────────────────────────────────────────────────────
+
+export const dlqApi = {
+  stats: () =>
+    apiClient.get<DlqStats>('/api/v1/admin/dlq/stats').then((r) => r.data),
+  replay: () =>
+    apiClient.post<{ status: string; replayed: number }>('/api/v1/admin/dlq/replay').then((r) => r.data),
 };
 
 // ─── Broadcast ────────────────────────────────────────────────────────────────

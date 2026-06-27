@@ -16,6 +16,7 @@ import JobsPage from '../pages/jobs/JobsPage';
 import MigrationPage from '../pages/migration/MigrationPage';
 import TokenCostsPage from '../pages/costs/TokenCostsPage';
 import CryptoRatesPage from '../pages/costs/CryptoRatesPage';
+import DlqPage from '../pages/dlq/DlqPage';
 import { useAuthStore } from '../store/authStore';
 import type { ReactNode } from 'react';
 
@@ -56,6 +57,7 @@ export const router = createBrowserRouter(
         { path: 'migration',    element: <MigrationPage /> },
         { path: 'token-costs',   element: <TokenCostsPage /> },
         { path: 'crypto-rates',  element: <CryptoRatesPage /> },
+        { path: 'dlq',           element: <DlqPage /> },
       ],
     },
     { path: '*', element: <Navigate to="/" replace /> },

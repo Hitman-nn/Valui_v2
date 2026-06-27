@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
+import org.springframework.scheduling.annotation.Scheduled;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.Authenticator;
@@ -51,6 +53,10 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
         // Scoped to this JVM process; does not affect network security of the app itself.
         System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "");
         System.setProperty("jdk.http.auth.proxying.disabledSchemes",  "");
+        // Hard-cap JDK HttpClient connection pool to match httpSlots semaphore.
+        // Without this, stale keep-alive connections being replaced by new ones can
+        // briefly push the visible TCP connection count above the semaphore limit.
+        System.setProperty("jdk.httpclient.connectionPoolSize", "15");
     }
 
     private static final String USER_AGENT =
@@ -72,11 +78,11 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
     private volatile ChallengeResult lastSolvedChallenge = null;
 
     // Hard limit on concurrent HTTP calls through this proxy-backed client.
-    // Without this, 79 xbet controllers firing simultaneously flood the proxy
-    // with 100+ connections and receive 502/timeout responses.
-    // 20 concurrent calls ≈ 20–40 req/s at 0.5–1s per call — well within proxy capacity.
+    // xbet blocks at ≥25 simultaneous TCP connections (empirically confirmed).
+    // 15 slots gives 10 connections of headroom; matches connectionPoolSize above.
+    private static final int HTTP_SLOTS = 15;
     private final java.util.concurrent.Semaphore httpSlots =
-            new java.util.concurrent.Semaphore(20, true);
+            new java.util.concurrent.Semaphore(HTTP_SLOTS, true);
 
     // Limits concurrent active challenge-solving to 2 threads.
     // With 79 xbet controllers starting simultaneously, unconstrained parallel solving floods
@@ -128,6 +134,14 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
     @Override
     public Mono<byte[]> getGzip(String url) {
         return Mono.fromCallable(() -> fetchWithChallengeRetry(url));
+    }
+
+    @Scheduled(fixedDelay = 60_000)
+    public void logConnectionMetrics() {
+        int available = httpSlots.availablePermits();
+        int used = HTTP_SLOTS - available;
+        log.info("[XBET] http-slots: {}/{} in use, {} available (threshold 25)",
+                used, HTTP_SLOTS, available);
     }
 
     // ── JS-challenge resolution ───────────────────────────────────────────────

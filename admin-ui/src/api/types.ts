@@ -524,3 +524,9 @@ export interface ExchangeRate {
 export interface UpdateExchangeRateRequest {
   tokensPerUnit: number;
 }
+
+export interface DlqStats {
+  dlqFinalCount: number;
+  replayed: number;
+  status: string;
+}
