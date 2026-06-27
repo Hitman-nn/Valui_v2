@@ -26,11 +26,13 @@ public class MonitorSummaryLogger {
 
     private static final long STORM_THRESHOLD           = 5;
     private static final int  STORM_CONSECUTIVE_WINDOWS = 2;
+    private static final int  STORM_COOLDOWN_WINDOWS    = 6;
 
     private final MonitorMetrics            metrics;
     private final ApplicationEventPublisher eventPublisher;
 
     private final AtomicInteger consecutiveStormWindows = new AtomicInteger(0);
+    private final AtomicInteger cooldownRemaining       = new AtomicInteger(0);
 
     @Scheduled(fixedRate = 10, timeUnit = TimeUnit.MINUTES, initialDelay = 10)
     public void logSummary() {
@@ -65,17 +67,19 @@ public class MonitorSummaryLogger {
     private void checkStorm(long errors, long total) {
         if (errors >= STORM_THRESHOLD) {
             int consecutive = consecutiveStormWindows.incrementAndGet();
-            if (consecutive == STORM_CONSECUTIVE_WINDOWS) {
+            int cd = cooldownRemaining.get();
+            if (cd > 0) {
+                cooldownRemaining.decrementAndGet();
+                return;
+            }
+            if (consecutive >= STORM_CONSECUTIVE_WINDOWS) {
                 eventPublisher.publishEvent(new MonitorStormEvent(this, errors, total, consecutive));
-                // Reset after firing so the alert does not repeat on every subsequent bad window.
-                // If the storm continues beyond this point the counter restarts from 0, meaning
-                // another alert fires only after STORM_CONSECUTIVE_WINDOWS more bad windows in a row.
-                // A clean window resets the counter as well (see else-branch), so a single recovery
-                // interval followed by a new storm will produce a fresh alert as expected.
                 consecutiveStormWindows.set(0);
+                cooldownRemaining.set(STORM_COOLDOWN_WINDOWS);
             }
         } else {
             consecutiveStormWindows.set(0);
+            cooldownRemaining.set(0);
         }
     }
 }

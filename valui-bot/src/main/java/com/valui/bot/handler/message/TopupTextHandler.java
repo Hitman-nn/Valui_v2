@@ -40,7 +40,10 @@ public class TopupTextHandler implements BotUpdateHandler {
     @Override
     public boolean canHandle(Update update) {
         if (!update.hasMessage() || update.getMessage().getText() == null) return false;
-        return !update.getMessage().getText().startsWith("/");
+        if (update.getMessage().getText().startsWith("/")) return false;
+        Long fromId = update.getMessage().getFrom() != null ? update.getMessage().getFrom().getId() : null;
+        if (fromId == null) return false;
+        return sessionService.getSession(fromId).getState() == BotState.TOPUP_ENTER_AMOUNT;
     }
 
     @Override

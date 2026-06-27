@@ -48,7 +48,7 @@ public class ControllerFilterEditCallback implements CallbackHandler {
                 .build();
 
         ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
-                messageSource.getMessage("filter.enter_rule", ctx.fromId()),
+                messageSource.getMessage("filter.enter_controller_rule", ctx.fromId()),
                 keyboard);
     }
 }

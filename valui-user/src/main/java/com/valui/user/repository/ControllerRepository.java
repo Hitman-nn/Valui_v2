@@ -35,6 +35,8 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
 
     boolean existsByUserIdAndBookmakerAndUrlAndIsActiveTrue(UUID userId, BookmakerType bookmaker, String url);
 
+    Optional<ControllerEntity> findByUserIdAndBookmakerAndUrl(UUID userId, BookmakerType bookmaker, String url);
+
     @Transactional
     @Modifying
     @Query("UPDATE ControllerEntity c SET c.lastCheckedAt = :checkedAt WHERE c.id = :id")

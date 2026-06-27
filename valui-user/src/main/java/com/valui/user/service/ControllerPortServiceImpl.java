@@ -53,6 +53,11 @@ public class ControllerPortServiceImpl implements ControllerPortService {
     }
 
     @Override
+    public Optional<ControllerEntity> findByUserAndBookmakerAndUrl(UUID userId, BookmakerType bk, String url) {
+        return repository.findByUserIdAndBookmakerAndUrl(userId, bk, url);
+    }
+
+    @Override
     public Page<ControllerEntity> findByUserIdPageable(UUID userId, Pageable pageable) {
         return repository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
     }

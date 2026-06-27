@@ -21,17 +21,16 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class ParserHealthChecker {
 
-    private static final int FAILURE_THRESHOLD = 3;
-    // Progressive re-alert thresholds: 3 → 12 (~1h) → 24 (~2h) → every 24 after that
-    private static final int REPEAT_INTERVAL   = 24;
+    private static final int FAILURE_THRESHOLD        = 3;
+    private static final int REPEAT_INTERVAL          = 24;
+    private static final int RECOVERY_CHECKS_REQUIRED = 2;
 
     private final List<BookmakerParser> parsers;
     private final ApplicationEventPublisher eventPublisher;
 
-    private final Map<BookmakerType, Integer> consecutiveFailures = new ConcurrentHashMap<>();
-    private final Map<BookmakerType, Instant> incidentStart      = new ConcurrentHashMap<>();
-    // Tracks parsers for which ParserUnavailableEvent was already published so we don't re-publish
-    // until the parser recovers and fails again in a new incident.
+    private final Map<BookmakerType, Integer> consecutiveFailures  = new ConcurrentHashMap<>();
+    private final Map<BookmakerType, Integer> consecutiveSuccesses = new ConcurrentHashMap<>();
+    private final Map<BookmakerType, Instant> incidentStart        = new ConcurrentHashMap<>();
     private final Set<BookmakerType> notifiedUnavailable =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
 
@@ -46,9 +45,17 @@ public class ParserHealthChecker {
         try {
             boolean available = parser.isAvailable();
             if (available) {
+                int successes = consecutiveSuccesses.merge(type, 1, Integer::sum);
+                boolean wasNotified = notifiedUnavailable.contains(type);
+                if (wasNotified && successes < RECOVERY_CHECKS_REQUIRED) {
+                    log.info("Parser {} passed check {}/{} — waiting for stable recovery",
+                            type, successes, RECOVERY_CHECKS_REQUIRED);
+                    return;
+                }
                 int prev = consecutiveFailures.getOrDefault(type, 0);
-                boolean wasNotified = notifiedUnavailable.remove(type);
+                notifiedUnavailable.remove(type);
                 consecutiveFailures.put(type, 0);
+                consecutiveSuccesses.remove(type);
                 Instant start = incidentStart.remove(type);
                 String duration = start != null
                         ? " (duration=" + formatDuration(Duration.between(start, Instant.now())) + ", failures=" + prev + ")"
@@ -60,9 +67,11 @@ public class ParserHealthChecker {
                     log.info("Parser {} recovered after {} consecutive failures{}", type, prev, duration);
                 }
             } else {
+                consecutiveSuccesses.remove(type);
                 recordFailure(type, "isAvailable() returned false");
             }
         } catch (Exception e) {
+            consecutiveSuccesses.remove(type);
             recordFailure(type, e.getMessage());
         }
     }
@@ -70,7 +79,11 @@ public class ParserHealthChecker {
     private void recordFailure(BookmakerType type, String reason) {
         int failures = consecutiveFailures.merge(type, 1, Integer::sum);
         incidentStart.putIfAbsent(type, Instant.now());
-        log.warn("Parser {} unavailable: {} (consecutive={})", type, reason, failures);
+        if (failures <= FAILURE_THRESHOLD || isRepeatAlert(failures)) {
+            log.warn("Parser {} unavailable: {} (consecutive={})", type, reason, failures);
+        } else {
+            log.debug("Parser {} unavailable: {} (consecutive={})", type, reason, failures);
+        }
         if (failures == FAILURE_THRESHOLD && !notifiedUnavailable.contains(type)) {
             log.error("Parser {} exceeded failure threshold — publishing ParserUnavailableEvent", type);
             eventPublisher.publishEvent(new ParserUnavailableEvent(this, type, failures));

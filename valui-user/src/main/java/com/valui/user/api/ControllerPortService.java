@@ -40,6 +40,8 @@ public interface ControllerPortService {
 
     boolean existsByUserAndBookmakerAndUrl(UUID userId, BookmakerType bookmaker, String url);
 
+    Optional<ControllerEntity> findByUserAndBookmakerAndUrl(UUID userId, BookmakerType bookmaker, String url);
+
     Page<ControllerEntity> findByUserIdPageable(UUID userId, Pageable pageable);
 
     List<ControllerEntity> findAllActiveByNotificationChatId(Long chatId);

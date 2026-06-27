@@ -23,8 +23,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class CircuitBreakerEventLogger {
 
+    private static final int QUIET_AFTER_CYCLES = 5;
+
     private final CircuitBreakerRegistry registry;
     private final ConcurrentHashMap<String, Instant> openedAt = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Integer> reopenCycles = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void registerListeners() {
@@ -41,15 +44,30 @@ public class CircuitBreakerEventLogger {
                 case OPEN -> {
                     if (from == CircuitBreaker.State.CLOSED) {
                         openedAt.put(name, Instant.now());
+                        reopenCycles.put(name, 0);
                         log.warn("[CB] {} OPEN — failure threshold exceeded (CLOSED→OPEN)", name);
                     } else {
-                        // HALF_OPEN→OPEN: probe failed; preserve original openedAt for duration tracking
                         openedAt.putIfAbsent(name, Instant.now());
-                        log.info("[CB] {} OPEN — probe failed, still unavailable ({}→OPEN)", name, from);
+                        int cycles = reopenCycles.merge(name, 1, Integer::sum);
+                        if (cycles <= QUIET_AFTER_CYCLES) {
+                            log.info("[CB] {} OPEN — probe failed, still unavailable ({}→OPEN)", name, from);
+                        } else if (cycles % 10 == 0) {
+                            log.info("[CB] {} OPEN — still unavailable (cycle {}, {}→OPEN)", name, cycles, from);
+                        } else {
+                            log.debug("[CB] {} OPEN — probe failed (cycle {}, {}→OPEN)", name, cycles, from);
+                        }
                     }
                 }
-                case HALF_OPEN -> log.info("[CB] {} HALF_OPEN — testing recovery", name);
+                case HALF_OPEN -> {
+                    int cycles = reopenCycles.getOrDefault(name, 0);
+                    if (cycles <= QUIET_AFTER_CYCLES) {
+                        log.info("[CB] {} HALF_OPEN — testing recovery", name);
+                    } else {
+                        log.debug("[CB] {} HALF_OPEN — testing recovery (cycle {})", name, cycles);
+                    }
+                }
                 case CLOSED -> {
+                    reopenCycles.remove(name);
                     Instant opened = openedAt.remove(name);
                     String duration = opened != null
                             ? " (open for " + formatDuration(Duration.between(opened, Instant.now())) + ")"

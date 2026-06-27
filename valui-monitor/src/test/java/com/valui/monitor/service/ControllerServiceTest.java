@@ -79,7 +79,7 @@ class ControllerServiceTest {
     @DisplayName("addController: happy path — saves entity and returns ControllerDto")
     void addController_happyPath_returnsDto() {
         given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerPort.existsByUserAndBookmakerAndUrl(any(), any(), any())).willReturn(false);
+        given(controllerPort.findByUserAndBookmakerAndUrl(any(), any(), any())).willReturn(Optional.empty());
         given(detectedEventPort.countByControllerId(any())).willReturn(0L);
         given(controllerPort.save(any())).willAnswer(inv -> {
             ControllerEntity e = inv.getArgument(0);
@@ -103,7 +103,7 @@ class ControllerServiceTest {
     @DisplayName("addController: insufficient tokens — throws and never saves")
     void addController_insufficientTokens_throwsAndNeverSaves() {
         given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerPort.existsByUserAndBookmakerAndUrl(any(), any(), any())).willReturn(false);
+        given(controllerPort.findByUserAndBookmakerAndUrl(any(), any(), any())).willReturn(Optional.empty());
         willThrow(new InsufficientTokensException(5, 0))
             .given(planLimitFacade).debitForBkSlotIfNew(TG_ID, "XBET");
 
@@ -114,17 +114,38 @@ class ControllerServiceTest {
     }
 
     @Test
-    @DisplayName("addController: duplicate URL — throws 409 and never saves")
+    @DisplayName("addController: duplicate active URL — throws 409 and never saves")
     void addController_duplicateUrl_throws409() {
+        ControllerEntity existing = controllerEntity(UUID.randomUUID(), XBET_URL, true);
         given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
-        given(controllerPort.existsByUserAndBookmakerAndUrl(
-            eq(USER_ID), eq(BookmakerType.XBET), eq(XBET_URL))).willReturn(true);
+        given(controllerPort.findByUserAndBookmakerAndUrl(
+            eq(USER_ID), eq(BookmakerType.XBET), eq(XBET_URL))).willReturn(Optional.of(existing));
 
         assertThatThrownBy(() ->
             service.addController(new CreateControllerRequest(XBET_URL, null, null, false), TG_ID))
             .isInstanceOf(ValuiException.class)
             .extracting("httpStatus").isEqualTo(409);
         verify(controllerPort, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("addController: inactive duplicate URL — reactivates existing controller")
+    void addController_inactiveDuplicate_reactivates() {
+        UUID existingId = UUID.randomUUID();
+        ControllerEntity existing = controllerEntity(existingId, XBET_URL, false);
+        given(userService.findByTelegramId(TG_ID)).willReturn(Optional.of(user));
+        given(controllerPort.findByUserAndBookmakerAndUrl(
+            eq(USER_ID), eq(BookmakerType.XBET), eq(XBET_URL))).willReturn(Optional.of(existing));
+        given(controllerPort.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(detectedEventPort.countByControllerId(existingId)).willReturn(0L);
+
+        ControllerDto dto = service.addController(
+            new CreateControllerRequest(XBET_URL, null, "Reactivated", false), TG_ID);
+
+        assertThat(dto.isActive()).isTrue();
+        assertThat(dto.title()).isEqualTo("Reactivated");
+        verify(controllerPort).save(any(ControllerEntity.class));
+        verify(planLimitFacade, never()).debitForBkSlotIfNew(anyLong(), anyString());
     }
 
     @Test

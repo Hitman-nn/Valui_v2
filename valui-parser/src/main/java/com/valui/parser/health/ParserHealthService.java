@@ -16,7 +16,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @Service
@@ -26,6 +28,8 @@ public class ParserHealthService {
     private final CircuitBreakerRegistry cbRegistry;
     private final MeterRegistry meterRegistry;
     private final List<BookmakerParser> parsers;
+
+    private final Map<BookmakerType, AtomicInteger> probeFailures = new ConcurrentHashMap<>();
 
     public record CircuitBreakerInfo(
             CircuitBreaker.State state,
@@ -64,9 +68,8 @@ public class ParserHealthService {
      */
     public boolean isAvailable(BookmakerType type) {
         return findCb(type)
-                .map(cb -> cb.getState() != CircuitBreaker.State.OPEN &&
-                           cb.getState() != CircuitBreaker.State.FORCED_OPEN)
-                .orElse(true); // no CB registered → assume available
+                .map(cb -> cb.getState() == CircuitBreaker.State.CLOSED)
+                .orElse(true);
     }
 
     /** Latest failure rate for a bookmaker (0-100). -1 if unknown. */
@@ -91,14 +94,25 @@ public class ParserHealthService {
     @Scheduled(fixedRate = 3, timeUnit = TimeUnit.MINUTES, initialDelay = 3)
     public void probeOpenCircuitBreakers() {
         parsers.forEach(parser -> {
-            if (!isAvailable(parser.getBookmaker())) {
-                BookmakerType bk = parser.getBookmaker();
-                log.debug("[CB-PROBE] {} OPEN — probing via fetchSports()", bk);
-                try {
-                    parser.fetchSports();
-                } catch (Exception e) {
-                    log.debug("[CB-PROBE] {} probe exception: {}", bk, e.getMessage());
-                }
+            BookmakerType bk = parser.getBookmaker();
+            if (isAvailable(bk)) {
+                probeFailures.remove(bk);
+                return;
+            }
+            int failures = probeFailures
+                    .computeIfAbsent(bk, k -> new AtomicInteger(0)).get();
+            int skip = failures < 10 ? 1 : failures < 30 ? 5 : 10;
+            if (failures > 0 && failures % skip != 0) {
+                probeFailures.get(bk).incrementAndGet();
+                return;
+            }
+            log.debug("[CB-PROBE] {} not CLOSED — probing via fetchSports() (failures={})", bk, failures);
+            try {
+                parser.fetchSports();
+                probeFailures.remove(bk);
+            } catch (Exception e) {
+                probeFailures.get(bk).incrementAndGet();
+                log.debug("[CB-PROBE] {} probe exception: {}", bk, e.getMessage());
             }
         });
     }

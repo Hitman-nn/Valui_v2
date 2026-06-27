@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -60,13 +61,20 @@ public class ControllerServiceImpl implements ControllerService {
         UserEntity user = requireUser(telegramId);
 
         BookmakerType bookmaker = resolveBookmaker(req);
+        Long effectiveChatId = notificationChatId != null ? notificationChatId : user.getTelegramId();
 
-        if (controllerPort.existsByUserAndBookmakerAndUrl(user.getId(), bookmaker, req.url())) {
-            throw new ValuiException("Controller already exists for this URL", 409);
+        Optional<ControllerEntity> existingOpt = controllerPort.findByUserAndBookmakerAndUrl(
+                user.getId(), bookmaker, req.url());
+
+        if (existingOpt.isPresent()) {
+            ControllerEntity existing = existingOpt.get();
+            if (Boolean.TRUE.equals(existing.getIsActive())) {
+                throw new ValuiException("Controller already exists for this URL", 409);
+            }
+            return reactivateController(existing, req, user, bookmaker, effectiveChatId);
         }
 
         // Check for duplicate tournament: same tournamentId in the same notification chat
-        Long effectiveChatId = notificationChatId != null ? notificationChatId : user.getTelegramId();
         try {
             ParsedUrlIds newIds = UrlParser.extractIds(req.url(), bookmaker);
             if (newIds.tournamentId() != null) {
@@ -86,7 +94,6 @@ public class ControllerServiceImpl implements ControllerService {
         } catch (ValuiException e) { throw e; }
         catch (Exception ignored) {} // URL parse error → skip tournament ID check
 
-        // Списываем токены если это первый контроллер данной БК у пользователя
         planLimitFacade.debitForBkSlotIfNew(telegramId, bookmaker.name());
 
         ControllerType type = (req.typeHint() != null) ? req.typeHint() : resolveType(req.url(), bookmaker);
@@ -109,6 +116,26 @@ public class ControllerServiceImpl implements ControllerService {
         log.info("[CONTROLLER] Добавлен: id={} бк={} telegramId={}", saved.getId(), bookmaker, telegramId);
         eventPublisher.publishEvent(new ControllerAddedEvent(
             saved.getId(), user.getId(), telegramId, bookmaker, pollIntervalSec));
+        return toDto(saved);
+    }
+
+    private ControllerDto reactivateController(ControllerEntity existing, CreateControllerRequest req,
+                                                UserEntity user, BookmakerType bookmaker, Long effectiveChatId) {
+        existing.setIsActive(true);
+        existing.setIsMuted(false);
+        existing.setPausedByTokens(false);
+        existing.setFilterPausedByTokens(false);
+        existing.setLastCheckedAt(null);
+        if (req.title() != null) existing.setTitle(req.title());
+        if (req.typeHint() != null) existing.setType(req.typeHint());
+        existing.setNotificationChatId(effectiveChatId);
+        ControllerEntity saved = controllerPort.save(existing);
+
+        controllerPort.createSubscription(saved.getId(), effectiveChatId, user.getId(), user.getTelegramId());
+        log.info("[CONTROLLER] Реактивирован: id={} бк={} telegramId={}", saved.getId(), bookmaker, user.getTelegramId());
+        int pollIntervalSec = resolvedPollInterval(saved);
+        eventPublisher.publishEvent(new ControllerAddedEvent(
+                saved.getId(), user.getId(), user.getTelegramId(), bookmaker, pollIntervalSec));
         return toDto(saved);
     }
 
