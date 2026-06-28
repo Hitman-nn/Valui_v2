@@ -5,6 +5,7 @@ import com.valui.bot.service.BotSessionService;
 import com.valui.bot.service.WizardMessageTracker;
 import com.valui.bot.state.BotState;
 import com.valui.bot.state.UserBotSession;
+import com.valui.user.service.GroupChatMigrationService;
 import com.valui.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,10 +41,11 @@ import static org.mockito.Mockito.never;
 @DisplayName("CommandRouter — unit tests")
 class CommandRouterTest {
 
-    @Mock private BotSessionService     sessionService;
-    @Mock private UserService           userService;
-    @Mock private AbsSender             sender;
-    @Mock private WizardMessageTracker  tracker;
+    @Mock private BotSessionService          sessionService;
+    @Mock private UserService                userService;
+    @Mock private AbsSender                  sender;
+    @Mock private WizardMessageTracker       tracker;
+    @Mock private GroupChatMigrationService  groupChatMigrationService;
 
     private static final Long CHAT_ID = 100L;
 
@@ -63,7 +65,7 @@ class CommandRouterTest {
 
         CommandRouter router = new CommandRouter(
             List.of(lowPriority, highPriority),   // deliberately unordered
-            sessionService, userService, tracker);
+            sessionService, userService, tracker, groupChatMigrationService);
 
         router.route(messageUpdate("/test"), sender);
 
@@ -79,7 +81,7 @@ class CommandRouterTest {
 
         CommandRouter router = new CommandRouter(
             List.of(match, noMatch),
-            sessionService, userService, tracker);
+            sessionService, userService, tracker, groupChatMigrationService);
 
         router.route(messageUpdate("/cmd"), sender);
 
@@ -94,7 +96,7 @@ class CommandRouterTest {
 
         CommandRouter router = new CommandRouter(
             List.of(noMatch),
-            sessionService, userService, tracker);
+            sessionService, userService, tracker, groupChatMigrationService);
 
         assertThatCode(() -> router.route(messageUpdate("/unknown"), sender))
             .doesNotThrowAnyException();
@@ -109,7 +111,7 @@ class CommandRouterTest {
         BotUpdateHandler handler = mockHandler(true, 100);
         CommandRouter router = new CommandRouter(
             List.of(handler),
-            sessionService, userService, tracker);
+            sessionService, userService, tracker, groupChatMigrationService);
 
         Update emptyUpdate = new Update();   // no message / callback → chatId = null
 
@@ -129,10 +131,26 @@ class CommandRouterTest {
 
         CommandRouter router = new CommandRouter(
             List.of(throwing),
-            sessionService, userService, tracker);
+            sessionService, userService, tracker, groupChatMigrationService);
 
         assertThatCode(() -> router.route(messageUpdate("/boom"), sender))
             .doesNotThrowAnyException();
+    }
+
+    // ─── Telegram group migration ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("route: migrate_to_chat_id triggers GroupChatMigrationService and skips normal flow")
+    void route_migrateToChatId_callsMigrationService() {
+        BotUpdateHandler handler = mockHandler(true, 100);
+        CommandRouter router = new CommandRouter(
+            List.of(handler),
+            sessionService, userService, tracker, groupChatMigrationService);
+
+        router.route(groupMigrationUpdate(-12345L, -1001012345L), sender);
+
+        then(groupChatMigrationService).should().migrate(-12345L, -1001012345L);
+        then(handler).should(never()).handle(any());
     }
 
     // ─── chatId extraction ────────────────────────────────────────────────────
@@ -146,7 +164,7 @@ class CommandRouterTest {
 
         CommandRouter router = new CommandRouter(
             List.of(handler),
-            sessionService, userService, tracker);
+            sessionService, userService, tracker, groupChatMigrationService);
 
         router.route(callbackUpdate("SOME_DATA"), sender);
 
@@ -168,7 +186,7 @@ class CommandRouterTest {
 
         CommandRouter router = new CommandRouter(
             List.of(handler),
-            sessionService, userService, tracker);
+            sessionService, userService, tracker, groupChatMigrationService);
 
         router.route(messageUpdate("/any"), sender);
 
@@ -222,6 +240,19 @@ class CommandRouterTest {
 
         Update update = new Update();
         update.setCallbackQuery(cb);
+        return update;
+    }
+
+    private static Update groupMigrationUpdate(long oldChatId, long newChatId) {
+        Chat chat = new Chat();
+        chat.setId(oldChatId);
+
+        Message message = new Message();
+        message.setChat(chat);
+        message.setMigrateToChatId(newChatId);
+
+        Update update = new Update();
+        update.setMessage(message);
         return update;
     }
 

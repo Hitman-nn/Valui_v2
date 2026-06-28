@@ -1,5 +1,6 @@
 package com.valui.admin.costs;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.valui.common.entity.AuditLogEntity;
 import com.valui.common.entity.TokenActionCostEntity;
 import com.valui.user.repository.AuditLogRepository;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -20,6 +22,7 @@ public class TokenActionCostService {
 
     private final TokenActionCostRepository costRepository;
     private final AuditLogRepository        auditLogRepository;
+    private final ObjectMapper              objectMapper;
 
     @Transactional(readOnly = true)
     public List<TokenActionCostDto> listAll() {
@@ -42,13 +45,20 @@ public class TokenActionCostService {
         log.info("[ADMIN] Token cost updated: code={} {} → {} by adminTelegramId={}",
             actionCode, oldCost, req.costTokens(), adminTelegramId);
 
+        String details;
+        try {
+            details = objectMapper.writeValueAsString(Map.of(
+                "actionCode",      actionCode,
+                "oldCost",         oldCost,
+                "newCost",         req.costTokens(),
+                "adminTelegramId", adminTelegramId));
+        } catch (Exception ex) {
+            details = "{}";
+        }
         auditLogRepository.save(AuditLogEntity.builder()
             .action("UPDATE_TOKEN_ACTION_COST")
             .entityType("TokenActionCost")
-            .details("{\"actionCode\":\"" + actionCode + "\","
-                + "\"oldCost\":" + oldCost + ","
-                + "\"newCost\":" + req.costTokens() + ","
-                + "\"adminTelegramId\":" + adminTelegramId + "}")
+            .details(details)
             .build());
 
         return new TokenActionCostDto(entity.getActionCode(), entity.getCostTokens(), entity.getDescription());

@@ -22,6 +22,7 @@ import com.valui.parser.api.BookmakerParser;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.factory.ParserFactory;
 import com.valui.common.exception.InsufficientTokensException;
+import com.valui.common.exception.ValuiException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -114,16 +115,16 @@ public class TournamentSelectCallback implements CallbackHandler {
 
         String sName  = sportName.orElse(sportId.get());
         String sAlias = sportAlias.orElse(sportId.get());
-        Map<String, Instant> urlToLastEventAt = buildUrlToLastEventAtMap(ctx, bm.get());
         BookmakerType bookmakerType = BookmakerType.valueOf(bm.get().toUpperCase());
         String sportUrl = buildSportUrl(bookmakerType, sportId.get(), sAlias);
+        Map<String, Instant> urlToLastEventAt = buildUrlToLastEventAtMap(ctx, bm.get());
 
         String monitorAllText = messageSource.getMessage("wizard.monitor_all_sport", ctx.fromId(), sName);
         String backText   = messageSource.getMessage("menu.back",   ctx.fromId());
         String cancelText = messageSource.getMessage("menu.cancel", ctx.fromId());
         InlineKeyboardMarkup keyboard = SportSelectCallback.buildTournamentKeyboard(
             tournaments, page, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
-            wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
+            bookmakerType, wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
         ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
             messageSource.getMessage("wizard.select_tournament", ctx.fromId(), sName), keyboard);
     }
@@ -202,6 +203,19 @@ public class TournamentSelectCallback implements CallbackHandler {
         } catch (InsufficientTokensException e) {
             MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, e.toAlertText());
             return;
+        } catch (ValuiException e) {
+            if (e.getHttpStatus() == 409) {
+                // Controller already exists for this tournament in this chat — not an error,
+                // just return to the list which now shows ✅ for the existing entry.
+                MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId, "✅ Уже добавлен");
+                backNavigator.returnToTournamentList(ctx.sender(), ctx.fromId(), ctx.chatId(), messageId);
+            } else {
+                log.error("❌ Ошибка создания контроллера chatId={}: {}", ctx.chatId(), e.getMessage());
+                sessionService.clearSession(ctx.fromId());
+                MessageSend.answerCallbackWithAlert(ctx.sender(), callbackId,
+                    "❌ Произошла ошибка. Попробуйте ещё раз.");
+            }
+            return;
         } catch (Exception e) {
             log.error("❌ Ошибка создания контроллера chatId={}: {}", ctx.chatId(), e.getMessage());
             sessionService.clearSession(ctx.fromId());
@@ -243,11 +257,7 @@ public class TournamentSelectCallback implements CallbackHandler {
         List<ControllerDto> controllers = ctx.isGroupChat()
             ? controllerService.getGroupControllers(ctx.chatId())
             : controllerService.getUserControllers(ctx.fromId());
-        Map<String, Instant> map = new HashMap<>();
-        controllers.stream()
-            .filter(c -> bookmakerCode.equalsIgnoreCase(c.bookmaker()))
-            .forEach(c -> map.put(c.url(), c.lastEventAt()));
-        return map;
+        return SportSelectCallback.buildControllerLookupMap(controllers, bookmakerCode);
     }
 
     private BookmakerParser getParser(String bookmakerCode) {

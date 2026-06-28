@@ -43,4 +43,8 @@ public interface GlobalFilterRepository extends JpaRepository<GlobalFilterEntity
     Optional<GlobalFilterEntity> findByIdAndChatIdOrUserId(@Param("id") UUID id,
                                                            @Param("chatId") Long chatId,
                                                            @Param("userId") UUID userId);
+
+    @Modifying
+    @Query("UPDATE GlobalFilterEntity f SET f.chatId = :newChatId WHERE f.chatId = :oldChatId")
+    int updateChatId(@Param("oldChatId") Long oldChatId, @Param("newChatId") Long newChatId);
 }

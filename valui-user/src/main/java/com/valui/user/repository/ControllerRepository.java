@@ -66,6 +66,11 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
     @Query("SELECT c FROM ControllerEntity c WHERE c.notificationChatId = :chatId AND c.isActive = true ORDER BY c.createdAt DESC")
     Page<ControllerEntity> findByNotificationChatIdOrderByCreatedAtDesc(@Param("chatId") Long chatId, Pageable pageable);
 
+    @Transactional
+    @Modifying
+    @Query("UPDATE ControllerEntity c SET c.notificationChatId = :newChatId WHERE c.notificationChatId = :oldChatId")
+    int updateNotificationChatId(@Param("oldChatId") Long oldChatId, @Param("newChatId") Long newChatId);
+
     int countByUserIdAndBookmakerAndIsActiveTrue(UUID userId, BookmakerType bookmaker);
 
     List<ControllerEntity> findAllByUserIdAndBookmakerAndIsActiveTrue(UUID userId, BookmakerType bookmaker);
@@ -99,6 +104,9 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
 
     @Query("SELECT c.bookmaker, COUNT(c) FROM ControllerEntity c WHERE c.isActive = true GROUP BY c.bookmaker ORDER BY COUNT(c) DESC")
     List<Object[]> countActiveGroupedByBookmaker();
+
+    @Query("SELECT c.bookmaker, COUNT(c) FROM ControllerEntity c GROUP BY c.bookmaker")
+    List<Object[]> countAllGroupedByBookmaker();
 
     @Query(value = """
             SELECT c FROM ControllerEntity c

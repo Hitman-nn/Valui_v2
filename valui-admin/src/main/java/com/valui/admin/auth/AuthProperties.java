@@ -11,8 +11,10 @@ public record AuthProperties(
     String botSecret,
 
     /**
-     * Password for the admin panel web UI login (POST /api/v1/auth/admin/login).
-     * Set via VALUI_AUTH_ADMIN_PASSWORD env var. Keep separate from botSecret.
+     * BCrypt hash of the admin panel password (POST /api/v1/auth/admin/login).
+     * Set via VALUI_AUTH_ADMIN_PASSWORD env var. Generate with:
+     *   htpasswd -bnBC 10 "" your_password | tr -d ':\n'
+     * Keep separate from botSecret.
      */
     String adminPassword
 ) {}

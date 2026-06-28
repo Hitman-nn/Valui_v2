@@ -296,6 +296,10 @@ public class ControllerTaskExecutor {
         var watches = marketWatchService.findActiveByController(controllerId, fetchedIds);
         if (watches.isEmpty()) return;
 
+        String tournamentTitle = controllerPort.findById(controllerId)
+                .map(com.valui.common.entity.ControllerEntity::getTitle)
+                .orElse(null);
+
         // Build a lookup map: externalEventId → extraData from latest fetch
         java.util.Map<String, String> extraByEventId = new java.util.HashMap<>();
         for (ParsedItem item : fetched) {
@@ -325,7 +329,8 @@ public class ControllerTaskExecutor {
                         watch.getMatchTitle(),
                         watch.getMatchUrl(),
                         watch.getBookmaker(),
-                        extraData));
+                        extraData,
+                        tournamentTitle));
                 log.info("[WATCH] {} appeared for event={} chatId={}",
                         watch.getMarketType(), watch.getExternalEventId(), watch.getChatId());
             }

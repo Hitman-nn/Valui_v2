@@ -209,26 +209,24 @@ public class WizardTextHandler implements BotUpdateHandler {
                     .collect(Collectors.toList()))
                 .orElse(List.of());
 
-            boolean isGroupChat = ctx.isGroupChat();
-            List<ControllerDto> controllers = isGroupChat
-                ? controllerService.getGroupControllers(ctx.chatId())
-                : controllerService.getUserControllers(ctx.fromId());
-            Map<String, Instant> urlToLastEventAt = new HashMap<>();
-            controllers.stream()
-                .filter(c -> bm.get().equalsIgnoreCase(c.bookmaker()))
-                .forEach(c -> urlToLastEventAt.put(c.url(), c.lastEventAt()));
-
             String sAlias   = sportAlias.orElse(sportId.get());
             String sName    = sportName.orElse(sportId.get());
             BookmakerType bmType = BookmakerType.valueOf(bm.get().toUpperCase());
             String sportUrl = TournamentSelectCallback.buildSportUrl(bmType, sportId.get(), sAlias);
+
+            boolean isGroupChat = ctx.isGroupChat();
+            List<ControllerDto> controllers = isGroupChat
+                ? controllerService.getGroupControllers(ctx.chatId())
+                : controllerService.getUserControllers(ctx.fromId());
+            Map<String, Instant> urlToLastEventAt =
+                SportSelectCallback.buildControllerLookupMap(controllers, bm.get());
 
             String monitorAllText = messageSource.getMessage("wizard.monitor_all_sport", ctx.fromId(), sName);
             String backText   = messageSource.getMessage("menu.back",   ctx.fromId());
             String cancelText = messageSource.getMessage("menu.cancel", ctx.fromId());
             var keyboard = SportSelectCallback.buildTournamentKeyboard(
                 filtered, 0, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
-                wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
+                bmType, wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
 
             String text = filtered.isEmpty()
                 ? "🔍 По запросу «" + query + "» ничего не найдено."

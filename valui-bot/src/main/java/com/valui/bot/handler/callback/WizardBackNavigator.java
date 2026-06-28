@@ -169,17 +169,15 @@ public class WizardBackNavigator {
             wizardCache.cacheTournaments(fromId, tournaments);
         }
 
+        BookmakerType bmType = BookmakerType.valueOf(bm.toUpperCase());
+        String sportUrl = TournamentSelectCallback.buildSportUrl(bmType, sportId, sportAlias);
+
         boolean isGroupChat = chatId < 0;
         List<ControllerDto> controllers = isGroupChat
             ? controllerService.getGroupControllers(chatId)
             : controllerService.getUserControllers(fromId);
-        Map<String, Instant> urlToLastEventAt = new HashMap<>();
-        controllers.stream()
-            .filter(c -> bm.equalsIgnoreCase(c.bookmaker()))
-            .forEach(c -> urlToLastEventAt.put(c.url(), c.lastEventAt()));
-
-        BookmakerType bmType = BookmakerType.valueOf(bm.toUpperCase());
-        String sportUrl = TournamentSelectCallback.buildSportUrl(bmType, sportId, sportAlias);
+        Map<String, Instant> urlToLastEventAt =
+            SportSelectCallback.buildControllerLookupMap(controllers, bm);
 
         // Apply search filter if user came from a search
         List<TournamentDto> toDisplay;
@@ -205,7 +203,7 @@ public class WizardBackNavigator {
         String cancelText = messageSource.getMessage("menu.cancel", fromId);
         InlineKeyboardMarkup keyboard = SportSelectCallback.buildTournamentKeyboard(
             toDisplay, displayPage, monitorAllText, backText, cancelText, urlToLastEventAt, sportUrl,
-            wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
+            bmType, wizardProps.getTournamentPageSize(), botProperties.staleThresholdDays());
 
         tracker.replaceAndTrack(sender, chatId, messageId, listText, keyboard);
     }
