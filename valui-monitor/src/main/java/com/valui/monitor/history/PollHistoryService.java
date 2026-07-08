@@ -9,7 +9,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
@@ -44,7 +43,8 @@ public class PollHistoryService {
 
     // ── Write ─────────────────────────────────────────────────────────────────
 
-    @Transactional
+    // No @Transactional: Redis must not hold a DB connection during its 2s timeout.
+    // writeDb uses JdbcTemplate which acquires and releases its own connection per call.
     public void record(UUID controllerId, Instant startedAt, long durationMs,
                        int eventsFound, String status) {
         writeRedis(controllerId, startedAt, durationMs, eventsFound, status);

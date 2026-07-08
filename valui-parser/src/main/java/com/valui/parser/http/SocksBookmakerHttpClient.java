@@ -140,7 +140,7 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
     public void logConnectionMetrics() {
         int available = httpSlots.availablePermits();
         int used = HTTP_SLOTS - available;
-        log.info("[XBET] http-slots: {}/{} in use, {} available (threshold 25)",
+        log.debug("[XBET] http-slots: {}/{} in use, {} available (threshold 25)",
                 used, HTTP_SLOTS, available);
     }
 

@@ -140,6 +140,9 @@
         <logger name="reactor.netty.http.client.HttpClientConnect" level="ERROR"/>
         <logger name="io.netty.handler.ssl"                        level="ERROR"/>
         <logger name="io.netty.channel"                            level="ERROR"/>
+        <!-- Reactor fatal-exception wrapper — suppressed because the wrapped OOM/OOME
+             is already logged by the actual failing component at ERROR level -->
+        <logger name="reactor.core.publisher.Operators"            level="ERROR"/>
         <root level="INFO">
             <appender-ref ref="ASYNC_JSON"/>
         </root>
@@ -157,6 +160,9 @@
         <logger name="reactor.netty.http.client.HttpClientConnect" level="ERROR"/>
         <logger name="io.netty.handler.ssl"                        level="ERROR"/>
         <logger name="io.netty.channel"                            level="ERROR"/>
+        <!-- Reactor fatal-exception wrapper — suppressed because the wrapped OOM/OOME
+             is already logged by the actual failing component at ERROR level -->
+        <logger name="reactor.core.publisher.Operators"            level="ERROR"/>
         <root level="WARN">
             <appender-ref ref="ASYNC_CONSOLE"/>
         </root>
