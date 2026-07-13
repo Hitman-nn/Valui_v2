@@ -207,22 +207,20 @@ public class SportSelectCallback implements CallbackHandler {
             try {
                 ParsedUrlIds sportIds = UrlParser.extractIds(sportUrl, bm);
                 if (sportIds.sportId() != null) {
-                    sportLastEventAt = urlToLastEventAt.get("@" + sportIds.sportId());
-                    sportExists = sportLastEventAt != null;
+                    String key = "@" + sportIds.sportId();
+                    sportExists = urlToLastEventAt.containsKey(key);
+                    if (sportExists) sportLastEventAt = urlToLastEventAt.get(key);
                 }
             } catch (Exception ignored) {}
         }
         if (!sportExists && !sorted.isEmpty()) {
             String tournSportId = sorted.get(0).sportId();
             if (tournSportId != null) {
-                sportLastEventAt = urlToLastEventAt.get("@" + tournSportId);
-                sportExists = sportLastEventAt != null;
+                String key = "@" + tournSportId;
+                sportExists = urlToLastEventAt.containsKey(key);
+                if (sportExists) sportLastEventAt = urlToLastEventAt.get(key);
             }
         }
-        // Capture as final for use inside the lambda below.
-        final boolean sportMonitored = sportExists;
-        final Instant sportEvent    = sportLastEventAt;
-
         String monitorAllCallback = sportExists ? CallbackData.TOURN_EXIST : CallbackData.TOURN_ALL;
         String monitorAllLabel;
         if (sportExists) {
@@ -235,15 +233,20 @@ public class SportSelectCallback implements CallbackHandler {
         return PagedKeyboardBuilder.<TournamentDto>create()
             .items(sorted)
             .itemRenderer(t -> {
-                // Check tournament-specific keys first; a sport-level controller covers all
-                // individual tournaments within that sport, so sportMonitored counts as exists too.
+                // ✅ shown only when this tournament has its OWN controller.
+                // A sport-level controller does NOT propagate ✅ to individual tournaments —
+                // the user should still be able to add tournament-specific controllers
+                // (e.g. with different filter rules) alongside a sport-level one.
                 Instant lastEvent = urlToLastEventAt.get(t.url());
-                if (lastEvent == null) lastEvent = urlToLastEventAt.get("#" + t.id());
-                boolean exists = lastEvent != null || sportMonitored;
+                boolean exists = urlToLastEventAt.containsKey(t.url());
+                if (!exists) {
+                    String hashKey = "#" + t.id();
+                    exists = urlToLastEventAt.containsKey(hashKey);
+                    if (exists) lastEvent = urlToLastEventAt.get(hashKey);
+                }
                 String label;
                 if (exists) {
-                    Instant displayAt = lastEvent != null ? lastEvent : sportEvent;
-                    label = isStale(displayAt, staleThresholdDays)
+                    label = isStale(lastEvent, staleThresholdDays)
                         ? "🕰️ " + t.title() : "✅ " + t.title();
                 } else {
                     label = t.title();
