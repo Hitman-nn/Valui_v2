@@ -27,7 +27,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -53,7 +55,7 @@ class PreMatchOddsServiceSweepTest {
     BetSlipEntity slip;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         slip = BetSlipEntity.builder()
                 .id(SLIP_ID)
                 .matchUrl(FONBET_URL)
@@ -61,9 +63,32 @@ class PreMatchOddsServiceSweepTest {
                 .odds(new BigDecimal("2.00"))
                 .result(SlipResult.OPEN)
                 .build();
+        stubScheduler();
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Replaces the service's real (4-thread) scheduler with a mock that records the
+     * scheduled task but never runs it. checkReschedule()'s "inside window" branch fires
+     * takeSnapshot() via scheduler.schedule(..., 0, MILLISECONDS) — on the real pool that
+     * runs on a background thread, racing this test's verify() calls (which only care about
+     * checkReschedule()'s own synchronous work: cancel old job + persist the shift). Without
+     * this stub, takeSnapshot's own tx.execute() calls occasionally sneak in before the
+     * assertions run, flaking the count.
+     */
+    @SuppressWarnings("unchecked")
+    private void stubScheduler() throws Exception {
+        Field f = PreMatchOddsService.class.getDeclaredField("scheduler");
+        f.setAccessible(true);
+        ScheduledExecutorService noopScheduler = mock(ScheduledExecutorService.class);
+        // lenient: only the RescheduleBranches tests actually reach a scheduler.schedule()
+        // call — EarlyExit/MissCounter return earlier, and strict stubs would flag this
+        // as unused for them.
+        lenient().when(noopScheduler.schedule(any(Runnable.class), anyLong(), any(TimeUnit.class)))
+                .thenReturn(mock(ScheduledFuture.class));
+        f.set(service, noopScheduler);
+    }
 
     @SuppressWarnings("unchecked")
     private ConcurrentHashMap<UUID, ScheduledFuture<?>> pending() throws Exception {
