@@ -149,15 +149,15 @@ public class PrintCallback implements CallbackHandler {
         List<BetDto> bets = bettingService.listBetsForPrint(accountId, personId, ctx.chatId());
         List<BetAccountTransactionDto> txs = accountService.getTransactions(accountId, personId, ctx.chatId());
 
-        // Merge and sort by date
+        // Menu list: newest first, not-yet-played bets hidden (nothing to print for them yet)
         List<PrintItem> all = new ArrayList<>();
         for (BetDto b : bets) {
-            if (b.status() != BetStatus.CANCELLED) all.add(new PrintItem("B", b.id().toString(), b.createdAt(), formatBetLabel(b, personId), calcBetPnl(b, personId)));
+            if (isPrintable(b)) all.add(new PrintItem("B", b.id().toString(), b.createdAt(), formatBetLabel(b, personId), calcBetPnl(b, personId)));
         }
         for (BetAccountTransactionDto tx : txs) {
             all.add(new PrintItem("X", tx.id().toString(), tx.createdAt(), formatTxLabel(tx), tx.amount()));
         }
-        all.sort(Comparator.comparing(PrintItem::date));
+        all.sort(Comparator.comparing(PrintItem::date).reversed());
 
         Set<String> selected = loadSelected(ctx);
         int totalPages = (all.size() + PAGE_SIZE - 1) / PAGE_SIZE;
@@ -213,14 +213,16 @@ public class PrintCallback implements CallbackHandler {
         List<BetDto> bets = bettingService.listBetsForPrint(accountId, personId, ctx.chatId());
         List<BetAccountTransactionDto> txs = accountService.getTransactions(accountId, personId, ctx.chatId());
 
+        // Must mirror showItemSelect's filter+order exactly — "select all on page" relies on
+        // the same index-to-item mapping the user is looking at.
         List<PrintItem> all = new ArrayList<>();
         for (BetDto b : bets) {
-            if (b.status() != BetStatus.CANCELLED) all.add(new PrintItem("B", b.id().toString(), b.createdAt(), "", BigDecimal.ZERO));
+            if (isPrintable(b)) all.add(new PrintItem("B", b.id().toString(), b.createdAt(), "", BigDecimal.ZERO));
         }
         for (BetAccountTransactionDto tx : txs) {
             all.add(new PrintItem("X", tx.id().toString(), tx.createdAt(), "", BigDecimal.ZERO));
         }
-        all.sort(Comparator.comparing(PrintItem::date));
+        all.sort(Comparator.comparing(PrintItem::date).reversed());
 
         Set<String> selected = loadSelected(ctx);
         int fromIdx = page * PAGE_SIZE;
@@ -245,10 +247,12 @@ public class PrintCallback implements CallbackHandler {
         List<BetAccountTransactionDto> txs = accountService.getTransactions(accountId, personId, ctx.chatId());
         Set<String> selected = loadSelected(ctx);
 
-        // Build full list (for computing balance-before), then filter to selected
+        // Build full list (for computing balance-before), then filter to selected.
+        // Kept chronological (oldest → newest) here regardless of the menu's newest-first
+        // order — this is the actual printed statement, meant to read top-to-bottom in time.
         List<PrintItem> allItems = new ArrayList<>();
         for (BetDto b : bets) {
-            if (b.status() != BetStatus.CANCELLED)
+            if (isPrintable(b))
                 allItems.add(new PrintItem("B", b.id().toString(), b.createdAt(), formatBetLine(b, personId), calcBetPnl(b, personId)));
         }
         for (BetAccountTransactionDto tx : txs) {
@@ -320,6 +324,12 @@ public class PrintCallback implements CallbackHandler {
 
     private String formatTxLine(BetAccountTransactionDto tx) {
         return fmtK(tx.amount()) + " " + tx.personName().toLowerCase();
+    }
+
+    /** A bet is printable once it's settled — CANCELLED (voided before resolution) and
+     *  OPEN (match not yet finished, no outcome to print) are excluded everywhere. */
+    private static boolean isPrintable(BetDto b) {
+        return b.status() != BetStatus.CANCELLED && b.status() != BetStatus.OPEN;
     }
 
     private BigDecimal calcBetPnl(BetDto b, UUID personId) {
