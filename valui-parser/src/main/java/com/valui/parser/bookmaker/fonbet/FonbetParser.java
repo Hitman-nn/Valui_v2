@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static com.valui.parser.http.BookmakerHttpClient.BLOCK_TIMEOUT;
 
@@ -39,6 +40,14 @@ public class FonbetParser implements BookmakerParser {
     private final FonbetEndpointPool pool;
     private final String fallbackUrl;
     private final AtomicReference<CachedSnap> snapCache = new AtomicReference<>();
+    // Guards snapCache's refresh — ReentrantLock, not synchronized: the winner holds it
+    // across a blocking HTTP call (up to BLOCK_TIMEOUT), and synchronized would pin the
+    // carrier thread of every virtual thread queued behind it for that whole duration.
+    // Without this lock, all ~338 Fonbet controllers whose poll lands right as the TTL
+    // expires see the cache as stale at once and each independently fire their own HTTP
+    // call — a stampede that floods the shared "fonbet-pool" connection pool far beyond
+    // its pending-acquire queue and starves everyone behind it (PoolAcquirePendingLimitException).
+    private final ReentrantLock snapLock = new ReentrantLock();
 
     private record CachedSnap(JsonNode data, long ts) {}
 
@@ -296,16 +305,25 @@ public class FonbetParser implements BookmakerParser {
         if (cached != null && System.currentTimeMillis() - cached.ts < SNAP_TTL_MS) {
             return cached.data;
         }
-        String url = (pool != null) ? pool.getBestEndpoint() : fallbackUrl;
+        snapLock.lock();
         try {
-            JsonNode snap = http.getJson(url, JsonNode.class).block(BLOCK_TIMEOUT);
-            if (snap == null) throw new IllegalStateException("Fonbet API returned null");
-            if (pool != null) pool.markSuccess(url);
-            snapCache.set(new CachedSnap(snap, System.currentTimeMillis()));
-            return snap;
-        } catch (Exception e) {
-            if (pool != null) pool.markFailure(url);
-            throw e;
+            cached = snapCache.get();
+            if (cached != null && System.currentTimeMillis() - cached.ts < SNAP_TTL_MS) {
+                return cached.data;
+            }
+            String url = (pool != null) ? pool.getBestEndpoint() : fallbackUrl;
+            try {
+                JsonNode snap = http.getJson(url, JsonNode.class).block(BLOCK_TIMEOUT);
+                if (snap == null) throw new IllegalStateException("Fonbet API returned null");
+                if (pool != null) pool.markSuccess(url);
+                snapCache.set(new CachedSnap(snap, System.currentTimeMillis()));
+                return snap;
+            } catch (Exception e) {
+                if (pool != null) pool.markFailure(url);
+                throw e;
+            }
+        } finally {
+            snapLock.unlock();
         }
     }
 

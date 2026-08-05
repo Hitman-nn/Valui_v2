@@ -44,7 +44,18 @@ public class HttpClientConfig {
         // 50 MB buffer — Fonbet CDN responses regularly exceed the default 10 MB limit.
         // maxIdleTime=45s: Fonbet CDN closes idle keep-alive connections after ~60s;
         // evicting before that prevents PrematureCloseException on connection reuse.
+        //
+        // maxConnections/pendingAcquireMaxCount set explicitly — left at Reactor Netty's
+        // defaults (max(cores,8)*2 connections, 2x that pending queue) this pool is sized
+        // for a handful of callers, not the ~338 Fonbet controllers that all share this one
+        // singleton bean. FonbetParser.fetchSnapshot() now single-flights refreshes via a
+        // lock so steady-state concurrency here is low, but this still gives headroom for
+        // legitimate overlap (retries, first-hit races) instead of rejecting outright with
+        // "Pending acquire queue has reached its maximum size" the moment a burst hits.
         ConnectionProvider provider = ConnectionProvider.builder("fonbet-pool")
+                .maxConnections(32)
+                .pendingAcquireMaxCount(200)
+                .pendingAcquireTimeout(Duration.ofSeconds(10))
                 .maxIdleTime(Duration.ofSeconds(45))
                 .maxLifeTime(Duration.ofMinutes(4))
                 .evictInBackground(Duration.ofSeconds(60))
