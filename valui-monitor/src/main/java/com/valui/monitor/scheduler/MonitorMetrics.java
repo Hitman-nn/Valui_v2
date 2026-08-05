@@ -28,6 +28,11 @@ public class MonitorMetrics {
     private final Counter dedupHit;
     private final Counter dedupMiss;
     private final ConcurrentHashMap<UUID, AtomicInteger> dedupSetSizes = new ConcurrentHashMap<>();
+    // Guards updateDedupSetSize/removeControllerGauge together so an in-flight poll's
+    // computeIfAbsent can never resurrect a gauge that unscheduling just removed — the two
+    // methods each touch the map and the Micrometer registry as two separate steps, so
+    // without a shared lock the steps from each method can interleave.
+    private final Object dedupGaugeLock = new Object();
 
     // Drainable window counters for log summaries (reset every 10 min by MonitorSummaryLogger)
     private final AtomicLong windowPollsOk       = new AtomicLong();
@@ -114,13 +119,26 @@ public class MonitorMetrics {
 
     /** Updates (and lazily registers) the per-controller dedup set-size gauge. */
     public void updateDedupSetSize(UUID controllerId, int size) {
-        dedupSetSizes.computeIfAbsent(controllerId, id -> {
-            AtomicInteger gauge = new AtomicInteger(0);
-            Gauge.builder("cache.dedup.set_size", gauge, AtomicInteger::get)
-                    .description("Current size of the Redis dedup SET for this controller")
-                    .tag("controller_id", id.toString())
-                    .register(registry);
-            return gauge;
-        }).set(size);
+        synchronized (dedupGaugeLock) {
+            dedupSetSizes.computeIfAbsent(controllerId, id -> {
+                AtomicInteger gauge = new AtomicInteger(0);
+                Gauge.builder("cache.dedup.set_size", gauge, AtomicInteger::get)
+                        .description("Current size of the Redis dedup SET for this controller")
+                        .tag("controller_id", id.toString())
+                        .register(registry);
+                return gauge;
+            }).set(size);
+        }
+    }
+
+    /** Removes the per-controller gauge when a controller is unscheduled. */
+    public void removeControllerGauge(UUID controllerId) {
+        synchronized (dedupGaugeLock) {
+            dedupSetSizes.remove(controllerId);
+            io.micrometer.core.instrument.Meter meter = registry.find("cache.dedup.set_size")
+                    .tag("controller_id", controllerId.toString())
+                    .meter();
+            if (meter != null) registry.remove(meter);
+        }
     }
 }

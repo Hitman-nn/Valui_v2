@@ -108,6 +108,7 @@ public class MonitorScheduler {
                     info.controllerId(), info.userId(), info.pollIntervalSec(), nextRunAt);
             jobRegistry.put(job);
             dispatcher.enqueue(job);
+            metrics.onControllerScheduled();
             byBk.merge(info.bookmaker(), 1L, Long::sum);
         }
 
@@ -148,6 +149,7 @@ public class MonitorScheduler {
         dispatcher.cancel(controllerId);
         jobRegistry.remove(controllerId);
         metrics.onControllerUnscheduled();
+        metrics.removeControllerGauge(controllerId);
         log.debug("⏹  Контроллер {} снят с расписания", controllerId);
     }
 

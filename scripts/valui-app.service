@@ -1,0 +1,24 @@
+[Unit]
+Description=Valui Telegram Bot (prod)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=valui
+WorkingDirectory=/home/valui/app
+ExecStart=/home/valui/app/valui-run-systemd.sh
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+# Safety net: instead of letting the host-wide OOM-killer pick a victim
+# (last time it killed this same process anyway, RSS was 3.9G at time of kill),
+# cap this service's cgroup at 4G so systemd kills+restarts just this unit
+# before a leak/spike can take down the whole host (Postgres/Redis/Kafka too).
+MemoryMax=4G
+MemoryHigh=3800M
+
+[Install]
+WantedBy=multi-user.target

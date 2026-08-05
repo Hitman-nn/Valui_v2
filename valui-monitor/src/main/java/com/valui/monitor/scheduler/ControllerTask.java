@@ -7,6 +7,7 @@ import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -119,22 +120,73 @@ public class ControllerTask implements Runnable {
         }
     }
 
+    /** Extra grace period after interrupting a timed-out fetch, to confirm it actually exited. */
+    private static final long JOIN_GRACE_MS = 2_000;
+
     /**
      * Wraps {@link ControllerTaskExecutor#fetch} with a wall-clock budget.
-     * Uses {@link CompletableFuture#orTimeout} so that a stuck HTTP call cannot
-     * hold a worker-pool slot indefinitely (WebClient read/connect timeouts are a
-     * first line of defence; this is the final backstop).
+     *
+     * <p>Spawns a child virtual thread for the HTTP work and bounds the wait with
+     * {@link Thread#join(Duration)} — no separate latch is needed since {@code join} already
+     * blocks up to the given timeout and returns early once the thread finishes.
+     *
+     * <p>On timeout the child is interrupted — {@code Mono.block()} inside the parsers uses
+     * {@code CountDownLatch.await()}, which responds to {@link Thread#interrupt()} by throwing
+     * {@link InterruptedException}, causing Reactor to cancel the subscription and release its
+     * heap objects. That cancellation isn't instantaneous, so we join again with a short grace
+     * period and log if the child is still alive after it — rather than assuming the interrupt
+     * always lands immediately.
+     *
+     * <p>The previous {@link CompletableFuture#supplyAsync} approach submitted to
+     * {@code ForkJoinPool.commonPool()} (platform threads). On budget expiry the
+     * ForkJoinPool task kept running its {@code Mono.block(20 s)} call for up to 12 more
+     * seconds — accumulating live Reactor pipelines and JSON parse trees in the heap until
+     * GC pressure caused OOM.
      */
     private List<ParsedItem> fetchWithBudget(TaskContext ctx) throws TimeoutException {
+        var result = new java.util.concurrent.atomic.AtomicReference<List<ParsedItem>>();
+        var error  = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+
+        Thread child = Thread.ofVirtual()
+                .name("monitor-fetch-" + controllerId)
+                .start(() -> {
+                    try {
+                        result.set(executor.fetch(ctx));
+                    } catch (Throwable t) {
+                        error.set(t);
+                    }
+                });
+
         try {
-            return CompletableFuture
-                    .supplyAsync(() -> executor.fetch(ctx))
-                    .orTimeout(fetchBudgetMs, TimeUnit.MILLISECONDS)
-                    .join();
-        } catch (CompletionException ce) {
-            Throwable cause = ce.getCause();
-            if (cause instanceof TimeoutException te) throw te;
-            throw ce; // rethrown as RuntimeException, caught above
+            child.join(Duration.ofMillis(fetchBudgetMs));
+        } catch (InterruptedException ie) {
+            child.interrupt();
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(ie);
+        }
+
+        if (child.isAlive()) {
+            child.interrupt(); // unparks Mono.block() → subscription cancelled → heap freed
+            awaitChildExit(child);
+            throw new TimeoutException("Fetch budget exceeded: " + fetchBudgetMs + "ms");
+        }
+
+        Throwable t = error.get();
+        if (t instanceof RuntimeException re) throw re;
+        if (t != null) throw new RuntimeException(t);
+        return result.get();
+    }
+
+    /** Best-effort confirmation that an interrupted fetch thread actually terminated. */
+    private void awaitChildExit(Thread child) {
+        try {
+            child.join(Duration.ofMillis(JOIN_GRACE_MS));
+            if (child.isAlive()) {
+                log.warn("Fetch thread {} still alive {}ms after interrupt on budget timeout",
+                        child.getName(), JOIN_GRACE_MS);
+            }
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
         }
     }
 

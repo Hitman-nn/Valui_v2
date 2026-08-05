@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.valui.parser.http.BookmakerHttpClient.BLOCK_TIMEOUT;
 
@@ -28,10 +29,26 @@ public class OlimpParser implements BookmakerParser {
 
     private static final String DEFAULT_BASE = "https://www.olimp.bet/api/v4/0/line";
 
+    // Snapshot TTL: each endpoint returns the FULL catalog (planned-events alone is
+    // ~2600 events / ~20MB decoded), filtered client-side per sportId/tournamentId.
+    // Without this cache, every one of the ~30 Olimp controllers re-fetches and
+    // re-parses the whole catalog into a fresh Jackson tree on every single poll;
+    // concurrent overlapping polls (Olimp is the slowest bookmaker — see fetch-budget
+    // timeouts) pile up many such multi-hundred-MB trees at once and exhaust the
+    // heap. Same pattern as FonbetParser's snapCache, one cache per endpoint since
+    // Olimp exposes three separate endpoints instead of Fonbet's single combined one.
+    private static final long SNAP_TTL_MS = 20_000;
+
     private final String sportsApi;
     private final String champsApi;
     private final String eventsApi;
     private final BookmakerHttpClient http;
+
+    private final AtomicReference<CachedSnap> sportsCache = new AtomicReference<>();
+    private final AtomicReference<CachedSnap> champsCache = new AtomicReference<>();
+    private final AtomicReference<CachedSnap> eventsCache = new AtomicReference<>();
+
+    private record CachedSnap(JsonNode data, long ts) {}
 
     @Autowired
     public OlimpParser(@Qualifier("olimpHttpClient") BookmakerHttpClient http) {
@@ -57,7 +74,7 @@ public class OlimpParser implements BookmakerParser {
     @Override
     public ParseResult<List<SportDto>> fetchSports() {
         long start = ms();
-        JsonNode arr = block(http.getJson(sportsApi, JsonNode.class));
+        JsonNode arr = fetchCached(sportsCache, sportsApi);
         List<SportDto> sports = new ArrayList<>();
         for (JsonNode item : iter(arr)) {
             JsonNode p = item.path("payload");
@@ -72,7 +89,7 @@ public class OlimpParser implements BookmakerParser {
     @Override
     public ParseResult<List<TournamentDto>> fetchTournaments(String sportId) {
         long start = ms();
-        JsonNode arr = block(http.getJson(champsApi, JsonNode.class));
+        JsonNode arr = fetchCached(champsCache, champsApi);
         List<TournamentDto> tournaments = new ArrayList<>();
         for (JsonNode item : iter(arr)) {
             JsonNode p = item.path("payload");
@@ -95,7 +112,7 @@ public class OlimpParser implements BookmakerParser {
     @Override
     public ParseResult<List<ParsedMatchDto>> fetchMatches(String tournamentId) {
         long start = ms();
-        JsonNode arr = block(http.getJson(eventsApi, JsonNode.class));
+        JsonNode arr = fetchCached(eventsCache, eventsApi);
         List<ParsedMatchDto> matches = new ArrayList<>();
         for (JsonNode item : iter(arr)) {
             JsonNode p = item.path("payload");
@@ -218,6 +235,35 @@ public class OlimpParser implements BookmakerParser {
     // ── utils ─────────────────────────────────────────────────────────────────
 
     private <T> T block(reactor.core.publisher.Mono<T> mono) { return mono.block(BLOCK_TIMEOUT); }
+
+    /**
+     * Refreshes are serialized per-endpoint (synchronized on the cache's own reference)
+     * so that when the TTL expires under concurrent polling, only one of the ~30 controllers
+     * actually performs the ~20MB blocking fetch — the rest block briefly on the lock and
+     * then read the snapshot that thread just installed, instead of each independently
+     * kicking off its own full-catalog parse (the exact pile-up that caused the original OOM).
+     *
+     * <p>A null/empty response is never cached: caching it would silently black out every
+     * Olimp controller for the full TTL on a single transient API hiccup, with no exception
+     * to trip the circuit breaker or surface an error.
+     */
+    private JsonNode fetchCached(AtomicReference<CachedSnap> cacheRef, String url) {
+        CachedSnap cached = cacheRef.get();
+        if (cached != null && System.currentTimeMillis() - cached.ts() < SNAP_TTL_MS) {
+            return cached.data();
+        }
+        synchronized (cacheRef) {
+            cached = cacheRef.get();
+            if (cached != null && System.currentTimeMillis() - cached.ts() < SNAP_TTL_MS) {
+                return cached.data();
+            }
+            JsonNode data = block(http.getJson(url, JsonNode.class));
+            if (data != null) {
+                cacheRef.set(new CachedSnap(data, System.currentTimeMillis()));
+            }
+            return data;
+        }
+    }
 
     private static Iterable<JsonNode> iter(JsonNode n) { return n != null && n.isArray() ? n : List.of(); }
 

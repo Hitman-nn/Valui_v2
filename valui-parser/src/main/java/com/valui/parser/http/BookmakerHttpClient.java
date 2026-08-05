@@ -18,7 +18,7 @@ import java.time.Duration;
  */
 public class BookmakerHttpClient {
 
-    public static final Duration BLOCK_TIMEOUT = Duration.ofSeconds(20);
+    public static final Duration BLOCK_TIMEOUT = Duration.ofSeconds(16);
 
     private final WebClient webClient;
 
