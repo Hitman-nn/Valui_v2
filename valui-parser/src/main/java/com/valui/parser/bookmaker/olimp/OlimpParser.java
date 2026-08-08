@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static com.valui.parser.http.BookmakerHttpClient.BLOCK_TIMEOUT;
+import static com.valui.parser.util.ExceptionDescriptions.describe;
 
 @Slf4j
 @Component
@@ -139,7 +140,7 @@ public class OlimpParser implements BookmakerParser {
     @Override
     public boolean isAvailable() {
         try { block(http.getJson(sportsApi, JsonNode.class)); return true; }
-        catch (Exception e) { return false; }
+        catch (Exception e) { log.debug("Olimp isAvailable failed: {}", describe(e)); return false; }
     }
 
     // ── extraData ─────────────────────────────────────────────────────────────
@@ -218,7 +219,7 @@ public class OlimpParser implements BookmakerParser {
         if (t instanceof CallNotPermittedException) {
             log.debug("olimp fetchSports skipped — CB open/half-open");
         } else {
-            log.warn("olimp fetchSports fallback: {}", t.getMessage());
+            log.warn("olimp fetchSports fallback [{}]: {}", t.getClass().getSimpleName(), describe(t));
         }
         return ParseResult.error("olimp-cb: " + t.getMessage());
     }
@@ -227,7 +228,7 @@ public class OlimpParser implements BookmakerParser {
         if (t instanceof CallNotPermittedException) {
             log.debug("olimp fetchTournaments skipped — CB open/half-open sportId={}", sportId);
         } else {
-            log.warn("olimp fetchTournaments fallback: {}", t.getMessage());
+            log.warn("olimp fetchTournaments fallback sportId={} [{}]: {}", sportId, t.getClass().getSimpleName(), describe(t));
         }
         return ParseResult.error("olimp-cb: " + t.getMessage());
     }
@@ -236,7 +237,7 @@ public class OlimpParser implements BookmakerParser {
         if (t instanceof CallNotPermittedException) {
             log.debug("olimp fetchMatches skipped — CB open/half-open tournamentId={}", tournamentId);
         } else {
-            log.warn("olimp fetchMatches fallback: {}", t.getMessage());
+            log.warn("olimp fetchMatches fallback tournamentId={} [{}]: {}", tournamentId, t.getClass().getSimpleName(), describe(t));
         }
         return ParseResult.error("olimp-cb: " + t.getMessage());
     }
@@ -270,7 +271,16 @@ public class OlimpParser implements BookmakerParser {
             if (cached != null && System.currentTimeMillis() - cached.ts() < SNAP_TTL_MS) {
                 return cached.data();
             }
-            JsonNode data = block(http.getJson(url, JsonNode.class));
+            JsonNode data;
+            try {
+                data = block(http.getJson(url, JsonNode.class));
+            } catch (Exception e) {
+                // The @CircuitBreaker fallback (fetchXFallback) only sees the aggregated
+                // Throwable with no idea which of the 3 Olimp endpoints (sports/champs/events)
+                // actually failed — log it here where the specific url is in scope.
+                log.debug("[Olimp] fetch failed url={}: {}", url, describe(e));
+                throw e;
+            }
             if (data != null) {
                 cacheRef.set(new CachedSnap(data, System.currentTimeMillis()));
             }

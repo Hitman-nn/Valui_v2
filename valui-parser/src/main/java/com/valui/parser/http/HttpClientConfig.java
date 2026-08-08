@@ -3,6 +3,7 @@ package com.valui.parser.http;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.channel.ChannelOption;
 import io.netty.resolver.DefaultAddressResolverGroup;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,8 +17,7 @@ import reactor.netty.transport.ProxyProvider;
 
 import java.time.Duration;
 
-import java.time.Duration;
-
+@Slf4j
 @Configuration
 public class HttpClientConfig {
 
@@ -32,8 +32,11 @@ public class HttpClientConfig {
         if (proxy.isEnabled()) {
             // JDK HttpClient + HTTP CONNECT proxy — avoids Reactor Netty's JA3 fingerprint
             // that 1xbet.kz rejects. JDK JSSE TLS matches the fingerprint 1xbet accepts.
+            log.info("[HTTP-CONFIG] xbet: using SocksBookmakerHttpClient via proxy {}:{}",
+                    proxy.getHost(), proxy.getPort());
             return new SocksBookmakerHttpClient(proxy, objectMapper);
         }
+        log.info("[HTTP-CONFIG] xbet: using direct BookmakerHttpClient (no proxy)");
         return new BookmakerHttpClient(buildWebClient(null));
     }
 

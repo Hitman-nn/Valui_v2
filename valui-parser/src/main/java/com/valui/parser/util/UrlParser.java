@@ -3,11 +3,13 @@ package com.valui.parser.util;
 import com.valui.common.domain.BookmakerType;
 import com.valui.parser.bookmaker.betboom.BetBoomSportsMap;
 import com.valui.parser.bookmaker.betcity.BetcitySportsMap;
+import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
 
+@Slf4j
 public final class UrlParser {
 
     private UrlParser() {}
@@ -95,6 +97,10 @@ public final class UrlParser {
                     .filter(s -> !s.isBlank())
                     .toArray(String[]::new);
         } catch (Exception e) {
+            // Previously silent — every downstream extractXxx() would just produce null ids
+            // from the empty array with zero trace of why, making a malformed matchUrl
+            // indistinguishable from "this URL legitimately has no tournament segment."
+            log.warn("Malformed URL, cannot extract path segments: {}", rawUrl);
             return new String[0];
         }
     }

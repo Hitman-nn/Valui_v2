@@ -140,8 +140,16 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
     public void logConnectionMetrics() {
         int available = httpSlots.availablePermits();
         int used = HTTP_SLOTS - available;
-        log.debug("[XBET] http-slots: {}/{} in use, {} available (threshold 25)",
-                used, HTTP_SLOTS, available);
+        // Promoted to WARN near saturation: this pool is sized against xbet's documented
+        // ≥25-connection block threshold — sustained high usage here is a direct precursor to
+        // that block (and the CB flapping it causes), previously visible only at DEBUG.
+        if (used >= HTTP_SLOTS * 0.8) {
+            log.warn("[XBET] http-slots: {}/{} in use ({} available) — approaching saturation " +
+                    "(block threshold ~25)", used, HTTP_SLOTS, available);
+        } else {
+            log.debug("[XBET] http-slots: {}/{} in use, {} available (threshold ~25)",
+                    used, HTTP_SLOTS, available);
+        }
     }
 
     // ── JS-challenge resolution ───────────────────────────────────────────────
@@ -209,7 +217,12 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
                     log.debug("[XBET-CHALLENGE] No __js_p_ (round {}), using concurrent solver cookies", round + 1);
                     cookies = concurrent.cookies();
                 } else {
-                    log.warn("[XBET-CHALLENGE] No __js_p_ (round {})", round + 1);
+                    // No __js_p_ cookie at all on the first round is the strongest available
+                    // signal that this isn't a solvable JS challenge but an actual geo-block/ban
+                    // page — worth calling out distinctly from a generic "captcha/block" message.
+                    log.warn("[XBET-CHALLENGE] No __js_p_ cookie in response (round {}) from {} — " +
+                            "possible geo-block/ban page rather than a solvable challenge",
+                            round + 1, currentUrl);
                     break;
                 }
             } else {
@@ -223,6 +236,14 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
                         log.debug("[XBET-CHALLENGE] Using concurrent solver cookies (round {})", round + 1);
                         cookies = concurrent.cookies();
                     } else {
+                        if (!acquired) {
+                            // Safety-valve bypass of the documented "max 2 concurrent
+                            // solvers" invariant — worth knowing about since it means we're
+                            // actively contributing to whatever proxy load the throttle
+                            // exists to prevent.
+                            log.warn("[XBET-CHALLENGE] Could not acquire challenge slot within 3s " +
+                                    "for {} — solving without throttle", currentUrl);
+                        }
                         cookies = challengeResponse(jsPValue);
                         log.debug("[XBET-CHALLENGE] Round {}: code={}", round + 1, parseField(jsPValue, 0));
                     }
@@ -232,6 +253,8 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
             }
         }
 
+        log.warn("[XBET-CHALLENGE] Exhausted {} rounds solving challenge for {} — giving up",
+                MAX_ROUNDS, currentUrl);
         throw new IOException("HTML response (captcha/block) from " + currentUrl);
     }
 
@@ -242,7 +265,13 @@ public class SocksBookmakerHttpClient extends BookmakerHttpClient {
         if (cookies != null && !cookies.isEmpty()) b = b.header("Cookie", cookies);
         httpSlots.acquire();
         try {
-            return jdkClient.send(b.build(), HttpResponse.BodyHandlers.ofByteArray());
+            HttpResponse<byte[]> resp = jdkClient.send(b.build(), HttpResponse.BodyHandlers.ofByteArray());
+            // The single per-request status/size trace for xbet's whole HTTP path — previously
+            // absent even at DEBUG, so diagnosing this bookmaker's connectivity meant either the
+            // 60s-aggregated slot metrics above or the eventual wrapped IOException at the
+            // parser's CB fallback layer, with nothing in between.
+            log.debug("[XBET-HTTP] {} → {} ({} bytes)", url, resp.statusCode(), resp.body().length);
+            return resp;
         } finally {
             httpSlots.release();
         }

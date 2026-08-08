@@ -21,8 +21,11 @@ import org.springframework.util.MultiValueMap;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.valui.parser.http.BookmakerHttpClient.BLOCK_TIMEOUT;
+import static com.valui.parser.util.ExceptionDescriptions.describe;
 
 @Slf4j
 @Component
@@ -34,6 +37,11 @@ public class BetCityParser implements BookmakerParser {
     private final String champsApi;
     private final String eventsApi;
     private final BookmakerHttpClient http;
+
+    // BetcitySportsMap is a small static table; an unmapped sportId falls back to a generic
+    // "sport" URL segment that's silently wrong (matches parse fine, but the resulting
+    // matchUrl/tournament link is broken). Warn once per sportId, not on every poll.
+    private final Set<String> warnedUnmappedSport = ConcurrentHashMap.newKeySet();
 
     @Autowired
     public BetCityParser(@Qualifier("betcityHttpClient") BookmakerHttpClient http) {
@@ -60,13 +68,21 @@ public class BetCityParser implements BookmakerParser {
     public ParseResult<List<SportDto>> fetchSports() {
         long start = ms();
         JsonNode root = block(http.getJson(sportsApi, JsonNode.class));
+        // Unlike fetchMatches (which already guards this), a null root here would NPE, and
+        // an NPE's message is usually null too — the CB fallback would then log the unhelpful
+        // "betcity fetchSports fallback: null" ExceptionDescriptions.describe() already
+        // mitigates that, but avoiding the NPE outright is still cleaner.
+        if (root == null) return ParseResult.ok(List.of(), ms() - start);
         JsonNode arr = root.path("reply").path("sports");
         List<SportDto> sports = new ArrayList<>();
         if (arr.isArray()) {
             for (JsonNode item : arr) {
                 String id = s(item, "id_sp"), name = s(item, "name_sp");
                 if (id == null || name == null) continue;
-                String alias = BetcitySportsMap.getSport(safeInt(id)).orElse(name.toLowerCase());
+                String alias = BetcitySportsMap.getSport(safeInt(id)).orElseGet(() -> {
+                    log.debug("[BetCity] sport id={} name={} not in BetcitySportsMap — using name-derived alias", id, name);
+                    return name.toLowerCase();
+                });
                 sports.add(new SportDto(id, name, alias));
             }
         }
@@ -79,12 +95,13 @@ public class BetCityParser implements BookmakerParser {
     public ParseResult<List<TournamentDto>> fetchTournaments(String sportId) {
         long start = ms();
         JsonNode root = block(http.getJson(champsApi + "&ids_sp=" + sportId, JsonNode.class));
+        if (root == null) return ParseResult.ok(List.of(), ms() - start);
         JsonNode chmps = root.path("reply").path("sports").path(sportId).path("chmps");
         List<TournamentDto> tournaments = new ArrayList<>();
+        String alias = resolveAlias(sportId);
         chmps.fields().forEachRemaining(e -> {
             String id = e.getKey(), title = s(e.getValue(), "name_ch");
             if (title == null) return;
-            String alias = BetcitySportsMap.getSport(safeInt(sportId)).orElse("sport");
             tournaments.add(new TournamentDto(id, title, sportId, null,
                     "https://betcity.ru/ru/line/" + alias + "/" + id));
         });
@@ -105,7 +122,7 @@ public class BetCityParser implements BookmakerParser {
             String sportId = sportEntry.getKey();
             JsonNode evts = sportEntry.getValue().path("chmps").path(tournamentId).path("evts");
             if (evts.isMissingNode()) return;
-            String alias = BetcitySportsMap.getSport(safeInt(sportId)).orElse("sport");
+            String alias = resolveAlias(sportId);
             evts.fields().forEachRemaining(evtEntry -> {
                 String id = evtEntry.getKey();
                 JsonNode ev = evtEntry.getValue();
@@ -124,7 +141,21 @@ public class BetCityParser implements BookmakerParser {
     @Override
     public boolean isAvailable() {
         try { block(http.getJson(sportsApi, JsonNode.class)); return true; }
-        catch (Exception e) { return false; }
+        catch (Exception e) { log.debug("BetCity isAvailable failed: {}", describe(e)); return false; }
+    }
+
+    /**
+     * URL alias for a sportId, falling back to a generic (visibly broken) "sport" segment when
+     * BetcitySportsMap doesn't have an entry — matches still parse correctly, but the generated
+     * tournament/match URL is wrong with no other signal pointing at the unmapped sportId.
+     */
+    private String resolveAlias(String sportId) {
+        return BetcitySportsMap.getSport(safeInt(sportId)).orElseGet(() -> {
+            if (warnedUnmappedSport.add(sportId)) {
+                log.warn("[BetCity] sportId={} not in BetcitySportsMap — URL will use generic 'sport' segment", sportId);
+            }
+            return "sport";
+        });
     }
 
     // ── extraData ─────────────────────────────────────────────────────────────
@@ -196,7 +227,7 @@ public class BetCityParser implements BookmakerParser {
         if (t instanceof CallNotPermittedException) {
             log.debug("betcity fetchSports skipped — CB open/half-open");
         } else {
-            log.warn("betcity fetchSports fallback: {}", t.getMessage());
+            log.warn("betcity fetchSports fallback [{}]: {}", t.getClass().getSimpleName(), describe(t));
         }
         return ParseResult.error("betcity-cb: " + t.getMessage());
     }
@@ -205,7 +236,7 @@ public class BetCityParser implements BookmakerParser {
         if (t instanceof CallNotPermittedException) {
             log.debug("betcity fetchTournaments skipped — CB open/half-open sportId={}", sportId);
         } else {
-            log.warn("betcity fetchTournaments fallback: {}", t.getMessage());
+            log.warn("betcity fetchTournaments fallback sportId={} [{}]: {}", sportId, t.getClass().getSimpleName(), describe(t));
         }
         return ParseResult.error("betcity-cb: " + t.getMessage());
     }
@@ -214,7 +245,7 @@ public class BetCityParser implements BookmakerParser {
         if (t instanceof CallNotPermittedException) {
             log.debug("betcity fetchMatches skipped — CB open/half-open tournamentId={}", tournamentId);
         } else {
-            log.warn("betcity fetchMatches fallback: {}", t.getMessage());
+            log.warn("betcity fetchMatches fallback tournamentId={} [{}]: {}", tournamentId, t.getClass().getSimpleName(), describe(t));
         }
         return ParseResult.error("betcity-cb: " + t.getMessage());
     }

@@ -45,7 +45,10 @@ public class CircuitBreakerEventLogger {
                     if (from == CircuitBreaker.State.CLOSED) {
                         openedAt.put(name, Instant.now());
                         reopenCycles.put(name, 0);
-                        log.warn("[CB] {} OPEN — failure threshold exceeded (CLOSED→OPEN)", name);
+                        CircuitBreaker.Metrics m = cb.getMetrics();
+                        log.warn("[CB] {} OPEN — failure threshold exceeded (CLOSED→OPEN) " +
+                                "failureRate={}% failedCalls={} totalCalls={}",
+                                name, m.getFailureRate(), m.getNumberOfFailedCalls(), m.getNumberOfBufferedCalls());
                     } else {
                         openedAt.putIfAbsent(name, Instant.now());
                         int cycles = reopenCycles.merge(name, 1, Integer::sum);

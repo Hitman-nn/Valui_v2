@@ -62,6 +62,20 @@ public class FonbetEndpointPool {
         scanEndpoints("weekly-rescan", 16);
     }
 
+    // markFailure() only logs at DEBUG per-endpoint and the emergency-rescan WARN only fires
+    // once alive drops below MIN_ALIVE (3) — with 200 mirrors, a slow decline from 190 to 10
+    // alive would otherwise be completely invisible in prod (com.valui is INFO there) until it
+    // crossed that final cliff edge. This gives a periodic checkpoint of the trend.
+    @Scheduled(fixedRate = 1, timeUnit = TimeUnit.HOURS, initialDelay = 1)
+    void logHealth() {
+        int alive = aliveCount(), total = totalCount();
+        if (alive < total / 2) {
+            log.warn("[FonbetPool] health: {}/{} alive — degrading", alive, total);
+        } else {
+            log.info("[FonbetPool] health: {}/{} alive", alive, total);
+        }
+    }
+
     // ── public API ─────────────────────────────────────────────────────────────
 
     /** Returns the URL with the highest score (most recently confirmed alive). */
@@ -91,6 +105,7 @@ public class FonbetEndpointPool {
 
     public void markFailure(String url) {
         redis.opsForZSet().add(ZSET_KEY, url, 0.0);
+        log.debug("[FonbetPool] endpoint marked dead: {}", url);
         checkAliveAndRescan();
     }
 
@@ -169,7 +184,7 @@ public class FonbetEndpointPool {
         long last = lastRescanMs.get();
         if (now - last < RESCAN_COOLDOWN_MS) return;
         if (!lastRescanMs.compareAndSet(last, now)) return;
-        log.warn("[FonbetPool] Alive mirrors low ({}), starting emergency rescan", aliveCount);
+        log.warn("[FonbetPool] Alive mirrors low ({}/{}), starting emergency rescan", aliveCount, totalCount());
         Thread t = new Thread(() -> scanEndpoints("emergency-rescan", 16), "fonbet-emergency-rescan");
         t.setDaemon(true);
         t.start();

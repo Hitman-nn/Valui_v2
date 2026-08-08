@@ -97,7 +97,13 @@ public class XBetParser implements BookmakerParser {
             http.getJson(champsApi, com.fasterxml.jackson.databind.JsonNode.class).block(Duration.ofSeconds(15));
             log.info("[XBET] Challenge cookies pre-warmed at startup");
         } catch (Exception e) {
-            log.debug("[XBET] Challenge pre-warm failed (tasks will solve on first poll): {}", e.getMessage());
+            // WARN not DEBUG: if this keeps failing on every restart, every one of the 79
+            // controllers falls back to solving its own challenge independently on first poll —
+            // exactly the proxy-flooding stampede this method exists to prevent. That's worth
+            // knowing about at startup, not only discoverable later via a burst of individual
+            // challenge-solve attempts.
+            log.warn("[XBET] Challenge pre-warm failed — controllers will solve challenges individually on first poll: {}",
+                    describe(e));
         }
     }
 
@@ -261,7 +267,7 @@ public class XBetParser implements BookmakerParser {
     public boolean isAvailable() {
         if (!parserEnabled) return false;
         try { block(http.getJson(sportsApi, JsonNode.class)); return true; }
-        catch (Exception e) { return false; }
+        catch (Exception e) { log.debug("[XBET] isAvailable failed: {}", describe(e)); return false; }
     }
 
     // ── fallbacks ─────────────────────────────────────────────────────────────

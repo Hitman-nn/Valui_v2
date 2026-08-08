@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static com.valui.parser.http.BookmakerHttpClient.BLOCK_TIMEOUT;
+import static com.valui.parser.util.ExceptionDescriptions.describe;
 
 @Slf4j
 @Component
@@ -264,7 +265,7 @@ public class FonbetParser implements BookmakerParser {
         // Health checks should probe the real connection, not short-circuit via the breaker.
         try { fetchSnapshot(); return true; }
         catch (Exception e) {
-            log.debug("Fonbet isAvailable failed: {}", e.getMessage());
+            log.debug("Fonbet isAvailable failed: {}", describe(e));
             return false;
         }
     }
@@ -275,7 +276,7 @@ public class FonbetParser implements BookmakerParser {
         if (t instanceof CallNotPermittedException) {
             log.debug("fonbet fetchSports skipped — CB open/half-open");
         } else {
-            log.warn("fonbet fetchSports fallback: {}", t.getMessage());
+            log.warn("fonbet fetchSports fallback [{}]: {}", t.getClass().getSimpleName(), describe(t));
         }
         return ParseResult.error("fonbet-cb: " + t.getMessage());
     }
@@ -284,7 +285,7 @@ public class FonbetParser implements BookmakerParser {
         if (t instanceof CallNotPermittedException) {
             log.debug("fonbet fetchTournaments skipped — CB open/half-open sportId={}", sportId);
         } else {
-            log.warn("fonbet fetchTournaments fallback: {}", t.getMessage());
+            log.warn("fonbet fetchTournaments fallback sportId={} [{}]: {}", sportId, t.getClass().getSimpleName(), describe(t));
         }
         return ParseResult.error("fonbet-cb: " + t.getMessage());
     }
@@ -293,7 +294,7 @@ public class FonbetParser implements BookmakerParser {
         if (t instanceof CallNotPermittedException) {
             log.debug("fonbet fetchMatches skipped — CB open/half-open tournamentId={}", tournamentId);
         } else {
-            log.warn("fonbet fetchMatches fallback: {}", t.getMessage());
+            log.warn("fonbet fetchMatches fallback tournamentId={} [{}]: {}", tournamentId, t.getClass().getSimpleName(), describe(t));
         }
         return ParseResult.error("fonbet-cb: " + t.getMessage());
     }
@@ -312,6 +313,9 @@ public class FonbetParser implements BookmakerParser {
                 return cached.data;
             }
             String url = (pool != null) ? pool.getBestEndpoint() : fallbackUrl;
+            if (pool != null && pool.aliveCount() == 0) {
+                log.warn("[Fonbet] no alive mirrors in pool — using endpoint {} anyway", url);
+            }
             try {
                 JsonNode snap = http.getJson(url, JsonNode.class).block(BLOCK_TIMEOUT);
                 if (snap == null) throw new IllegalStateException("Fonbet API returned null");
@@ -319,6 +323,7 @@ public class FonbetParser implements BookmakerParser {
                 snapCache.set(new CachedSnap(snap, System.currentTimeMillis()));
                 return snap;
             } catch (Exception e) {
+                log.debug("[Fonbet] endpoint {} failed: {}", url, describe(e));
                 if (pool != null) pool.markFailure(url);
                 throw e;
             }
