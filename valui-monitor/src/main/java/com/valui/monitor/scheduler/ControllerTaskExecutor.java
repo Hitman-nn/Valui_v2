@@ -140,9 +140,22 @@ public class ControllerTaskExecutor {
             && parserFactory.getParser(bookmaker).isConnectionReady();
     }
 
+    // Controllers whose URL can never yield a tournamentId/sportId are permanently broken —
+    // without this, the WARN below would repeat every single poll cycle (every
+    // defaultPollIntervalSec) forever, for as long as the controller exists. Warn once per
+    // controller, then drop to DEBUG so the condition stays visible without spamming.
+    private final java.util.Set<UUID> warnedNoTournament = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     public List<ParsedItem> fetch(TaskContext ctx) {
         if (ctx.tournamentId() == null && ctx.sportId() == null) {
-            log.warn("No tournamentId/sportId extractable from URL {} — skipping", ctx.url());
+            if (warnedNoTournament.add(ctx.controllerId())) {
+                log.warn("No tournamentId/sportId extractable from URL {} controllerId={} — " +
+                        "will keep retrying every poll (further occurrences logged at DEBUG)",
+                        ctx.url(), ctx.controllerId());
+            } else {
+                log.debug("No tournamentId/sportId extractable from URL {} controllerId={}",
+                        ctx.url(), ctx.controllerId());
+            }
             return List.of();
         }
 
@@ -151,8 +164,13 @@ public class ControllerTaskExecutor {
         if (ctx.tournamentId() != null) {
             ParseResult<List<ParsedMatchDto>> result = parser.fetchMatches(ctx.tournamentId());
             if (!result.success() || result.data() == null) {
+                // Promoted from DEBUG: this is the actual root cause behind a controller going
+                // quiet (bookmaker API error, CB-open passthrough, timeout) — DEBUG is invisible
+                // in prod (com.valui is INFO there), so this was previously undiagnosable
+                // without correlating scattered parser-layer logs after the fact.
                 if (!result.success())
-                    log.debug("fetchMatches error for {}: {}", ctx.controllerId(), result.errorMessage());
+                    log.warn("fetchMatches error controllerId={} tournamentId={}: {}",
+                            ctx.controllerId(), ctx.tournamentId(), result.errorMessage());
                 return List.of();
             }
             return result.data().stream()
@@ -165,7 +183,8 @@ public class ControllerTaskExecutor {
         ParseResult<List<TournamentDto>> result = parser.fetchTournaments(ctx.sportId());
         if (!result.success() || result.data() == null) {
             if (!result.success())
-                log.debug("fetchTournaments error for {}: {}", ctx.controllerId(), result.errorMessage());
+                log.warn("fetchTournaments error controllerId={} sportId={}: {}",
+                        ctx.controllerId(), ctx.sportId(), result.errorMessage());
             return List.of();
         }
         return result.data().stream()
@@ -198,8 +217,22 @@ public class ControllerTaskExecutor {
         OffsetDateTime expiresAt = OffsetDateTime.now().plusDays(props.getDedupTtlDays());
         List<DetectedEventEntity> saved = new ArrayList<>();
         for (ParsedItem item : fetched) {
-            // Redis atomic claim replaces the per-event DB existsBy query (O(1) vs O(log n))
-            if (!dedup.claimIfNew(ctx.controllerId(), item.id())) continue;
+            // Redis atomic claim replaces the per-event DB existsBy query (O(1) vs O(log n)).
+            // Deliberately not caught here: a Redis outage must abort this whole transaction
+            // (better to retry the entire poll next cycle than to silently persist events with
+            // no dedup guarantee). Logged distinctly before rethrow so "Event persistence
+            // failed" in ControllerTask (the generic catch-all one level up) doesn't get
+            // conflated with an unrelated DB constraint failure — those need different
+            // on-call responses.
+            boolean isNew;
+            try {
+                isNew = dedup.claimIfNew(ctx.controllerId(), item.id());
+            } catch (Exception e) {
+                log.error("[DEDUP] Redis claimIfNew failed controllerId={} eventId={} — aborting this poll's persist: {}",
+                        ctx.controllerId(), item.id(), e.toString());
+                throw e;
+            }
+            if (!isNew) continue;
 
             // Always persist to DB — including warmup — so the nightly dedup sync can find
             // these events and won't clear them from Redis on the first 3 AM run.

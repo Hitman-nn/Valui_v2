@@ -86,8 +86,8 @@ public class OutboxSenderService {
         kafkaTemplate.send(record).whenComplete((result, ex) -> {
             if (ex != null) {
                 metrics.onSendFailed();
-                log.error("Outbox publish failed [id={} externalEventId={}]: {}",
-                        outbox.getId(), outbox.getExternalEventId(), ex.getMessage());
+                log.error("Outbox publish failed [id={} externalEventId={} topic={} chatId={}]: {}",
+                        outbox.getId(), outbox.getExternalEventId(), outbox.getTopic(), outbox.getChatId(), ex.getMessage());
                 // lockedAt stays set; scan will retry after the 30 s stale-lock window
             } else {
                 metrics.onSendSuccess(System.nanoTime() - startNs);

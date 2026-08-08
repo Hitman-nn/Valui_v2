@@ -29,9 +29,12 @@ public class SchedulerConfigStore {
             jdbc.query("SELECT key, value FROM scheduler_config", rs -> {
                 apply(rs.getString("key"), rs.getString("value"));
             });
-            log.info("[SchedulerConfigStore] Config loaded from DB");
+            log.info("[SchedulerConfigStore] Effective config: maxConcurrentTasks={} defaultPollIntervalSec={}s " +
+                    "fetchBudgetMs={} deferBaseMs={} deferJitterMs={} defaultUserWeight={}",
+                    props.getMaxConcurrentTasks(), props.getDefaultPollIntervalSec(), props.getFetchBudgetMs(),
+                    props.getDeferBaseMs(), props.getDeferJitterMs(), props.getDefaultUserWeight());
         } catch (Exception e) {
-            log.warn("[SchedulerConfigStore] Could not load config from DB (using defaults): {}", e.getMessage());
+            log.warn("[SchedulerConfigStore] Could not load config from DB (using yml defaults): {}", e.getMessage());
         }
     }
 
@@ -66,6 +69,7 @@ public class SchedulerConfigStore {
                 case "deferBaseMs"            -> props.setDeferBaseMs(Integer.parseInt(value));
                 case "deferJitterMs"          -> props.setDeferJitterMs(Integer.parseInt(value));
                 case "defaultUserWeight"      -> props.setDefaultUserWeight(Integer.parseInt(value));
+                default -> log.warn("[SchedulerConfigStore] Unknown config key in DB, ignoring: {}={}", key, value);
             }
         } catch (NumberFormatException e) {
             log.warn("[SchedulerConfigStore] Skipping invalid config entry {}={}: {}", key, value, e.getMessage());

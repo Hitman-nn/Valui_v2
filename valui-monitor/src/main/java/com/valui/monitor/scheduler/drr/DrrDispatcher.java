@@ -71,6 +71,13 @@ public class DrrDispatcher {
 
     private volatile boolean running = false;
 
+    // Consecutive dispatch rounds where the global pool had zero free slots — distinguishes a
+    // one-off burst (normal) from sustained saturation (capacity genuinely too low for the
+    // current controller count, worth a WARN so it's visible without a metrics dashboard).
+    private final java.util.concurrent.atomic.AtomicInteger consecutiveSaturatedRounds =
+            new java.util.concurrent.atomic.AtomicInteger(0);
+    private static final int SATURATION_WARN_EVERY = 50;
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     /** Called by {@link com.valui.monitor.scheduler.MonitorScheduler} after Spring context is ready. */
@@ -83,7 +90,10 @@ public class DrrDispatcher {
                 .name("monitor-dispatcher")
                 .daemon(true)
                 .start(this::dispatchLoop);
-        log.info("[DRR] Dispatcher started (maxConcurrentTasks={})", props.getMaxConcurrentTasks());
+        log.info("[DRR] Dispatcher started: maxConcurrentTasks={} defaultUserWeight={} " +
+                "fetchBudgetMs={} deferBaseMs={} deferJitterMs={}",
+                props.getMaxConcurrentTasks(), props.getDefaultUserWeight(),
+                props.getFetchBudgetMs(), props.getDeferBaseMs(), props.getDeferJitterMs());
     }
 
     @PreDestroy
@@ -157,7 +167,8 @@ public class DrrDispatcher {
                 Thread.currentThread().interrupt();
                 break;
             } catch (Exception e) {
-                log.error("[DRR] Unexpected error in dispatch loop", e);
+                log.error("[DRR] Unexpected error in dispatch loop (queueDepth={} users={})",
+                        delayQueue.size(), userStates.size(), e);
             }
         }
     }
@@ -178,7 +189,17 @@ public class DrrDispatcher {
             }
 
             Duration lag = Duration.between(job.nextRunAt(), Instant.now());
-            metrics.onDispatchLag(Math.max(0, lag.toMillis()));
+            long lagMs = Math.max(0, lag.toMillis());
+            metrics.onDispatchLag(lagMs);
+            // A controller waiting many multiples of its own poll interval to even be routed to
+            // a DRR queue (not yet the pool-saturation throttle below — this is queue-side delay)
+            // is the direct symptom of scheduler starvation. Threshold is a flat 5s rather than
+            // relative to pollIntervalSec since ControllerJob doesn't carry that here; still a
+            // useful absolute floor given the default poll interval is 20s.
+            if (lagMs > 5_000) {
+                log.warn("[DRR] Large dispatch lag={}ms controllerId={} userId={} — possible starvation",
+                        lagMs, job.controllerId(), job.userId());
+            }
 
             userStates
                     .computeIfAbsent(job.userId(),
@@ -209,6 +230,7 @@ public class DrrDispatcher {
                     if (globalSlots.tryAcquire()) {
                         submitTask(controllerId);
                         anyProgress = true;
+                        consecutiveSaturatedRounds.set(0);
                     } else {
                         // Pool is full — throttle: re-insert at head for priority next round
                         // and defer back into the delay queue with jitter.
@@ -218,6 +240,18 @@ public class DrrDispatcher {
                                 + ThreadLocalRandom.current().nextInt(props.getDeferJitterMs() + 1);
                         enqueueAt(controllerId, Instant.now().plusMillis(jitterMs));
                         log.debug("[DRR] Deferred (pool full, jitter={}ms) controllerId={}", jitterMs, controllerId);
+
+                        // A single saturated round is unremarkable (normal at high concurrency);
+                        // many rounds in a row with zero free slots means maxConcurrentTasks is
+                        // genuinely too low for the current controller count, not a transient blip.
+                        int n = consecutiveSaturatedRounds.incrementAndGet();
+                        if (n == 1) {
+                            log.info("[DRR] Global pool saturated (0/{} slots free)", props.getMaxConcurrentTasks());
+                        } else if (n % SATURATION_WARN_EVERY == 0) {
+                            log.warn("[DRR] Global pool saturated for {} consecutive rounds — queueDepth={} " +
+                                    "maxConcurrentTasks={} — consider raising it",
+                                    n, delayQueue.size(), props.getMaxConcurrentTasks());
+                        }
                     }
                 }
             }
@@ -231,6 +265,7 @@ public class DrrDispatcher {
     private void submitTask(UUID controllerId) {
         Optional<ControllerJob> jobOpt = jobRegistry.get(controllerId);
         if (jobOpt.isEmpty()) {
+            log.debug("[DRR] Job vanished between dispatch and submit — controllerId={}", controllerId);
             globalSlots.release();
             return;
         }
@@ -267,11 +302,12 @@ public class DrrDispatcher {
 
     /** Called from virtual worker thread after task execution (success or failure). */
     private void onTaskComplete(UUID controllerId) {
-        jobRegistry.get(controllerId).ifPresent(job -> {
+        jobRegistry.get(controllerId).ifPresentOrElse(job -> {
             ControllerJob finished = job.markFinished(Instant.now());
             jobRegistry.forceUpdate(finished);
             enqueue(finished);
             log.debug("[DRR] Completed, next at {} — controllerId={}", finished.nextRunAt(), controllerId);
-        });
+        }, () -> log.debug("[DRR] Task completed for controllerId={} but job no longer registered " +
+                "(unscheduled mid-flight)", controllerId));
     }
 }

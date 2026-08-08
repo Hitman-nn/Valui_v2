@@ -180,13 +180,13 @@ public class MonitorScheduler {
 
     @EventListener
     public void on(ControllerAddedEvent e) {
-        log.debug("▶  Добавлен контроллер {}: ставим в расписание", e.controllerId());
+        // scheduleController() itself logs the outcome — no separate line here to avoid
+        // logging the same "controller added to schedule" fact twice.
         scheduleController(e.controllerId(), e.userId(), e.pollIntervalSec());
     }
 
     @EventListener
     public void on(ControllerRemovedEvent e) {
-        log.debug("◼  Удалён контроллер {}: снимаем с расписания", e.controllerId());
         unscheduleController(e.controllerId());
     }
 

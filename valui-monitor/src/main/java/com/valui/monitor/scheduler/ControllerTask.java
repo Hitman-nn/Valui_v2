@@ -61,7 +61,10 @@ public class ControllerTask implements Runnable {
             // TX 1: load fresh controller context
             Optional<TaskContext> ctxOpt = executor.loadContext(controllerId);
             if (ctxOpt.isEmpty()) {
-                log.debug("Controller inactive or URL unrecognized — skipping");
+                // Overwhelmingly the normal case (controller was deactivated between schedule
+                // and poll) — a genuine URL-parse failure is already logged with full detail by
+                // ControllerTaskExecutor.loadContext() itself, so this stays a plain DEBUG note.
+                log.debug("Controller not active — skipping poll");
                 return;
             }
             TaskContext ctx = ctxOpt.get();
@@ -82,12 +85,16 @@ public class ControllerTask implements Runnable {
                 try {
                     fetched = fetchWithBudget(ctx);
                 } catch (TimeoutException e) {
-                    log.warn("Fetch budget exceeded ({}ms)", fetchBudgetMs);
+                    log.warn("Fetch budget exceeded ({}ms) tournamentId={} sportId={} url={}",
+                            fetchBudgetMs, ctx.tournamentId(), ctx.sportId(), ctx.url());
                     pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "timeout");
                     metrics.onPollError();
                     return;
                 } catch (Exception e) {
-                    log.warn("Parser error: {}", e.getMessage());
+                    // e.toString() not e.getMessage(): many exception types (NPE, some IOException
+                    // subclasses) have a null message, which would otherwise log as the useless
+                    // "Parser error: null" — toString() always includes the exception class name.
+                    log.warn("Parser error tournamentId={} sportId={}: {}", ctx.tournamentId(), ctx.sportId(), e.toString());
                     pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "error");
                     metrics.onPollError();
                     return;
