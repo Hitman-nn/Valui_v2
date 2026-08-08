@@ -29,6 +29,7 @@ public class BetPersonCallback implements CallbackHandler {
     private final BetPersonService  personService;
     private final BettingService    bettingService;
     private final BotSessionService sessionService;
+    private final BettingChatResolver chatResolver;
 
     @Override
     public String callbackPrefix() { return "PERS:"; }
@@ -57,7 +58,7 @@ public class BetPersonCallback implements CallbackHandler {
     }
 
     public void showList(BotUpdateContext ctx, int messageId) {
-        List<BetPersonDto> persons = personService.listForChat(ctx.chatId());
+        List<BetPersonDto> persons = personService.listForChat(chatResolver.resolve(ctx));
 
         StringBuilder sb = new StringBuilder("👥 *Участники*\n\n");
         if (persons.isEmpty()) sb.append("Участников пока нет. Добавьте первого.");
@@ -93,7 +94,7 @@ public class BetPersonCallback implements CallbackHandler {
     private void handleDelete(BotUpdateContext ctx, String data, String callbackId, int messageId) {
         String id = data.substring(CallbackData.PERS_DEL_PREFIX.length());
         try {
-            personService.delete(UUID.fromString(id), ctx.chatId());
+            personService.delete(UUID.fromString(id), chatResolver.resolve(ctx));
             MessageSend.answerCallback(ctx.sender(), callbackId);
             showList(ctx, messageId);
         } catch (Exception e) {
@@ -105,7 +106,7 @@ public class BetPersonCallback implements CallbackHandler {
     private void handleStat(BotUpdateContext ctx, String data, String callbackId, int messageId) {
         String id = data.substring(CallbackData.PERS_STAT_PREFIX.length());
         try {
-            BetPersonStatsDto s = bettingService.getPersonStats(UUID.fromString(id), ctx.chatId());
+            BetPersonStatsDto s = bettingService.getPersonStats(UUID.fromString(id), chatResolver.resolve(ctx));
             String plSign  = s.profitLoss().signum() >= 0 ? "+" : "";
             String roiSign = s.roi() >= 0 ? "+" : "";
 

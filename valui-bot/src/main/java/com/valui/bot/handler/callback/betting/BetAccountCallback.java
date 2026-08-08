@@ -27,6 +27,7 @@ public class BetAccountCallback implements CallbackHandler {
 
     private final BetAccountService accountService;
     private final BotSessionService sessionService;
+    private final BettingChatResolver chatResolver;
 
     @Override
     public String callbackPrefix() { return "ACCT:"; }
@@ -67,7 +68,7 @@ public class BetAccountCallback implements CallbackHandler {
     // ── List ──────────────────────────────────────────────────────────────────
 
     public void showList(BotUpdateContext ctx, int messageId) {
-        List<BetAccountDto> accounts = accountService.listForChat(ctx.chatId());
+        List<BetAccountDto> accounts = accountService.listForChat(chatResolver.resolve(ctx));
 
         StringBuilder sb = new StringBuilder("💰 *Счета*\n\n");
         if (accounts.isEmpty()) sb.append("Счётов пока нет. Создайте первый.");
@@ -114,7 +115,7 @@ public class BetAccountCallback implements CallbackHandler {
     }
 
     public void showEditScreen(BotUpdateContext ctx, UUID accountId, int messageId) {
-        List<BetPersonBalanceDto> persons = accountService.getPersonsWithBalances(accountId, ctx.chatId());
+        List<BetPersonBalanceDto> persons = accountService.getPersonsWithBalances(accountId, chatResolver.resolve(ctx));
         String accountIdStr = accountId.toString();
 
         java.math.BigDecimal total = persons.stream()
@@ -218,7 +219,7 @@ public class BetAccountCallback implements CallbackHandler {
         String accountId = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_ACCT_EDIT_ID).orElse(null);
         if (accountId == null) { MessageSend.answerCallback(ctx.sender(), callbackId); return; }
         try {
-            accountService.removePersonBalance(UUID.fromString(accountId), UUID.fromString(personId), ctx.chatId());
+            accountService.removePersonBalance(UUID.fromString(accountId), UUID.fromString(personId), chatResolver.resolve(ctx));
             MessageSend.answerCallback(ctx.sender(), callbackId);
             showEditScreen(ctx, UUID.fromString(accountId), messageId);
         } catch (Exception e) {
@@ -232,7 +233,7 @@ public class BetAccountCallback implements CallbackHandler {
     private void handleDelete(BotUpdateContext ctx, String data, String callbackId, int messageId) {
         String id = data.substring(CallbackData.ACCT_DEL_PREFIX.length());
         try {
-            accountService.delete(UUID.fromString(id), ctx.chatId());
+            accountService.delete(UUID.fromString(id), chatResolver.resolve(ctx));
             MessageSend.answerCallback(ctx.sender(), callbackId);
             showList(ctx, messageId);
         } catch (Exception e) {

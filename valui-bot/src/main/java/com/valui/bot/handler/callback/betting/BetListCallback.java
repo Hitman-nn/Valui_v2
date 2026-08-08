@@ -31,6 +31,7 @@ public class BetListCallback implements CallbackHandler {
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd.MM.yy");
 
     private final BettingService bettingService;
+    private final BettingChatResolver chatResolver;
 
     @Override
     public String callbackPrefix() { return "BET:LIST"; }
@@ -60,7 +61,7 @@ public class BetListCallback implements CallbackHandler {
         }
 
         BetStatus filter = openOnly ? BetStatus.OPEN : null;
-        Page<BetDto> page = bettingService.listBets(ctx.chatId(), filter, PageRequest.of(pageNum, PAGE_SIZE));
+        Page<BetDto> page = bettingService.listBets(chatResolver.resolve(ctx), filter, PageRequest.of(pageNum, PAGE_SIZE));
         showList(ctx, page, openOnly, pageNum, messageId);
     }
 

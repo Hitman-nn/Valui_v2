@@ -10,6 +10,7 @@ import com.valui.bot.handler.callback.ControllerDetailCallback;
 import com.valui.bot.handler.callback.ControllerConfirmCallback;
 import com.valui.bot.handler.callback.SportSelectCallback;
 import com.valui.bot.handler.callback.TournamentSelectCallback;
+import com.valui.bot.handler.callback.betting.BettingChatResolver;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.menu.FilterMenuBuilder;
 import com.valui.bot.keyboard.menu.FilterWordBuilder;
@@ -52,6 +53,7 @@ public class WizardTextHandler implements BotUpdateHandler {
     private final WizardCacheService  wizardCache;
     private final BotWizardProperties wizardProps;
     private final BotProperties       botProperties;
+    private final BettingChatResolver chatResolver;
 
     @Override
     public boolean canHandle(Update update) {
@@ -180,7 +182,8 @@ public class WizardTextHandler implements BotUpdateHandler {
 
             replaceOrSend(ctx,
                 ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
-                ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
+                ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(),
+                        ctx.isGroupChat() || !chatResolver.isResolved(ctx)));
 
         } catch (InsufficientTokensException e) {
             // tokens exhausted — silently clear state, no message

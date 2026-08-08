@@ -45,6 +45,8 @@ public class BettingMenuCallback implements CallbackHandler {
     private final BetPersonService    personService;
     private final ObjectMapper        objectMapper;
     private final PreMatchOddsService preMatchOddsService;
+    private final BettingChatResolver chatResolver;
+    private final BetChatPickerCallback chatPicker;
 
     @Value("${valui.miniapp.url:}")
     private String miniAppUrl;
@@ -94,6 +96,8 @@ public class BettingMenuCallback implements CallbackHandler {
                     handleDeleteConfirm(ctx, data, callbackId, messageId);
                 } else if (data.startsWith(CallbackData.BET_CANCEL_PREFIX)) {
                     handleCancelBet(ctx, data, callbackId, messageId);
+                } else if (data.startsWith(CallbackData.BET_CHAT_SEL_PREFIX)) {
+                    handleChatSel(ctx, data, callbackId, messageId);
                 } else {
                     MessageSend.answerCallback(ctx.sender(), callbackId);
                 }
@@ -106,15 +110,30 @@ public class BettingMenuCallback implements CallbackHandler {
     private void handleMenu(BotUpdateContext ctx, String callbackId, int messageId) {
         MessageSend.answerCallback(ctx.sender(), callbackId);
         sessionService.clearSession(ctx.fromId());
+        // clearSession() only resets wizard state — the DM chat selection (if any) lives in its
+        // own Redis entry via BettingChatResolver specifically so it survives this, see its javadoc.
         MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-                buildMenuText(ctx), buildMenuKeyboard(ctx.chatId()));
+                buildMenuText(ctx), buildMenuKeyboard(ctx, chatResolver.resolve(ctx)));
+    }
+
+    /** Handles a BET:CHAT:{chatId} tap from the DM chat-picker (see {@link BetChatPickerCallback}). */
+    private void handleChatSel(BotUpdateContext ctx, String data, String callbackId, int messageId) {
+        chatPicker.handleSelection(ctx, data, callbackId).ifPresent(chatId ->
+                MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
+                        buildMenuText(ctx), buildMenuKeyboard(ctx, chatId)));
     }
 
     public static String buildMenuText(BotUpdateContext ctx) {
         return "💸 *Журнал ставок*\n\nВыберите действие:";
     }
 
-    public org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup buildMenuKeyboard(long chatId) {
+    /**
+     * @param ctx          for the WebApp-button gating check (physical chat, not the resolved scope)
+     * @param scopeChatId  the chat whose bet accounts/persons this menu operates on — group's own
+     *                     chatId when called from a group, or the DM-selected chat otherwise
+     */
+    public org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup buildMenuKeyboard(
+            BotUpdateContext ctx, long scopeChatId) {
         InlineKeyboardBuilder kb = InlineKeyboardBuilder.create()
                 .button("💸 Новая ставка",    CallbackData.BET_NEW_SINGLE)
                 .button("🎰 Экспресс",        CallbackData.BET_NEW_EXPRESS).row()
@@ -124,10 +143,11 @@ public class BettingMenuCallback implements CallbackHandler {
                 .button("🖨 Печать",          CallbackData.PRINT_MENU).row()
                 .button("💰 Счета",           CallbackData.ACCT_LIST)
                 .button("👥 Участники",       CallbackData.PERS_LIST).row();
-        // WebApp-кнопки работают только в личке (chatId > 0)
-        // В группах initData недоступен — кнопку не показываем
-        if (miniAppUrl != null && !miniAppUrl.isBlank() && chatId > 0) {
-            kb.webAppButton("📈 Аналитика", miniAppUrl + "/?chatId=" + chatId).row();
+        // WebApp initData is only available in a private chat — gated on the PHYSICAL chat
+        // (ctx.chatId()), not the resolved scope, which is a foreign (negative) group chatId
+        // whenever this menu is reached via the DM chat-picker.
+        if (miniAppUrl != null && !miniAppUrl.isBlank() && ctx.chatId() > 0) {
+            kb.webAppButton("📈 Аналитика", miniAppUrl + "/?chatId=" + scopeChatId).row();
         }
         return kb.build();
     }
@@ -203,7 +223,7 @@ public class BettingMenuCallback implements CallbackHandler {
     // ── Account selection step ────────────────────────────────────────────────
 
     public void showAccountStep(BotUpdateContext ctx, int messageId) {
-        List<BetAccountDto> accounts = accountService.listForChat(ctx.chatId());
+        List<BetAccountDto> accounts = accountService.listForChat(chatResolver.resolve(ctx));
         String currentId = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BET_ACCOUNT_ID).orElse(null);
 
         StringBuilder sb = new StringBuilder("🏦 *Выберите счёт*\n\n");
@@ -252,7 +272,7 @@ public class BettingMenuCallback implements CallbackHandler {
     /** Public so BettingTextHandler can call it. */
     public void showParticipantStep(BotUpdateContext ctx, int messageId) {
         BigDecimal amount = parseAmount(ctx);
-        List<BetPersonDto> allPersons = personService.listForChat(ctx.chatId());
+        List<BetPersonDto> allPersons = personService.listForChat(chatResolver.resolve(ctx));
         List<ParticipantRequest> selected = parseParticipants(ctx, amount);
         Set<String> selectedIds = selected.stream()
                 .map(p -> p.personId() != null ? p.personId().toString() : "")
@@ -316,7 +336,7 @@ public class BettingMenuCallback implements CallbackHandler {
         MessageSend.answerCallback(ctx.sender(), callbackId);
 
         BigDecimal amount = parseAmount(ctx);
-        List<BetPersonDto> allPersons = personService.listForChat(ctx.chatId());
+        List<BetPersonDto> allPersons = personService.listForChat(chatResolver.resolve(ctx));
         List<ParticipantRequest> parts = new ArrayList<>(parseParticipants(ctx, amount));
 
         boolean alreadyIn = parts.stream().anyMatch(p -> personIdStr.equals(
@@ -423,7 +443,7 @@ public class BettingMenuCallback implements CallbackHandler {
 
         String acctId = sessionService.getContext(ctx.fromId(), UserBotSession.CTX_BET_ACCOUNT_ID).orElse(null);
         if (acctId != null && !acctId.isBlank()) {
-            accountService.listForChat(ctx.chatId()).stream()
+            accountService.listForChat(chatResolver.resolve(ctx)).stream()
                     .filter(a -> a.id().toString().equals(acctId))
                     .findFirst()
                     .ifPresent(a -> sb.append("💰 Счёт: *").append(escape(a.name())).append("*\n"));
@@ -491,7 +511,7 @@ public class BettingMenuCallback implements CallbackHandler {
                 case "RETURN" -> com.valui.common.domain.BetStatus.RETURNED;
                 default -> throw new IllegalArgumentException("Unknown result: " + resultStr);
             };
-            BetDto updated = bettingService.resolveBet(UUID.fromString(betIdStr), ctx.chatId(), status);
+            BetDto updated = bettingService.resolveBet(UUID.fromString(betIdStr), chatResolver.resolve(ctx), status);
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     BetDetailCallback.buildDetailText(updated), BetDetailCallback.buildDetailKeyboard(updated));
             MessageSend.answerCallback(ctx.sender(), callbackId);
@@ -519,7 +539,7 @@ public class BettingMenuCallback implements CallbackHandler {
                 default  -> throw new IllegalArgumentException("Unknown result: " + resultChar);
             };
             BetDto updated = bettingService.resolveSlip(
-                    UUID.fromString(betIdStr), Integer.parseInt(orderStr), ctx.chatId(), result);
+                    UUID.fromString(betIdStr), Integer.parseInt(orderStr), chatResolver.resolve(ctx), result);
             if (updated.status() == BetStatus.WON
                     && updated.type() == BetType.EXPRESS
                     && needsPayoutConfirmation(updated)) {
@@ -610,7 +630,7 @@ public class BettingMenuCallback implements CallbackHandler {
                 MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, "❌ Некорректная сумма");
                 return;
             }
-            BetDto updated = bettingService.correctPayout(UUID.fromString(betIdStr), ctx.chatId(), amount);
+            BetDto updated = bettingService.correctPayout(UUID.fromString(betIdStr), chatResolver.resolve(ctx), amount);
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     BetDetailCallback.buildDetailText(updated), BetDetailCallback.buildDetailKeyboard(updated));
             MessageSend.answerCallback(ctx.sender(), callbackId);
@@ -637,18 +657,19 @@ public class BettingMenuCallback implements CallbackHandler {
 
     private void handleDeleteBet(BotUpdateContext ctx, String data, String callbackId, int messageId) {
         String betIdStr = data.substring(CallbackData.BET_DELETE_CONFIRM_PREFIX.length());
+        long scopeChatId = chatResolver.resolve(ctx);
         try {
             UUID betId = UUID.fromString(betIdStr);
             // Cancel pre-match watches before cascading delete removes the slips
             try {
-                bettingService.getBet(betId, ctx.chatId()).slips()
+                bettingService.getBet(betId, scopeChatId).slips()
                         .forEach(slip -> preMatchOddsService.cancel(slip.id()));
             } catch (Exception ignored) {}
-            bettingService.deleteBet(betId, ctx.chatId());
+            bettingService.deleteBet(betId, scopeChatId);
             MessageSend.answerCallback(ctx.sender(), callbackId);
             sessionService.clearSession(ctx.fromId());
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-                    buildMenuText(ctx), buildMenuKeyboard(ctx.chatId()));
+                    buildMenuText(ctx), buildMenuKeyboard(ctx, scopeChatId));
         } catch (Exception e) {
             log.warn("[BET] deleteBet failed id={}: {}", betIdStr, e.getMessage());
             MessageSend.answerCallbackWithModal(ctx.sender(), callbackId, "❌ " + e.getMessage());
@@ -657,14 +678,15 @@ public class BettingMenuCallback implements CallbackHandler {
 
     private void handleCancelBet(BotUpdateContext ctx, String data, String callbackId, int messageId) {
         String betIdStr = data.substring(CallbackData.BET_CANCEL_PREFIX.length());
+        long scopeChatId = chatResolver.resolve(ctx);
         try {
             UUID betId = UUID.fromString(betIdStr);
             // Cancel pre-match watches — bet is cancelled, snapshot no longer needed
             try {
-                bettingService.getBet(betId, ctx.chatId()).slips()
+                bettingService.getBet(betId, scopeChatId).slips()
                         .forEach(slip -> preMatchOddsService.cancel(slip.id()));
             } catch (Exception ignored) {}
-            BetDto updated = bettingService.cancelBet(betId, ctx.chatId());
+            BetDto updated = bettingService.cancelBet(betId, scopeChatId);
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     BetDetailCallback.buildDetailText(updated), BetDetailCallback.buildDetailKeyboard(updated));
             MessageSend.answerCallback(ctx.sender(), callbackId);
@@ -678,7 +700,7 @@ public class BettingMenuCallback implements CallbackHandler {
         MessageSend.answerCallback(ctx.sender(), callbackId);
         sessionService.clearSession(ctx.fromId());
         MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
-                buildMenuText(ctx), buildMenuKeyboard(ctx.chatId()));
+                buildMenuText(ctx), buildMenuKeyboard(ctx, chatResolver.resolve(ctx)));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -707,7 +729,7 @@ public class BettingMenuCallback implements CallbackHandler {
         }
 
         CreateBetRequest req = new CreateBetRequest(BetType.valueOf(betType), slips, amount, accountId, participants);
-        return bettingService.placeBet(ctx.fromId(), ctx.chatId(), req);
+        return bettingService.placeBet(ctx.fromId(), chatResolver.resolve(ctx), req);
     }
 
     private List<ParticipantRequest> parseParticipants(BotUpdateContext ctx, BigDecimal totalStake) {

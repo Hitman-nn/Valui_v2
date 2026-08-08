@@ -30,6 +30,7 @@ public class BetStatCallback implements CallbackHandler {
     private final BettingService   bettingService;
     private final BetAccountService accountService;
     private final BetPersonService  personService;
+    private final BettingChatResolver chatResolver;
 
     @Override
     public String callbackPrefix() { return CallbackData.BET_STAT; }
@@ -60,9 +61,10 @@ public class BetStatCallback implements CallbackHandler {
     // ── Overall stats ─────────────────────────────────────────────────────────
 
     private void showOverallStats(BotUpdateContext ctx, int messageId) {
-        BetStatsDto stats = bettingService.getStats(ctx.chatId());
-        List<BetPersonDto> persons = personService.listForChat(ctx.chatId());
-        List<BetAccountDto> accounts = accountService.listForChat(ctx.chatId());
+        long scopeChatId = chatResolver.resolve(ctx);
+        BetStatsDto stats = bettingService.getStats(scopeChatId);
+        List<BetPersonDto> persons = personService.listForChat(scopeChatId);
+        List<BetAccountDto> accounts = accountService.listForChat(scopeChatId);
 
         StringBuilder sb = new StringBuilder("📊 *Общая статистика*\n\n");
         sb.append(buildOverallStatsText(stats));
@@ -71,7 +73,7 @@ public class BetStatCallback implements CallbackHandler {
             sb.append("\n\n👥 *По участникам:*\n");
             for (BetPersonDto person : persons) {
                 try {
-                    BetPersonStatsDto ps = bettingService.getPersonStats(person.id(), ctx.chatId());
+                    BetPersonStatsDto ps = bettingService.getPersonStats(person.id(), scopeChatId);
                     sb.append(buildPersonStatLine(ps));
                 } catch (Exception e) {
                     log.warn("[STAT] person stats skipped id={}: {}", person.id(), e.getMessage());
@@ -91,7 +93,7 @@ public class BetStatCallback implements CallbackHandler {
     // ── Per-account stats ─────────────────────────────────────────────────────
 
     private void showAccountStats(BotUpdateContext ctx, UUID accountId, int messageId) {
-        BetAccountStatsDto s = bettingService.getAccountStats(accountId, ctx.chatId());
+        BetAccountStatsDto s = bettingService.getAccountStats(accountId, chatResolver.resolve(ctx));
 
         StringBuilder sb = new StringBuilder("📊 *Счёт: " + escape(s.accountName()) + "*\n\n");
 

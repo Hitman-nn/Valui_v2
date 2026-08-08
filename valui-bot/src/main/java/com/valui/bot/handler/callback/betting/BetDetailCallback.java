@@ -31,6 +31,7 @@ public class BetDetailCallback implements CallbackHandler {
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd.MM.yy HH:mm");
 
     private final BettingService bettingService;
+    private final BettingChatResolver chatResolver;
 
     @Override
     public String callbackPrefix() { return CallbackData.BET_DETAIL_PREFIX; }
@@ -47,7 +48,7 @@ public class BetDetailCallback implements CallbackHandler {
         String betIdStr = data.substring(CallbackData.BET_DETAIL_PREFIX.length());
 
         try {
-            BetDto bet = bettingService.getBet(java.util.UUID.fromString(betIdStr), ctx.chatId());
+            BetDto bet = bettingService.getBet(java.util.UUID.fromString(betIdStr), chatResolver.resolve(ctx));
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     buildDetailText(bet), buildDetailKeyboard(bet));
             MessageSend.answerCallback(ctx.sender(), callbackId);

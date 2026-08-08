@@ -39,6 +39,7 @@ public class PrintCallback implements CallbackHandler {
     private final BetAccountService  accountService;
     private final BettingService     bettingService;
     private final BotSessionService  sessionService;
+    private final BettingChatResolver chatResolver;
     private final ObjectMapper       objectMapper;
 
     @Override
@@ -90,7 +91,7 @@ public class PrintCallback implements CallbackHandler {
     // ── Account selection ─────────────────────────────────────────────────────
 
     private void showAccountSelect(BotUpdateContext ctx, int messageId) {
-        List<BetAccountDto> accounts = accountService.listForChat(ctx.chatId());
+        List<BetAccountDto> accounts = accountService.listForChat(chatResolver.resolve(ctx));
         if (accounts.isEmpty()) {
             MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                     "🖨 *Печать*\n\nНет счетов.",
@@ -113,7 +114,7 @@ public class PrintCallback implements CallbackHandler {
         if (accountIdStr == null) { showAccountSelect(ctx, messageId); return; }
 
         UUID accountId = UUID.fromString(accountIdStr);
-        List<BetPersonBalanceDto> persons = accountService.getPersonsWithBalances(accountId, ctx.chatId())
+        List<BetPersonBalanceDto> persons = accountService.getPersonsWithBalances(accountId, chatResolver.resolve(ctx))
                 .stream().filter(BetPersonBalanceDto::isLinked).toList();
 
         if (persons.isEmpty()) {
@@ -145,9 +146,10 @@ public class PrintCallback implements CallbackHandler {
 
         UUID accountId = UUID.fromString(accountIdStr);
         UUID personId  = UUID.fromString(personIdStr);
+        long scopeChatId = chatResolver.resolve(ctx);
 
-        List<BetDto> bets = bettingService.listBetsForPrint(accountId, personId, ctx.chatId());
-        List<BetAccountTransactionDto> txs = accountService.getTransactions(accountId, personId, ctx.chatId());
+        List<BetDto> bets = bettingService.listBetsForPrint(accountId, personId, scopeChatId);
+        List<BetAccountTransactionDto> txs = accountService.getTransactions(accountId, personId, scopeChatId);
 
         // Menu list: newest first, not-yet-played bets hidden (nothing to print for them yet)
         List<PrintItem> all = new ArrayList<>();
@@ -209,9 +211,10 @@ public class PrintCallback implements CallbackHandler {
         UUID accountId = UUID.fromString(accountIdStr);
         UUID personId  = UUID.fromString(personIdStr);
         int page = parseIntCtx(ctx, UserBotSession.CTX_PRINT_PAGE);
+        long scopeChatId = chatResolver.resolve(ctx);
 
-        List<BetDto> bets = bettingService.listBetsForPrint(accountId, personId, ctx.chatId());
-        List<BetAccountTransactionDto> txs = accountService.getTransactions(accountId, personId, ctx.chatId());
+        List<BetDto> bets = bettingService.listBetsForPrint(accountId, personId, scopeChatId);
+        List<BetAccountTransactionDto> txs = accountService.getTransactions(accountId, personId, scopeChatId);
 
         // Must mirror showItemSelect's filter+order exactly — "select all on page" relies on
         // the same index-to-item mapping the user is looking at.
@@ -242,9 +245,10 @@ public class PrintCallback implements CallbackHandler {
 
         UUID accountId = UUID.fromString(accountIdStr);
         UUID personId  = UUID.fromString(personIdStr);
+        long scopeChatId = chatResolver.resolve(ctx);
 
-        List<BetDto> bets = bettingService.listBetsForPrint(accountId, personId, ctx.chatId());
-        List<BetAccountTransactionDto> txs = accountService.getTransactions(accountId, personId, ctx.chatId());
+        List<BetDto> bets = bettingService.listBetsForPrint(accountId, personId, scopeChatId);
+        List<BetAccountTransactionDto> txs = accountService.getTransactions(accountId, personId, scopeChatId);
         Set<String> selected = loadSelected(ctx);
 
         // Build full list (for computing balance-before), then filter to selected.
@@ -275,7 +279,7 @@ public class PrintCallback implements CallbackHandler {
                 .filter(p -> p.personId() != null && p.personId().equals(personId))
                 .map(BetParticipantDto::displayName).findFirst().orElse("—");
 
-        List<BetPersonBalanceDto> balances = accountService.getPersonsWithBalances(accountId, ctx.chatId());
+        List<BetPersonBalanceDto> balances = accountService.getPersonsWithBalances(accountId, scopeChatId);
         BigDecimal balance = balances.stream()
                 .filter(b -> b.personId().equals(personId))
                 .map(BetPersonBalanceDto::balance)

@@ -112,6 +112,19 @@ public final class CallbackData {
     public static String betStatAcct(String accountId) { return BET_STAT_ACCT_PREFIX + accountId; }
     public static final String BET_CANCEL_WIZARD = "BET:CANCEL";
 
+    // ─── Betting Journal: DM chat picker ──────────────────────────────────────
+    /** BET:CHAT:{chatId} — pick which linked group's betting journal to operate on from DM. */
+    public static final String BET_CHAT_SEL_PREFIX = "BET:CHAT:";
+    public static String betChatSel(long chatId) { return BET_CHAT_SEL_PREFIX + chatId; }
+
+    // ─── Controllers: DM chat picker ──────────────────────────────────────────
+    /** CTRL:CHAT:PICK — open the linked-chat picker; CTRL:CHAT:{chatId} — pick which
+     *  linked group's controllers to browse from DM. Shares the BettingChatResolver
+     *  selection with the betting journal's BET:CHAT: picker. */
+    public static final String CTRL_CHAT_SEL_PREFIX = "CTRL:CHAT:";
+    public static final String CTRL_CHAT_PICK       = CTRL_CHAT_SEL_PREFIX + "PICK";
+    public static String ctrlChatSel(long chatId) { return CTRL_CHAT_SEL_PREFIX + chatId; }
+
     // ─── Betting Journal: participant step ────────────────────────────────────
     public static final String BET_ADD_PARTICIPANT  = "BET:PART:ADD";
     public static final String BET_PART_STEP        = "BET:PART:STEP";

@@ -4,6 +4,7 @@ import com.valui.bot.config.BotProperties;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
+import com.valui.bot.handler.callback.betting.BettingChatResolver;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.menu.BookmakerMenuBuilder;
 import com.valui.bot.keyboard.menu.ControllerMenuBuilder;
@@ -24,6 +25,7 @@ public class ControllerByBookmakerCallback implements CallbackHandler {
     private final ControllerService             controllerService;
     private final BotProperties                 botProperties;
     private final ControllerSortPreferenceService sortPreference;
+    private final BettingChatResolver            chatResolver;
 
     @Override
     public String callbackPrefix() { return PREFIX; }
@@ -36,18 +38,18 @@ public class ControllerByBookmakerCallback implements CallbackHandler {
         String data       = ctx.update().getCallbackQuery().getData();
         String callbackId = ctx.update().getCallbackQuery().getId();
         int    messageId  = ctx.update().getCallbackQuery().getMessage().getMessageId();
-        long   chatId     = ctx.chatId();
+        long   scopeChatId = chatResolver.resolveOrPhysical(ctx);
         MessageSend.answerCallback(ctx.sender(), callbackId);
 
         String remainder = data.substring(PREFIX.length()); // "LIST" | "XBET" | "XBET:PAGE:1" | "XBET:SORT:NAME"
 
-        List<ControllerDto> all = ctx.isGroupChat()
-            ? controllerService.getGroupControllers(chatId)
-            : controllerService.getUserControllersForChat(ctx.fromId(), chatId);
+        List<ControllerDto> all = ctx.isGroupChat() || chatResolver.isResolved(ctx)
+            ? controllerService.getGroupControllers(scopeChatId)
+            : controllerService.getUserControllersForChat(ctx.fromId(), scopeChatId);
 
         if (CallbackData.CTRL_BK_LIST.equals(data)) {
             var menu = BookmakerMenuBuilder.buildSelection(all);
-            ctx.tracker().replaceAndTrack(ctx.sender(), chatId, messageId,
+            ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
                 menu.text(), menu.keyboard());
             return;
         }
@@ -60,16 +62,16 @@ public class ControllerByBookmakerCallback implements CallbackHandler {
         if (remainder.contains(":SORT:")) {
             bm   = remainder.substring(0, remainder.indexOf(":SORT:"));
             sort = remainder.substring(remainder.lastIndexOf(':') + 1).toUpperCase();
-            sortPreference.save(chatId, sort);
+            sortPreference.save(scopeChatId, sort);
             page = 0;
         } else if (remainder.contains(":PAGE:")) {
             bm   = remainder.substring(0, remainder.indexOf(":PAGE:"));
             page = parsePage(remainder.substring(remainder.lastIndexOf(':') + 1));
-            sort = sortPreference.load(chatId);
+            sort = sortPreference.load(scopeChatId);
         } else {
             bm   = remainder;
             page = 0;
-            sort = sortPreference.load(chatId);
+            sort = sortPreference.load(scopeChatId);
         }
 
         List<ControllerDto> filtered = all.stream()
@@ -78,7 +80,7 @@ public class ControllerByBookmakerCallback implements CallbackHandler {
 
         var menu = BookmakerMenuBuilder.buildControllerList(
                 bm, filtered, page, botProperties.staleThresholdDays(), sort);
-        ctx.tracker().replaceAndTrack(ctx.sender(), chatId, messageId,
+        ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
             menu.text(), menu.keyboard());
     }
 

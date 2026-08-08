@@ -11,6 +11,7 @@ import com.valui.betting.service.BetAccountService;
 import com.valui.betting.service.BetPersonService;
 import com.valui.bot.handler.callback.betting.BetAccountCallback;
 import com.valui.bot.handler.callback.betting.BetPersonCallback;
+import com.valui.bot.handler.callback.betting.BettingChatResolver;
 import com.valui.bot.handler.callback.betting.BettingMenuCallback;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.BotUpdateHandler;
@@ -51,6 +52,7 @@ public class BettingTextHandler implements BotUpdateHandler {
     private final BetAccountCallback accountCallback;
     private final BetPersonCallback  personCallback;
     private final BettingMenuCallback bettingMenuCallback;
+    private final BettingChatResolver chatResolver;
     private final ObjectMapper       objectMapper;
 
     @Override
@@ -233,10 +235,11 @@ public class BettingTextHandler implements BotUpdateHandler {
         try {
             UUID accountId = UUID.fromString(accountIdStr);
             UUID personId  = UUID.fromString(personIdStr);
+            long scopeChatId = chatResolver.resolve(ctx);
             switch (op) {
-                case "ADD" -> accountService.adjustAndRecord(accountId, personId, ctx.chatId(), amount);
-                case "SUB" -> accountService.adjustAndRecord(accountId, personId, ctx.chatId(), amount.negate());
-                default -> accountService.setPersonBalance(accountId, personId, ctx.chatId(), amount);
+                case "ADD" -> accountService.adjustAndRecord(accountId, personId, scopeChatId, amount);
+                case "SUB" -> accountService.adjustAndRecord(accountId, personId, scopeChatId, amount.negate());
+                default -> accountService.setPersonBalance(accountId, personId, scopeChatId, amount);
             }
             sessionService.setStateAndMergeContext(ctx.fromId(), BotState.IDLE, Map.of());
             replaceWizardViaCallback(ctx);
@@ -270,7 +273,7 @@ public class BettingTextHandler implements BotUpdateHandler {
         if (betIdStr == null) { sessionService.clearSession(ctx.fromId()); return; }
 
         try {
-            BetDto updated = bettingService.correctPayout(UUID.fromString(betIdStr), ctx.chatId(), amount);
+            BetDto updated = bettingService.correctPayout(UUID.fromString(betIdStr), chatResolver.resolve(ctx), amount);
             sessionService.clearSession(ctx.fromId());
             if (wizardMsgId > 0) {
                 MessageSend.editMarkdownWithKeyboard(ctx.sender(), ctx.chatId(), wizardMsgId,
@@ -296,7 +299,7 @@ public class BettingTextHandler implements BotUpdateHandler {
             return;
         }
         try {
-            serviceCreate.accept(ctx.chatId(), text.trim());
+            serviceCreate.accept(chatResolver.resolve(ctx), text.trim());
             sessionService.clearSession(ctx.fromId());
             replaceWizardViaCallback(ctx);
             showResult.accept(ctx);

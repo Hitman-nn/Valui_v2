@@ -3,6 +3,7 @@ package com.valui.bot.handler.callback;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
+import com.valui.bot.handler.callback.betting.BettingChatResolver;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.menu.FilterMenuBuilder;
@@ -32,6 +33,7 @@ public class CancelCallback implements CallbackHandler {
     private final WizardBackNavigator backNavigator;
     private final GlobalFilterService globalFilterService;
     private final ControllerService controllerService;
+    private final BettingChatResolver chatResolver;
 
     @Override
     public String callbackPrefix() { return CallbackData.CANCEL; }
@@ -89,7 +91,8 @@ public class CancelCallback implements CallbackHandler {
                                 UUID.fromString(idStr), ctx.chatId());
                         ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
                                 ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
-                                ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
+                                ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(),
+                                        ctx.isGroupChat() || !chatResolver.isResolved(ctx)));
                     } catch (Exception e) {
                         log.warn("cancel: controller not found {}", idStr);
                     }

@@ -3,6 +3,7 @@ package com.valui.bot.handler.callback;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
+import com.valui.bot.handler.callback.betting.BettingChatResolver;
 import com.valui.monitor.dto.ControllerDto;
 import com.valui.monitor.service.ControllerService;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ public class ControllerMuteCallback implements CallbackHandler {
 
     private static final String PREFIX = "CTRL:MUTE:";
     private final ControllerService controllerService;
+    private final BettingChatResolver chatResolver;
 
     @Override public String callbackPrefix() { return PREFIX; }
     @Override public int order() { return 50; }
@@ -46,7 +48,8 @@ public class ControllerMuteCallback implements CallbackHandler {
             ControllerDto c = controllerService.getControllerForChat(id, ctx.chatId());
             MessageSend.editTextWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                 ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
-                ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
+                ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(),
+                        ctx.isGroupChat() || !chatResolver.isResolved(ctx)));
         } catch (Exception e) {
             log.warn("Failed to refresh detail chatId={}: {}", ctx.chatId(), e.getMessage());
         }
@@ -60,6 +63,7 @@ class ControllerUnmuteCallback implements CallbackHandler {
 
     private static final String PREFIX = "CTRL:UNMUTE:";
     private final ControllerService controllerService;
+    private final BettingChatResolver chatResolver;
 
     @Override public String callbackPrefix() { return PREFIX; }
     @Override public int order() { return 50; }
@@ -88,7 +92,8 @@ class ControllerUnmuteCallback implements CallbackHandler {
             ControllerDto c = controllerService.getControllerForChat(id, ctx.chatId());
             MessageSend.editTextWithKeyboard(ctx.sender(), ctx.chatId(), messageId,
                 ControllerDetailCallback.buildDetailText(c, ctx.chatId()),
-                ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(), ctx.chatId()));
+                ControllerDetailCallback.buildDetailKeyboard(c, ctx.fromId(),
+                        ctx.isGroupChat() || !chatResolver.isResolved(ctx)));
         } catch (Exception e) {
             log.warn("Failed to refresh detail chatId={}: {}", ctx.chatId(), e.getMessage());
         }

@@ -3,6 +3,7 @@ package com.valui.bot.handler.callback;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
+import com.valui.bot.handler.callback.betting.BettingChatResolver;
 import com.valui.bot.i18n.BotMessageSource;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
@@ -33,6 +34,7 @@ public class ControllerDetailCallback implements CallbackHandler {
     private final ControllerService        controllerService;
     private final BotMessageSource         messageSource;
     private final DetectedEventPortService detectedEventPort;
+    private final BettingChatResolver      chatResolver;
 
     @Override public String callbackPrefix() { return PREFIX; }
     @Override public int order() { return 50; }
@@ -60,7 +62,7 @@ public class ControllerDetailCallback implements CallbackHandler {
 
         ControllerDto c;
         try {
-            c = controllerService.getControllerForChat(controllerId, ctx.chatId());
+            c = controllerService.getControllerForChat(controllerId, chatResolver.resolveOrPhysical(ctx));
         } catch (Exception e) {
             log.warn("Controller not found: {}", controllerId);
             return;
@@ -75,15 +77,26 @@ public class ControllerDetailCallback implements CallbackHandler {
         }
 
         ctx.tracker().replaceAndTrack(ctx.sender(), ctx.chatId(), messageId,
-                text, buildKeyboard(c, ctx.fromId(), ctx.chatId(), events, eventsPage));
+                text, buildKeyboard(c, ctx.fromId(), allowManagement(ctx), events, eventsPage));
+    }
+
+    /**
+     * Management (stop/mute/filter) stays a physical-group-only affair — but DM browsing of the
+     * caller's OWN controllers (personal list, no linked group picked) has always allowed it too,
+     * and that must keep working. It's only DM browsing of a linked GROUP's shared list (via
+     * {@link BettingChatResolver}) that must stay read-only + bet-placing, since {@code
+     * ControllerStopCallback}/{@code ControllerMuteCallback}/{@code ControllerFilterEditCallback}
+     * aren't resolver-aware and would otherwise act on the wrong (personal) subscription row.
+     */
+    private boolean allowManagement(BotUpdateContext ctx) {
+        return ctx.isGroupChat() || !chatResolver.isResolved(ctx);
     }
 
     // ── Keyboard with events ──────────────────────────────────────────────────
 
-    private static InlineKeyboardMarkup buildKeyboard(ControllerDto c, Long fromId, Long chatId,
+    private static InlineKeyboardMarkup buildKeyboard(ControllerDto c, Long fromId, boolean allowManagement,
                                                        Page<DetectedEventEntity> events, int eventsPage) {
-        boolean isGroupChat = chatId != null && chatId < 0;
-        boolean isOwner = !isGroupChat || c.ownerTelegramId() == null || c.ownerTelegramId().equals(fromId);
+        boolean isOwner = allowManagement && (c.ownerTelegramId() == null || c.ownerTelegramId().equals(fromId));
 
         var builder = InlineKeyboardBuilder.create();
 
@@ -150,10 +163,14 @@ public class ControllerDetailCallback implements CallbackHandler {
         return sb.toString();
     }
 
-    /** Backward-compat: keyboard WITHOUT events section (used by WizardTextHandler after filter edit). */
-    public static InlineKeyboardMarkup buildDetailKeyboard(ControllerDto c, Long fromId, Long chatId) {
-        boolean isGroupChat = chatId != null && chatId < 0;
-        boolean isOwner = !isGroupChat || c.ownerTelegramId() == null || c.ownerTelegramId().equals(fromId);
+    /**
+     * Backward-compat: keyboard WITHOUT events section (used by WizardTextHandler after filter
+     * edit and by the mute/cancel follow-up screens). {@code allowManagement} — see
+     * {@link #allowManagement}; callers without a {@link BotUpdateContext} handy should pass
+     * {@code ctx.isGroupChat() || !chatResolver.isResolved(ctx)}.
+     */
+    public static InlineKeyboardMarkup buildDetailKeyboard(ControllerDto c, Long fromId, boolean allowManagement) {
+        boolean isOwner = allowManagement && (c.ownerTelegramId() == null || c.ownerTelegramId().equals(fromId));
 
         var builder = InlineKeyboardBuilder.create();
 

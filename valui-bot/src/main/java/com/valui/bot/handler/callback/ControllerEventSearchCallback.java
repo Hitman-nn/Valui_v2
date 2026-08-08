@@ -3,6 +3,7 @@ package com.valui.bot.handler.callback;
 import com.valui.bot.handler.BotUpdateContext;
 import com.valui.bot.handler.CallbackHandler;
 import com.valui.bot.handler.MessageSend;
+import com.valui.bot.handler.callback.betting.BettingChatResolver;
 import com.valui.bot.keyboard.BotMarkdownUtil;
 import com.valui.bot.keyboard.CallbackData;
 import com.valui.bot.keyboard.InlineKeyboardBuilder;
@@ -41,6 +42,7 @@ public class ControllerEventSearchCallback implements CallbackHandler {
     private final BotSessionService        sessionService;
     private final ControllerService        controllerService;
     private final DetectedEventPortService detectedEventPort;
+    private final BettingChatResolver      chatResolver;
 
     @Override public String callbackPrefix() { return PREFIX; }
     @Override public int order() { return 50; }
@@ -109,7 +111,7 @@ public class ControllerEventSearchCallback implements CallbackHandler {
                 controllerId, query, PageRequest.of(page, EVENTS_PER_PAGE));
 
         ControllerDto c;
-        try { c = controllerService.getControllerForChat(controllerId, ctx.chatId()); }
+        try { c = controllerService.getControllerForChat(controllerId, chatResolver.resolveOrPhysical(ctx)); }
         catch (Exception e) { return; }
 
         String text = results.isEmpty()
