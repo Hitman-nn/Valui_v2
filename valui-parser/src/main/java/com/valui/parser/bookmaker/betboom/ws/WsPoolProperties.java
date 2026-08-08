@@ -28,6 +28,16 @@ public class WsPoolProperties {
     // carry — same idea as HttpClientConfig's Reactor Netty maxLifeTime/maxIdleTime.
     private int recycleAfterUses = 500;
     private Duration maxConnectionAge = Duration.ofMinutes(20);
+    // Idle drain: with 6 connections serving ~60+ tournaments' worth of live subscriptions,
+    // most slots sit idle in the free pool most of the time between borrows — but BetBoom
+    // keeps pushing odds updates for every subscription regardless of whether anyone's
+    // reading. Left alone, that backlog is only ever cleared reactively (at the next borrow,
+    // or at hygiene recycle) — in production this meant the per-connection 2000-frame cap
+    // (see WsClient.MAX_INBOX) stayed permanently saturated with frames nobody will ever
+    // read, chronically dropping the newest of them. Proactively draining idle slots' inboxes
+    // keeps this near-empty in steady state, so a nonzero backlog again means something
+    // (active contention), not "the pool has been idle for a few seconds".
+    private Duration idleDrainInterval = Duration.ofSeconds(15);
     private Warmup warmup = new Warmup();
 
     @Data

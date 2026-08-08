@@ -32,6 +32,8 @@ public class WsClientBorrowingPool implements SmartLifecycle {
     private final LongAdder failureReconnects = new LongAdder();
     private final LongAdder hygieneReconnects  = new LongAdder();
     private final LongAdder framesDropped      = new LongAdder();
+    private final LongAdder idleFramesDrained  = new LongAdder();
+    private volatile ScheduledFuture<?> idleDrainTask;
 
     public WsClientBorrowingPool(WsPoolProperties props) {
         this.props = Objects.requireNonNull(props);
@@ -79,19 +81,49 @@ public class WsClientBorrowingPool implements SmartLifecycle {
     public long drainFailureReconnects() { return failureReconnects.sumThenReset(); }
     public long drainHygieneReconnects()  { return hygieneReconnects.sumThenReset(); }
     public long drainFramesDropped()      { return framesDropped.sumThenReset(); }
+    public long drainIdleFramesDrained()  { return idleFramesDrained.sumThenReset(); }
 
     @Override public void start() {
         if (!running.compareAndSet(false, true)) return;
         for (int i = 0; i < props.getMaxSize(); i++) connectSlot(i);
-        log.info("WS pool started: {} slots", props.getMaxSize());
+        long drainMs = props.getIdleDrainInterval().toMillis();
+        idleDrainTask = scheduler.scheduleAtFixedRate(
+                this::drainIdleSlots, drainMs, drainMs, TimeUnit.MILLISECONDS);
+        log.info("WS pool started: {} slots, idle-drain every {}", props.getMaxSize(), props.getIdleDrainInterval());
     }
 
     @Override @PreDestroy public void stop() {
         if (!running.compareAndSet(true, false)) return;
+        if (idleDrainTask != null) idleDrainTask.cancel(false);
         slots.forEach(Slot::closeNow);
         free.clear();
         scheduler.shutdownNow();
         log.info("WS pool stopped.");
+    }
+
+    /**
+     * Proactively clears the inbox of every slot currently sitting idle in the free pool.
+     * BetBoom keeps pushing odds updates for every subscription a connection has ever made,
+     * whether or not anyone's actively borrowing it — without this, that background traffic
+     * only ever gets cleared reactively (next borrow, or hygiene recycle), which in production
+     * meant idle connections' 2000-frame caps stayed permanently saturated with data nobody
+     * would ever read (see WsClient.MAX_INBOX). Only pops ids that are ACTUALLY in {@code free}
+     * at the moment of poll — a slot currently on loan to a borrower is never touched, since
+     * its id isn't in this queue while leased out.
+     */
+    private void drainIdleSlots() {
+        if (!running.get()) return;
+        int n = free.size();
+        for (int i = 0; i < n; i++) {
+            Integer id = free.poll();
+            if (id == null) break; // raced with concurrent borrows — nothing left to drain
+            WsClient c = slots.get(id).client;
+            if (c != null) {
+                int cleared = c.clearInbox();
+                if (cleared > 0) idleFramesDrained.add(cleared);
+            }
+            free.offer(id);
+        }
     }
 
     @Override public boolean isRunning()      { return running.get(); }
