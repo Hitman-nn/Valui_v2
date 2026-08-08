@@ -1,5 +1,6 @@
 package com.valui.parser.bookmaker.betboom.ws;
 
+import lombok.extern.slf4j.Slf4j;
 import proto.betboom.Envelope;
 
 import java.net.URI;
@@ -12,10 +13,24 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+@Slf4j
 public final class WsClient {
+
+    /**
+     * Bounds the incoming-frame backlog. BetBoom keeps server-side subscriptions alive on a
+     * connection across many logical requests (see WsClientBorrowingPool), so between reads the
+     * inbox can legitimately receive a burst of push frames unrelated to whatever the current
+     * borrower is waiting for. Unbounded here turned into a real OOM: a leaked/idle connection
+     * with nobody draining it grew its backing LinkedBlockingQueue to 1.5M+ nodes over ~17h
+     * uptime. Bounded + drop-oldest trades a few stale odds updates (the next poll re-fetches
+     * fresh data anyway) for a hard ceiling on memory.
+     */
+    private static final int MAX_INBOX = 2_000;
 
     public static final class Builder {
         private String wsUrl;
@@ -30,6 +45,7 @@ public final class WsClient {
         private Consumer<String> onText;
         private BiConsumer<Integer, String> onClose;
         private Consumer<Throwable> onError;
+        private Runnable onFrameDropped;
 
         public Builder url(String u)          { this.wsUrl = Objects.requireNonNull(u); return this; }
         public Builder header(String k, String v) { if (k != null && v != null) headers.put(k, v); return this; }
@@ -44,6 +60,8 @@ public final class WsClient {
         public Builder onText(Consumer<String> c)              { this.onText   = c; return this; }
         public Builder onClose(BiConsumer<Integer, String> c)  { this.onClose  = c; return this; }
         public Builder onError(Consumer<Throwable> c)          { this.onError  = c; return this; }
+        /** Fired (off-thread of the caller) whenever the bounded inbox drops a frame. */
+        public Builder onFrameDropped(Runnable r)              { this.onFrameDropped = r; return this; }
 
         public WsClient build() { return new WsClient(this); }
     }
@@ -64,11 +82,15 @@ public final class WsClient {
     private final Consumer<String> onText;
     private final BiConsumer<Integer, String> onClose;
     private final Consumer<Throwable> onError;
+    private final Runnable onFrameDropped;
 
     private final HttpClient http;
     private volatile WebSocket ws;
 
-    private final BlockingQueue<byte[]> inbox = new LinkedBlockingQueue<>();
+    private final BlockingQueue<byte[]> inbox = new LinkedBlockingQueue<>(MAX_INBOX);
+    private final AtomicLong framesReceived = new AtomicLong();
+    private final AtomicLong framesDropped = new AtomicLong();
+    private final AtomicBoolean overflowWarned = new AtomicBoolean(false);
     private final CompletableFuture<Void> helloGate = new CompletableFuture<>();
 
     private WsClient(Builder b) {
@@ -86,8 +108,15 @@ public final class WsClient {
         this.onText = b.onText;
         this.onClose = b.onClose;
         this.onError = b.onError;
+        this.onFrameDropped = b.onFrameDropped;
         this.http = HttpClient.newBuilder().connectTimeout(connectTimeout).build();
     }
+
+    // ── observability ────────────────────────────────────────────────────────
+
+    public int inboxSize()        { return inbox.size(); }
+    public long framesReceived()  { return framesReceived.get(); }
+    public long framesDropped()   { return framesDropped.get(); }
 
     // ── API ───────────────────────────────────────────────────────────────────
 
@@ -176,11 +205,32 @@ public final class WsClient {
                     }
                 } else {
                     if (onBinary != null) try { onBinary.accept(frame); } catch (Throwable ignore) {}
-                    inbox.offer(frame);
+                    offerBounded(frame);
                 }
             }
             ws.request(1);
             return null;
+        }
+
+        /**
+         * Bounded offer: drops the oldest queued frame instead of growing unboundedly.
+         * A live odds feed makes the newest frame strictly more useful than a stale one that's
+         * been sitting behind an un-drained backlog, so drop-oldest is the right tradeoff here.
+         */
+        private void offerBounded(byte[] frame) {
+            framesReceived.incrementAndGet();
+            if (inbox.offer(frame)) {
+                overflowWarned.set(false);
+                return;
+            }
+            inbox.poll();
+            inbox.offer(frame);
+            framesDropped.incrementAndGet();
+            if (onFrameDropped != null) try { onFrameDropped.run(); } catch (Throwable ignore) {}
+            if (overflowWarned.compareAndSet(false, true)) {
+                log.warn("[BB-WS] inbox overflow (capacity={}) — dropping oldest frames; " +
+                         "connection is receiving faster than it's being drained", MAX_INBOX);
+            }
         }
 
         @Override

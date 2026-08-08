@@ -10,9 +10,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.LongAdder;
 
 @Slf4j
 public class WsClientBorrowingPool implements SmartLifecycle {
+
+    // First N consecutive connect failures on a slot are logged at WARN; beyond that the
+    // slot is clearly flapping and every attempt has already been reported, so drop to DEBUG.
+    // Mirrors BetBoomParser.TIMEOUT_WARN_THRESHOLD.
+    private static final int RECONNECT_WARN_THRESHOLD = 3;
 
     private final WsPoolProperties props;
     private final ScheduledExecutorService scheduler =
@@ -21,6 +27,11 @@ public class WsClientBorrowingPool implements SmartLifecycle {
     private final List<Slot> slots;
     private final BlockingQueue<Integer> free;
     private final AtomicBoolean running = new AtomicBoolean(false);
+
+    // Cumulative, drained by WsPoolHealthLogger every reporting window.
+    private final LongAdder failureReconnects = new LongAdder();
+    private final LongAdder hygieneReconnects  = new LongAdder();
+    private final LongAdder framesDropped      = new LongAdder();
 
     public WsClientBorrowingPool(WsPoolProperties props) {
         this.props = Objects.requireNonNull(props);
@@ -46,12 +57,28 @@ public class WsClientBorrowingPool implements SmartLifecycle {
             log.warn("Pool: Connection #{} not ready after {} ms", id, leftMs);
             throw new TimeoutException("Connection #" + id + " not ready");
         }
-        return new WsLease(id, s.client, () -> free.offer(id), () -> reconnectClean(id));
+        return new WsLease(id, s.client, () -> handleReturn(id), () -> reconnectClean(id, "ws-timeout"));
     }
 
     public int size()      { return props.getMaxSize(); }
     public int connected() { return (int) slots.stream().filter(Slot::isConnected).count(); }
     public int available() { return free.size(); }
+
+    // ── observability (see WsPoolHealthLogger / WsPoolMetricsBinder) ───────────
+
+    /** Live snapshot — sum of all slots' current inbox backlog. */
+    public long totalInboxBacklog() {
+        long total = 0;
+        for (Slot s : slots) {
+            WsClient c = s.client;
+            if (c != null) total += c.inboxSize();
+        }
+        return total;
+    }
+
+    public long drainFailureReconnects() { return failureReconnects.sumThenReset(); }
+    public long drainHygieneReconnects()  { return hygieneReconnects.sumThenReset(); }
+    public long drainFramesDropped()      { return framesDropped.sumThenReset(); }
 
     @Override public void start() {
         if (!running.compareAndSet(false, true)) return;
@@ -91,12 +118,32 @@ public class WsClientBorrowingPool implements SmartLifecycle {
     }
 
     /**
-     * Reconnects a slot without counting it as a failure.
-     * Called when a lease is returned after use — resets server-side subscriptions
-     * that BetBoom keeps alive on the connection indefinitely.
+     * Normal lease return path (no error, no explicit reconnect requested). Recycles the slot
+     * instead of returning it to the free pool once it's carried enough traffic — see
+     * {@link WsPoolProperties#getRecycleAfterUses()} / {@link WsPoolProperties#getMaxConnectionAge()}.
      */
-    void reconnectClean(int slotId) {
+    private void handleReturn(int id) {
+        Slot s = slots.get(id);
+        int uses = ++s.useCount;
+        long ageMs = System.currentTimeMillis() - s.connectedAtMs;
+        if (uses >= props.getRecycleAfterUses() || ageMs >= props.getMaxConnectionAge().toMillis()) {
+            reconnectClean(id, "hygiene uses=" + uses + " ageMs=" + ageMs);
+        } else {
+            free.offer(id);
+        }
+    }
+
+    /**
+     * Reconnects a slot without counting it as a connectivity failure (no backoff, no WARN).
+     * Called either when a WS request times out with no matching reply (clears whatever
+     * server-side subscriptions accumulated on the connection) or by {@link #handleReturn} for
+     * routine hygiene recycling — BetBoom keeps subscriptions alive on a connection
+     * indefinitely, so periodically starting fresh bounds both subscription count and backlog.
+     */
+    void reconnectClean(int slotId, String reason) {
         if (!running.get()) return;
+        hygieneReconnects.increment();
+        log.debug("Pool: clean reconnect slot #{} ({})", slotId, reason);
         Slot s = slots.get(slotId);
         s.failures = 0;
         s.connect(0);
@@ -109,6 +156,8 @@ public class WsClientBorrowingPool implements SmartLifecycle {
         volatile WsClient client;
         volatile boolean connected = false;
         volatile int failures = 0;
+        volatile int useCount = 0;
+        volatile long connectedAtMs = 0L;
         volatile CountDownLatch readyOnce = new CountDownLatch(1);
         final AtomicBoolean reconnecting = new AtomicBoolean(false);
 
@@ -122,6 +171,17 @@ public class WsClientBorrowingPool implements SmartLifecycle {
             if (!running.get()) return;
             reconnecting.set(false);
             resetReadyLatch();
+            useCount = 0;
+            connectedAtMs = System.currentTimeMillis();
+
+            // Capture the outgoing client BEFORE it's replaced. Not closing it here was the
+            // root cause of the OOM this pool used to cause: `client = WsClient.builder()...`
+            // used to just overwrite the field, leaving the previous WebSocket connection open
+            // at the OS/JDK level with its listener still registered. BetBoom never stops
+            // pushing to a connection that's still technically alive, so that orphaned client's
+            // unbounded inbox kept growing for the rest of the process's life — once per
+            // reconnect (~10-30 per slot over 17h in production), each leak compounding.
+            WsClient previous = client;
 
             client = WsClient.builder()
                     .url(props.getUrl())
@@ -136,20 +196,21 @@ public class WsClientBorrowingPool implements SmartLifecycle {
                             free.offer(id);
                         }
                     })
-                    .onClose((code, reason) -> scheduleReconnect())
-                    .onError(err -> scheduleReconnect())
+                    .onClose((code, reason) -> scheduleReconnect(
+                            "closed code=" + code + " reason=" + reason))
+                    .onError(err -> scheduleReconnect(err.toString()))
+                    .onFrameDropped(framesDropped::increment)
                     .build();
+
+            if (previous != null) {
+                try { previous.abort(); } catch (Exception ignore) {}
+            }
 
             Duration helloTimeout = props.getConnectTimeout().plusSeconds(5);
             client.connectOrFail(helloTimeout)
                     .whenComplete((v, err) -> {
-                        if (err != null) {
-                            log.warn("Pool: connect failed slot #{}, attempt={}: {}", id, attempt, err.toString());
-                            scheduleReconnect();
-                        } else {
-                            connected = true;
-                            failures = 0;
-                        }
+                        if (err != null) scheduleReconnect(err.toString());
+                        else { connected = true; failures = 0; }
                     });
         }
 
@@ -158,10 +219,11 @@ public class WsClientBorrowingPool implements SmartLifecycle {
             return readyOnce.await(t, u);
         }
 
-        void scheduleReconnect() {
+        void scheduleReconnect(String cause) {
             if (!reconnecting.compareAndSet(false, true)) return; // only one reconnect at a time
             connected = false;
             failures++;
+            failureReconnects.increment();
             free.remove(id);
             long base = props.getBackoffBase().toMillis(), max = props.getBackoffMax().toMillis();
             long backoff    = Math.min(base * (1L << Math.min(6, failures)), max);
@@ -172,7 +234,12 @@ public class WsClientBorrowingPool implements SmartLifecycle {
                 reconnecting.set(false);
                 return;
             }
-            log.warn("Pool: scheduling reconnect slot #{}, failures={}, delay={} ms", id, failures, delay);
+            // First few consecutive failures are WARN-worthy; a slot that's been flapping for a
+            // while has already said its piece — keep logging it, just quieter, so a genuinely
+            // stuck connection is still visible via WsPoolHealthLogger's summary, not per-attempt spam.
+            String msg = "Pool: reconnecting slot #{} (failures={}, delay={} ms, cause={})";
+            if (failures <= RECONNECT_WARN_THRESHOLD) log.warn(msg, id, failures, delay, cause);
+            else log.debug(msg, id, failures, delay, cause);
             scheduler.schedule(() -> slots.get(id).connect(failures), delay, TimeUnit.MILLISECONDS);
         }
 

@@ -209,6 +209,12 @@ ws:
     ready-timeout: 10s
     backoff-base: 300ms
     backoff-max: 10s
+    # Hygiene recycle — BetBoom keeps server-side subscriptions alive on a connection
+    # indefinitely, so a slot that lives too long accumulates ever more background push
+    # traffic. Reconnecting before that becomes noticeable bounds the worst case. See
+    # WsClientBorrowingPool.handleReturn().
+    recycle-after-uses: 500
+    max-connection-age: 20m
     warmup:
       enabled: true
       min-ready: 2

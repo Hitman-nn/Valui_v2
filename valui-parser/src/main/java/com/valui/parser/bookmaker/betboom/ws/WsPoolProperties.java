@@ -21,6 +21,13 @@ public class WsPoolProperties {
     private Duration readyTimeout = Duration.ofSeconds(10);
     private Duration backoffBase = Duration.ofMillis(300);
     private Duration backoffMax = Duration.ofSeconds(10);
+    // Hygiene recycle: BetBoom keeps server-side subscriptions alive on a connection
+    // indefinitely, so a long-lived slot accumulates more and more background push traffic
+    // the longer it goes without a fresh connection. Recycling well before that becomes
+    // noticeable bounds both the subscription set and the backlog any one connection has to
+    // carry — same idea as HttpClientConfig's Reactor Netty maxLifeTime/maxIdleTime.
+    private int recycleAfterUses = 500;
+    private Duration maxConnectionAge = Duration.ofMinutes(20);
     private Warmup warmup = new Warmup();
 
     @Data
