@@ -38,6 +38,7 @@ public class AuthService {
      */
     public AuthResponse authenticate(AuthRequest request) {
         if (!authProperties.botSecret().equals(request.botSecret())) {
+            log.warn("Bot auth rejected: invalid botSecret for telegramId={}", request.telegramId());
             throw new ValuiException("Invalid bot secret", 401);
         }
 
@@ -67,7 +68,12 @@ public class AuthService {
      */
     public AuthResponse refresh(String refreshToken) {
         RefreshToken rt = refreshTokenRepository.findById(refreshToken)
-            .orElseThrow(() -> new ValuiException("Refresh token not found or expired", 401));
+            .orElseThrow(() -> {
+                // Common/benign for an expired session after normal TTL — DEBUG, not WARN.
+                log.debug("Refresh rejected: token not found or expired ({}...)",
+                        refreshToken.length() >= 8 ? refreshToken.substring(0, 8) : refreshToken);
+                return new ValuiException("Refresh token not found or expired", 401);
+            });
 
         UserEntity user = userService.findByTelegramId(rt.getTelegramId())
             .orElseThrow(() -> new UserNotFoundException(UUID.fromString(rt.getUserId())));
@@ -85,6 +91,7 @@ public class AuthService {
     public AuthResponse authenticateAdmin(AdminLoginRequest request) {
         if (authProperties.adminPassword() == null ||
                 !passwordEncoder.matches(request.adminPassword(), authProperties.adminPassword())) {
+            log.warn("Admin login rejected: bad password for telegramId={}", request.telegramId());
             throw new ValuiException("Invalid admin password", 401);
         }
 
@@ -92,6 +99,8 @@ public class AuthService {
             .orElseThrow(() -> new UserNotFoundException(request.telegramId()));
 
         if (user.getRole() != UserRole.ADMIN) {
+            log.warn("Admin login rejected: telegramId={} userId={} has role={} (not ADMIN)",
+                    request.telegramId(), user.getId(), user.getRole());
             throw new ValuiException("Access denied: not an admin", 403);
         }
 

@@ -8,6 +8,7 @@ import com.valui.common.domain.BetType;
 import com.valui.common.domain.SlipResult;
 import com.valui.common.entity.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class BettingServiceImpl implements BettingService {
@@ -108,7 +110,11 @@ public class BettingServiceImpl implements BettingService {
                     .build());
         }
 
-        return BetDto.from(betRepo.save(bet));
+        BetEntity saved = betRepo.save(bet);
+        log.info("[BET] Placed: id={} chatId={} type={} stake={} odds={} potential={} account={}",
+                saved.getId(), chatId, req.type(), req.totalStake(), totalOdds, potential,
+                account != null ? account.getId() : null);
+        return BetDto.from(saved);
     }
 
     // ── resolveBet ────────────────────────────────────────────────────────────
@@ -173,6 +179,7 @@ public class BettingServiceImpl implements BettingService {
         if (bet.getStatus() == BetStatus.OPEN && slip.getResult() == SlipResult.OPEN) {
             slip.setResult(result);
             slip.setResolvedAt(OffsetDateTime.now());
+            log.debug("[BET] Slip marked: betId={} sortOrder={} result={}", betId, slipSortOrder, result);
             tryAutoResolve(bet);
             return BetDto.from(betRepo.save(bet));
         }
@@ -216,6 +223,8 @@ public class BettingServiceImpl implements BettingService {
         }
         bet.setActualPayout(newPayoutRounded);
         bet.setUpdatedAt(OffsetDateTime.now());
+        log.info("[BET] Payout corrected: id={} chatId={} {} -> {} (diff={})",
+                betId, chatId, oldPayout, newPayoutRounded, diff);
         return BetDto.from(betRepo.save(bet));
     }
 
@@ -232,6 +241,7 @@ public class BettingServiceImpl implements BettingService {
         bet.setResolvedAt(OffsetDateTime.now());
         bet.setUpdatedAt(OffsetDateTime.now());
         bet.setActualPayout(BigDecimal.ZERO);
+        log.info("[BET] Cancelled: id={} chatId={}", betId, chatId);
         return BetDto.from(betRepo.save(bet));
     }
 
@@ -246,6 +256,8 @@ public class BettingServiceImpl implements BettingService {
             throw new SecurityException("Ставка не принадлежит этому чату");
         }
         betRepo.delete(bet);
+        // Hard delete, no audit trail elsewhere for this table — WARN so it stands out on a scan.
+        log.warn("[BET] Deleted: id={} chatId={} status={}", betId, chatId, bet.getStatus());
     }
 
     // ── queries ───────────────────────────────────────────────────────────────
@@ -429,6 +441,9 @@ public class BettingServiceImpl implements BettingService {
         bet.setUpdatedAt(OffsetDateTime.now());
         bet.setActualPayout(actualPayout);
 
+        log.info("[BET] Resolved: id={} chatId={} status={} payout={}",
+                bet.getId(), bet.getChatId(), status, actualPayout);
+
         BetAccountEntity account = bet.getAccount();
         if (account == null) return;
 
@@ -445,6 +460,7 @@ public class BettingServiceImpl implements BettingService {
             };
 
             if (delta.compareTo(BigDecimal.ZERO) == 0) continue;
+            log.debug("[BET] Balance delta: betId={} personId={} delta={}", bet.getId(), p.getPerson().getId(), delta);
             updatePersonBalance(account, p.getPerson(), delta);
         }
     }

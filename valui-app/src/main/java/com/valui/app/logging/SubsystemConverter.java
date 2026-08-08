@@ -23,19 +23,21 @@ public class SubsystemConverter extends CompositeConverter<ILoggingEvent> {
     private static final String BLUE    = "\033[34m";
     private static final String WHITE   = "\033[37m";
     private static final String DIM     = "\033[2m";
+    private static final String BRIGHT_GREEN = "\033[92m";
 
     @Override
     protected String transform(ILoggingEvent event, String ignored) {
         String logger = event.getLoggerName();
         if (logger == null) return tag("APP", WHITE);
 
-        if (logger.startsWith("com.valui.bot"))    return tag("BOT", CYAN);
-        if (logger.startsWith("com.valui.monitor"))return tag("MON", YELLOW);
-        if (logger.startsWith("com.valui.parser")) return tag("PAR", MAGENTA);
-        if (logger.startsWith("com.valui.user"))   return tag("USR", GREEN);
-        if (logger.startsWith("com.valui.notify")) return tag("NTF", BLUE);
-        if (logger.startsWith("com.valui.admin"))  return tag("ADM", WHITE);
-        if (logger.startsWith("com.valui"))        return tag("APP", DIM + WHITE);
+        if (logger.startsWith("com.valui.bot"))     return tag("BOT", CYAN);
+        if (logger.startsWith("com.valui.monitor")) return tag("MON", YELLOW);
+        if (logger.startsWith("com.valui.parser"))  return tag("PAR", MAGENTA);
+        if (logger.startsWith("com.valui.user"))    return tag("USR", GREEN);
+        if (logger.startsWith("com.valui.notify"))  return tag("NTF", BLUE);
+        if (logger.startsWith("com.valui.admin"))   return tag("ADM", WHITE);
+        if (logger.startsWith("com.valui.betting")) return tag("BET", BRIGHT_GREEN);
+        if (logger.startsWith("com.valui"))         return tag("APP", DIM + WHITE);
         return tag("SYS", DIM);
     }
 

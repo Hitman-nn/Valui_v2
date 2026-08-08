@@ -13,6 +13,7 @@ import com.valui.common.entity.BetAccountTransactionEntity;
 import com.valui.common.entity.BetPersonBalanceEntity;
 import com.valui.common.entity.BetPersonEntity;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ import java.util.NoSuchElementException;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class BetAccountServiceImpl implements BetAccountService {
@@ -48,7 +50,9 @@ public class BetAccountServiceImpl implements BetAccountService {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-        return BetAccountDto.from(repo.save(entity));
+        BetAccountEntity saved = repo.save(entity);
+        log.info("[BET] Account created: id={} chatId={} name={}", saved.getId(), chatId, saved.getName());
+        return BetAccountDto.from(saved);
     }
 
     @Override
@@ -63,6 +67,7 @@ public class BetAccountServiceImpl implements BetAccountService {
     public void delete(UUID accountId, long chatId) {
         BetAccountEntity e = requireAccount(accountId, chatId);
         repo.delete(e);
+        log.warn("[BET] Account deleted: id={} chatId={} name={}", accountId, chatId, e.getName());
     }
 
     @Override
@@ -100,6 +105,8 @@ public class BetAccountServiceImpl implements BetAccountService {
         bal.setBalance(bal.getBalance().add(delta));
         bal.setUpdatedAt(OffsetDateTime.now());
         balanceRepo.save(bal);
+        log.info("[BET] Balance adjusted: accountId={} personId={} delta={} newBalance={}",
+                accountId, personId, delta, bal.getBalance());
     }
 
     @Override
@@ -118,6 +125,7 @@ public class BetAccountServiceImpl implements BetAccountService {
         bal.setBalance(balance);
         bal.setUpdatedAt(OffsetDateTime.now());
         balanceRepo.save(bal);
+        log.info("[BET] Balance set: accountId={} personId={} balance={}", accountId, personId, balance);
     }
 
     @Override
@@ -125,6 +133,7 @@ public class BetAccountServiceImpl implements BetAccountService {
     public void removePersonBalance(UUID accountId, UUID personId, long chatId) {
         requireAccount(accountId, chatId);
         balanceRepo.deleteByAccountIdAndPersonId(accountId, personId);
+        log.info("[BET] Balance link removed: accountId={} personId={}", accountId, personId);
     }
 
     @Override
@@ -147,6 +156,7 @@ public class BetAccountServiceImpl implements BetAccountService {
                 .amount(amount)
                 .createdAt(OffsetDateTime.now())
                 .build());
+        log.info("[BET] Transaction recorded: accountId={} personId={} amount={}", accountId, personId, amount);
     }
 
     @Override
@@ -170,6 +180,8 @@ public class BetAccountServiceImpl implements BetAccountService {
                 .amount(delta)
                 .createdAt(OffsetDateTime.now())
                 .build());
+        log.info("[BET] Adjusted + recorded: accountId={} personId={} delta={} newBalance={}",
+                accountId, personId, delta, bal.getBalance());
     }
 
     @Override
