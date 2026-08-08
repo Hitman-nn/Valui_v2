@@ -2,6 +2,7 @@ package com.valui.app.logging;
 
 import com.valui.bot.vk.VkLinkService;
 import com.valui.common.domain.BookmakerType;
+import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.outbox.OutboxEventRepository;
 import com.valui.parser.bookmaker.betboom.ws.WsClientBorrowingPool;
 import com.valui.parser.bookmaker.fonbet.FonbetEndpointPool;
@@ -67,6 +68,7 @@ public class StartupLogger {
     private final FonbetEndpointPool            fonbetPool;
     private final ParserHealthService           parserHealth;
     private final VkLinkService                 vkLinkService;
+    private final MonitorProperties             monitorProps;
 
     public StartupLogger(Environment env,
                          Flyway flyway,
@@ -78,7 +80,8 @@ public class StartupLogger {
                          WsClientBorrowingPool wsPool,
                          FonbetEndpointPool fonbetPool,
                          ParserHealthService parserHealth,
-                         VkLinkService vkLinkService) {
+                         VkLinkService vkLinkService,
+                         MonitorProperties monitorProps) {
         this.env                  = env;
         this.flyway               = flyway;
         this.userRepository       = userRepository;
@@ -90,6 +93,7 @@ public class StartupLogger {
         this.fonbetPool           = fonbetPool;
         this.parserHealth         = parserHealth;
         this.vkLinkService        = vkLinkService;
+        this.monitorProps         = monitorProps;
     }
 
     /** Prints a separator when all beans are initialized but before ApplicationReadyEvent. */
@@ -158,6 +162,7 @@ public class StartupLogger {
             + "\n  " + lbl("Users")       + pad(users + " active", COL1_W) + lbl("Outbox")  + outbox
             + "\n  " + lbl("Controllers") + ctrls
             + "\n  " + lbl("Dedup TTL")   + dedupTtl + " min"
+            + "\n  " + lbl("Scheduler")   + schedulerConfig()
             + "\n" + SUB_LINE
 
             // ── parsers (one line per bookmaker) ──────────────────────────────
@@ -279,6 +284,24 @@ public class StartupLogger {
             return YELLOW + count + " pending  (oldest: " + age + ")" + RESET;
         } catch (Exception e) {
             log.debug("Outbox pending unavailable: {}", e.getMessage());
+            return "—";
+        }
+    }
+
+    /**
+     * DRR scheduler config actually in effect — including any override loaded from the DB by
+     * SchedulerConfigStore, which runs before this listener. Without this line, the only way to
+     * know the live maxConcurrentTasks/fetchBudgetMs was to go read application.yml (which may
+     * not reflect a DB override applied via the admin panel) or grep startup logs for
+     * DrrDispatcher's own line further down.
+     */
+    private String schedulerConfig() {
+        try {
+            return "maxConcurrent=" + monitorProps.getMaxConcurrentTasks()
+                    + "  defaultPollInterval=" + monitorProps.getDefaultPollIntervalSec() + "s"
+                    + "  fetchBudget=" + monitorProps.getFetchBudgetMs() + "ms";
+        } catch (Exception e) {
+            log.debug("Scheduler config unavailable: {}", e.getMessage());
             return "—";
         }
     }

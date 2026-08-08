@@ -46,6 +46,9 @@ public class KafkaBrokerHealthIndicator implements HealthIndicator, DisposableBe
 
             if (wasDown) {
                 wasDown = false;
+                // Recovery previously only reached the Telegram admin alert — invisible in
+                // application logs, only in the Telegram channel.
+                log.info("[KAFKA-HEALTH] Broker recovered — resuming normal operation");
                 adminNotificationService.alertAdmin(
                         "✅ *Kafka восстановлена*. Outbox-очередь будет доставлена автоматически.");
             }
@@ -53,13 +56,19 @@ public class KafkaBrokerHealthIndicator implements HealthIndicator, DisposableBe
 
         } catch (Exception e) {
             String msg = rootCause(e);
+            // health() is polled continuously by Spring Boot Actuator (k8s liveness/readiness,
+            // load balancer checks) — logging every single call at WARN during an outage would
+            // spam for the whole outage duration. Only the state transition into DOWN is
+            // WARN-worthy; repeat checks while already known-down stay at DEBUG.
             if (!wasDown) {
                 wasDown = true;
+                log.warn("[KAFKA-HEALTH] Broker check failed, entering DOWN state: {}", msg);
                 adminNotificationService.alertAdmin(
                         "⚠️ *Kafka недоступна*: " + msg
                         + "\nOutbox активен — потерь нет. Доставка возобновится автоматически.");
+            } else {
+                log.debug("[KAFKA-HEALTH] Broker still down: {}", msg);
             }
-            log.warn("[KAFKA-HEALTH] Broker check failed: {}", msg);
             return Health.down()
                     .withDetail("error", msg)
                     .withDetail("impact", "outbox retries active, no message loss")

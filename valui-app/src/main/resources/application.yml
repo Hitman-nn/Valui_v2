@@ -176,9 +176,14 @@ valui:
     group-id: ${VK_GROUP_ID:0}
 
   monitor:
-    poll-interval-ms: 30000         # legacy — kept for reference
+    # DEAD CONFIG — poll-interval-ms binds to no field on MonitorProperties (no such property
+    # exists); max-tasks-per-user binds to a real field but nothing in DrrDispatcher/scheduler
+    # ever reads it — per-user fairness comes entirely from DRR weight (default-user-weight
+    # below), not a hard per-user cap. Both keys are safe to delete; kept only so a future
+    # reader isn't misled into thinking either is live.
+    poll-interval-ms: 30000
+    max-tasks-per-user: 30
     max-concurrent-tasks: 100        # global VT task cap
-    max-tasks-per-user: 30           # anti-abuse per-user cap
     default-poll-interval-sec: 20   # fallback when controller.pollIntervalSec is null
   admin:
     api-key: ${ADMIN_API_KEY:change-me}
