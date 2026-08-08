@@ -59,9 +59,12 @@ public class NotificationDispatcher {
         // Telegram editMessageText is idempotent, so replaying this record (Kafka rebalance
         // before offset commit) just re-edits the same message — safe.
         if (request.editMessageId() != null) {
-            dispatchService.edit(request);
-            log.debug("[DISPATCH] Edit delivered chatId={} messageId={}",
-                    request.telegramId(), request.editMessageId());
+            // edit() itself now reports the true outcome — it used to be asserted here
+            // unconditionally ("Edit delivered") even though edit() is best-effort and
+            // swallows all Telegram-side failures internally.
+            boolean edited = dispatchService.edit(request);
+            log.debug("[DISPATCH] Edit {} chatId={} messageId={}",
+                    edited ? "delivered" : "failed", request.telegramId(), request.editMessageId());
             return;
         }
 
@@ -85,7 +88,10 @@ public class NotificationDispatcher {
             if (userId != null) {
                 int cost = tokenLedgerService.getCost("NOTIFICATION_SENT");
                 if (!tokenLedgerService.tryDebit(userId, cost, TokenReasonCode.NOTIFICATION_SENT, null)) {
-                    log.debug("[DISPATCH] Zero balance — skipping");
+                    // A real business outcome (user paid nothing and got no notification), not
+                    // routine plumbing — was DEBUG, invisible in prod (com.valui is INFO there).
+                    log.atInfo().addKeyValue("userId", userId)
+                       .log("[DISPATCH] Skipped — zero token balance");
                     if (logId != null) logService.markFailed(logId, "Zero token balance");
                     return;
                 }
@@ -131,7 +137,12 @@ public class NotificationDispatcher {
                     }
                 }
             } catch (Exception e) {
-                log.atWarn()
+                // DEBUG not WARN: deadLetterPublisher.publishToDlq() below immediately logs the
+                // same failure at WARN/ERROR with the routing decision (which tier, attempt
+                // count) — this used to double every single dispatch failure into two WARN
+                // lines. Kept at DEBUG (not removed) since errorType is useful detail the
+                // DeadLetterPublisher line doesn't carry.
+                log.atDebug()
                    .addKeyValue("channel", request.channel())
                    .addKeyValue("errorType", e.getClass().getSimpleName())
                    .log("[DISPATCH] Dispatch failed: {}", e.getMessage());

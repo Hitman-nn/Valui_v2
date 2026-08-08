@@ -83,11 +83,11 @@ public class VkRetryTopicConsumer {
                     vkSender.dispatch(request.vkPeerId(), request.messageText(), randomId);
                     log.info("[VK-RETRY] Delivered");
                 } catch (RetryableNotificationException e) {
-                    log.atWarn().addKeyValue("retryable", e.isRetryable())
+                    log.atDebug().addKeyValue("retryable", e.isRetryable())
                        .log("[VK-RETRY] Failed: {}", e.getMessage());
                     deadLetterPublisher.publishToDlq(record, e);
                 } catch (Exception e) {
-                    log.atWarn().addKeyValue("errorType", e.getClass().getSimpleName())
+                    log.atDebug().addKeyValue("errorType", e.getClass().getSimpleName())
                        .log("[VK-RETRY] Unexpected error: {}", e.getMessage());
                     deadLetterPublisher.publishToDlq(record,
                             new RetryableNotificationException(e.getMessage(), e, true, 0));

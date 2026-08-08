@@ -78,13 +78,16 @@ public class TelegramNotificationSender implements NotificationSender {
 
     /**
      * Edits an already-sent notification message in-place.
-     * Best-effort: logs and returns null on failure without throwing.
+     * Best-effort: logs and returns {@code false} on failure without throwing — the caller
+     * (NotificationDispatcher) uses the return value so its own log line states the true
+     * outcome instead of unconditionally claiming "delivered".
      *
      * @param chatId    target chat
      * @param messageId Telegram message_id to edit
      * @param request   new content (text + keyboard rebuilt from the same Redis keys)
+     * @return true if the edit succeeded
      */
-    public void editNotification(long chatId, int messageId, UserNotificationRequestMessage request) {
+    public boolean editNotification(long chatId, int messageId, UserNotificationRequestMessage request) {
         try {
             InlineKeyboardMarkup keyboard = buildKeyboard(request);
 
@@ -99,12 +102,15 @@ public class TelegramNotificationSender implements NotificationSender {
 
             absSender.execute(builder.build());
             log.debug("[DEDUP] Edited Telegram message chatId={} messageId={}", chatId, messageId);
+            return true;
         } catch (TelegramApiRequestException ex) {
             // Message too old, bot blocked, or message content unchanged — all non-fatal
             log.warn("[DEDUP] Edit failed chatId={} messageId={}: {} (code={})",
                     chatId, messageId, ex.getMessage(), ex.getErrorCode());
+            return false;
         } catch (Exception ex) {
             log.warn("[DEDUP] Edit failed chatId={} messageId={}: {}", chatId, messageId, ex.getMessage());
+            return false;
         }
     }
 
@@ -113,6 +119,9 @@ public class TelegramNotificationSender implements NotificationSender {
     private Integer doSend(Long chatId, SendMessage message) throws Exception {
         long waitMs = rateLimiter.tryAcquire(chatId);
         if (waitMs > 0) {
+            // Per-window throttling (the common, non-pathological case) was previously invisible
+            // even at DEBUG — only the "still blocked after sleeping" escalation below was logged.
+            log.debug("[DISPATCH] Rate limit hit chatId={}, sleeping before retry (waitMs={})", chatId, waitMs);
             // Rate window resets in waitMs — sleep locally then retry once.
             // Safe on Java 21 virtual threads: no platform thread is blocked.
             // Jitter distributes concurrent waiters to avoid thundering herd on window reset.
@@ -122,21 +131,24 @@ public class TelegramNotificationSender implements NotificationSender {
             if (waitMs > 0) {
                 // Still blocked after sleep (concurrent send consumed the window) — fall back to Kafka retry
                 stats.incRateLimitBackoff();
-                log.warn("Rate limit hit chatId={} — throwing for Kafka retry", chatId);
+                log.warn("[DISPATCH] Rate limit hit chatId={} — throwing for Kafka retry", chatId);
                 throw new RuntimeException("Telegram rate limit exceeded for chatId=" + chatId);
             }
         }
 
         try {
             Message sent = absSender.execute(message);
-            log.debug("Telegram notification sent to chatId={}", chatId);
+            log.debug("[DISPATCH] Telegram notification sent to chatId={}", chatId);
             return sent != null ? sent.getMessageId() : null;
         } catch (TelegramApiRequestException ex) {
-            if (ex.getErrorCode() != null && ex.getErrorCode() == 429) {
-                log.warn("Telegram 429 for chatId={} — throwing for Kafka retry (raw: {})",
-                        chatId, ex.getApiResponse());
-                throw ex;
-            }
+            // Previously only 429 was logged here — 400 (malformed message) and 403 (bot
+            // blocked / chat not found) are exactly the two non-retryable codes per
+            // NotificationRetryPolicy, i.e. the codes responsible for a message being
+            // permanently undeliverable, and neither the error code nor the raw API response
+            // was ever logged anywhere in the whole dispatch chain for those. Log unconditionally
+            // now, covering every code (renders the old 429-only branch redundant).
+            log.warn("[DISPATCH] Telegram API error chatId={} errorCode={} apiResponse={}: {}",
+                    chatId, ex.getErrorCode(), ex.getApiResponse(), ex.getMessage());
             throw ex;
         }
     }

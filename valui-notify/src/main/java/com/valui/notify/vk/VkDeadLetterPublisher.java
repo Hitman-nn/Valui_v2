@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.Header;
+import org.slf4j.MDC;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -61,20 +62,39 @@ public class VkDeadLetterPublisher {
             target = KafkaTopics.VK_NOTIFICATIONS_DLQ_FINAL;
             redisTemplate.opsForValue().increment(DLQ_FINAL_COUNTER_KEY);
             stats.incVkDlqFinal();
-            log.error("[VK-DLQ-FINAL] Permanently failed after {} retries: topic={} error={}",
-                    currentCount, original.topic(), ex.getMessage());
+            // Structured (addKeyValue) to match DeadLetterPublisher's Telegram-side style —
+            // field-filterable in the JSON/Loki output this project ships (LogstashEncoder),
+            // unlike plain positional templating. setCause(ex): same reasoning as the Telegram
+            // side — RetryableNotificationException already carries the original exception as
+            // its cause, so this recovers the stack trace for genuinely unexpected VK errors.
+            log.atError()
+               .addKeyValue("retries", currentCount)
+               .addKeyValue("originalTopic", original.topic())
+               .addKeyValue("retryable", ex.isRetryable())
+               .setCause(ex)
+               .log("[VK-DLQ-FINAL] Permanently failed: {}", ex.getMessage());
             alertDlqFinal(currentCount, ex.getMessage());
         } else {
             target = RETRY_TOPICS[newCount - 1];
             stats.incVkDlqRetry();
-            log.warn("[VK-DLQ] Routing to {} (attempt {}/{}): {}", target, newCount, MAX_RETRIES, ex.getMessage());
+            log.atWarn()
+               .addKeyValue("target", target)
+               .addKeyValue("attempt", newCount)
+               .addKeyValue("maxRetries", MAX_RETRIES)
+               .log("[VK-DLQ] Routing to retry tier: {}", ex.getMessage());
         }
 
         ProducerRecord<String, Object> out = buildRecord(target, original, newCount, ex);
+        // Same MDC-loss bug as the Telegram-side DeadLetterPublisher: this callback runs on the
+        // Kafka producer I/O thread, which doesn't inherit thread-local MDC.
+        String logIdForCallback = MDC.get("logId");
         kafkaTemplate.send(out)
                 .whenComplete((r, sendEx) -> {
                     if (sendEx != null) {
-                        log.error("[VK-DLQ] Failed to publish to {}: {}", target, sendEx.getMessage());
+                        log.atError().addKeyValue("logId", logIdForCallback)
+                           .addKeyValue("target", target)
+                           .addKeyValue("originalTopic", original.topic())
+                           .log("[VK-DLQ] Failed to publish to retry topic: {}", sendEx.getMessage());
                     }
                 });
     }

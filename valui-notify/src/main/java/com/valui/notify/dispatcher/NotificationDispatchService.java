@@ -6,6 +6,7 @@ import com.valui.notify.sender.EmailNotificationSender;
 import com.valui.notify.sender.TelegramNotificationSender;
 import com.valui.notify.sender.WebhookNotificationSender;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
  * TELEGRAM channel uses {@link TelegramNotificationSender#sendNotification} which
  * attaches inline keyboard buttons when the message carries quick-add or URL metadata.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationDispatchService {
@@ -39,10 +41,19 @@ public class NotificationDispatchService {
     /**
      * Edits an already-sent Telegram message in-place (best-effort, no exception thrown).
      * Only applicable to TELEGRAM channel.
+     *
+     * @return true if the edit was actually attempted and succeeded; false if skipped
+     *         (non-Telegram channel, or missing routing info) or if the attempt failed
      */
-    public void edit(UserNotificationRequestMessage request) {
-        if (!NotificationChannel.TELEGRAM.name().equals(request.channel())) return;
-        if (request.editMessageId() == null || request.telegramId() == null) return;
-        telegramSender.editNotification(request.telegramId(), request.editMessageId(), request);
+    public boolean edit(UserNotificationRequestMessage request) {
+        if (!NotificationChannel.TELEGRAM.name().equals(request.channel())) return false;
+        if (request.editMessageId() == null || request.telegramId() == null) {
+            // Reaching this branch at all means the caller already decided editMessageId() was
+            // non-null (that's how it routed here) — telegramId() being null despite that is
+            // an anomaly worth a trace, not a routine no-op.
+            log.warn("[DISPATCH] Edit skipped — telegramId is null, logId={}", request.notificationLogId());
+            return false;
+        }
+        return telegramSender.editNotification(request.telegramId(), request.editMessageId(), request);
     }
 }

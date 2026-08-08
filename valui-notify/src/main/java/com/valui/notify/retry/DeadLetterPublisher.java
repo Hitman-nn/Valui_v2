@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.Header;
+import org.slf4j.MDC;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -64,10 +65,20 @@ public class DeadLetterPublisher {
             target = KafkaTopics.NOTIFICATIONS_DLQ_FINAL;
             redisTemplate.opsForValue().increment(DLQ_FINAL_COUNTER_KEY);
             stats.incDlqFinal();
+            // setCause(ex): RetryableNotificationException already carries the original
+            // exception as its cause (see NotificationRetryPolicy.classify) — every intermediate
+            // consumer (Dispatcher, RetryTopicConsumer×3) only ever logged ex.getMessage(),
+            // discarding the stack trace at each of those 4 opportunities. Attaching it once
+            // here, at the terminal failure, is enough to recover it for genuinely unexpected
+            // bugs (as opposed to well-understood Telegram/VK API errors) without needing every
+            // upstream tier to also do it — and without printing a full trace on every one of
+            // the 3 non-terminal retry attempts below, which would just be noise.
             log.atError()
                .addKeyValue("retries", currentCount)
                .addKeyValue("originalTopic", original.topic())
                .addKeyValue("retryable", ex.isRetryable())
+               .addKeyValue("retryAfterMs", ex.retryAfterMs())
+               .setCause(ex)
                .log("[DLQ-FINAL] Permanently failed: {}", ex.getMessage());
             alertDlqFinal(currentCount, ex.getMessage());
         } else {
@@ -77,14 +88,22 @@ public class DeadLetterPublisher {
                .addKeyValue("target", target)
                .addKeyValue("attempt", newCount)
                .addKeyValue("maxRetries", MAX_RETRIES)
+               .addKeyValue("retryAfterMs", ex.retryAfterMs())
                .log("[DLQ] Routing to retry tier: {}", ex.getMessage());
         }
 
         ProducerRecord<String, Object> out = buildRecord(target, original, newCount, ex);
+        // MDC (logId etc.) is thread-local — kafkaTemplate.send()'s callback runs on the Kafka
+        // producer I/O thread, not this one, so it wouldn't inherit it. Capture explicitly:
+        // without this, a failure to even reach the next retry tier was logged with zero way to
+        // tell which notification it was.
+        String logIdForCallback = MDC.get("logId");
         kafkaTemplate.send(out)
                 .whenComplete((r, sendEx) -> {
                     if (sendEx != null) {
-                        log.atError().addKeyValue("target", target)
+                        log.atError().addKeyValue("logId", logIdForCallback)
+                           .addKeyValue("target", target)
+                           .addKeyValue("originalTopic", original.topic())
                            .log("[DLQ] Failed to publish to retry topic: {}", sendEx.getMessage());
                     }
                 });

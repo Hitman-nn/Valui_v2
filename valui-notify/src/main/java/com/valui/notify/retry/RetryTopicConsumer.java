@@ -81,8 +81,14 @@ public class RetryTopicConsumer {
             }
 
             UUID logId = KafkaNotifyUtil.parseLogId(request.notificationLogId());
+            // chatId/channel: previously only logId/kafkaTopic were in MDC here — once a message
+            // entered the retry ladder, every subsequent log line lost the ability to be grepped
+            // by chatId, the more common thing an operator actually has when investigating "why
+            // didn't chat X get its notification."
             try (var logCtx   = MDC.putCloseable("logId",      logId != null ? logId.toString() : "");
-                 var topicCtx = MDC.putCloseable("kafkaTopic", record.topic())) {
+                 var topicCtx = MDC.putCloseable("kafkaTopic", record.topic());
+                 var chatCtx  = MDC.putCloseable("chatId", String.valueOf(request.telegramId()));
+                 var chanCtx  = MDC.putCloseable("channel", String.valueOf(request.channel()))) {
                 if (logId != null && logService.isAlreadySent(logId)) {
                     log.debug("[RETRY] Already sent — skipping");
                     return;
@@ -90,10 +96,13 @@ public class RetryTopicConsumer {
                 try {
                     dispatchService.dispatch(request);
                     if (logId != null) logService.markSent(logId);
-                    log.info("[RETRY] Delivered");
+                    log.atInfo().addKeyValue("channel", request.channel()).log("[RETRY] Delivered");
                 } catch (Exception e) {
                     RetryableNotificationException rne = retryPolicy.classify(e);
-                    log.atWarn()
+                    // DEBUG not WARN — publishToDlq() immediately logs the same failure with the
+                    // routing decision; without this, a message failing all 3 retry tiers logged
+                    // 6 WARN lines (3 here + 3 in DeadLetterPublisher) for one conceptual failure.
+                    log.atDebug()
                        .addKeyValue("retryable", rne.isRetryable())
                        .log("[RETRY] Failed: {}", e.getMessage());
                     deadLetterPublisher.publishToDlq(record, rne);

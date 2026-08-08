@@ -13,6 +13,7 @@ public class WebhookNotificationSender implements NotificationSender {
 
     @Override
     public void send(Long userId, String messageText) {
-        log.info("[WEBHOOK STUB] userId={} message='{}'", userId, messageText);
+        // DEBUG not INFO — see EmailNotificationSender for the same reasoning.
+        log.debug("[WEBHOOK STUB] userId={} message='{}'", userId, messageText);
     }
 }

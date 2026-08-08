@@ -71,6 +71,11 @@ public class VkApiClient {
         } catch (RetryableNotificationException e) {
             throw e;
         } catch (Exception e) {
+            // Previously silent at this layer (network error, JSON parse failure) — only
+            // surfaced one layer up via the wrapped exception's message, losing the exception
+            // type. The JSON-error branch above already logs at WARN; this covers the transport
+            // failure case the same way.
+            log.warn("[VK] messages.send transport error peerId={}: {}", peerId, e.toString());
             throw new RetryableNotificationException(
                     "VK HTTP error peerId=" + peerId + ": " + e.getMessage(), e, true, 0);
         }

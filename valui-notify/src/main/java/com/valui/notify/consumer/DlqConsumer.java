@@ -66,7 +66,9 @@ public class DlqConsumer {
 
             UUID logId = KafkaNotifyUtil.parseLogId(request.notificationLogId());
             try (var logCtx   = MDC.putCloseable("logId",      logId != null ? logId.toString() : "");
-                 var topicCtx = MDC.putCloseable("kafkaTopic", record.topic())) {
+                 var topicCtx = MDC.putCloseable("kafkaTopic", record.topic());
+                 var chatCtx  = MDC.putCloseable("chatId", String.valueOf(request.telegramId()));
+                 var chanCtx  = MDC.putCloseable("channel", String.valueOf(request.channel()))) {
                 if (logId != null && logService.isAlreadySent(logId)) {
                     log.debug("[DLQ] Already sent — skipping");
                     return;
@@ -78,9 +80,12 @@ public class DlqConsumer {
                        .addKeyValue("channel", request.channel())
                        .log("[DLQ] 5-min retry succeeded");
                 } catch (Exception e) {
-                    log.atError()
+                    // DEBUG not ERROR: deadLetterPublisher.publishToDlq() below immediately logs
+                    // this same terminal failure at ERROR with setCause(ex) (same exception,
+                    // since RetryableNotificationException wraps it) — this used to print the
+                    // full stack trace twice at ERROR level for one conceptual failure.
+                    log.atDebug()
                        .addKeyValue("userId", request.userId())
-                       .setCause(e)
                        .log("[DLQ] Final attempt failed: {}", e.getMessage());
                     if (logId != null) logService.markFailed(logId, e.getMessage());
                     RetryableNotificationException rne = retryPolicy.classify(e);

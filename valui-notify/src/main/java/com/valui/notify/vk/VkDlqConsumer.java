@@ -67,10 +67,12 @@ public class VkDlqConsumer {
                     vkSender.dispatch(request.vkPeerId(), request.messageText(), randomId);
                     log.info("[VK-DLQ] 5-min retry succeeded");
                 } catch (RetryableNotificationException e) {
-                    log.atError().setCause(e).log("[VK-DLQ] Final attempt failed: {}", e.getMessage());
+                    // DEBUG not ERROR — publishToDlq() immediately logs this same terminal
+                    // failure at ERROR with setCause(ex), same exception either way.
+                    log.atDebug().log("[VK-DLQ] Final attempt failed: {}", e.getMessage());
                     deadLetterPublisher.publishToDlq(record, e);
                 } catch (Exception e) {
-                    log.atError().addKeyValue("errorType", e.getClass().getSimpleName()).setCause(e)
+                    log.atDebug().addKeyValue("errorType", e.getClass().getSimpleName())
                        .log("[VK-DLQ] Unexpected error: {}", e.getMessage());
                     deadLetterPublisher.publishToDlq(record,
                             new RetryableNotificationException(e.getMessage(), e, true, 0));

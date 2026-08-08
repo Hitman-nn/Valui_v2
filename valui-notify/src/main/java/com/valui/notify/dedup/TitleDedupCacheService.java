@@ -62,7 +62,7 @@ public class TitleDedupCacheService {
             if (json == null) return Optional.empty();
             return Optional.of(objectMapper.readValue(json, TitleDedupEntry.class));
         } catch (Exception e) {
-            log.warn("[DEDUP] Failed to read entry for key={}: {}", dedupKey, e.getMessage());
+            log.warn("[DEDUP] Failed to read entry for key={}: {}", dedupKey, e.getMessage(), e);
             return Optional.empty();
         }
     }
@@ -78,7 +78,7 @@ public class TitleDedupCacheService {
                     objectMapper.writeValueAsString(entry),
                     ttl);
         } catch (JsonProcessingException e) {
-            log.warn("[DEDUP] Failed to store entry for key={}: {}", dedupKey, e.getMessage());
+            log.warn("[DEDUP] Failed to store entry for key={}: {}", dedupKey, e.getMessage(), e);
         }
     }
 

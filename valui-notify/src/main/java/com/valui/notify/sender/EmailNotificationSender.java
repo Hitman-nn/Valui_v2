@@ -13,6 +13,9 @@ public class EmailNotificationSender implements NotificationSender {
 
     @Override
     public void send(Long userId, String messageText) {
-        log.info("[EMAIL STUB] userId={} message='{}'", userId, messageText);
+        // DEBUG not INFO: this is a stub firing for every EMAIL-channel notification and logging
+        // the full message body — at INFO (com.valui is INFO in prod) that's guaranteed spam
+        // plus needless content exposure in logs for a channel nobody's actually reading.
+        log.debug("[EMAIL STUB] userId={} message='{}'", userId, messageText);
     }
 }
