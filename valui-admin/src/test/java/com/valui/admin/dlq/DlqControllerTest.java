@@ -1,5 +1,6 @@
 package com.valui.admin.dlq;
 
+import com.valui.admin.security.ValuiPrincipal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -10,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.*;
@@ -17,6 +19,9 @@ import static org.mockito.BDDMockito.*;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("DlqController — unit tests")
 class DlqControllerTest {
+
+    private static final ValuiPrincipal PRINCIPAL =
+            new ValuiPrincipal(UUID.randomUUID(), 55086685L, "ADMIN", null);
 
     @Mock DlqReplayService replayService;
 
@@ -29,7 +34,7 @@ class DlqControllerTest {
     void replay_returnsReplayedCount() {
         given(replayService.replay()).willReturn(5L);
 
-        ResponseEntity<Map<String, Object>> response = controller.replay();
+        ResponseEntity<Map<String, Object>> response = controller.replay(PRINCIPAL);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).containsEntry("replayed", 5L);
@@ -41,7 +46,7 @@ class DlqControllerTest {
     void replay_noMessages_returnsZero() {
         given(replayService.replay()).willReturn(0L);
 
-        ResponseEntity<Map<String, Object>> response = controller.replay();
+        ResponseEntity<Map<String, Object>> response = controller.replay(PRINCIPAL);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).containsEntry("replayed", 0L);
@@ -52,7 +57,7 @@ class DlqControllerTest {
     void replay_callsServiceOnce() {
         given(replayService.replay()).willReturn(0L);
 
-        controller.replay();
+        controller.replay(PRINCIPAL);
 
         verify(replayService, times(1)).replay();
     }

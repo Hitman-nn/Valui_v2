@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -48,12 +49,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
+
+            // Trustworthy admin-identity MDC key, distinct from MdcFilter's "userId" (which is
+            // populated straight from a client-supplied X-User-Id header and can be spoofed —
+            // fine for generic request correlation, not for an audit trail). This one comes from
+            // a verified JWT, so every admin log line for this request can be attributed for
+            // real. Cleared in finally so it never leaks onto a pooled thread's next request.
+            if (principal.telegramId() != null) {
+                MDC.put("adminTelegramId", principal.telegramId().toString());
+            }
         } catch (JwtException e) {
             // Leave SecurityContext empty — Spring Security will return 401
             log.debug("JWT rejected for {}: {}", request.getServletPath(), e.getMessage());
         }
 
-        chain.doFilter(request, response);
+        try {
+            chain.doFilter(request, response);
+        } finally {
+            MDC.remove("adminTelegramId");
+        }
     }
 
     /** Skip filtering for public paths — avoids unnecessary token parsing overhead. */

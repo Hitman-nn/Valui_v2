@@ -1,5 +1,6 @@
 package com.valui.admin.dlq;
 
+import com.valui.common.annotation.Audit;
 import com.valui.common.kafka.KafkaTopics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,11 +48,15 @@ public class DlqReplayService {
 
     /**
      * Drains dlq.final → re-publishes each record to its original topic.
-     * @return number of replayed messages
+     * {@code kafkaTemplate.send()} is async and fire-and-forget — per-message failures are
+     * logged individually as they complete, but the returned count is how many were dispatched
+     * to the producer, not how many were confirmed delivered.
+     * @return number of messages dispatched for re-publish
      */
+    @Audit(action = "DLQ_REPLAY", entityType = "Kafka")
     public long replay() {
         Properties props = buildConsumerProps();
-        long replayed = 0;
+        long dispatched = 0;
 
         try (KafkaConsumer<String, Object> consumer = new KafkaConsumer<>(props)) {
             List<TopicPartition> partitions = getPartitions(consumer, KafkaTopics.NOTIFICATIONS_DLQ_FINAL);
@@ -76,8 +81,16 @@ public class DlqReplayService {
                     // Copy all headers so consumer receives full context
                     record.headers().forEach(h -> out.headers().add(h));
 
-                    kafkaTemplate.send(out);
-                    replayed++;
+                    // send() is fire-and-forget — the returned future was previously never
+                    // checked, so a silent broker hiccup mid-replay would inflate the reported
+                    // count above what actually got re-published, with zero trace anywhere.
+                    kafkaTemplate.send(out).whenComplete((r, ex) -> {
+                        if (ex != null) {
+                            log.error("[DLQ-REPLAY] Failed to republish key={} targetTopic={}: {}",
+                                    record.key(), targetTopic, ex.getMessage(), ex);
+                        }
+                    });
+                    dispatched++;
                 }
 
                 // Stop when we've reached the end offsets captured before polling
@@ -90,12 +103,15 @@ public class DlqReplayService {
         }
 
         // Reset the accumulation counter
-        if (replayed > 0) {
+        if (dispatched > 0) {
             redisTemplate.opsForValue().set(DLQ_FINAL_COUNTER, "0");
-            redisTemplate.opsForValue().increment(REPLAYED_COUNTER, replayed);
+            redisTemplate.opsForValue().increment(REPLAYED_COUNTER, dispatched);
         }
-        log.info("[DLQ-REPLAY] Replayed {} messages from dlq.final", replayed);
-        return replayed;
+        // "Dispatched" not "replayed": send() above is async — this count is how many were
+        // handed to the producer, not how many were confirmed delivered. Per-message failures
+        // are logged individually above as they complete.
+        log.info("[DLQ-REPLAY] Dispatched {} messages from dlq.final for re-publish (async send)", dispatched);
+        return dispatched;
     }
 
     public DlqStatsDto stats() {
@@ -132,7 +148,7 @@ public class DlqReplayService {
                     .map(pi -> new TopicPartition(pi.topic(), pi.partition()))
                     .toList();
         } catch (Exception e) {
-            log.error("[DLQ-REPLAY] Failed to list partitions for {}: {}", topic, e.getMessage());
+            log.error("[DLQ-REPLAY] Failed to list partitions for {}: {}", topic, e.getMessage(), e);
             return List.of();
         }
     }

@@ -1,6 +1,8 @@
 package com.valui.admin.scheduler;
 
 import com.valui.admin.scheduler.dto.*;
+import com.valui.admin.security.CurrentUser;
+import com.valui.admin.security.ValuiPrincipal;
 import com.valui.common.entity.ControllerEntity;
 import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.history.PollHistoryHourlyDto;
@@ -14,6 +16,7 @@ import com.valui.monitor.scheduler.job.JobRegistry;
 import com.valui.user.api.ControllerPortService;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -69,7 +72,12 @@ public class AdminSchedulerController {
 
     @PatchMapping("/config")
     @Operation(summary = "Обновить конфигурацию (сохраняется в БД, выживает перезапуск)")
-    public SchedulerConfigDto updateConfig(@RequestBody SchedulerConfigUpdateRequest req) {
+    public SchedulerConfigDto updateConfig(@RequestBody SchedulerConfigUpdateRequest req,
+                                           @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        // Live-mutates concurrency/poll-interval config affecting every controller poll in prod —
+        // logging only the new state (as before) makes it impossible to tell what actually
+        // changed just from the log. Diff + adminId now both captured.
+        SchedulerConfigDto before = getConfig();
         if (req.maxConcurrentTasks()     != null) props.setMaxConcurrentTasks(req.maxConcurrentTasks());
         if (req.defaultPollIntervalSec() != null) props.setDefaultPollIntervalSec(req.defaultPollIntervalSec());
         if (req.fetchBudgetMs()          != null) props.setFetchBudgetMs(req.fetchBudgetMs());
@@ -77,8 +85,10 @@ public class AdminSchedulerController {
         if (req.deferJitterMs()          != null) props.setDeferJitterMs(req.deferJitterMs());
         if (req.defaultUserWeight()      != null) props.setDefaultUserWeight(req.defaultUserWeight());
         configStore.save();
-        log.info("[SCHEDULER] Config updated and persisted: {}", getConfig());
-        return getConfig();
+        SchedulerConfigDto after = getConfig();
+        log.info("[SCHEDULER] Config updated by adminTelegramId={}: {} -> {}",
+                principal.telegramId(), before, after);
+        return after;
     }
 
     // ── Stats ─────────────────────────────────────────────────────────────────

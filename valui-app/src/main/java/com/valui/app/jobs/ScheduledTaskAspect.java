@@ -1,6 +1,7 @@
 package com.valui.app.jobs;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
  *
  * Key format: {@code ClassName.methodName} — e.g. {@code DedupSyncScheduler.sync}.
  */
+@Slf4j
 @Aspect
 @Component
 @RequiredArgsConstructor
@@ -30,6 +32,11 @@ public class ScheduledTaskAspect {
             return result;
         } catch (Throwable t) {
             String msg = t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
+            // Without this, the only log trace of a @Scheduled failure was Spring's default
+            // TaskUtils.LoggingErrorHandler — which logs the stack trace but not which task
+            // (there's no taskKey field on it), making it impossible to tell which of the many
+            // @Scheduled methods in this codebase actually failed without reading the trace.
+            log.error("[SCHEDULED-TASK] {} failed after {}ms: {}", key, System.currentTimeMillis() - start, msg, t);
             tracker.record(key, System.currentTimeMillis() - start, false, msg);
             throw t;
         }

@@ -100,7 +100,7 @@ public class AdminParsersController {
             return ResponseEntity.ok(new TestParseResult(true, items.size(), sample, null, latency));
         } catch (Exception e) {
             long latency = System.currentTimeMillis() - start;
-            log.warn("[ADMIN] Test parse failed for bk={} url={}: {}", bk, req.url(), e.getMessage());
+            log.warn("[ADMIN-PARSER] Test parse failed: bookmaker={} url={}: {}", bk, req.url(), e.getMessage(), e);
             return ResponseEntity.ok(new TestParseResult(false, 0, List.of(), e.getMessage(), latency));
         }
     }
@@ -114,18 +114,23 @@ public class AdminParsersController {
             return ResponseEntity.badRequest().body(
                 new TestParseResult(false, 0, List.of(), "Unknown bookmaker: " + bookmaker, 0));
         }
+        log.info("[ADMIN-PARSER] Manual poll triggered: bookmaker={}", bk);
         long start = System.currentTimeMillis();
         try {
             BookmakerParser parser = parserFactory.getParser(bk);
             ParseResult<List<com.valui.common.parser.dto.SportDto>> result = parser.fetchSports();
             long latency = System.currentTimeMillis() - start;
             if (!result.success()) {
+                log.warn("[ADMIN-PARSER] Manual poll failed: bookmaker={} latencyMs={}: {}", bk, latency, result.errorMessage());
                 return ResponseEntity.ok(new TestParseResult(false, 0, List.of(), result.errorMessage(), latency));
             }
             List<?> items = result.data() != null ? result.data() : List.of();
             return ResponseEntity.ok(new TestParseResult(true, items.size(), List.of(), null, latency));
         } catch (Exception e) {
             long latency = System.currentTimeMillis() - start;
+            // Previously silent — an admin triggering a manual poll got zero server-side trace
+            // of a failure, only whatever the HTTP response body happened to show.
+            log.warn("[ADMIN-PARSER] Manual poll failed: bookmaker={} latencyMs={}: {}", bk, latency, e.getMessage(), e);
             return ResponseEntity.ok(new TestParseResult(false, 0, List.of(), e.getMessage(), latency));
         }
     }
@@ -133,6 +138,7 @@ public class AdminParsersController {
     @PostMapping("/poll-all")
     @Operation(summary = "Ручной запуск poll для всех парсеров")
     public ResponseEntity<Map<String, TestParseResult>> pollAll() {
+        log.info("[ADMIN-PARSER] Manual poll-all triggered for {} bookmakers", BookmakerType.values().length);
         Map<String, TestParseResult> results = new java.util.LinkedHashMap<>();
         for (BookmakerType bk : BookmakerType.values()) {
             long start = System.currentTimeMillis();
@@ -141,10 +147,17 @@ public class AdminParsersController {
                 ParseResult<List<com.valui.common.parser.dto.SportDto>> result = parser.fetchSports();
                 long latency = System.currentTimeMillis() - start;
                 List<?> items = result.data() != null ? result.data() : List.of();
+                if (!result.success()) {
+                    log.warn("[ADMIN-PARSER] poll-all: bookmaker={} failed after {}ms: {}", bk, latency, result.errorMessage());
+                }
                 results.put(bk.name(), new TestParseResult(result.success(), items.size(),
                     List.of(), result.errorMessage(), latency));
             } catch (Exception e) {
                 long latency = System.currentTimeMillis() - start;
+                // This was the highest-impact silent failure in the admin module: an admin could
+                // trigger polls for every bookmaker and get zero server-side trace of which ones
+                // failed and why — only the aggregate JSON response, never logged.
+                log.warn("[ADMIN-PARSER] poll-all: bookmaker={} failed after {}ms: {}", bk, latency, e.getMessage(), e);
                 results.put(bk.name(), new TestParseResult(false, 0, List.of(), e.getMessage(), latency));
             }
         }

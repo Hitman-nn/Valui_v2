@@ -13,6 +13,20 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.UUID;
 
+/**
+ * Populates request-correlation MDC fields as early as possible in the filter chain (runs
+ * before Spring Security, hence before any authentication happens).
+ *
+ * <p><b>{@link #MDC_USER_ID} is NOT an authenticated identity</b> — it's copied verbatim from
+ * the client-supplied {@code X-User-Id} header (used by the Bot backend to tag its own calls
+ * into the Admin API), which any caller can set to anything. It's fine for generic log
+ * correlation but must never be treated as an audit-grade "who did this." For admin actions
+ * that need real, unforgeable identity, use the {@code adminTelegramId} MDC key instead —
+ * populated by {@link com.valui.admin.auth.jwt.JwtAuthenticationFilter} from a verified JWT
+ * once Spring Security's chain actually runs (after this filter, since this one is ordered
+ * first) — or read {@code SecurityContextHolder} directly in service code (see
+ * {@code AuditAspect}, {@code UserServiceImpl.resolveCurrentAdminId()}).
+ */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class MdcFilter extends OncePerRequestFilter {
@@ -21,6 +35,7 @@ public class MdcFilter extends OncePerRequestFilter {
     public static final String HEADER_CHAT_ID   = "X-Chat-Id";
     public static final String HEADER_REQUEST_ID = "X-Request-Id";
 
+    /** Client-supplied, not authenticated — see class javadoc. */
     public static final String MDC_USER_ID    = "userId";
     public static final String MDC_CHAT_ID    = "chatId";
     public static final String MDC_REQUEST_ID = "requestId";

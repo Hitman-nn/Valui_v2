@@ -15,8 +15,8 @@ import java.util.Map;
  */
 public class MdcContextConverter extends ClassicConverter {
 
-    private static final String[] KEYS    = {"traceId", "logId", "controllerId", "bookmaker", "kafkaTopic", "userId", "chatId", "requestId"};
-    private static final String[] ABBREVS = {"T",       "log",   "ctrl",         "bk",        "topic",      "u",      "c",      "r"};
+    private static final String[] KEYS    = {"traceId", "logId", "controllerId", "bookmaker", "kafkaTopic", "channel", "userId", "chatId", "requestId", "adminTelegramId"};
+    private static final String[] ABBREVS = {"T",       "log",   "ctrl",         "bk",        "topic",      "ch",      "u",      "c",      "r",         "adm"};
 
     @Override
     public String convert(ILoggingEvent event) {

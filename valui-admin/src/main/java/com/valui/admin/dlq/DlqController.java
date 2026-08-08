@@ -1,6 +1,9 @@
 package com.valui.admin.dlq;
 
+import com.valui.admin.security.CurrentUser;
+import com.valui.admin.security.ValuiPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,9 +39,11 @@ public class DlqController {
      */
     @PostMapping("/replay")
     @Operation(summary = "Replay all messages from dlq.final back into processing")
-    public ResponseEntity<Map<String, Object>> replay() {
-        log.info("[DLQ-ADMIN] Manual replay triggered");
+    public ResponseEntity<Map<String, Object>> replay(
+            @Parameter(hidden = true) @CurrentUser ValuiPrincipal principal) {
+        log.info("[DLQ-ADMIN] Manual replay triggered by adminTelegramId={}", principal.telegramId());
         long count = dlqReplayService.replay();
+        log.info("[DLQ-ADMIN] Replay completed: adminTelegramId={} dispatched={}", principal.telegramId(), count);
         return ResponseEntity.ok(Map.of(
                 "status", "OK",
                 "replayed", count
