@@ -39,7 +39,7 @@ public class WatchCacheService {
             redisTemplate.opsForValue().set(KEY_PREFIX + notifLogId,
                     objectMapper.writeValueAsString(data), ttl);
         } catch (JsonProcessingException e) {
-            log.error("[WATCH-CACHE] Failed to serialize for notifLogId={}: {}", notifLogId, e.getMessage());
+            log.error("[WATCH-CACHE] Failed to serialize for notifLogId={}: {}", notifLogId, e.getMessage(), e);
         }
     }
 
@@ -49,7 +49,7 @@ public class WatchCacheService {
             if (json == null) return Optional.empty();
             return Optional.of(objectMapper.readValue(json, WatchCacheData.class));
         } catch (Exception e) {
-            log.error("[WATCH-CACHE] Failed to read for notifLogId={}: {}", notifLogId, e.getMessage());
+            log.error("[WATCH-CACHE] Failed to read for notifLogId={}: {}", notifLogId, e.getMessage(), e);
             return Optional.empty();
         }
     }

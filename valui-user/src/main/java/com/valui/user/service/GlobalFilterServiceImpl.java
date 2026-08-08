@@ -7,6 +7,7 @@ import com.valui.common.exception.UserNotFoundException;
 import com.valui.user.repository.GlobalFilterRepository;
 import com.valui.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
@@ -63,6 +65,7 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
             .createdAt(OffsetDateTime.now())
             .build());
         evictFilterCache(chatId);
+        log.info("[FILTER] Added: userId={} chatId={} rule={} cost={}", user.getId(), chatId, rule, cost);
     }
 
     @Override
@@ -77,6 +80,10 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
             Long filterChatId = f.getChatId();
             globalFilterRepository.delete(f);
             evictFilterCache(filterChatId);
+            log.info("[FILTER] Deleted: filterId={} chatId={} telegramId={}", filterId, filterChatId, telegramId);
+        } else {
+            log.debug("[FILTER] Delete no-op: filterId={} not found for telegramId={} chatId={}",
+                    filterId, telegramId, chatId);
         }
     }
 
@@ -85,11 +92,13 @@ public class GlobalFilterServiceImpl implements GlobalFilterService {
     public void updateFilter(Long telegramId, Long chatId, UUID filterId, String newRule) {
         UserEntity user = requireUser(telegramId);
         globalFilterRepository.findByIdAndChatIdOrUserId(filterId, chatId, user.getId())
-                .ifPresent(f -> {
+                .ifPresentOrElse(f -> {
                     Long filterChatId = f.getChatId();
                     f.setFilterRule(newRule);
                     evictFilterCache(filterChatId);
-                });
+                    log.info("[FILTER] Updated: filterId={} chatId={}", filterId, filterChatId);
+                }, () -> log.debug("[FILTER] Update no-op: filterId={} not found for telegramId={} chatId={}",
+                        filterId, telegramId, chatId));
     }
 
     private UserEntity requireUser(Long telegramId) {

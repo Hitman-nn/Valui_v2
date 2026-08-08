@@ -40,9 +40,17 @@ public class GroupChatMigrationService {
         int membersCopied  = subscriptionRepository.migrateChatMembersToNewChat(oldChatId, newChatId);
         int membersDeleted = subscriptionRepository.deleteOldChatMembersAfterMigration(oldChatId, newChatId);
 
-        log.info("[GROUP-MIGRATE] {} → {}: controllers={} subs={}/{} filters={} members={}/{}",
-                oldChatId, newChatId, controllers,
-                subsCopied, subsDeleted, filters,
-                membersCopied, membersDeleted);
+        if (controllers == 0 && subsCopied == 0 && filters == 0 && membersCopied == 0) {
+            // Every migrated-row count is zero — either this chat had nothing to migrate
+            // (plausible) or oldChatId was wrong / the chat was already migrated (a real
+            // problem). INFO would bury this as if it were a routine success.
+            log.warn("[GROUP-MIGRATE] {} → {}: nothing migrated (chat may already be migrated, " +
+                    "or oldChatId incorrect)", oldChatId, newChatId);
+        } else {
+            log.info("[GROUP-MIGRATE] {} → {}: controllers={} subs={}/{} filters={} members={}/{}",
+                    oldChatId, newChatId, controllers,
+                    subsCopied, subsDeleted, filters,
+                    membersCopied, membersDeleted);
+        }
     }
 }

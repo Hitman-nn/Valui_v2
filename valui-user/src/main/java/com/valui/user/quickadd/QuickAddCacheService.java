@@ -38,7 +38,7 @@ public class QuickAddCacheService {
             redisTemplate.opsForValue().set(KEY_PREFIX + key, json, TTL);
             log.debug("[QUICK-ADD] Stored key={} bookmaker={}", key, data.bookmaker());
         } catch (JsonProcessingException e) {
-            log.error("[QUICK-ADD] Failed to serialize data for key={}: {}", key, e.getMessage());
+            log.error("[QUICK-ADD] Failed to serialize data for key={}: {}", key, e.getMessage(), e);
         }
     }
 
@@ -48,7 +48,7 @@ public class QuickAddCacheService {
             if (json == null) return Optional.empty();
             return Optional.of(objectMapper.readValue(json, QuickAddData.class));
         } catch (Exception e) {
-            log.error("[QUICK-ADD] Failed to read data for key={}: {}", key, e.getMessage());
+            log.error("[QUICK-ADD] Failed to read data for key={}: {}", key, e.getMessage(), e);
             return Optional.empty();
         }
     }

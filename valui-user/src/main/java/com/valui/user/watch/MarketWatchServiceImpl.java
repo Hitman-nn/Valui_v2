@@ -38,7 +38,10 @@ public class MarketWatchServiceImpl implements MarketWatchService {
                 .notifLogId(notifLogId)
                 .startEpoch(startEpoch)
                 .build();
-        return repo.save(watch);
+        MarketWatchEntity saved = repo.save(watch);
+        log.debug("[WATCH] Created: watchId={} chatId={} controllerId={} marketType={} bookmaker={}",
+                saved.getId(), chatId, controllerId, marketType, bookmaker);
+        return saved;
     }
 
     @Override
@@ -67,7 +70,11 @@ public class MarketWatchServiceImpl implements MarketWatchService {
     public int expireStarted() {
         long nowEpoch = System.currentTimeMillis() / 1000;
         int expired = repo.expireStarted(nowEpoch);
-        if (expired > 0) log.info("[WATCH] Expired {} market watches past match start", expired);
+        if (expired > 0) {
+            log.info("[WATCH] Expired {} market watches past match start", expired);
+        } else {
+            log.debug("[WATCH] expireStarted ran, nothing to expire");
+        }
         return expired;
     }
 }

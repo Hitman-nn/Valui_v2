@@ -47,7 +47,8 @@ public class UserServiceImpl implements UserService {
                 try {
                     return createNewUser(dto);
                 } catch (DataIntegrityViolationException e) {
-                    log.warn("Race condition on registerOrGetUser for telegramId={}", dto.telegramId());
+                    log.warn("Race condition on registerOrGetUser for telegramId={}: {}",
+                            dto.telegramId(), e.getMessage());
                     return userRepository.findByTelegramId(dto.telegramId())
                         .orElseThrow(() -> new IllegalStateException(
                             "User registration race condition unresolved for telegramId=" + dto.telegramId(), e));
@@ -93,8 +94,9 @@ public class UserServiceImpl implements UserService {
             .orElseThrow(() -> new UserNotFoundException(userId));
         user.setStatus(UserStatus.BANNED);
         userRepository.save(user);
-        eventPublisher.publishEvent(new UserBanEvent(userId, "BAN", resolveCurrentAdminId()));
-        log.info("🚫 Пользователь заблокирован: userId={}", userId);
+        UUID adminId = resolveCurrentAdminId();
+        eventPublisher.publishEvent(new UserBanEvent(userId, "BAN", adminId));
+        log.info("[ADMIN] User banned: userId={} adminId={}", userId, adminId);
     }
 
     @Override
@@ -106,8 +108,9 @@ public class UserServiceImpl implements UserService {
             .orElseThrow(() -> new UserNotFoundException(userId));
         user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
-        eventPublisher.publishEvent(new UserBanEvent(userId, "UNBAN", resolveCurrentAdminId()));
-        log.info("✅ Пользователь разблокирован: userId={}", userId);
+        UUID adminId = resolveCurrentAdminId();
+        eventPublisher.publishEvent(new UserBanEvent(userId, "UNBAN", adminId));
+        log.info("[ADMIN] User unbanned: userId={} adminId={}", userId, adminId);
     }
 
     // ─── Admin-only operations ────────────────────────────────────────────────
@@ -138,9 +141,11 @@ public class UserServiceImpl implements UserService {
     public void updateRole(UUID userId, UserRole newRole) {
         UserEntity user = userRepository.findById(userId)
             .orElseThrow(() -> new UserNotFoundException(userId));
+        UserRole oldRole = user.getRole();
         user.setRole(newRole);
         userRepository.save(user);
-        log.info("[ADMIN] Role changed: userId={} newRole={}", userId, newRole);
+        log.info("[ADMIN] Role changed: userId={} adminId={} oldRole={} newRole={}",
+                userId, resolveCurrentAdminId(), oldRole, newRole);
     }
 
     @Override
@@ -163,6 +168,12 @@ public class UserServiceImpl implements UserService {
         if (tokenLowThreshold != null)    user.setTokenLowThreshold(tokenLowThreshold);
         if (tokenMonthlyGrantRef != null) user.setTokenMonthlyGrantRef(tokenMonthlyGrantRef);
         user = userRepository.save(user);
+        // Balance changes are logged separately by TokenLedgerService.credit/debit below
+        // (delta + reason + resulting balance); this covers the two fields that aren't.
+        if (tokenLowThreshold != null || tokenMonthlyGrantRef != null) {
+            log.info("[ADMIN] Profile updated: userId={} tokenLowThreshold={} tokenMonthlyGrantRef={}",
+                    userId, tokenLowThreshold, tokenMonthlyGrantRef);
+        }
 
         if (tokenBalance != null) {
             int current = user.getTokenBalance() != null ? user.getTokenBalance() : 0;
@@ -187,7 +198,8 @@ public class UserServiceImpl implements UserService {
         UserEntity user = userRepository.findById(userId)
             .orElseThrow(() -> new UserNotFoundException(userId));
         userRepository.delete(user);
-        log.info("[ADMIN] User deleted: userId={} telegramId={}", userId, user.getTelegramId());
+        log.info("[ADMIN] User deleted: userId={} telegramId={} adminId={}",
+                userId, user.getTelegramId(), resolveCurrentAdminId());
     }
 
     @Override
@@ -198,6 +210,10 @@ public class UserServiceImpl implements UserService {
         try {
             return userRepository.findTelegramIdsByStatus(UserStatus.valueOf(status.toUpperCase()));
         } catch (IllegalArgumentException e) {
+            // This silently widens a broadcast to EVERY user in the DB on a bad status string —
+            // worth a WARN since it's the opposite of what an admin who typo'd a status filter
+            // would expect (a narrower target, not the broadest possible one).
+            log.warn("[USER] Invalid status filter '{}' — falling back to ALL users for broadcast targeting", status);
             return userRepository.findAllTelegramIds();
         }
     }
@@ -208,6 +224,7 @@ public class UserServiceImpl implements UserService {
         UserEntity user = userRepository.findById(userId)
             .orElseThrow(() -> new UserNotFoundException(userId));
         user.setTokenStatsResetAt(resetAt);
+        log.debug("Token stats reset boundary set: userId={} resetAt={}", userId, resetAt);
         return userRepository.save(user);
     }
 
