@@ -154,8 +154,8 @@ public class PreMatchOddsService {
         if (match == null || match.startsAt() == null || Instant.EPOCH.equals(match.startsAt())) {
             int misses = sweepMisses.merge(slipId, 1, Integer::sum);
             if (misses >= MAX_SWEEP_MISSES) {
-                log.warn("[PRE-MATCH] sweep: match not found for {}h, cancelling slipId={}",
-                        misses, slipId);
+                log.warn("[PRE-MATCH] sweep: match not found for {}h, cancelling slipId={} matchUrl={}",
+                        misses, slipId, slip.getMatchUrl());
                 cancel(slipId);
             } else {
                 log.debug("[PRE-MATCH] sweep: match not found slipId={} ({}/{})",
@@ -378,18 +378,36 @@ public class PreMatchOddsService {
 
     // ── HTTP fetch ────────────────────────────────────────────────────────────
 
+    /**
+     * Every early-return here used to be silent, collapsing several genuinely distinct root
+     * causes (malformed/unsupported bookmaker URL, no parser registered, CB-open, WS timeout,
+     * captcha/geo-block — the latter already diagnosed with real detail inside each parser's
+     * own fallback method) into an indistinguishable {@code null}. That null then just reads as
+     * "match not found" to every caller, which after enough sweep-misses/register-retries
+     * silently cancels the slip forever with no trace anywhere of the actual cause. Logging each
+     * branch here is the direct fix for "why did this tournament stop updating."
+     */
     @Nullable
     private ParsedMatchDto fetchMatch(String matchUrl) {
         BookmakerType bk;
         try { bk = UrlParser.parseBookmaker(matchUrl); }
-        catch (Exception e) { return null; }
+        catch (Exception e) {
+            log.warn("[PRE-MATCH] unsupported/malformed matchUrl={}: {}", matchUrl, e.getMessage());
+            return null;
+        }
 
         ParsedUrlIds ids = UrlParser.extractIds(matchUrl, bk);
-        if (ids.tournamentId() == null) return null;
+        if (ids.tournamentId() == null) {
+            log.warn("[PRE-MATCH] no tournamentId extractable from matchUrl={} bookmaker={}", matchUrl, bk);
+            return null;
+        }
 
         BookmakerParser parser;
         try { parser = parserFactory.getParser(bk); }
-        catch (Exception e) { return null; }
+        catch (Exception e) {
+            log.warn("[PRE-MATCH] no parser for bookmaker={} matchUrl={}: {}", bk, matchUrl, e.getMessage());
+            return null;
+        }
 
         try {
             fetchSemaphore.acquire();
@@ -399,7 +417,15 @@ public class PreMatchOddsService {
         }
         try {
             ParseResult<List<ParsedMatchDto>> result = parser.fetchMatches(ids.tournamentId());
-            if (!result.success() || result.data() == null) return null;
+            if (!result.success() || result.data() == null) {
+                // DEBUG not WARN: expected to happen routinely under the existing sweep/retry
+                // design (transient CB-open, WS timeout, etc.) — callers already WARN on give-up
+                // after exhausting their retry budget. This is what lets someone grep by
+                // tournamentId to see the specific reason behind those give-up events.
+                log.debug("[PRE-MATCH] fetchMatches failed bookmaker={} tournamentId={}: {}",
+                        bk, ids.tournamentId(), result.errorMessage());
+                return null;
+            }
             String matchId = ids.matchId();
             return result.data().stream()
                     .filter(m -> matchId == null || matchId.equals(m.id()))

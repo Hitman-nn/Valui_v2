@@ -42,6 +42,10 @@ public class ValuiBotSession extends DefaultBotSession {
                     || options.getProxyType() != DefaultBotOptions.ProxyType.HTTP
                     || options.getProxyHost() == null
                     || options.getProxyHost().isBlank()) {
+                // Common/expected when no proxy is configured (e.g. local dev) — but if a proxy
+                // *was* expected in prod and silently isn't applied (misconfigured ProxyType),
+                // this DEBUG line is the only trace of which path was taken on this restart.
+                log.debug("ValuiBotSession: no HTTP proxy configured — using default HttpClient");
                 return;
             }
 

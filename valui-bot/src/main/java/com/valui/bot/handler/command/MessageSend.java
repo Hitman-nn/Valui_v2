@@ -11,6 +11,21 @@ final class MessageSend {
 
     private MessageSend() {}
 
+    // Same reasoning as com.valui.bot.handler.MessageSend (a separate, duplicate class of the
+    // same name — not consolidated here since that's a larger refactor beyond a logging pass):
+    // "bot was blocked"/"chat not found" are routine, not incidents worth ERROR.
+    private static void logSendFailure(long chatId, TelegramApiException e) {
+        String msg = e.getMessage();
+        boolean expected = msg != null && (msg.toLowerCase().contains("bot was blocked")
+                || msg.toLowerCase().contains("chat not found")
+                || msg.toLowerCase().contains("user is deactivated"));
+        if (expected) {
+            log.warn("Send failed chatId={}: {}", chatId, msg);
+        } else {
+            log.error("Send failed chatId={}: {}", chatId, msg, e);
+        }
+    }
+
     static void text(AbsSender sender, long chatId, String text) {
         try {
             sender.execute(SendMessage.builder()
@@ -18,7 +33,7 @@ final class MessageSend {
                 .text(text)
                 .build());
         } catch (TelegramApiException e) {
-            log.error("Send failed chatId={}: {}", chatId, e.getMessage());
+            logSendFailure(chatId, e);
         }
     }
 
@@ -30,7 +45,7 @@ final class MessageSend {
                 .replyMarkup(keyboard)
                 .build());
         } catch (TelegramApiException e) {
-            log.error("Send failed chatId={}: {}", chatId, e.getMessage());
+            logSendFailure(chatId, e);
         }
     }
 }

@@ -15,6 +15,29 @@ public final class MessageSend {
 
     private MessageSend() {}
 
+    /**
+     * Every send failure here used to log at ERROR uniformly regardless of cause. Telegram's
+     * "Forbidden: bot was blocked by the user" / "Bad Request: chat not found" / "user is
+     * deactivated" happen constantly in normal operation (users block bots, delete accounts) and
+     * aren't actionable — logging them at ERROR (which typically pages/alerts) drowns out actual
+     * transport/auth incidents. Only genuinely unexpected failures stay at ERROR with a stack trace.
+     */
+    private static void logSendFailure(long chatId, TelegramApiException e) {
+        if (isExpectedFailure(e.getMessage())) {
+            log.warn("Send failed chatId={}: {}", chatId, e.getMessage());
+        } else {
+            log.error("Send failed chatId={}: {}", chatId, e.getMessage(), e);
+        }
+    }
+
+    private static boolean isExpectedFailure(String msg) {
+        if (msg == null) return false;
+        String lower = msg.toLowerCase();
+        return lower.contains("bot was blocked") || lower.contains("chat not found")
+                || lower.contains("user is deactivated") || lower.contains("bot can't initiate conversation")
+                || lower.contains("chat_write_forbidden");
+    }
+
     public static void text(AbsSender sender, long chatId, String text) {
         try {
             sender.execute(SendMessage.builder()
@@ -22,7 +45,7 @@ public final class MessageSend {
                 .text(text)
                 .build());
         } catch (TelegramApiException e) {
-            log.error("Send failed chatId={}: {}", chatId, e.getMessage());
+            logSendFailure(chatId, e);
         }
     }
 
@@ -34,7 +57,7 @@ public final class MessageSend {
                 .replyMarkup(keyboard)
                 .build());
         } catch (TelegramApiException e) {
-            log.error("Send failed chatId={}: {}", chatId, e.getMessage());
+            logSendFailure(chatId, e);
         }
     }
 
@@ -46,7 +69,7 @@ public final class MessageSend {
                 .parseMode("Markdown")
                 .build());
         } catch (TelegramApiException e) {
-            log.error("Send failed chatId={}: {}", chatId, e.getMessage());
+            logSendFailure(chatId, e);
         }
     }
 
@@ -59,7 +82,7 @@ public final class MessageSend {
                 .replyMarkup(keyboard)
                 .build());
         } catch (TelegramApiException e) {
-            log.error("Send failed chatId={}: {}", chatId, e.getMessage());
+            logSendFailure(chatId, e);
         }
     }
 
@@ -78,7 +101,7 @@ public final class MessageSend {
                     .build());
             return msg != null ? msg.getMessageId() : 0;
         } catch (TelegramApiException e) {
-            log.error("Send failed chatId={}: {}", chatId, e.getMessage());
+            logSendFailure(chatId, e);
             return 0;
         }
     }
@@ -93,7 +116,7 @@ public final class MessageSend {
                 .replyMarkup(keyboard)
                 .build());
         } catch (TelegramApiException e) {
-            log.error("Send failed chatId={}: {}", chatId, e.getMessage());
+            logSendFailure(chatId, e);
         }
     }
 
@@ -148,7 +171,7 @@ public final class MessageSend {
                 SendMessage.builder().chatId(chatId).text(text).build());
             return msg != null ? msg.getMessageId() : 0;
         } catch (TelegramApiException e) {
-            log.error("Send failed chatId={}: {}", chatId, e.getMessage());
+            logSendFailure(chatId, e);
             return 0;
         }
     }
@@ -165,7 +188,7 @@ public final class MessageSend {
                 SendMessage.builder().chatId(chatId).text(text).replyMarkup(keyboard).build());
             return msg != null ? msg.getMessageId() : 0;
         } catch (TelegramApiException e) {
-            log.error("Send failed chatId={}: {}", chatId, e.getMessage());
+            logSendFailure(chatId, e);
             return 0;
         }
     }
@@ -179,7 +202,7 @@ public final class MessageSend {
                 .replyMarkup(keyboard)
                 .build());
         } catch (TelegramApiException e) {
-            log.error("Send failed chatId={}: {}", chatId, e.getMessage());
+            logSendFailure(chatId, e);
         }
     }
 
@@ -224,7 +247,7 @@ public final class MessageSend {
                     .replyMarkup(keyboard)
                     .build());
             } catch (TelegramApiException ex) {
-                log.error("Send failed chatId={}: {}", chatId, ex.getMessage());
+                logSendFailure(chatId, ex);
                 return;
             }
             tryDelete(sender, chatId, messageId);
@@ -250,7 +273,14 @@ public final class MessageSend {
                 .callbackQueryId(callbackQueryId)
                 .build());
         } catch (TelegramApiException e) {
-            log.error("AnswerCallback failed: {}", e.getMessage());
+            // "query is too old" / "query ID is invalid" happen routinely (user tapped a button
+            // on a stale message, or the 15s answer window expired) — not an incident.
+            String msg = e.getMessage();
+            if (msg != null && msg.toLowerCase().contains("query")) {
+                log.debug("AnswerCallback failed: {}", msg);
+            } else {
+                log.warn("AnswerCallback failed: {}", msg, e);
+            }
         }
     }
 
@@ -262,7 +292,14 @@ public final class MessageSend {
                 .showAlert(false)
                 .build());
         } catch (TelegramApiException e) {
-            log.error("AnswerCallback failed: {}", e.getMessage());
+            // "query is too old" / "query ID is invalid" happen routinely (user tapped a button
+            // on a stale message, or the 15s answer window expired) — not an incident.
+            String msg = e.getMessage();
+            if (msg != null && msg.toLowerCase().contains("query")) {
+                log.debug("AnswerCallback failed: {}", msg);
+            } else {
+                log.warn("AnswerCallback failed: {}", msg, e);
+            }
         }
     }
 
@@ -274,7 +311,14 @@ public final class MessageSend {
                 .showAlert(true)
                 .build());
         } catch (TelegramApiException e) {
-            log.error("AnswerCallback failed: {}", e.getMessage());
+            // "query is too old" / "query ID is invalid" happen routinely (user tapped a button
+            // on a stale message, or the 15s answer window expired) — not an incident.
+            String msg = e.getMessage();
+            if (msg != null && msg.toLowerCase().contains("query")) {
+                log.debug("AnswerCallback failed: {}", msg);
+            } else {
+                log.warn("AnswerCallback failed: {}", msg, e);
+            }
         }
     }
 }
