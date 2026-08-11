@@ -275,6 +275,10 @@ public class FonbetParser implements BookmakerParser {
     private ParseResult<List<SportDto>> fetchSportsFallback(Throwable t) {
         if (t instanceof CallNotPermittedException) {
             log.debug("fonbet fetchSports skipped — CB open/half-open");
+        } else if (Thread.currentThread().isInterrupted()) {
+            // Our own fetch-budget timeout interrupted this call — ControllerTask already
+            // logs "Fetch budget exceeded" with full context, so this would just double it.
+            log.debug("fonbet fetchSports fallback [{}]: {} (budget interrupt)", t.getClass().getSimpleName(), describe(t));
         } else {
             log.warn("fonbet fetchSports fallback [{}]: {}", t.getClass().getSimpleName(), describe(t));
         }
@@ -284,6 +288,9 @@ public class FonbetParser implements BookmakerParser {
     private ParseResult<List<TournamentDto>> fetchTournamentsFallback(String sportId, Throwable t) {
         if (t instanceof CallNotPermittedException) {
             log.debug("fonbet fetchTournaments skipped — CB open/half-open sportId={}", sportId);
+        } else if (Thread.currentThread().isInterrupted()) {
+            log.debug("fonbet fetchTournaments fallback sportId={} [{}]: {} (budget interrupt)",
+                    sportId, t.getClass().getSimpleName(), describe(t));
         } else {
             log.warn("fonbet fetchTournaments fallback sportId={} [{}]: {}", sportId, t.getClass().getSimpleName(), describe(t));
         }
@@ -293,6 +300,9 @@ public class FonbetParser implements BookmakerParser {
     private ParseResult<List<ParsedMatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
         if (t instanceof CallNotPermittedException) {
             log.debug("fonbet fetchMatches skipped — CB open/half-open tournamentId={}", tournamentId);
+        } else if (Thread.currentThread().isInterrupted()) {
+            log.debug("fonbet fetchMatches fallback tournamentId={} [{}]: {} (budget interrupt)",
+                    tournamentId, t.getClass().getSimpleName(), describe(t));
         } else {
             log.warn("fonbet fetchMatches fallback tournamentId={} [{}]: {}", tournamentId, t.getClass().getSimpleName(), describe(t));
         }

@@ -88,7 +88,7 @@ public class ControllerTask implements Runnable {
                     log.warn("Fetch budget exceeded ({}ms) tournamentId={} sportId={} url={}",
                             fetchBudgetMs, ctx.tournamentId(), ctx.sportId(), ctx.url());
                     pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "timeout");
-                    metrics.onPollError();
+                    metrics.onPollError(ctx.bookmaker());
                     return;
                 } catch (Exception e) {
                     // e.toString() not e.getMessage(): many exception types (NPE, some IOException
@@ -96,7 +96,7 @@ public class ControllerTask implements Runnable {
                     // "Parser error: null" — toString() always includes the exception class name.
                     log.warn("Parser error tournamentId={} sportId={}: {}", ctx.tournamentId(), ctx.sportId(), e.toString());
                     pollHistory.record(controllerId, startedAt, msElapsed(startNs), -1, "error");
-                    metrics.onPollError();
+                    metrics.onPollError(ctx.bookmaker());
                     return;
                 }
 
@@ -122,7 +122,7 @@ public class ControllerTask implements Runnable {
                     log.warn("Market watch check failed: {}", e.getMessage());
                 }
                 pollHistory.record(controllerId, startedAt, msElapsed(startNs), eventsFound, status);
-                if ("ok".equals(status)) metrics.onPollOk(); else metrics.onPollError();
+                if ("ok".equals(status)) metrics.onPollOk(ctx.bookmaker()); else metrics.onPollError(ctx.bookmaker());
             }
         }
     }

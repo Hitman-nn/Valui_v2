@@ -7,6 +7,12 @@
     <!-- ─── Custom converter: [BOT] / [MON] / [PAR] / [USR] colored tags ─── -->
     <conversionRule conversionWord="subsystem"
                     class="com.valui.app.logging.SubsystemConverter"/>
+    <!-- Plain (no ANSI) equivalents of %subsystem / %msg — for the rolling file appender,
+         which is meant to be grepped/tailed without a terminal (cat, scp'd elsewhere, etc). -->
+    <conversionRule conversionWord="subsystemPlain"
+                    class="com.valui.app.logging.PlainSubsystemConverter"/>
+    <conversionRule conversionWord="plainmsg"
+                    class="com.valui.app.logging.PlainMessageConverter"/>
     <conversionRule conversionWord="mdc_ctx"
                     class="com.valui.app.logging.MdcContextConverter"/>
 
@@ -14,18 +20,50 @@
                     source="spring.application.name" defaultValue="valui"/>
     <springProperty scope="context" name="activeProfile"
                     source="spring.profiles.active"  defaultValue="default"/>
+    <!-- Directory for the rolling FILE appender (prod). Override via LOG_PATH env var;
+         defaults to a "logs" folder next to wherever the JVM was launched from. -->
+    <springProperty scope="context" name="logPath"
+                    source="LOG_PATH" defaultValue="logs"/>
 
     <!-- ═══════════════════════════════════════════════════════════════════════
-         CONSOLE — rich colorized output for local development
+         CONSOLE — rich colorized output for local development AND for an attached
+         terminal (tmux) in prod — this is what you see live while the app runs.
          Format:
-           HH:mm:ss.SSS  LEVEL  [TAG]  ClassName                ▸  message
-           12:34:56.789  INFO   [BOT]  CommandRouter            ▸  Инициализирован с 15 обработчиками
+           yyyy-MM-dd HH:mm:ss.SSS  LEVEL  [TAG]  ClassName                ▸  message
+           2026-08-09 12:34:56.789  INFO   [BOT]  CommandRouter            ▸  Инициализирован с 15 обработчиками
          ═══════════════════════════════════════════════════════════════════════ -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <withJansi>true</withJansi>
         <encoder>
-            <pattern>%white(%d{HH:mm:ss.SSS})  %highlight(%-5level)  %subsystem  %-30(%cyan(%logger{0}))  %white(▸)  %msg%mdc_ctx%n%rootException{full}</pattern>
+            <pattern>%white(%d{yyyy-MM-dd HH:mm:ss.SSS})  %highlight(%-5level)  %subsystem  %-30(%cyan(%logger{0}))  %white(▸)  %msg%mdc_ctx%n%rootException{full}</pattern>
         </encoder>
+    </appender>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         FILE — plain-text rolling log, no ANSI, for prod. Exists alongside CONSOLE
+         (not instead of it) specifically so `tmux attach` keeps showing the colorized
+         live view unchanged, while a clean, dated, rotated file is always on disk for
+         later download/analysis — no more manually redirecting stdout per run.
+         Rotates daily or at 200MB, keeps 14 days / 2GB total, gzips old files.
+         ═══════════════════════════════════════════════════════════════════════ -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${logPath}/valui-app.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS}  %-5level  %subsystemPlain  %-30(%logger{0})  ▸  %plainmsg%mdc_ctx%n%rootException{full}</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${logPath}/valui-app-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>200MB</maxFileSize>
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="FILE"/>
+        <queueSize>512</queueSize>
+        <discardingThreshold>20</discardingThreshold>
+        <includeCallerData>false</includeCallerData>
     </appender>
 
     <!-- ═══════════════════════════════════════════════════════════════════════
@@ -149,7 +187,8 @@
     </springProfile>
 
     <!-- ═══════════════════════════════════════════════════════════════════════
-         prod — минимум шума, структурированный JSON
+         prod — цветной вывод в stdout (для tmux/journald) + параллельно чистый
+         ротируемый файл на диске (для скачивания/анализа без терминала)
          ═══════════════════════════════════════════════════════════════════════ -->
     <springProfile name="prod">
         <logger name="com.valui"            level="INFO"/>
@@ -165,6 +204,7 @@
         <logger name="reactor.core.publisher.Operators"            level="ERROR"/>
         <root level="WARN">
             <appender-ref ref="ASYNC_CONSOLE"/>
+            <appender-ref ref="ASYNC_FILE"/>
         </root>
     </springProfile>
 

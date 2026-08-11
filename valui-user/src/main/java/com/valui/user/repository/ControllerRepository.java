@@ -97,6 +97,10 @@ public interface ControllerRepository extends JpaRepository<ControllerEntity, UU
 
     long countByIsActiveFalse();
 
+    /** Controllers currently paused for lack of tokens — invisible at a glance otherwise;
+     *  surfaced in the startup banner so a silent backlog doesn't go unnoticed. */
+    long countByPausedByTokensTrue();
+
     long countByIsActiveTrueAndLastEventAtBefore(OffsetDateTime cutoff);
 
     @Query("SELECT COUNT(c) FROM ControllerEntity c WHERE c.bookmaker = :bm")

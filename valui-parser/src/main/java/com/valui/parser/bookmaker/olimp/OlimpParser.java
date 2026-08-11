@@ -218,6 +218,10 @@ public class OlimpParser implements BookmakerParser {
     private ParseResult<List<SportDto>> fetchSportsFallback(Throwable t) {
         if (t instanceof CallNotPermittedException) {
             log.debug("olimp fetchSports skipped — CB open/half-open");
+        } else if (Thread.currentThread().isInterrupted()) {
+            // Our own fetch-budget timeout interrupted this call — ControllerTask already
+            // logs "Fetch budget exceeded" with full context, so this would just double it.
+            log.debug("olimp fetchSports fallback [{}]: {} (budget interrupt)", t.getClass().getSimpleName(), describe(t));
         } else {
             log.warn("olimp fetchSports fallback [{}]: {}", t.getClass().getSimpleName(), describe(t));
         }
@@ -227,6 +231,9 @@ public class OlimpParser implements BookmakerParser {
     private ParseResult<List<TournamentDto>> fetchTournamentsFallback(String sportId, Throwable t) {
         if (t instanceof CallNotPermittedException) {
             log.debug("olimp fetchTournaments skipped — CB open/half-open sportId={}", sportId);
+        } else if (Thread.currentThread().isInterrupted()) {
+            log.debug("olimp fetchTournaments fallback sportId={} [{}]: {} (budget interrupt)",
+                    sportId, t.getClass().getSimpleName(), describe(t));
         } else {
             log.warn("olimp fetchTournaments fallback sportId={} [{}]: {}", sportId, t.getClass().getSimpleName(), describe(t));
         }
@@ -236,6 +243,9 @@ public class OlimpParser implements BookmakerParser {
     private ParseResult<List<ParsedMatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
         if (t instanceof CallNotPermittedException) {
             log.debug("olimp fetchMatches skipped — CB open/half-open tournamentId={}", tournamentId);
+        } else if (Thread.currentThread().isInterrupted()) {
+            log.debug("olimp fetchMatches fallback tournamentId={} [{}]: {} (budget interrupt)",
+                    tournamentId, t.getClass().getSimpleName(), describe(t));
         } else {
             log.warn("olimp fetchMatches fallback tournamentId={} [{}]: {}", tournamentId, t.getClass().getSimpleName(), describe(t));
         }

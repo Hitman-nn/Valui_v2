@@ -168,8 +168,13 @@ public class ControllerTaskExecutor {
                 // quiet (bookmaker API error, CB-open passthrough, timeout) — DEBUG is invisible
                 // in prod (com.valui is INFO there), so this was previously undiagnosable
                 // without correlating scattered parser-layer logs after the fact.
+                //
+                // Exception: if THIS thread is already interrupted, the failure is a side effect
+                // of ControllerTask's own fetch-budget timeout racing us here — that path already
+                // logs "Fetch budget exceeded" with full context, so warning again here would
+                // just be the same single incident logged twice from two layers.
                 if (!result.success())
-                    log.warn("fetchMatches error controllerId={} tournamentId={}: {}",
+                    logFetchFailure("fetchMatches error controllerId={} tournamentId={}: {}",
                             ctx.controllerId(), ctx.tournamentId(), result.errorMessage());
                 return List.of();
             }
@@ -183,7 +188,7 @@ public class ControllerTaskExecutor {
         ParseResult<List<TournamentDto>> result = parser.fetchTournaments(ctx.sportId());
         if (!result.success() || result.data() == null) {
             if (!result.success())
-                log.warn("fetchTournaments error controllerId={} sportId={}: {}",
+                logFetchFailure("fetchTournaments error controllerId={} sportId={}: {}",
                         ctx.controllerId(), ctx.sportId(), result.errorMessage());
             return List.of();
         }
@@ -191,6 +196,22 @@ public class ControllerTaskExecutor {
                 .filter(t -> t.id() != null)
                 .map(t -> new ParsedItem(t.id(), t.title(), t.url(), null))
                 .toList();
+    }
+
+    /**
+     * WARN, unless this thread is already interrupted — meaning ControllerTask's own
+     * fetch-budget timeout already fired {@code Thread.interrupt()} on us and will log its own
+     * "Fetch budget exceeded" with full context. Without this check every budget timeout logged
+     * the exact same single incident twice (this class + ControllerTask), and for a bookmaker-
+     * wide outage that briefly interrupts many controllers at once, that doubling turns into
+     * hundreds of near-identical WARN lines in the same second.
+     */
+    private void logFetchFailure(String format, Object... args) {
+        if (Thread.currentThread().isInterrupted()) {
+            log.debug(format, args);
+        } else {
+            log.warn(format, args);
+        }
     }
 
     // ── Step 4: Dedup, persist, update timestamps, publish events ─────────────

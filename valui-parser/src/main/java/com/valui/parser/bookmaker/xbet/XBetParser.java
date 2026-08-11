@@ -277,6 +277,10 @@ public class XBetParser implements BookmakerParser {
             log.debug("xbet fetchSports skipped — CB open/half-open");
         } else if (isConnectionReset(t)) {
             logBurstReset("xbet fetchSports: connection reset — proxy rotation?");
+        } else if (Thread.currentThread().isInterrupted()) {
+            // Our own fetch-budget timeout interrupted this call — ControllerTask already
+            // logs "Fetch budget exceeded" with full context, so this would just double it.
+            log.debug("xbet fetchSports fallback [{}]: {} (budget interrupt)", t.getClass().getSimpleName(), describe(t));
         } else {
             log.warn("xbet fetchSports fallback [{}]: {}", t.getClass().getSimpleName(), describe(t));
         }
@@ -288,6 +292,9 @@ public class XBetParser implements BookmakerParser {
             log.debug("xbet fetchTournaments skipped — CB open/half-open sportId={}", sportId);
         } else if (isConnectionReset(t)) {
             logBurstReset("xbet fetchTournaments: connection reset — proxy rotation?");
+        } else if (Thread.currentThread().isInterrupted()) {
+            log.debug("xbet fetchTournaments fallback sportId={} [{}]: {} (budget interrupt)",
+                    sportId, t.getClass().getSimpleName(), describe(t));
         } else {
             log.warn("xbet fetchTournaments fallback sportId={} [{}]: {}", sportId, t.getClass().getSimpleName(), describe(t));
         }
@@ -303,6 +310,9 @@ public class XBetParser implements BookmakerParser {
             // Repeated HTML/captcha for the same tournament (usually a deleted tournament whose
             // ID is no longer in GetChampsZip → sports=0 fetch). Suppress to once per 4 h.
             recordTournamentHtml(tournamentId, t);
+        } else if (Thread.currentThread().isInterrupted()) {
+            log.debug("xbet fetchMatches fallback tournamentId={} [{}]: {} (budget interrupt)",
+                    tournamentId, t.getClass().getSimpleName(), describe(t));
         } else {
             log.warn("xbet fetchMatches fallback tournamentId={} [{}]: {}", tournamentId, t.getClass().getSimpleName(), describe(t));
         }

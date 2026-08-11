@@ -269,6 +269,10 @@ public class BetBoomParser implements BookmakerParser {
     private ParseResult<List<SportDto>> fetchSportsFallback(Throwable t) {
         if (t instanceof CallNotPermittedException) {
             log.debug("betboom fetchSports skipped — CB open/half-open");
+        } else if (Thread.currentThread().isInterrupted()) {
+            // Our own fetch-budget timeout interrupted this call — ControllerTask already
+            // logs "Fetch budget exceeded" with full context, so this would just double it.
+            log.debug("betboom fetchSports: {} — no data returned (budget interrupt)", fallbackReason(t));
         } else {
             log.warn("betboom fetchSports: {} — no data returned", fallbackReason(t));
         }
@@ -278,6 +282,9 @@ public class BetBoomParser implements BookmakerParser {
     private ParseResult<List<TournamentDto>> fetchTournamentsFallback(String sportId, Throwable t) {
         if (t instanceof CallNotPermittedException) {
             log.debug("betboom fetchTournaments skipped — CB open/half-open sportId={}", sportId);
+        } else if (Thread.currentThread().isInterrupted()) {
+            log.debug("betboom fetchTournaments sportId={}: {} — no data returned (budget interrupt)",
+                    sportId, fallbackReason(t));
         } else {
             log.warn("betboom fetchTournaments sportId={}: {} — no data returned", sportId, fallbackReason(t));
         }
@@ -289,6 +296,11 @@ public class BetBoomParser implements BookmakerParser {
         if (t instanceof CallNotPermittedException) {
             // CB is OPEN — not a WS problem, don't pollute the per-tournament timeout counter
             log.debug("betboom fetchMatches tournamentId={}: circuit breaker OPEN — skipped", tournamentId);
+        } else if (Thread.currentThread().isInterrupted()) {
+            // Budget-timeout interrupt — same single incident ControllerTask already warns
+            // about, so skip both the WARN and the consecutive-failure counter it would skew.
+            log.debug("betboom fetchMatches tournamentId={}: {} — no data returned (budget interrupt)",
+                    tournamentId, reason);
         } else {
             long total = wsTimeoutTotal.incrementAndGet();
             wsTimeoutWindowCount.incrementAndGet();

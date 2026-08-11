@@ -1,5 +1,6 @@
 package com.valui.monitor.scheduler;
 
+import com.valui.common.domain.BookmakerType;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.Gauge;
@@ -96,8 +97,27 @@ public class MonitorMetrics {
     public void onDedupMiss()             { dedupMiss.increment(); }
     public Timer taskTimer()              { return taskTimer; }
 
-    public void onPollOk()       { windowPollsOk.incrementAndGet(); }
-    public void onPollError()    { windowPollsError.incrementAndGet(); }
+    /**
+     * Poll result, tagged by bookmaker+result — the actual Prometheus-visible metric behind
+     * what {@link com.valui.monitor.stats.MonitorSummaryLogger}'s "ошибок=N" line previously
+     * summarized only in a 10-minute text log. Registered lazily per (bookmaker, result) via
+     * {@link MeterRegistry#counter}, which handles de-duplicating repeat calls with the same
+     * tags internally — no separate per-bookmaker bookkeeping needed here.
+     */
+    private void onPollResult(BookmakerType bookmaker, String result) {
+        registry.counter("monitor.polls.result", "bookmaker", bookmaker.name(), "result", result).increment();
+    }
+
+    public void onPollOk(BookmakerType bookmaker) {
+        windowPollsOk.incrementAndGet();
+        onPollResult(bookmaker, "ok");
+    }
+
+    public void onPollError(BookmakerType bookmaker) {
+        windowPollsError.incrementAndGet();
+        onPollResult(bookmaker, "error");
+    }
+
     public void onPollCbSkipped() { pollsCbSkipped.increment(); windowPollsCbSkipped.incrementAndGet(); }
 
     public long drainPollsOk()        { return windowPollsOk.getAndSet(0); }

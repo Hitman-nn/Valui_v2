@@ -23,8 +23,13 @@ import org.springframework.core.env.Environment;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.stereotype.Component;
 
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.info.BuildProperties;
+import org.springframework.boot.info.GitProperties;
+
 import javax.sql.DataSource;
 import java.net.InetAddress;
+import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -69,6 +74,11 @@ public class StartupLogger {
     private final ParserHealthService           parserHealth;
     private final VkLinkService                 vkLinkService;
     private final MonitorProperties             monitorProps;
+    // ObjectProvider, not a direct field: both beans only exist once the build-info/
+    // git-commit-id Maven plugins have actually run (e.g. absent when launched straight from
+    // an IDE without a Maven package step) — must degrade gracefully, not fail startup.
+    private final ObjectProvider<BuildProperties> buildProperties;
+    private final ObjectProvider<GitProperties>   gitProperties;
 
     public StartupLogger(Environment env,
                          Flyway flyway,
@@ -81,7 +91,9 @@ public class StartupLogger {
                          FonbetEndpointPool fonbetPool,
                          ParserHealthService parserHealth,
                          VkLinkService vkLinkService,
-                         MonitorProperties monitorProps) {
+                         MonitorProperties monitorProps,
+                         ObjectProvider<BuildProperties> buildProperties,
+                         ObjectProvider<GitProperties> gitProperties) {
         this.env                  = env;
         this.flyway               = flyway;
         this.userRepository       = userRepository;
@@ -94,6 +106,8 @@ public class StartupLogger {
         this.parserHealth         = parserHealth;
         this.vkLinkService        = vkLinkService;
         this.monitorProps         = monitorProps;
+        this.buildProperties      = buildProperties;
+        this.gitProperties        = gitProperties;
     }
 
     /** Prints a separator when all beans are initialized but before ApplicationReadyEvent. */
@@ -134,6 +148,7 @@ public class StartupLogger {
         String parsers   = parsersSection();
         String vkInfo    = vkStatus();
         String swagger   = swaggerUrl(port);
+        String build     = buildInfo();
 
         logBlock("\n" + CYAN + BOLD + FULL_LINE + RESET
             + "\n" + CYAN + BOLD + "  ✅  VALUI READY" + RESET
@@ -142,6 +157,7 @@ public class StartupLogger {
             // ── overview ──────────────────────────────────────────────────────
             + "\n  " + lbl("Profile")  + pad(profile, COL1_W)   + lbl("Started")  + startedIn
             + "\n  " + lbl("Port")     + pad(port, COL1_W)      + lbl("JVM heap") + heapInfo
+            + "\n  " + lbl("Build")    + build
             + "\n" + SUB_LINE
 
             // ── infrastructure ────────────────────────────────────────────────
@@ -229,12 +245,37 @@ public class StartupLogger {
             MigrationInfo current = flyway.info().current();
             if (current == null) return "no migrations";
             long pending = flyway.info().pending().length;
-            String v = "V" + current.getVersion() + "  " + current.getDescription();
+            String installedOn = current.getInstalledOn() != null
+                    ? "  " + DIM + new SimpleDateFormat("yyyy-MM-dd").format(current.getInstalledOn()) + RESET
+                    : "";
+            String v = "V" + current.getVersion() + "  " + current.getDescription() + installedOn;
             return pending > 0 ? v + "  " + YELLOW + "⚠ pending: " + pending + RESET : v;
         } catch (Exception e) {
             log.debug("Flyway version unavailable: {}", e.getMessage());
             return "—";
         }
+    }
+
+    /**
+     * "which build is actually running" — version + git commit + build time, from the
+     * build-info/git-commit-id Maven plugins. Falls back gracefully to "—" pieces when run
+     * straight from an IDE (no Maven package step), rather than failing startup.
+     */
+    private String buildInfo() {
+        BuildProperties build = buildProperties.getIfAvailable();
+        GitProperties   git   = gitProperties.getIfAvailable();
+
+        String version = build != null ? "v" + build.getVersion() : "—";
+        String commit   = git != null ? git.getShortCommitId() : null;
+        String dirty    = git != null && "true".equals(git.get("dirty")) ? YELLOW + "-dirty" + RESET : "";
+        String branch    = git != null ? git.getBranch() : null;
+
+        StringBuilder sb = new StringBuilder(version);
+        if (commit != null) sb.append("  ").append(DIM).append(commit).append(RESET).append(dirty);
+        if (branch != null && !"main".equals(branch) && !"master".equals(branch)) {
+            sb.append("  ").append(DIM).append("(").append(branch).append(")").append(RESET);
+        }
+        return sb.toString();
     }
 
     private String hikariPoolInfo() {
@@ -267,7 +308,12 @@ public class StartupLogger {
             String detail = rows.stream()
                     .map(r -> r[0] + ":" + r[1])
                     .collect(Collectors.joining("  "));
-            return total + "  " + DIM + detail + RESET;
+            // Invisible otherwise: controllers paused for lack of tokens don't show up anywhere
+            // else in this banner, and can silently accumulate (billing gone stale, plan
+            // downgraded, …) without a single WARN log line to flag it.
+            long paused = controllerRepository.countByPausedByTokensTrue();
+            String pausedSuffix = paused > 0 ? "  " + YELLOW + paused + " paused-by-tokens" + RESET : "";
+            return total + "  " + DIM + detail + RESET + pausedSuffix;
         } catch (Exception e) {
             log.debug("Controller count unavailable: {}", e.getMessage());
             return "—";

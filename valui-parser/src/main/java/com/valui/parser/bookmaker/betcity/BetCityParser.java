@@ -226,6 +226,10 @@ public class BetCityParser implements BookmakerParser {
     private ParseResult<List<SportDto>> fetchSportsFallback(Throwable t) {
         if (t instanceof CallNotPermittedException) {
             log.debug("betcity fetchSports skipped — CB open/half-open");
+        } else if (Thread.currentThread().isInterrupted()) {
+            // Our own fetch-budget timeout interrupted this call — ControllerTask already
+            // logs "Fetch budget exceeded" with full context, so this would just double it.
+            log.debug("betcity fetchSports fallback [{}]: {} (budget interrupt)", t.getClass().getSimpleName(), describe(t));
         } else {
             log.warn("betcity fetchSports fallback [{}]: {}", t.getClass().getSimpleName(), describe(t));
         }
@@ -235,6 +239,9 @@ public class BetCityParser implements BookmakerParser {
     private ParseResult<List<TournamentDto>> fetchTournamentsFallback(String sportId, Throwable t) {
         if (t instanceof CallNotPermittedException) {
             log.debug("betcity fetchTournaments skipped — CB open/half-open sportId={}", sportId);
+        } else if (Thread.currentThread().isInterrupted()) {
+            log.debug("betcity fetchTournaments fallback sportId={} [{}]: {} (budget interrupt)",
+                    sportId, t.getClass().getSimpleName(), describe(t));
         } else {
             log.warn("betcity fetchTournaments fallback sportId={} [{}]: {}", sportId, t.getClass().getSimpleName(), describe(t));
         }
@@ -244,6 +251,9 @@ public class BetCityParser implements BookmakerParser {
     private ParseResult<List<ParsedMatchDto>> fetchMatchesFallback(String tournamentId, Throwable t) {
         if (t instanceof CallNotPermittedException) {
             log.debug("betcity fetchMatches skipped — CB open/half-open tournamentId={}", tournamentId);
+        } else if (Thread.currentThread().isInterrupted()) {
+            log.debug("betcity fetchMatches fallback tournamentId={} [{}]: {} (budget interrupt)",
+                    tournamentId, t.getClass().getSimpleName(), describe(t));
         } else {
             log.warn("betcity fetchMatches fallback tournamentId={} [{}]: {}", tournamentId, t.getClass().getSimpleName(), describe(t));
         }
