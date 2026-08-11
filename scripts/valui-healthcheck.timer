@@ -1,0 +1,13 @@
+[Unit]
+Description=Run valui-healthcheck.service every minute
+
+[Timer]
+# First run 1 minute after boot (gives valui-app.service time to actually start before the
+# first check, which would otherwise immediately count as a failure right after a reboot).
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

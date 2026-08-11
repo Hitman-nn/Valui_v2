@@ -1,0 +1,13 @@
+[Unit]
+Description=Valui health-check watchdog (one-shot, triggered by valui-healthcheck.timer)
+After=valui-app.service
+
+[Service]
+Type=oneshot
+# Root, deliberately: the script calls `systemctl restart valui-app` on a confirmed outage.
+# valui-app.service itself still runs as User=valui — this unit is a separate, narrowly
+# scoped script (not the app), so running it as root is a simpler and equally safe choice
+# than granting the unprivileged `valui` user a scoped sudo rule for one systemctl command.
+# If you'd rather keep this off root, see the sudoers alternative in the deployment notes
+# (scripts/valui-healthcheck.sh header) and switch User=valui + ExecStart to `sudo systemctl ...`.
+ExecStart=/home/valui/app/valui-healthcheck.sh
