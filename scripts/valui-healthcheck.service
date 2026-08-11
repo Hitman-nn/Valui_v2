@@ -10,4 +10,11 @@ Type=oneshot
 # than granting the unprivileged `valui` user a scoped sudo rule for one systemctl command.
 # If you'd rather keep this off root, see the sudoers alternative in the deployment notes
 # (scripts/valui-healthcheck.sh header) and switch User=valui + ExecStart to `sudo systemctl ...`.
+#
+# APP_DIR must be set explicitly here: the script defaults it to $HOME/app when unset, and
+# for a unit with no User= (root) $HOME is /root, not /home/valui — so without this line the
+# script silently looked for .env.prod under /root/app, never found the Telegram credentials,
+# and suppressed every alert without erroring (bug found in production: healthcheck ran and
+# would have restarted the app, but never notified anyone).
+Environment=APP_DIR=/home/valui/app
 ExecStart=/home/valui/app/valui-healthcheck.sh
