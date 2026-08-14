@@ -143,6 +143,15 @@ valui:
     # a new notification. Set to 0 to disable.
     dedup-ttl-minutes: ${NOTIFICATIONS_DEDUP_TTL_MINUTES:60}
 
+  alerts:
+    parser-incidents:
+      # Independent on/off switches for the "bookmaker unavailable/recovered" Telegram messages —
+      # regular chats (BookmakerIncidentNotifier) vs. the admin circuit-breaker alert
+      # (IncidentAlertListener). Off only suppresses the Telegram send; detection itself (CB
+      # state, the ⚠️ on the bot's BK keyboard) keeps running either way.
+      users-enabled: ${PARSER_INCIDENT_ALERTS_USERS_ENABLED:true}
+      admin-enabled: ${PARSER_INCIDENT_ALERTS_ADMIN_ENABLED:true}
+
   miniapp:
     url: ${MINIAPP_URL:}
 

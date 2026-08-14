@@ -78,8 +78,14 @@ public class HttpClientConfig {
 
     @Bean @Qualifier("olimpHttpClient")
     public BookmakerHttpClient olimpHttpClient() {
-        // planned-events fallback response regularly exceeds the default 10 MB limit
-        return new BookmakerHttpClient(buildWebClient(null, 32 * 1024 * 1024));
+        // planned-events returns Olimp's FULL event catalog in one response and has already
+        // outgrown this limit twice (originally 10 MB, bumped to 32 MB, now exceeding that too —
+        // see DataBufferLimitException bursts in prod on 2026-08-14, ~92-96% olimp-cb failure
+        // rate for ~28min each time until the catalog happened to shrink back under the limit).
+        // 64 MB for headroom, matching the same problem already solved for Fonbet below (50 MB).
+        // If this keeps growing, the real fix is switching /planned-events to a streaming JSON
+        // parse instead of buffering the whole body — not attempted here.
+        return new BookmakerHttpClient(buildWebClient(null, 64 * 1024 * 1024));
     }
 
     @Bean @Qualifier("betcityHttpClient")
