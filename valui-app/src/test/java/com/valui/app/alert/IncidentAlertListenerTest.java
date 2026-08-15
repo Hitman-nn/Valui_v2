@@ -23,6 +23,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -34,14 +36,19 @@ class IncidentAlertListenerTest {
 
     @Mock AdminNotificationService adminNotificationService;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock ParserIncidentStateStore incidentStore;
 
     private IncidentAlertListener listener;
 
     @BeforeEach
     void setUp() {
         listener = new IncidentAlertListener(
-                CircuitBreakerRegistry.ofDefaults(), adminNotificationService, eventPublisher);
+                CircuitBreakerRegistry.ofDefaults(), adminNotificationService, eventPublisher, incidentStore);
         ReflectionTestUtils.setField(listener, "adminAlertsEnabled", true);
+        // Default: every transition is genuinely new — the StoreDedup nested class below
+        // overrides this per-test to exercise the "already claimed elsewhere" case.
+        lenient().when(incidentStore.markOpen(any())).thenReturn(true);
+        lenient().when(incidentStore.markClosed(any())).thenReturn(true);
     }
 
     // handleTransition only decides whether/what to publish — see sendAsync tests below for the
@@ -123,6 +130,33 @@ class IncidentAlertListenerTest {
             listener.handleTransition("xbet-cb", CircuitBreaker.StateTransition.HALF_OPEN_TO_CLOSED, 1_000L);
 
             verify(eventPublisher, times(1)).publishEvent(any(IncidentAlertListener.CbAlertRequest.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("REGRESSION: store dedup vs the reconciled path (duplicate 'recovered' admin alert)")
+    class StoreDedup {
+
+        @Test
+        @DisplayName("A late, real HALF_OPEN_TO_CLOSED is suppressed if the incident was already closed elsewhere (e.g. ParserHealthChecker's reconciled path) — this is exactly what produced a second 'recovered' message with no downtime duration, minutes after the first one that had it")
+        void lateRealRecovery_afterAlreadyClosedElsewhere_suppressed() {
+            given(incidentStore.markClosed(BookmakerType.XBET)).willReturn(false);
+
+            listener.handleTransition("xbet-cb", CircuitBreaker.StateTransition.CLOSED_TO_OPEN, 0L);
+            listener.handleTransition("xbet-cb", CircuitBreaker.StateTransition.HALF_OPEN_TO_CLOSED, 300_000L);
+
+            // only the OPEN alert goes out — the late, redundant recovered one is a no-op
+            verify(eventPublisher, times(1)).publishEvent(any(IncidentAlertListener.CbAlertRequest.class));
+        }
+
+        @Test
+        @DisplayName("CLOSED_TO_OPEN is suppressed if already open elsewhere")
+        void open_afterAlreadyOpenElsewhere_suppressed() {
+            given(incidentStore.markOpen(BookmakerType.XBET)).willReturn(false);
+
+            listener.handleTransition("xbet-cb", CircuitBreaker.StateTransition.CLOSED_TO_OPEN, 0L);
+
+            verifyNoInteractions(eventPublisher);
         }
     }
 

@@ -6,6 +6,7 @@ import com.valui.monitor.stats.MonitorStormEvent;
 import com.valui.notify.service.AdminNotificationService;
 import com.valui.parser.health.BetBoomWsHighTimeoutRateEvent;
 import com.valui.parser.health.ParserHealthChecker;
+import com.valui.parser.health.ParserIncidentStateStore;
 import com.valui.parser.health.ParserRecoveredEvent;
 import com.valui.parser.health.ParserUnavailableEvent;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -41,6 +42,17 @@ import java.util.concurrent.atomic.AtomicLong;
  * genuinely flapping bookmaker (repeated CLOSED→OPEN→HALF_OPEN→CLOSED, once per
  * wait-duration-in-open-state) would fire one Telegram message per transition, unbounded.
  *
+ * <p>{@link #handleTransition} additionally gates through {@link ParserIncidentStateStore} —
+ * the cooldown alone isn't enough, because it only throttles *repeats*, not a genuinely separate
+ * detector reporting the same real-world transition. For a low-traffic bookmaker,
+ * {@link ParserHealthChecker}'s active probe can confirm a recovery (via
+ * {@link #onParserRecoveredReconciled}) well before the CB itself accumulates enough real
+ * HALF_OPEN trial traffic to transition on its own — and once it eventually does, more than
+ * {@link #ALERT_COOLDOWN} later, {@link #handleTransition} would otherwise alert a second time
+ * for the same incident (this is exactly what caused a real duplicate: one "recovered" message
+ * with downtime duration, a later one without, because {@link #openedAt} had already been
+ * consumed by the first).
+ *
  * <p>The actual Telegram send in {@link #sendCbAlert} is dispatched via
  * {@link #sendAsync}/{@code @Async}, not called inline from the CB callback: that callback runs
  * synchronously on resilience4j's own state-transition thread, and a blocking network call
@@ -62,6 +74,7 @@ public class IncidentAlertListener {
     private final CircuitBreakerRegistry    registry;
     private final AdminNotificationService  adminNotificationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ParserIncidentStateStore  incidentStore;
 
     @Value("${valui.alerts.parser-incidents.admin-enabled:true}")
     private boolean adminAlertsEnabled;
@@ -92,14 +105,21 @@ public class IncidentAlertListener {
      */
     void handleTransition(String cbName, CircuitBreaker.StateTransition transition, long nowMs) {
         String display = cbName.replace("-cb", "").toUpperCase();
+        BookmakerType bm = toBookmaker(cbName);
         switch (transition) {
             case CLOSED_TO_OPEN -> {
+                // bm == null: a non-parser CB (shouldn't exist today, but handleTransition isn't
+                // bookmaker-specific by design) — nothing to dedup against, always alert.
+                if (bm != null && !incidentStore.markOpen(bm)) return;
                 openedAt.put(cbName, Instant.now());
                 sendCbAlert(cbName, nowMs,
                     "⚠️ *Circuit Breaker OPEN*: `" + display + "`\n"
                     + "Парсер временно заблокирован — превышен порог ошибок");
             }
             case HALF_OPEN_TO_CLOSED -> {
+                // See class javadoc: without this gate, a slow real CB transition arriving after
+                // ParserHealthChecker already reconciled the same recovery re-alerts a second time.
+                if (bm != null && !incidentStore.markClosed(bm)) return;
                 Instant opened = openedAt.remove(cbName);
                 String suffix = opened != null
                     ? " (была недоступна " + formatDuration(Duration.between(opened, Instant.now())) + ")"
@@ -107,6 +127,14 @@ public class IncidentAlertListener {
                 sendCbAlert(cbName, nowMs, "✅ *Circuit Breaker восстановлен*: `" + display + "`" + suffix);
             }
             default -> { /* остальные переходы не требуют алерта */ }
+        }
+    }
+
+    private static BookmakerType toBookmaker(String cbName) {
+        try {
+            return BookmakerType.valueOf(cbName.replace("-cb", "").toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 
