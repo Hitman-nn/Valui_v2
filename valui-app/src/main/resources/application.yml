@@ -151,6 +151,12 @@ valui:
       # state, the ⚠️ on the bot's BK keyboard) keeps running either way.
       users-enabled: ${PARSER_INCIDENT_ALERTS_USERS_ENABLED:true}
       admin-enabled: ${PARSER_INCIDENT_ALERTS_ADMIN_ENABLED:true}
+    # Aggregate "elevated error rate across the whole scheduler" Telegram alert. Off by default —
+    # in practice it fires alongside a per-bookmaker CB alert that already pinged admin about the
+    # same incident, so the Telegram send added little the WARN log line below didn't already
+    # cover. MonitorSummaryLogger keeps logging the same WARN summary every 10m regardless of
+    # this flag — only the Telegram push is suppressed.
+    monitor-storm-enabled: ${MONITOR_STORM_ALERTS_ENABLED:false}
 
   miniapp:
     url: ${MINIAPP_URL:}

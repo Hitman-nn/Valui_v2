@@ -229,8 +229,18 @@ public class IncidentAlertListener {
 
     // ── D: Monitor storm alerts ──────────────────────────────────────────────
 
+    /**
+     * Off by default ({@code valui.alerts.monitor-storm-enabled}): in practice this fires
+     * alongside a per-bookmaker CB alert that already pinged admin about the same incident, so
+     * the Telegram send added little the WARN line in {@code MonitorSummaryLogger} didn't already
+     * cover — that log line keeps firing regardless of this toggle.
+     */
+    @Value("${valui.alerts.monitor-storm-enabled:false}")
+    private boolean monitorStormAlertsEnabled;
+
     @EventListener
     public void onMonitorStorm(MonitorStormEvent event) {
+        if (!monitorStormAlertsEnabled) return;
         adminNotificationService.alertAdmin(String.format(
             "⚠️ *Шторм монитора*: ошибок=%d/%d (%.1f%%) в %d окнах подряд",
             event.getErrors(), event.getTotal(), event.getRate(), event.getConsecutiveWindows()));

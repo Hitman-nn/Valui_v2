@@ -1,6 +1,7 @@
 package com.valui.app.alert;
 
 import com.valui.common.domain.BookmakerType;
+import com.valui.monitor.stats.MonitorStormEvent;
 import com.valui.notify.service.AdminNotificationService;
 import com.valui.parser.health.ParserHealthChecker;
 import com.valui.parser.health.ParserIncidentStateStore;
@@ -206,6 +207,29 @@ class IncidentAlertListenerTest {
             listener.onParserUnavailableReconciled(new ParserUnavailableEvent(healthChecker, BookmakerType.FONBET, 3));
 
             verifyNoInteractions(eventPublisher);
+        }
+    }
+
+    @Nested
+    @DisplayName("Monitor storm alert — off by default")
+    class MonitorStorm {
+
+        @Test
+        @DisplayName("Disabled by default — does not call AdminNotificationService")
+        void disabledByDefault_noAlert() {
+            listener.onMonitorStorm(new MonitorStormEvent(this, 148, 5561, 2));
+
+            verifyNoInteractions(adminNotificationService);
+        }
+
+        @Test
+        @DisplayName("When explicitly enabled, alerts with the error rate")
+        void enabled_alerts() {
+            ReflectionTestUtils.setField(listener, "monitorStormAlertsEnabled", true);
+
+            listener.onMonitorStorm(new MonitorStormEvent(this, 148, 5561, 2));
+
+            verify(adminNotificationService).alertAdmin(org.mockito.ArgumentMatchers.contains("Шторм монитора"));
         }
     }
 
