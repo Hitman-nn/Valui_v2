@@ -2,6 +2,7 @@ package com.valui.app.alert;
 
 import com.valui.bot.listener.ParserAvailabilityRegistry;
 import com.valui.common.domain.BookmakerType;
+import com.valui.parser.health.ParserHealthChecker;
 import com.valui.parser.health.ParserIncidentStateStore;
 import com.valui.parser.health.ParserRecoveredEvent;
 import com.valui.parser.health.ParserUnavailableEvent;
@@ -44,7 +45,8 @@ import java.util.List;
  * {@code CircuitBreakerStateMachine.publishStateTransitionEvent}, logged as "Failed to handle
  * event STATE_TRANSITION". Publishing routes both triggers through the identical {@code @Async}
  * {@code @EventListener} entry point below, off that thread — same fix on both ends, same
- * dedup/claim logic in {@link #notifiedChats} either way.
+ * dedup/claim logic in {@link ParserIncidentStateStore} either way (see
+ * {@link #onParserUnavailable} for why that store is only claimed once per source).
  *
  * One message per chat per incident. Uses ParserAvailabilityRegistry so the bot shows ⚠️ on the
  * BK selection keyboard and returns a toast instead of processing the selection — that always
@@ -110,23 +112,28 @@ public class BookmakerIncidentNotifier {
     @Async
     @EventListener
     public void onParserUnavailable(ParserUnavailableEvent event) {
-        notifyUnavailable(event.getBookmaker());
+        // ParserHealthChecker already claims the store itself before publishing (it has to, so it
+        // can tell a genuinely new incident apart from a repeat threshold-crossing) — claiming
+        // again here for its events would just lose the race against itself and always return
+        // false, silently swallowing the notification. Only claim here for the CB-fast path,
+        // which — for threading reasons (see class javadoc) — cannot claim at its own publish site.
+        notifyUnavailable(event.getBookmaker(), event.getSource() instanceof ParserHealthChecker);
     }
 
     @Async
     @EventListener
     public void onParserRecovered(ParserRecoveredEvent event) {
-        notifyRecovered(event.getBookmaker());
+        notifyRecovered(event.getBookmaker(), event.getSource() instanceof ParserHealthChecker);
     }
 
     // ── shared notify logic ─────────────────────────────────────────────────────
 
-    private void notifyUnavailable(BookmakerType bm) {
+    private void notifyUnavailable(BookmakerType bm, boolean alreadyClaimedBySource) {
         availabilityRegistry.markUnavailable(bm);
         // Store update unconditional (even if usersAlertsEnabled is off below): ParserHealthChecker
         // and the admin-side reconciliation listener both rely on this store reflecting reality,
         // independent of whether user-facing chat messages happen to be toggled off.
-        boolean newlyOpened = incidentStore.markOpen(bm);
+        boolean newlyOpened = alreadyClaimedBySource || incidentStore.markOpen(bm);
         if (!usersAlertsEnabled || !newlyOpened) return;
 
         // Spring Data repository methods are @Transactional by default — no wrapper needed here
@@ -147,9 +154,9 @@ public class BookmakerIncidentNotifier {
         }
     }
 
-    private void notifyRecovered(BookmakerType bm) {
+    private void notifyRecovered(BookmakerType bm, boolean alreadyClaimedBySource) {
         availabilityRegistry.markAvailable(bm);
-        boolean newlyClosed = incidentStore.markClosed(bm);
+        boolean newlyClosed = alreadyClaimedBySource || incidentStore.markClosed(bm);
         if (!usersAlertsEnabled || !newlyClosed) return;
 
         // Queried fresh rather than replaying a snapshot from when the incident opened: that

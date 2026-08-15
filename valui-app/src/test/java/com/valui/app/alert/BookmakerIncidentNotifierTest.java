@@ -2,6 +2,7 @@ package com.valui.app.alert;
 
 import com.valui.bot.listener.ParserAvailabilityRegistry;
 import com.valui.common.domain.BookmakerType;
+import com.valui.parser.health.ParserHealthChecker;
 import com.valui.parser.health.ParserIncidentStateStore;
 import com.valui.parser.health.ParserRecoveredEvent;
 import com.valui.parser.health.ParserUnavailableEvent;
@@ -27,6 +28,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -182,6 +184,34 @@ class BookmakerIncidentNotifierTest {
             notifier.onParserRecovered(new ParserRecoveredEvent(this, BookmakerType.FONBET));
 
             verify(bot, times(2)).execute(any(SendMessage.class));
+        }
+
+        @Test
+        @DisplayName("REGRESSION: event sourced from ParserHealthChecker notifies without re-querying the store — ParserHealthChecker already claimed it before publishing, so a second markClosed() here would race itself and could return false, silently dropping the message")
+        void recoveredEvent_fromHealthChecker_doesNotReclaimAndDrop() throws Exception {
+            ParserHealthChecker healthChecker = new ParserHealthChecker(
+                    List.of(), mock(ApplicationEventPublisher.class), mock(ParserIncidentStateStore.class));
+            given(subscriptionRepo.findActiveChatIdsByBookmaker(BookmakerType.OLIMP))
+                    .willReturn(List.of(777L));
+
+            notifier.onParserRecovered(new ParserRecoveredEvent(healthChecker, BookmakerType.OLIMP));
+
+            verify(bot, times(1)).execute(any(SendMessage.class));
+            verifyNoInteractions(incidentStore);
+        }
+
+        @Test
+        @DisplayName("REGRESSION: same as above for the unavailable side")
+        void unavailableEvent_fromHealthChecker_doesNotReclaimAndDrop() throws Exception {
+            ParserHealthChecker healthChecker = new ParserHealthChecker(
+                    List.of(), mock(ApplicationEventPublisher.class), mock(ParserIncidentStateStore.class));
+            given(subscriptionRepo.findActiveChatIdsByBookmaker(BookmakerType.OLIMP))
+                    .willReturn(List.of(777L));
+
+            notifier.onParserUnavailable(new ParserUnavailableEvent(healthChecker, BookmakerType.OLIMP, 3));
+
+            verify(bot, times(1)).execute(any(SendMessage.class));
+            verifyNoInteractions(incidentStore);
         }
     }
 
