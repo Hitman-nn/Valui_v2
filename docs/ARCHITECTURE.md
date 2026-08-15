@@ -521,9 +521,9 @@ ParseResult<List<MatchDto>>      fetchMatches(String tournamentId)
 ```yaml
 valui:
   monitor:
-    max-concurrent-tasks: 50
-    max-tasks-per-user: 5
-    default-poll-interval-sec: 60
+    max-concurrent-tasks: 200
+    max-tasks-per-user: 30
+    default-poll-interval-sec: 20
 
 spring:
   kafka:
