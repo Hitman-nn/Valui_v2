@@ -2,6 +2,7 @@ package com.valui.app.alert;
 
 import com.valui.bot.listener.ParserAvailabilityRegistry;
 import com.valui.common.domain.BookmakerType;
+import com.valui.parser.health.ParserIncidentStateStore;
 import com.valui.parser.health.ParserRecoveredEvent;
 import com.valui.parser.health.ParserUnavailableEvent;
 import com.valui.user.repository.ControllerSubscriptionRepository;
@@ -19,10 +20,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.bots.AbsSender;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Notifies affected Telegram chats when a bookmaker parser becomes unavailable or recovers.
@@ -52,6 +50,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * BK selection keyboard and returns a toast instead of processing the selection — that always
  * stays live regardless of the {@code users-enabled} toggle below, since it's a UI indicator,
  * not a notification.
+ *
+ * <p>Open/closed dedup is claimed via {@link ParserIncidentStateStore} (Redis), not a local map:
+ * a restart while an incident is still open loses any in-memory claim, and — worse — a freshly
+ * created {@code CircuitBreaker} boots {@code CLOSED} without ever emitting the
+ * {@code HALF_OPEN_TO_CLOSED} transition this class's fast trigger depends on, so the "recovered"
+ * message would silently never go out. {@link com.valui.parser.health.ParserHealthChecker}'s
+ * active probe reads the same store and is the one detector that survives the restart to confirm
+ * a real recovery and close it here too.
  */
 @Slf4j
 @Component
@@ -63,12 +69,10 @@ public class BookmakerIncidentNotifier {
     private final ParserAvailabilityRegistry       availabilityRegistry;
     private final CircuitBreakerRegistry           cbRegistry;
     private final ApplicationEventPublisher        eventPublisher;
+    private final ParserIncidentStateStore         incidentStore;
 
     @Value("${valui.alerts.parser-incidents.users-enabled:true}")
     private boolean usersAlertsEnabled;
-
-    // bm → set of chatIds that received "unavailable" message for the current incident
-    private final ConcurrentHashMap<BookmakerType, Set<Long>> notifiedChats = new ConcurrentHashMap<>();
 
     // ── fast trigger: circuit breaker state (mirrors IncidentAlertListener) ────
 
@@ -119,13 +123,11 @@ public class BookmakerIncidentNotifier {
 
     private void notifyUnavailable(BookmakerType bm) {
         availabilityRegistry.markUnavailable(bm);
-        if (!usersAlertsEnabled) return;
-
-        // Atomic claim: only the first trigger/caller for this incident proceeds to notify chats.
-        // Repeat alerts from the slow poller (consecutive=12,24) update the registry but skip
-        // chat notifications, same as any call arriving after the incident is already claimed.
-        Set<Long> slot = Collections.newSetFromMap(new ConcurrentHashMap<>());
-        if (notifiedChats.putIfAbsent(bm, slot) != null) return;
+        // Store update unconditional (even if usersAlertsEnabled is off below): ParserHealthChecker
+        // and the admin-side reconciliation listener both rely on this store reflecting reality,
+        // independent of whether user-facing chat messages happen to be toggled off.
+        boolean newlyOpened = incidentStore.markOpen(bm);
+        if (!usersAlertsEnabled || !newlyOpened) return;
 
         // Spring Data repository methods are @Transactional by default — no wrapper needed here
         List<Long> chatIds = subscriptionRepo.findActiveChatIdsByBookmaker(bm);
@@ -139,7 +141,6 @@ public class BookmakerIncidentNotifier {
                         .text(text)
                         .parseMode("Markdown")
                         .build());
-                slot.add(chatId);
             } catch (TelegramApiException e) {
                 log.warn("[BK-INCIDENT] Failed to notify chatId={} bm={}: {}", chatId, bm, e.getMessage());
             }
@@ -148,14 +149,16 @@ public class BookmakerIncidentNotifier {
 
     private void notifyRecovered(BookmakerType bm) {
         availabilityRegistry.markAvailable(bm);
-        if (!usersAlertsEnabled) return;
+        boolean newlyClosed = incidentStore.markClosed(bm);
+        if (!usersAlertsEnabled || !newlyClosed) return;
 
-        Set<Long> chats = notifiedChats.remove(bm);
-        if (chats == null || chats.isEmpty()) return;
-
-        log.info("[BK-INCIDENT] {} recovered — notifying {} chats", bm, chats.size());
+        // Queried fresh rather than replaying a snapshot from when the incident opened: that
+        // snapshot doesn't survive a restart (see class javadoc), and a fresh query also
+        // correctly covers chats that subscribed to this bookmaker mid-incident.
+        List<Long> chatIds = subscriptionRepo.findActiveChatIdsByBookmaker(bm);
+        log.info("[BK-INCIDENT] {} recovered — notifying {} chats", bm, chatIds.size());
         String text = "✅ *" + bm.name() + "* снова доступна. Мониторинг возобновлён.";
-        for (Long chatId : chats) {
+        for (Long chatId : chatIds) {
             try {
                 bot.execute(SendMessage.builder()
                         .chatId(chatId)

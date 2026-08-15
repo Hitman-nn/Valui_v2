@@ -2,6 +2,7 @@ package com.valui.app.alert;
 
 import com.valui.bot.listener.ParserAvailabilityRegistry;
 import com.valui.common.domain.BookmakerType;
+import com.valui.parser.health.ParserIncidentStateStore;
 import com.valui.parser.health.ParserRecoveredEvent;
 import com.valui.parser.health.ParserUnavailableEvent;
 import com.valui.user.repository.ControllerSubscriptionRepository;
@@ -38,6 +39,7 @@ class BookmakerIncidentNotifierTest {
     @Mock AbsSender bot;
     @Mock ControllerSubscriptionRepository subscriptionRepo;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock ParserIncidentStateStore incidentStore;
 
     private ParserAvailabilityRegistry availabilityRegistry;
     private CircuitBreakerRegistry cbRegistry;
@@ -47,7 +49,7 @@ class BookmakerIncidentNotifierTest {
     void setUp() {
         availabilityRegistry = new ParserAvailabilityRegistry();
         cbRegistry = CircuitBreakerRegistry.ofDefaults();
-        notifier = new BookmakerIncidentNotifier(bot, subscriptionRepo, availabilityRegistry, cbRegistry, eventPublisher);
+        notifier = new BookmakerIncidentNotifier(bot, subscriptionRepo, availabilityRegistry, cbRegistry, eventPublisher, incidentStore);
         ReflectionTestUtils.setField(notifier, "usersAlertsEnabled", true);
         notifier.subscribeToCbEvents();
     }
@@ -110,6 +112,7 @@ class BookmakerIncidentNotifierTest {
         @Test
         @DisplayName("ParserUnavailableEvent notifies chats and marks the registry")
         void unavailableEvent_notifiesChats() throws Exception {
+            given(incidentStore.markOpen(BookmakerType.OLIMP)).willReturn(true);
             given(subscriptionRepo.findActiveChatIdsByBookmaker(BookmakerType.OLIMP))
                     .willReturn(List.of(333L));
 
@@ -130,6 +133,7 @@ class BookmakerIncidentNotifierTest {
         @Test
         @DisplayName("Fires the same way regardless of which trigger's event reaches it")
         void bothTriggersConvergeOnSameLogic() throws Exception {
+            given(incidentStore.markOpen(BookmakerType.XBET)).willReturn(true);
             given(subscriptionRepo.findActiveChatIdsByBookmaker(BookmakerType.XBET))
                     .willReturn(List.of(111L, 222L));
 
@@ -147,6 +151,7 @@ class BookmakerIncidentNotifierTest {
         @Test
         @DisplayName("First event claims the incident — a second one for the same bookmaker is a no-op")
         void secondEvent_isNoop() throws Exception {
+            given(incidentStore.markOpen(BookmakerType.XBET)).willReturn(true, false);
             given(subscriptionRepo.findActiveChatIdsByBookmaker(BookmakerType.XBET))
                     .willReturn(List.of(111L, 222L));
 
@@ -156,6 +161,27 @@ class BookmakerIncidentNotifierTest {
             // still only the 2 sends from the first event — repo queried once
             verify(bot, times(2)).execute(any(SendMessage.class));
             verify(subscriptionRepo, times(1)).findActiveChatIdsByBookmaker(BookmakerType.XBET);
+        }
+    }
+
+    @Nested
+    @DisplayName("Recovery survives a restart via the persisted incident store")
+    class RestartRecovery {
+
+        @Test
+        @DisplayName("A ParserRecoveredEvent this JVM instance never itself opened still notifies current subscribers")
+        void recoveredEvent_withNoLocalMemoryOfTheIncident_stillNotifies() throws Exception {
+            // Simulates: the "unavailable" alert was sent by a previous (now-dead) JVM instance
+            // before a restart — this instance never called onParserUnavailable for FONBET, so it
+            // has zero local state about the incident. Only the persisted store remembers it was
+            // open, which is exactly what makes the recovery message possible after a restart.
+            given(incidentStore.markClosed(BookmakerType.FONBET)).willReturn(true);
+            given(subscriptionRepo.findActiveChatIdsByBookmaker(BookmakerType.FONBET))
+                    .willReturn(List.of(555L, 666L));
+
+            notifier.onParserRecovered(new ParserRecoveredEvent(this, BookmakerType.FONBET));
+
+            verify(bot, times(2)).execute(any(SendMessage.class));
         }
     }
 

@@ -1,9 +1,13 @@
 package com.valui.app.alert;
 
 import com.valui.admin.auth.BruteForceAlertEvent;
+import com.valui.common.domain.BookmakerType;
 import com.valui.monitor.stats.MonitorStormEvent;
 import com.valui.notify.service.AdminNotificationService;
 import com.valui.parser.health.BetBoomWsHighTimeoutRateEvent;
+import com.valui.parser.health.ParserHealthChecker;
+import com.valui.parser.health.ParserRecoveredEvent;
+import com.valui.parser.health.ParserUnavailableEvent;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import jakarta.annotation.PostConstruct;
@@ -27,8 +31,10 @@ import java.util.concurrent.atomic.AtomicLong;
  *   D — admin login brute-force
  *
  * DLQ-final alerts are handled directly in DeadLetterPublisher.
- * Parser health (ParserUnavailableEvent/ParserRecoveredEvent) is covered by CB alerts,
- * which fire faster and avoid duplicate admin notifications.
+ * Parser health in the normal case is covered by the CB alerts above (B), which fire faster than
+ * ParserHealthChecker's active-probe backstop. But a restart mid-incident silently drops the "B"
+ * recovery signal — see {@link #onParserRecoveredReconciled} below — so ParserHealthChecker's
+ * events are also handled, filtered to just the cases (B) can't cover to avoid double-alerting.
  *
  * <p>B alerts are per-breaker cooldown-throttled ({@link #ALERT_COOLDOWN}) and can be disabled
  * wholesale via {@code valui.alerts.parser-incidents.admin-enabled} — without the cooldown, a
@@ -142,6 +148,46 @@ public class IncidentAlertListener {
         if (h > 0) return h + "h" + m + "m";
         if (m > 0) return m + "m" + s + "s";
         return s + "s";
+    }
+
+    // ── B (reconciled): restart-survives parser recovery/outage detection ─────
+
+    /**
+     * Catches the case {@link #handleTransition} structurally cannot: a restart while a breaker
+     * is OPEN/HALF_OPEN. A freshly created CircuitBreaker boots CLOSED and never re-emits
+     * CLOSED_TO_OPEN/HALF_OPEN_TO_CLOSED for state that existed before the restart, so the direct
+     * CB subscription above goes silent for that incident. {@link ParserHealthChecker}'s active
+     * probe reads the same persisted {@code ParserIncidentStateStore} the CB path writes to, so
+     * it is the one detector that can still confirm and announce what actually happened.
+     *
+     * <p>Filtered to {@code event.getSource() instanceof ParserHealthChecker}: in the normal
+     * (non-restart) case, BookmakerIncidentNotifier's CB subscription publishes this same event
+     * type too, and {@link #handleTransition} above already alerts admin for that one directly —
+     * without this filter, both would fire for a single real transition.
+     */
+    @EventListener
+    public void onParserUnavailableReconciled(ParserUnavailableEvent event) {
+        if (!(event.getSource() instanceof ParserHealthChecker)) return;
+        sendCbAlert(cbNameOf(event.getBookmaker()), System.currentTimeMillis(),
+            "⚠️ *Circuit Breaker OPEN*: `" + event.getBookmaker() + "`\n"
+            + "Парсер временно заблокирован — превышен порог ошибок (обнаружено активной проверкой)");
+    }
+
+    /** See {@link #onParserUnavailableReconciled} — same restart gap, recovery side. */
+    @EventListener
+    public void onParserRecoveredReconciled(ParserRecoveredEvent event) {
+        if (!(event.getSource() instanceof ParserHealthChecker)) return;
+        String cbName = cbNameOf(event.getBookmaker());
+        Instant opened = openedAt.remove(cbName);
+        String suffix = opened != null
+            ? " (была недоступна " + formatDuration(Duration.between(opened, Instant.now())) + ")"
+            : "";
+        sendCbAlert(cbName, System.currentTimeMillis(),
+            "✅ *Circuit Breaker восстановлен*: `" + event.getBookmaker() + "`" + suffix);
+    }
+
+    private static String cbNameOf(BookmakerType bookmaker) {
+        return bookmaker.name().toLowerCase() + "-cb";
     }
 
     // ── C: BetBoom WS degradation alert ──────────────────────────────────────

@@ -1,6 +1,11 @@
 package com.valui.app.alert;
 
+import com.valui.common.domain.BookmakerType;
 import com.valui.notify.service.AdminNotificationService;
+import com.valui.parser.health.ParserHealthChecker;
+import com.valui.parser.health.ParserIncidentStateStore;
+import com.valui.parser.health.ParserRecoveredEvent;
+import com.valui.parser.health.ParserUnavailableEvent;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,8 +19,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -115,6 +123,55 @@ class IncidentAlertListenerTest {
             listener.handleTransition("xbet-cb", CircuitBreaker.StateTransition.HALF_OPEN_TO_CLOSED, 1_000L);
 
             verify(eventPublisher, times(1)).publishEvent(any(IncidentAlertListener.CbAlertRequest.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("Reconciled parser events — restart-survives recovery path")
+    class Reconciled {
+
+        private final ParserHealthChecker healthChecker =
+                new ParserHealthChecker(List.of(), mock(ApplicationEventPublisher.class), mock(ParserIncidentStateStore.class));
+
+        @Test
+        @DisplayName("ParserUnavailableEvent sourced from ParserHealthChecker publishes an alert")
+        void unavailableFromHealthChecker_publishes() {
+            listener.onParserUnavailableReconciled(new ParserUnavailableEvent(healthChecker, BookmakerType.FONBET, 3));
+
+            ArgumentCaptor<IncidentAlertListener.CbAlertRequest> captor =
+                    ArgumentCaptor.forClass(IncidentAlertListener.CbAlertRequest.class);
+            verify(eventPublisher).publishEvent(captor.capture());
+            assertThat(captor.getValue().text()).contains("FONBET").contains("OPEN");
+        }
+
+        @Test
+        @DisplayName("ParserRecoveredEvent sourced from ParserHealthChecker publishes a recovery alert — this is the case a restart mid-incident otherwise loses entirely")
+        void recoveredFromHealthChecker_publishes() {
+            listener.onParserRecoveredReconciled(new ParserRecoveredEvent(healthChecker, BookmakerType.FONBET));
+
+            ArgumentCaptor<IncidentAlertListener.CbAlertRequest> captor =
+                    ArgumentCaptor.forClass(IncidentAlertListener.CbAlertRequest.class);
+            verify(eventPublisher).publishEvent(captor.capture());
+            assertThat(captor.getValue().text()).contains("FONBET").contains("восстановлен");
+        }
+
+        @Test
+        @DisplayName("Events NOT sourced from ParserHealthChecker are ignored — the direct CB subscription already covers that case")
+        void unavailableFromOtherSource_ignored() {
+            listener.onParserUnavailableReconciled(new ParserUnavailableEvent(this, BookmakerType.FONBET, 3));
+            listener.onParserRecoveredReconciled(new ParserRecoveredEvent(this, BookmakerType.FONBET));
+
+            verifyNoInteractions(eventPublisher);
+        }
+
+        @Test
+        @DisplayName("Disabled via admin toggle — never publishes")
+        void disabled_neverPublishes() {
+            ReflectionTestUtils.setField(listener, "adminAlertsEnabled", false);
+
+            listener.onParserUnavailableReconciled(new ParserUnavailableEvent(healthChecker, BookmakerType.FONBET, 3));
+
+            verifyNoInteractions(eventPublisher);
         }
     }
 
