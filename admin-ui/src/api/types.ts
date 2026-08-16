@@ -530,3 +530,15 @@ export interface DlqStats {
   replayed: number;
   status: string;
 }
+
+// ─── Chat Digest ──────────────────────────────────────────────────────────────
+
+export interface ChatDigestPreview {
+  chatId: number;
+  text: string;
+}
+
+export interface ChatDigestTriggerResult {
+  chatCount: number;
+  dryRun: boolean;
+}

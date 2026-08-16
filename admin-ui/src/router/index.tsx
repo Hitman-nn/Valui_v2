@@ -17,6 +17,7 @@ import MigrationPage from '../pages/migration/MigrationPage';
 import TokenCostsPage from '../pages/costs/TokenCostsPage';
 import CryptoRatesPage from '../pages/costs/CryptoRatesPage';
 import DlqPage from '../pages/dlq/DlqPage';
+import DigestPage from '../pages/digest/DigestPage';
 import { useAuthStore } from '../store/authStore';
 import type { ReactNode } from 'react';
 
@@ -52,6 +53,7 @@ export const router = createBrowserRouter(
         { path: 'audit',        element: <AuditPage /> },
 
         { path: 'broadcast',    element: <BroadcastPage /> },
+        { path: 'digest',       element: <DigestPage /> },
         { path: 'scheduler',    element: <SchedulerPage /> },
         { path: 'jobs',         element: <JobsPage /> },
         { path: 'migration',    element: <MigrationPage /> },

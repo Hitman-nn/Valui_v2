@@ -26,6 +26,7 @@ import {
   FieldTimeOutlined,
   DollarOutlined,
   AlertOutlined,
+  ScheduleOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -46,6 +47,7 @@ const MENU_ITEMS = [
   { key: '/migration', icon: <ThunderboltOutlined />,  label: 'Migration' },
   { key: '/audit',       icon: <AuditOutlined />,       label: 'Audit Log' },
   { key: '/broadcast',   icon: <NotificationOutlined />, label: 'Broadcast' },
+  { key: '/digest',      icon: <ScheduleOutlined />,      label: 'Digest' },
   { key: '/token-costs',  icon: <DollarOutlined />,      label: 'Token Costs' },
   { key: '/crypto-rates', icon: <DollarOutlined />,      label: 'Crypto Rates' },
   { key: '/dlq',          icon: <AlertOutlined />,        label: 'DLQ' },
@@ -63,6 +65,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   migration:     'Migration',
   audit:         'Audit Log',
   broadcast:     'Broadcast',
+  digest:        'Digest',
   'token-costs':  'Token Costs',
   'crypto-rates': 'Crypto Rates',
   dlq:            'DLQ',

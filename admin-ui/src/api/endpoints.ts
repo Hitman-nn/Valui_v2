@@ -45,6 +45,8 @@ import type {
   UpdateExchangeRateRequest,
   TokenStats,
   DlqStats,
+  ChatDigestPreview,
+  ChatDigestTriggerResult,
 } from './types';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -376,5 +378,25 @@ export const broadcastApi = {
       .get<BroadcastResult>('/api/v1/admin/broadcast/preview', {
         params: status ? { status } : {},
       })
+      .then((r) => r.data),
+};
+
+// ─── Chat Digest ────────────────────────────────────────────────────────────────
+
+export const digestApi = {
+  /** Renders every eligible chat's digest text without sending anything (also accepts a single
+   *  chatId to check one chat) — see ChatDigestAdminController on the backend. */
+  preview: (chatId?: number) =>
+    apiClient
+      .get<ChatDigestPreview[]>('/api/v1/admin/digest/preview', {
+        params: chatId ? { chatId } : {},
+      })
+      .then((r) => r.data),
+
+  /** dryRun=true (default) only counts eligible chats; dryRun=false actually publishes to Kafka
+   *  for every one of them at once — there's no per-chat trigger on the backend. */
+  trigger: (dryRun: boolean) =>
+    apiClient
+      .post<ChatDigestTriggerResult>('/api/v1/admin/digest/trigger', null, { params: { dryRun } })
       .then((r) => r.data),
 };
