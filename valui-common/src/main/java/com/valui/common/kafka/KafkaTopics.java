@@ -30,5 +30,8 @@ public final class KafkaTopics {
     /** Admin broadcast: one message per recipient, consumed by BroadcastConsumer in valui-notify. */
     public static final String ADMIN_BROADCAST = "admin.broadcast";
 
+    /** Weekly per-chat digest: one message per recipient chat, consumed by ChatDigestConsumer in valui-notify. */
+    public static final String CHAT_DIGEST = "chat.digest";
+
     private KafkaTopics() {}
 }

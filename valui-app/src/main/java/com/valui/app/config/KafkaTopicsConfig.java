@@ -244,6 +244,19 @@ public class KafkaTopicsConfig {
                 .build();
     }
 
+    // ── chat.digest ────────────────────────────────────────────────────────────
+
+    /** One record per recipient chat; produced by ChatDigestScheduler (valui-admin), consumed by ChatDigestConsumer. */
+    @Bean
+    public org.apache.kafka.clients.admin.NewTopic chatDigest() {
+        return TopicBuilder.name(KafkaTopics.CHAT_DIGEST)
+                .partitions(3)
+                .replicas(replicationFactor)
+                .config(TopicConfig.RETENTION_MS_CONFIG,   ms(1, ChronoUnit.DAYS))
+                .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE)
+                .build();
+    }
+
     // ── helpers ────────────────────────────────────────────────────────────────
 
     private static String ms(long amount, ChronoUnit unit) {

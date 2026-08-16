@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -89,6 +90,45 @@ public interface ControllerSubscriptionRepository
     @Modifying
     @Query("UPDATE ControllerSubscriptionEntity s SET s.vkPeerId = null WHERE s.userId = :userId AND s.chatId = :chatId")
     void clearVkPeerIdByUserIdAndChatId(@Param("userId") UUID userId, @Param("chatId") Long chatId);
+
+    // ── Weekly per-chat digest ─────────────────────────────────────────────────
+
+    /**
+     * One row per group chat with ≥1 active controller — batched across all chats at once
+     * (no per-chat query) to avoid N+1 across a potentially large chat population.
+     * Columns: chatId, activeControllerCount, activeBookmakerCount, mutedControllerCount,
+     * pausedByTokensControllerCount. A chat with only muted/paused controllers still appears
+     * here (isActive on the controller is the only hard filter) so its muted/paused counts are
+     * visible — it just won't have any "active" contribution to columns 2-3.
+     */
+    @Query("""
+           SELECT s.chatId,
+                  COUNT(DISTINCT CASE WHEN s.isMuted = false AND s.pausedByTokens = false THEN s.controllerId END),
+                  COUNT(DISTINCT CASE WHEN s.isMuted = false AND s.pausedByTokens = false THEN c.bookmaker END),
+                  COUNT(DISTINCT CASE WHEN s.isMuted = true THEN s.controllerId END),
+                  COUNT(DISTINCT CASE WHEN s.pausedByTokens = true THEN s.controllerId END)
+           FROM ControllerSubscriptionEntity s
+           JOIN ControllerEntity c ON c.id = s.controllerId
+           WHERE c.isActive = true AND s.chatId < 0
+           GROUP BY s.chatId
+           """)
+    List<Object[]> aggregateDigestStatsByChat();
+
+    /**
+     * Per-chat count of "stale" controllers: active 30+ days (createdAt < cutoff — otherwise a
+     * brand-new controller with no event yet would be misreported as stale) AND either never
+     * fired an event or last fired before cutoff.
+     */
+    @Query("""
+           SELECT s.chatId, COUNT(DISTINCT s.controllerId)
+           FROM ControllerSubscriptionEntity s
+           JOIN ControllerEntity c ON c.id = s.controllerId
+           WHERE c.isActive = true AND s.isMuted = false AND s.pausedByTokens = false
+             AND s.chatId < 0 AND c.createdAt < :cutoff
+             AND (c.lastEventAt IS NULL OR c.lastEventAt < :cutoff)
+           GROUP BY s.chatId
+           """)
+    List<Object[]> countStaleControllersByChat(@Param("cutoff") OffsetDateTime cutoff);
 
     // ── Group chat migration (Telegram basic group → supergroup) ─────────────
 

@@ -158,6 +158,15 @@ valui:
     # this flag — only the Telegram push is suppressed.
     monitor-storm-enabled: ${MONITOR_STORM_ALERTS_ENABLED:false}
 
+  digest:
+    # Weekly per-chat stats push (ChatDigestScheduler, valui-admin) — off by default since this
+    # reaches every group chat with an active controller at once with zero prior production
+    # validation. Check GET /api/v1/admin/digest/preview against real data first, then flip on.
+    enabled: ${CHAT_DIGEST_ENABLED:false}
+    cron: ${CHAT_DIGEST_CRON:0 0 10 * * MON}
+    stale-days: ${CHAT_DIGEST_STALE_DAYS:30}
+    window-days: ${CHAT_DIGEST_WINDOW_DAYS:7}
+
   miniapp:
     url: ${MINIAPP_URL:}
 

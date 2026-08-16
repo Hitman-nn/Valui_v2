@@ -32,4 +32,16 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
     long countByCreatedAtAfter(OffsetDateTime since);
 
     long countByCreatedAtBetween(OffsetDateTime from, OffsetDateTime to);
+
+    /**
+     * Per-chat notification count for a time window — batched across all chats at once via
+     * GROUP BY (no per-chat query). A chat with zero notifications in the window simply won't
+     * appear in the result rows; callers default missing chatIds to 0.
+     */
+    @Query("""
+           SELECT n.chatId, COUNT(n) FROM NotificationLogEntity n
+           WHERE n.chatId IS NOT NULL AND n.createdAt >= :since AND n.createdAt < :until
+           GROUP BY n.chatId
+           """)
+    List<Object[]> countNotificationsByChatBetween(@Param("since") OffsetDateTime since, @Param("until") OffsetDateTime until);
 }
