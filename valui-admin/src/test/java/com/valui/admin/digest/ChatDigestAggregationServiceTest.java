@@ -17,7 +17,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("ChatDigestAggregationService — merges 3 batched queries into one DTO per chat")
+@DisplayName("ChatDigestAggregationService — merges 4 batched queries into one DTO per chat")
 class ChatDigestAggregationServiceTest {
 
     @Mock ControllerSubscriptionRepository subscriptionRepository;
@@ -26,8 +26,8 @@ class ChatDigestAggregationServiceTest {
     @InjectMocks ChatDigestAggregationService service;
 
     @Test
-    @DisplayName("Merges controller/notification/stale rows for the same chat by chatId")
-    void merge_combinesAllThreeQueries() {
+    @DisplayName("Merges controller/notification/stale/token-spend rows for the same chat by chatId")
+    void merge_combinesAllQueries() {
         given(subscriptionRepository.aggregateDigestStatsByChat()).willReturn(List.<Object[]>of(
                 new Object[]{-100L, 3L, 2L, 1L, 0L}
         ));
@@ -37,6 +37,9 @@ class ChatDigestAggregationServiceTest {
         given(notificationLogRepository.countNotificationsByChatBetween(any(), any()))
                 .willReturn(List.<Object[]>of(new Object[]{-100L, 5L}))  // first call: this week
                 .willReturn(List.<Object[]>of(new Object[]{-100L, 4L})); // second call: last week
+        given(subscriptionRepository.sumTokensSpentByChat(any(), any())).willReturn(List.<Object[]>of(
+                new Object[]{-100L, 300L}
+        ));
 
         List<ChatDigestStatsDto> result = service.buildDigests(30, 7);
 
@@ -50,16 +53,18 @@ class ChatDigestAggregationServiceTest {
         assertThat(dto.staleControllers()).isEqualTo(2);
         assertThat(dto.notificationsThisWeek()).isEqualTo(5);
         assertThat(dto.notificationsLastWeek()).isEqualTo(4);
+        assertThat(dto.tokensSpent()).isEqualTo(300);
     }
 
     @Test
-    @DisplayName("A chat missing from the notification/stale query results defaults to 0, not omitted")
+    @DisplayName("A chat missing from the notification/stale/token-spend query results defaults to 0, not omitted")
     void merge_missingChatIdsDefaultToZero() {
         given(subscriptionRepository.aggregateDigestStatsByChat()).willReturn(List.<Object[]>of(
                 new Object[]{-200L, 1L, 1L, 0L, 0L}
         ));
         given(subscriptionRepository.countStaleControllersByChat(any())).willReturn(List.of());
         given(notificationLogRepository.countNotificationsByChatBetween(any(), any())).willReturn(List.of());
+        given(subscriptionRepository.sumTokensSpentByChat(any(), any())).willReturn(List.of());
 
         List<ChatDigestStatsDto> result = service.buildDigests(30, 7);
 
@@ -68,6 +73,7 @@ class ChatDigestAggregationServiceTest {
         assertThat(dto.staleControllers()).isZero();
         assertThat(dto.notificationsThisWeek()).isZero();
         assertThat(dto.notificationsLastWeek()).isZero();
+        assertThat(dto.tokensSpent()).isZero();
     }
 
     @Test
@@ -76,6 +82,7 @@ class ChatDigestAggregationServiceTest {
         given(subscriptionRepository.aggregateDigestStatsByChat()).willReturn(List.of());
         given(subscriptionRepository.countStaleControllersByChat(any(OffsetDateTime.class))).willReturn(List.of());
         given(notificationLogRepository.countNotificationsByChatBetween(any(), any())).willReturn(List.of());
+        given(subscriptionRepository.sumTokensSpentByChat(any(), any())).willReturn(List.of());
 
         List<ChatDigestStatsDto> result = service.buildDigests(30, 7);
 

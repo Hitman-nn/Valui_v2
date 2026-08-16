@@ -9,5 +9,9 @@ public record ChatDigestStatsDto(
         long pausedByTokensControllers,
         long notificationsThisWeek,
         long notificationsLastWeek,
-        long staleControllers
+        long staleControllers,
+        /** Sum of token spend by every user with ≥1 active controller in this chat — see
+         *  {@code ControllerSubscriptionRepository.sumTokensSpentByChat} for why this is an
+         *  approximation (per-user, not per-chat, spend), not exact chat-scoped billing. */
+        long tokensSpent
 ) {}

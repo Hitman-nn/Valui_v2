@@ -6,9 +6,11 @@ import com.valui.common.domain.NotificationChannel;
 import com.valui.common.domain.NotificationStatus;
 import com.valui.common.domain.UserRole;
 import com.valui.common.domain.UserStatus;
+import com.valui.common.domain.TokenReasonCode;
 import com.valui.common.entity.ControllerEntity;
 import com.valui.common.entity.ControllerSubscriptionEntity;
 import com.valui.common.entity.NotificationLogEntity;
+import com.valui.common.entity.TokenTransactionEntity;
 import com.valui.common.entity.UserEntity;
 import com.valui.user.repository.ControllerSubscriptionRepository;
 import com.valui.user.repository.NotificationLogRepository;
@@ -158,6 +160,58 @@ class ChatDigestRepositoryTest {
     }
 
     @Test
+    @DisplayName("sumTokensSpentByChat: sums debits from every distinct chat user, not multiplied by how many controllers they own in that chat")
+    void sumTokensSpentByChat_dedupsByUserNotByControllerCount() {
+        OffsetDateTime now = OffsetDateTime.now();
+        ControllerEntity c1 = em.persist(controller(BookmakerType.XBET));
+        ControllerEntity c2 = em.persist(controller(BookmakerType.FONBET));
+        em.flush();
+        // Same user, 2 active controllers in the same chat — must not double the debit sum.
+        em.persist(subscription(c1, GROUP_CHAT, false, false));
+        em.persist(subscription(c2, GROUP_CHAT, false, false));
+        em.persist(tokenDebit(user, 50, now.minusDays(2)));
+        em.flush();
+
+        List<Object[]> rows = subscriptionRepository.sumTokensSpentByChat(now.minusDays(7), now);
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0)[0]).isEqualTo(GROUP_CHAT);
+        assertThat(((Number) rows.get(0)[1]).longValue()).isEqualTo(50); // not 100
+    }
+
+    @Test
+    @DisplayName("sumTokensSpentByChat: ignores credits and transactions outside the window")
+    void sumTokensSpentByChat_ignoresCreditsAndOutOfWindow() {
+        OffsetDateTime now = OffsetDateTime.now();
+        ControllerEntity c = em.persist(controller(BookmakerType.XBET));
+        em.flush();
+        em.persist(subscription(c, GROUP_CHAT, false, false));
+        em.persist(tokenDebit(user, 30, now.minusDays(2)));    // in window
+        em.persist(tokenDebit(user, 999, now.minusDays(10)));  // outside window
+        em.persist(tokenCredit(user, 500, now.minusDays(2)));  // credit, not spend
+        em.flush();
+
+        List<Object[]> rows = subscriptionRepository.sumTokensSpentByChat(now.minusDays(7), now);
+
+        assertThat(rows).hasSize(1);
+        assertThat(((Number) rows.get(0)[1]).longValue()).isEqualTo(30);
+    }
+
+    @Test
+    @DisplayName("sumTokensSpentByChat: a chat with no matching debits in the window is absent from results")
+    void sumTokensSpentByChat_noSpend_chatAbsent() {
+        ControllerEntity c = em.persist(controller(BookmakerType.XBET));
+        em.flush();
+        em.persist(subscription(c, GROUP_CHAT, false, false));
+        em.flush();
+
+        List<Object[]> rows = subscriptionRepository.sumTokensSpentByChat(
+                OffsetDateTime.now().minusDays(7), OffsetDateTime.now());
+
+        assertThat(rows).isEmpty();
+    }
+
+    @Test
     @DisplayName("countNotificationsByChatBetween: only counts rows within [since, until), ignores null chatId")
     void countNotificationsByChatBetween_windowAndNullChatId() {
         OffsetDateTime now = OffsetDateTime.now();
@@ -228,6 +282,26 @@ class ChatDigestRepositoryTest {
                 .isMuted(muted)
                 .pausedByTokens(pausedByTokens)
                 .createdAt(OffsetDateTime.now())
+                .build();
+    }
+
+    private TokenTransactionEntity tokenDebit(UserEntity u, int amount, OffsetDateTime createdAt) {
+        return TokenTransactionEntity.builder()
+                .user(u)
+                .delta(-amount)
+                .reasonCode(TokenReasonCode.NOTIFICATION_SENT)
+                .balanceAfter(0)
+                .createdAt(createdAt)
+                .build();
+    }
+
+    private TokenTransactionEntity tokenCredit(UserEntity u, int amount, OffsetDateTime createdAt) {
+        return TokenTransactionEntity.builder()
+                .user(u)
+                .delta(amount)
+                .reasonCode(TokenReasonCode.TOPUP)
+                .balanceAfter(amount)
+                .createdAt(createdAt)
                 .build();
     }
 

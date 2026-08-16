@@ -62,8 +62,8 @@ class ChatDigestSchedulerTest {
         void enabled_onePerChat() {
             setUp(true);
             given(aggregationService.buildDigests(30, 7)).willReturn(List.of(
-                    new ChatDigestStatsDto(-100L, 1, 1, 0, 0, 5, 3, 0),
-                    new ChatDigestStatsDto(-200L, 2, 1, 0, 0, 0, 0, 1)
+                    new ChatDigestStatsDto(-100L, 1, 1, 0, 0, 5, 3, 0, 0),
+                    new ChatDigestStatsDto(-200L, 2, 1, 0, 0, 0, 0, 1, 0)
             ));
             given(formatter.format(any())).willReturn("text");
             given(kafkaTemplate.send(any(String.class), any(String.class), any()))
@@ -80,7 +80,7 @@ class ChatDigestSchedulerTest {
         void publishAll_returnsCount() {
             setUp(true);
             given(aggregationService.buildDigests(30, 7)).willReturn(List.of(
-                    new ChatDigestStatsDto(-100L, 1, 1, 0, 0, 0, 0, 0)
+                    new ChatDigestStatsDto(-100L, 1, 1, 0, 0, 0, 0, 0, 0)
             ));
             given(formatter.format(any())).willReturn("text");
             given(kafkaTemplate.send(any(String.class), any(String.class), any()))

@@ -27,6 +27,7 @@ public class ChatDigestMessageFormatter {
           .append(s.notificationsThisWeek())
           .append(trend(s.notificationsThisWeek(), s.notificationsLastWeek()))
           .append("*\n");
+        sb.append(line("🪙 Токенов потрачено за 7 дней", s.tokensSpent()));
         if (s.staleControllers() > 0) {
             sb.append(line("💤 Без новых событий 30+ дней", s.staleControllers()));
         }

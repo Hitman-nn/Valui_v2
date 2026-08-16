@@ -130,6 +130,36 @@ public interface ControllerSubscriptionRepository
            """)
     List<Object[]> countStaleControllersByChat(@Param("cutoff") OffsetDateTime cutoff);
 
+    /**
+     * Per-chat token spend for the digest window: sum of token debits made by every distinct
+     * user who owns ≥1 active controller subscribed to that chat.
+     *
+     * <p>Native query, not JPQL: avoiding double-counting a user's spend once per controller
+     * they happen to have in the same chat requires a derived table of DISTINCT (chat_id,
+     * user_id) pairs before joining token_transaction — JPQL has no clean way to express a
+     * derived-table subquery in FROM, and joining subscriptions directly to transactions would
+     * multiply every transaction row by however many controllers that user has in the chat.
+     *
+     * <p>Known, accepted limitation: token spend is tracked per user, not per controller — most
+     * {@code TokenReasonCode}s carry no {@code ref_id} back to a specific controller (see
+     * {@code TokenTransactionEntity}), so there is no way to attribute a transaction to one
+     * particular chat. A user active in several chats has their <em>full</em> personal spend
+     * counted again in each of those chats' digests, not split proportionally.
+     */
+    @Query(value = """
+           SELECT du.chat_id, ABS(COALESCE(SUM(t.delta), 0))
+           FROM (
+               SELECT DISTINCT s.chat_id, s.user_id
+               FROM controller_subscriptions s
+               JOIN controllers c ON c.id = s.controller_id
+               WHERE c.is_active = true AND s.chat_id < 0
+           ) du
+           JOIN token_transaction t ON t.user_id = du.user_id
+               AND t.delta < 0 AND t.created_at >= :from AND t.created_at < :to
+           GROUP BY du.chat_id
+           """, nativeQuery = true)
+    List<Object[]> sumTokensSpentByChat(@Param("from") OffsetDateTime from, @Param("to") OffsetDateTime to);
+
     // ── Group chat migration (Telegram basic group → supergroup) ─────────────
 
     @Modifying

@@ -18,7 +18,7 @@ class ChatDigestMessageFormatterTest {
         @Test
         @DisplayName("Renders controller/bookmaker/notification counts")
         void rendersBaseCounts() {
-            String text = formatter.format(new ChatDigestStatsDto(-100L, 5, 2, 0, 0, 12, 0, 0));
+            String text = formatter.format(new ChatDigestStatsDto(-100L, 5, 2, 0, 0, 12, 0, 0, 0));
 
             assertThat(text)
                     .contains("Активных контроллеров")
@@ -33,7 +33,7 @@ class ChatDigestMessageFormatterTest {
         @DisplayName("Reserved MarkdownV2 characters in static labels are escaped")
         void escapesReservedCharsInLabels() {
             // "На паузе (не хватает токенов)" contains literal parentheses — MarkdownV2-reserved.
-            String text = formatter.format(new ChatDigestStatsDto(-100L, 1, 1, 0, 3, 0, 0, 0));
+            String text = formatter.format(new ChatDigestStatsDto(-100L, 1, 1, 0, 3, 0, 0, 0, 0));
 
             assertThat(text).contains("\\(не хватает токенов\\)");
             assertThat(text).doesNotContain("(не хватает токенов)");
@@ -42,9 +42,25 @@ class ChatDigestMessageFormatterTest {
         @Test
         @DisplayName("Stale-controller line escapes the literal '+' in '30+ дней'")
         void escapesPlusInStaleLine() {
-            String text = formatter.format(new ChatDigestStatsDto(-100L, 1, 1, 0, 0, 0, 0, 4));
+            String text = formatter.format(new ChatDigestStatsDto(-100L, 1, 1, 0, 0, 0, 0, 4, 0));
 
             assertThat(text).contains("30\\+ дней");
+        }
+
+        @Test
+        @DisplayName("Token spend line is always present, even at 0 — unlike the optional stale/muted/paused lines")
+        void tokensSpentLine_alwaysPresent_evenAtZero() {
+            String text = formatter.format(new ChatDigestStatsDto(-100L, 1, 1, 0, 0, 0, 0, 0, 0));
+
+            assertThat(text).contains("Токенов потрачено за 7 дней").contains("*0*");
+        }
+
+        @Test
+        @DisplayName("Non-zero token spend renders the actual amount")
+        void tokensSpentLine_rendersAmount() {
+            String text = formatter.format(new ChatDigestStatsDto(-100L, 1, 1, 0, 0, 0, 0, 0, 250));
+
+            assertThat(text).contains("Токенов потрачено за 7 дней").contains("*250*");
         }
     }
 
@@ -55,7 +71,7 @@ class ChatDigestMessageFormatterTest {
         @Test
         @DisplayName("Stale/muted/paused lines omitted entirely when their count is 0")
         void zeroCounts_linesOmitted() {
-            String text = formatter.format(new ChatDigestStatsDto(-100L, 5, 2, 0, 0, 12, 0, 0));
+            String text = formatter.format(new ChatDigestStatsDto(-100L, 5, 2, 0, 0, 12, 0, 0, 0));
 
             assertThat(text).doesNotContain("Без новых событий");
             assertThat(text).doesNotContain("Замьючено");
@@ -65,7 +81,7 @@ class ChatDigestMessageFormatterTest {
         @Test
         @DisplayName("Muted line present when count > 0")
         void mutedGreaterThanZero_linePresent() {
-            String text = formatter.format(new ChatDigestStatsDto(-100L, 5, 2, 3, 0, 12, 0, 0));
+            String text = formatter.format(new ChatDigestStatsDto(-100L, 5, 2, 3, 0, 12, 0, 0, 0));
 
             assertThat(text).contains("Замьючено").contains("*3*");
         }
@@ -78,7 +94,7 @@ class ChatDigestMessageFormatterTest {
         @Test
         @DisplayName("No prior-week baseline (0) — no trend suffix, no divide-by-zero")
         void noPreviousWeek_noTrendSuffix() {
-            String text = formatter.format(new ChatDigestStatsDto(-100L, 1, 1, 0, 0, 10, 0, 0));
+            String text = formatter.format(new ChatDigestStatsDto(-100L, 1, 1, 0, 0, 10, 0, 0, 0));
 
             assertThat(text).doesNotContain("↑").doesNotContain("↓");
         }
@@ -86,7 +102,7 @@ class ChatDigestMessageFormatterTest {
         @Test
         @DisplayName("Increase from last week renders an escaped up-arrow percentage")
         void increase_rendersUpArrow() {
-            String text = formatter.format(new ChatDigestStatsDto(-100L, 1, 1, 0, 0, 15, 10, 0));
+            String text = formatter.format(new ChatDigestStatsDto(-100L, 1, 1, 0, 0, 15, 10, 0, 0));
 
             assertThat(text).contains("↑ 50%").contains("\\(↑ 50%\\)");
         }
@@ -94,7 +110,7 @@ class ChatDigestMessageFormatterTest {
         @Test
         @DisplayName("Decrease from last week renders an escaped down-arrow percentage")
         void decrease_rendersDownArrow() {
-            String text = formatter.format(new ChatDigestStatsDto(-100L, 1, 1, 0, 0, 5, 10, 0));
+            String text = formatter.format(new ChatDigestStatsDto(-100L, 1, 1, 0, 0, 5, 10, 0, 0));
 
             assertThat(text).contains("↓ 50%").contains("\\(↓ 50%\\)");
         }

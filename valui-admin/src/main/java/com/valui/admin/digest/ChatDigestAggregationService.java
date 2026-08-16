@@ -14,7 +14,7 @@ import java.util.Map;
 
 /**
  * Builds per-chat digest stats for every group chat with ≥1 active controller, in a fixed small
- * number of batched queries (4 total) regardless of how many chats are eligible — avoids an
+ * number of batched queries (5 total) regardless of how many chats are eligible — avoids an
  * N+1 across a potentially large chat population.
  */
 @Service
@@ -42,9 +42,10 @@ public class ChatDigestAggregationService {
             });
         }
 
-        Map<Long, Long> stale     = toMap(subscriptionRepository.countStaleControllersByChat(staleCutoff));
-        Map<Long, Long> thisWeek  = toMap(notificationLogRepository.countNotificationsByChatBetween(windowStart, now));
-        Map<Long, Long> lastWeek  = toMap(notificationLogRepository.countNotificationsByChatBetween(prevWindowStart, windowStart));
+        Map<Long, Long> stale       = toMap(subscriptionRepository.countStaleControllersByChat(staleCutoff));
+        Map<Long, Long> thisWeek    = toMap(notificationLogRepository.countNotificationsByChatBetween(windowStart, now));
+        Map<Long, Long> lastWeek    = toMap(notificationLogRepository.countNotificationsByChatBetween(prevWindowStart, windowStart));
+        Map<Long, Long> tokensSpent = toMap(subscriptionRepository.sumTokensSpentByChat(windowStart, now));
 
         List<ChatDigestStatsDto> result = new ArrayList<>(base.size());
         for (Map.Entry<Long, long[]> entry : base.entrySet()) {
@@ -55,7 +56,8 @@ public class ChatDigestAggregationService {
                     b[0], b[1], b[2], b[3],
                     thisWeek.getOrDefault(chatId, 0L),
                     lastWeek.getOrDefault(chatId, 0L),
-                    stale.getOrDefault(chatId, 0L)));
+                    stale.getOrDefault(chatId, 0L),
+                    tokensSpent.getOrDefault(chatId, 0L)));
         }
         return result;
     }
