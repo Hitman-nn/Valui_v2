@@ -114,7 +114,7 @@ class BookmakerIncidentNotifierTest {
         @Test
         @DisplayName("ParserUnavailableEvent notifies chats and marks the registry")
         void unavailableEvent_notifiesChats() throws Exception {
-            given(incidentStore.markOpen(BookmakerType.OLIMP)).willReturn(true);
+            given(incidentStore.claimOpen("users", BookmakerType.OLIMP)).willReturn(true);
             given(subscriptionRepo.findActiveChatIdsByBookmaker(BookmakerType.OLIMP))
                     .willReturn(List.of(333L));
 
@@ -135,7 +135,7 @@ class BookmakerIncidentNotifierTest {
         @Test
         @DisplayName("Fires the same way regardless of which trigger's event reaches it")
         void bothTriggersConvergeOnSameLogic() throws Exception {
-            given(incidentStore.markOpen(BookmakerType.XBET)).willReturn(true);
+            given(incidentStore.claimOpen("users", BookmakerType.XBET)).willReturn(true);
             given(subscriptionRepo.findActiveChatIdsByBookmaker(BookmakerType.XBET))
                     .willReturn(List.of(111L, 222L));
 
@@ -153,7 +153,7 @@ class BookmakerIncidentNotifierTest {
         @Test
         @DisplayName("First event claims the incident — a second one for the same bookmaker is a no-op")
         void secondEvent_isNoop() throws Exception {
-            given(incidentStore.markOpen(BookmakerType.XBET)).willReturn(true, false);
+            given(incidentStore.claimOpen("users", BookmakerType.XBET)).willReturn(true, false);
             given(subscriptionRepo.findActiveChatIdsByBookmaker(BookmakerType.XBET))
                     .willReturn(List.of(111L, 222L));
 
@@ -177,7 +177,7 @@ class BookmakerIncidentNotifierTest {
             // before a restart — this instance never called onParserUnavailable for FONBET, so it
             // has zero local state about the incident. Only the persisted store remembers it was
             // open, which is exactly what makes the recovery message possible after a restart.
-            given(incidentStore.markClosed(BookmakerType.FONBET)).willReturn(true);
+            given(incidentStore.claimClosed("users", BookmakerType.FONBET)).willReturn(true);
             given(subscriptionRepo.findActiveChatIdsByBookmaker(BookmakerType.FONBET))
                     .willReturn(List.of(555L, 666L));
 
@@ -187,7 +187,7 @@ class BookmakerIncidentNotifierTest {
         }
 
         @Test
-        @DisplayName("REGRESSION: event sourced from ParserHealthChecker notifies without re-querying the store — ParserHealthChecker already claimed it before publishing, so a second markClosed() here would race itself and could return false, silently dropping the message")
+        @DisplayName("REGRESSION: event sourced from ParserHealthChecker notifies without re-querying the store — ParserHealthChecker already claimed it before publishing, so a second claimClosed() here would race itself and could return false, silently dropping the message")
         void recoveredEvent_fromHealthChecker_doesNotReclaimAndDrop() throws Exception {
             ParserHealthChecker healthChecker = new ParserHealthChecker(
                     List.of(), mock(ApplicationEventPublisher.class), mock(ParserIncidentStateStore.class));

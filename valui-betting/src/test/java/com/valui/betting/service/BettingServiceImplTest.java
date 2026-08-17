@@ -202,6 +202,34 @@ class BettingServiceImplTest {
             verify(balanceRepo, never()).save(any());
         }
 
+        @Test void lost_debits_by_own_stake_not_by_profit_share() {
+            // Regression: A funds 900 of the 1000 pool but holds only a 10% profitShare (agreed
+            // profit split), B funds 100 with a 90% profitShare. Both are only validated in
+            // aggregate (stakes sum to 1000, shares sum to 1.0) — nothing ties an individual's
+            // stake to their own share. On LOSS each must lose exactly what they put at risk,
+            // not stake_total × their profitShare (which would debit A only 100 and B 900 —
+            // inverted vs. who actually funded the bet).
+            BetPersonEntity a = person(1L);
+            BetPersonEntity b = person(2L);
+            BetAccountEntity acct = account(1L);
+            BetEntity bet = openBet(1L, "2.00", "1000");
+            bet.setAccount(acct);
+            addParticipant(bet, a, "900", "0.1");
+            addParticipant(bet, b, "100", "0.9");
+            when(betRepo.findWithDetailById(bet.getId())).thenReturn(Optional.of(bet));
+            when(betRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(balanceRepo.findByAccountIdAndPersonId(any(), any())).thenReturn(Optional.empty());
+            when(balanceRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            service.resolveBet(bet.getId(), 1L, BetStatus.LOST);
+
+            ArgumentCaptor<BetPersonBalanceEntity> cap = ArgumentCaptor.forClass(BetPersonBalanceEntity.class);
+            verify(balanceRepo, times(2)).save(cap.capture());
+            assertThat(cap.getAllValues())
+                    .anySatisfy(bal -> assertThat(bal.getBalance()).isEqualByComparingTo("-900.00"))
+                    .anySatisfy(bal -> assertThat(bal.getBalance()).isEqualByComparingTo("-100.00"));
+        }
+
         @Test void won_splits_profit_by_share() {
             BetPersonEntity p1 = person(1L);
             BetPersonEntity p2 = person(2L);

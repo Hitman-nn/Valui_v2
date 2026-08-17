@@ -24,6 +24,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -48,8 +49,8 @@ class IncidentAlertListenerTest {
         ReflectionTestUtils.setField(listener, "adminAlertsEnabled", true);
         // Default: every transition is genuinely new — the StoreDedup nested class below
         // overrides this per-test to exercise the "already claimed elsewhere" case.
-        lenient().when(incidentStore.markOpen(any())).thenReturn(true);
-        lenient().when(incidentStore.markClosed(any())).thenReturn(true);
+        lenient().when(incidentStore.claimOpen(anyString(), any())).thenReturn(true);
+        lenient().when(incidentStore.claimClosed(anyString(), any())).thenReturn(true);
     }
 
     // handleTransition only decides whether/what to publish — see sendAsync tests below for the
@@ -141,7 +142,7 @@ class IncidentAlertListenerTest {
         @Test
         @DisplayName("A late, real HALF_OPEN_TO_CLOSED is suppressed if the incident was already closed elsewhere (e.g. ParserHealthChecker's reconciled path) — this is exactly what produced a second 'recovered' message with no downtime duration, minutes after the first one that had it")
         void lateRealRecovery_afterAlreadyClosedElsewhere_suppressed() {
-            given(incidentStore.markClosed(BookmakerType.XBET)).willReturn(false);
+            given(incidentStore.claimClosed("admin", BookmakerType.XBET)).willReturn(false);
 
             listener.handleTransition("xbet-cb", CircuitBreaker.StateTransition.CLOSED_TO_OPEN, 0L);
             listener.handleTransition("xbet-cb", CircuitBreaker.StateTransition.HALF_OPEN_TO_CLOSED, 300_000L);
@@ -153,7 +154,7 @@ class IncidentAlertListenerTest {
         @Test
         @DisplayName("CLOSED_TO_OPEN is suppressed if already open elsewhere")
         void open_afterAlreadyOpenElsewhere_suppressed() {
-            given(incidentStore.markOpen(BookmakerType.XBET)).willReturn(false);
+            given(incidentStore.claimOpen("admin", BookmakerType.XBET)).willReturn(false);
 
             listener.handleTransition("xbet-cb", CircuitBreaker.StateTransition.CLOSED_TO_OPEN, 0L);
 

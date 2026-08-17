@@ -19,6 +19,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -190,7 +192,16 @@ public class MonitorScheduler {
         unscheduleController(e.controllerId());
     }
 
-    @EventListener
+    // Both publishers (TokenLedgerServiceImpl.pauseAllControllers/restoreTokenPausedControllers,
+    // UserBillingProcessor.pauseBookmakerControllers) publish from inside an open @Transactional
+    // method. A plain @EventListener runs synchronously right there, before commit — clearing
+    // Redis dedup state and touching in-memory scheduler registries for a pause/resume that the
+    // DB hasn't actually committed yet. If that transaction then rolls back (lock timeout,
+    // connection drop), Postgres still shows the old (unpaused/unresumed) state but the scheduler
+    // and Redis have already moved on — a subscription can silently stop being polled, or a
+    // controller can stay unscheduled after tokens were restored, until a manual reschedule or
+    // restart. AFTER_COMMIT defers this until the pause/resume is durably true.
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void on(ControllerSuspendedEvent e) {
         dedup.clearController(e.controllerId());
         controllerPort.updateLastCheckedAt(e.controllerId(), null);
@@ -198,7 +209,7 @@ public class MonitorScheduler {
         log.info("Контроллер {} приостановлен (токены)", e.controllerId());
     }
 
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void on(ControllerResumedEvent e) {
         if (!jobRegistry.contains(e.controllerId())) {
             scheduleController(e.controllerId(), e.userId(), e.pollIntervalSec());

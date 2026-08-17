@@ -23,15 +23,29 @@ import java.util.Set;
  * post-restart probing (the one detector that re-verifies reality rather than trusting a
  * freshly-reset CB) can close it via {@link #markClosed}, regardless of which one opened it.
  *
- * <p>{@code markOpen}/{@code markClosed} are the atomic claim: only the caller that actually
- * changes membership gets {@code true}, so callers use the return value as "is this genuinely a
- * new transition" rather than tracking their own dedup state.
+ * <p>{@code markOpen}/{@code markClosed} are the atomic claim used by {@link ParserHealthChecker}
+ * to decide whether IT needs to publish its own detection event (only when the canonical set —
+ * this class's {@code KEY} — genuinely wasn't already flagged open/closed by anyone, fast
+ * CB-path included — see its class javadoc for why that's the one detector allowed to skip
+ * publishing when redundant).
+ *
+ * <p>{@link #claimOpen}/{@link #claimClosed} are a <em>separate</em>, per-{@code consumer} claim
+ * for "have I personally already notified for this bookmaker's current open incident" — used by
+ * {@code IncidentAlertListener} (admin) and {@code BookmakerIncidentNotifier} (users). These used
+ * to share the exact same {@code markOpen}/{@code markClosed} claim as each other (and as
+ * {@link ParserHealthChecker}'s own dedup above) — whichever of the three happened to call it
+ * first "won" the single shared claim, so the other two silently saw "already claimed" and never
+ * fired their own notification. {@code claimOpen}/{@code claimClosed} still update the same
+ * canonical set as a side effect (so {@link #isOpen} stays correct for whoever notices an
+ * incident first), but each consumer's own claim membership lives in its own Redis key and can no
+ * longer be starved by another consumer's claim.
  */
 @Component
 @RequiredArgsConstructor
 public class ParserIncidentStateStore {
 
     private static final String KEY = "parser:incidents:open";
+    private static final String CLAIM_KEY_PREFIX = "parser:incidents:claimed:";
 
     private final StringRedisTemplate redis;
 
@@ -45,6 +59,28 @@ public class ParserIncidentStateStore {
     public boolean markClosed(BookmakerType bookmaker) {
         Long removed = redis.opsForSet().remove(KEY, bookmaker.name());
         return removed != null && removed > 0;
+    }
+
+    /**
+     * @return true if {@code consumer} had not already claimed this bookmaker's currently-open
+     *         incident (i.e. this consumer should go ahead and notify). Independent of every
+     *         other consumer's own claim.
+     */
+    public boolean claimOpen(String consumer, BookmakerType bookmaker) {
+        redis.opsForSet().add(KEY, bookmaker.name());
+        Long added = redis.opsForSet().add(claimKey(consumer), bookmaker.name());
+        return added != null && added > 0;
+    }
+
+    /** @return true if {@code consumer} had claimed the (now-closing) incident and should notify. */
+    public boolean claimClosed(String consumer, BookmakerType bookmaker) {
+        redis.opsForSet().remove(KEY, bookmaker.name());
+        Long removed = redis.opsForSet().remove(claimKey(consumer), bookmaker.name());
+        return removed != null && removed > 0;
+    }
+
+    private static String claimKey(String consumer) {
+        return CLAIM_KEY_PREFIX + consumer;
     }
 
     public boolean isOpen(BookmakerType bookmaker) {

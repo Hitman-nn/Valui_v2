@@ -431,9 +431,17 @@ public class BettingServiceImpl implements BettingService {
 
     /**
      * Sets bet status/timestamps and applies P&L to each participant's balance in the bet's account.
-     * WIN:      balance += profitShare × (payout − stake)   [net profit]
-     * LOSS:     balance -= profitShare × stake               [net loss]
+     * WIN:      balance += profitShare × (payout − totalStake)   [net profit, split by agreed share]
+     * LOSS:     balance -= participant's own stake                [their capital, not a share of the pool]
      * RETURNED: no balance change (voided event)
+     *
+     * LOSS deliberately does NOT scale by profitShare: profitShare governs how *profit* above the
+     * pool is split (an agreed arrangement that can differ from each person's contribution), but
+     * nobody can lose more than the money they actually put at risk. Using totalStake × profitShare
+     * here previously let a participant's recorded profitShare (validated only in aggregate against
+     * the other participants, not against their own stake) invert who bears the loss — e.g. someone
+     * funding 90% of the stake but holding a 10% profitShare would only be debited 10% of the loss
+     * while the other participant absorbed 90% of a loss they barely funded.
      */
     private void applyBetResult(BetEntity bet, BetStatus status, BigDecimal actualPayout) {
         bet.setStatus(status);
@@ -454,7 +462,7 @@ public class BettingServiceImpl implements BettingService {
 
             BigDecimal delta = switch (status) {
                 case WON      -> actualPayout.subtract(stake).multiply(p.getProfitShare()).setScale(2, RoundingMode.HALF_UP);
-                case LOST     -> stake.multiply(p.getProfitShare()).negate().setScale(2, RoundingMode.HALF_UP);
+                case LOST     -> p.getStake().negate();
                 case RETURNED, CANCELLED -> BigDecimal.ZERO;
                 default       -> BigDecimal.ZERO;
             };

@@ -29,11 +29,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -214,6 +218,30 @@ public class ControllerTaskExecutor {
         }
     }
 
+    /**
+     * Registers a rollback-only compensation for Redis dedup claims made during this transaction.
+     * {@code claimedIds} is the same mutable set the caller keeps adding to as it claims each
+     * item — read lazily at {@code afterCompletion} time, once the final membership is known,
+     * rather than passed as a fixed snapshot.
+     */
+    private void registerDedupRollbackCompensation(UUID controllerId, Set<String> claimedIds) {
+        // Guard: registerSynchronization() requires an active transaction synchronization
+        // context. That's always true in production (this method only runs inside the
+        // @Transactional proxy for persistNewEvents), but a plain unit test that calls
+        // persistNewEvents() directly on the POJO — no Spring transaction manager involved —
+        // has no such context, and registering unconditionally throws IllegalStateException
+        // there instead of just skipping the (irrelevant, no-op-anyway) compensation.
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == TransactionSynchronization.STATUS_ROLLED_BACK && !claimedIds.isEmpty()) {
+                    dedup.unclaim(controllerId, claimedIds);
+                }
+            }
+        });
+    }
+
     // ── Step 4: Dedup, persist, update timestamps, publish events ─────────────
 
     @Transactional
@@ -237,6 +265,13 @@ public class ControllerTaskExecutor {
 
         OffsetDateTime expiresAt = OffsetDateTime.now().plusDays(props.getDedupTtlDays());
         List<DetectedEventEntity> saved = new ArrayList<>();
+        // Claims made during this call — compensated via the rollback hook registered just below
+        // if the surrounding @Transactional method ends up rolling back (e.g. a later item in
+        // this same loop hits a transient DB error). Without this, an earlier item's Redis claim
+        // survives the rollback while its DB row does not, permanently hiding a real event from
+        // every future poll.
+        Set<String> claimedThisRun = new HashSet<>();
+        registerDedupRollbackCompensation(ctx.controllerId(), claimedThisRun);
         for (ParsedItem item : fetched) {
             // Redis atomic claim replaces the per-event DB existsBy query (O(1) vs O(log n)).
             // Deliberately not caught here: a Redis outage must abort this whole transaction
@@ -254,6 +289,7 @@ public class ControllerTaskExecutor {
                 throw e;
             }
             if (!isNew) continue;
+            claimedThisRun.add(item.id());
 
             // Always persist to DB — including warmup — so the nightly dedup sync can find
             // these events and won't clear them from Redis on the first 3 AM run.

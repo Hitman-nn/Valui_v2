@@ -4,6 +4,7 @@ import com.valui.common.annotation.Audit;
 import com.valui.common.domain.BookmakerType;
 import com.valui.common.domain.ControllerType;
 import com.valui.common.entity.ControllerEntity;
+import com.valui.common.entity.ControllerSubscriptionEntity;
 import com.valui.common.entity.UserEntity;
 import com.valui.common.exception.ControllerAccessException;
 import com.valui.common.exception.ControllerNotFoundException;
@@ -335,18 +336,21 @@ public class ControllerServiceImpl implements ControllerService {
         UserEntity user = requireUser(telegramId);
 
         // Owner-only: throws ControllerAccessException for non-owners.
-        // Capture the entity to read notificationChatId for the personal-chat case.
-        ControllerEntity ctrl = requireOwned(controllerId, user.getId());
+        requireOwned(controllerId, user.getId());
 
-        // If the controller was launched in a different chat (e.g., launched in a group,
-        // stopped from personal chat), also remove that subscription so the controller
-        // stops completely instead of leaving a dangling group subscription active.
-        Long nChatId = ctrl.getNotificationChatId();
-        Long altChatId = (nChatId != null && !nChatId.equals(chatId)) ? nChatId : null;
-
-        controllerPort.removeSubscription(controllerId, chatId);
-        if (altChatId != null) {
-            controllerPort.removeSubscription(controllerId, altChatId);
+        // Remove every subscription the owner has for this controller, not just the chat /stop
+        // was issued from plus notificationChatId. The compound PK (controller_id, chat_id)
+        // allows a controller to be subscribed from 3+ chats (e.g. launched in a group, then
+        // separately re-added from another group or the owner's personal chat) — stopping only
+        // two of them left the rest active and still polling/notifying indefinitely.
+        // findAllSubscriptions (not findActiveSubscriptions) so a muted-but-still-existing
+        // subscription elsewhere doesn't get left behind either — /stop means fully stopped.
+        List<Long> chatIds = controllerPort.findAllSubscriptions(controllerId).stream()
+                .map(ControllerSubscriptionEntity::getChatId)
+                .distinct()
+                .toList();
+        for (Long id : chatIds) {
+            controllerPort.removeSubscription(controllerId, id);
         }
 
         if (!controllerPort.hasActiveSubscriptions(controllerId)) {

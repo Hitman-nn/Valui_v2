@@ -150,18 +150,16 @@ valui:
       # (IncidentAlertListener). Off only suppresses the Telegram send; detection itself (CB
       # state, the ⚠️ on the bot's BK keyboard) keeps running either way.
       #
-      # users-enabled defaults OFF: IncidentAlertListener and BookmakerIncidentNotifier both
-      # subscribe to the same CB state transitions and both dedup through the *same* Redis claim
-      # in ParserIncidentStateStore.markOpen/markClosed — but that store only lets ONE caller win
-      # the claim per real-world transition, not one per audience. IncidentAlertListener's
-      # subscription runs synchronously on the CB's own transition thread, so it wins the
-      # markOpen() race first essentially every time; BookmakerIncidentNotifier's async handler
-      # then finds the incident "already open" and silently skips the user-facing "недоступна"
-      # message. The "снова доступна" recovery message could still slip through when
-      # ParserHealthChecker's slow poll (not the fast CB path) was the one that actually closed
-      # the incident, since that path bypasses the race entirely — which is why users were seeing
-      # lone "recovered" messages with no matching "unavailable" one. Needs a per-audience claim
-      # (or two separate store keys) before this can safely default back to true.
+      # users-enabled defaults OFF (deliberate product decision, 2026-08-17 — not a workaround
+      # anymore): IncidentAlertListener and BookmakerIncidentNotifier used to dedup through the
+      # *same* Redis claim in ParserIncidentStateStore.markOpen/markClosed, which only let ONE of
+      # the two win the claim per real-world CB transition — IncidentAlertListener (synchronous,
+      # on the CB's own transition thread) always won, so BookmakerIncidentNotifier's user-facing
+      # "недоступна" message silently never went out (recovery messages sometimes still slipped
+      # through via ParserHealthChecker's slow-poll bypass, producing lone "снова доступна" with no
+      # matching "unavailable"). That race is now fixed — each consumer claims through its own key
+      # via ParserIncidentStateStore.claimOpen/claimClosed(consumer, ...) — so it's safe to flip
+      # this back to true if user-facing incident notifications are wanted again.
       users-enabled: ${PARSER_INCIDENT_ALERTS_USERS_ENABLED:false}
       admin-enabled: ${PARSER_INCIDENT_ALERTS_ADMIN_ENABLED:true}
     # Aggregate "elevated error rate across the whole scheduler" Telegram alert. Off by default —

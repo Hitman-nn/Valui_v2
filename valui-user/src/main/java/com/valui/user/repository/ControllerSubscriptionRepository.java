@@ -183,22 +183,4 @@ public interface ControllerSubscriptionRepository
           )
         """, nativeQuery = true)
     int deleteOldSubscriptionsAfterMigration(@Param("oldChatId") Long oldChatId, @Param("newChatId") Long newChatId);
-
-    // ── chat_members migration (no JPA entity for that table) ─────────────────
-
-    @Modifying
-    @Query(value = """
-        INSERT INTO chat_members (chat_id, telegram_id, first_name, username, seen_at)
-        SELECT :newChatId, telegram_id, first_name, username, seen_at
-        FROM chat_members WHERE chat_id = :oldChatId
-        ON CONFLICT DO NOTHING
-        """, nativeQuery = true)
-    int migrateChatMembersToNewChat(@Param("oldChatId") Long oldChatId, @Param("newChatId") Long newChatId);
-
-    @Modifying
-    @Query(value = """
-        DELETE FROM chat_members WHERE chat_id = :oldChatId
-          AND telegram_id IN (SELECT telegram_id FROM chat_members WHERE chat_id = :newChatId)
-        """, nativeQuery = true)
-    int deleteOldChatMembersAfterMigration(@Param("oldChatId") Long oldChatId, @Param("newChatId") Long newChatId);
 }

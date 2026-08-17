@@ -81,6 +81,21 @@ public class EventDeduplicationService {
         return isNew;
     }
 
+    /**
+     * Reverses {@link #claimIfNew} for the given event IDs — used only to compensate a claim
+     * whose enclosing DB transaction rolled back (see {@code ControllerTaskExecutor.persistNewEvents}):
+     * without this, an event claimed here but never actually persisted (because a later item in
+     * the same batch failed and rolled the whole transaction back) would be permanently marked
+     * "seen" in Redis and silently skipped on every future poll, even though it was never saved.
+     */
+    public void unclaim(UUID controllerId, Set<String> eventIds) {
+        if (eventIds.isEmpty()) return;
+        redis.opsForSet().remove(key(controllerId), eventIds.toArray(Object[]::new));
+        updateSizeGauge(controllerId);
+        log.warn("[DEDUP] Unclaimed {} event(s) for controller {} after transaction rollback: {}",
+                eventIds.size(), controllerId, eventIds);
+    }
+
     public void markAsSeen(UUID controllerId, String eventExternalId) {
         redis.opsForSet().add(key(controllerId), eventExternalId);
         refreshTtl(controllerId);

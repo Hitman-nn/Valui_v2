@@ -100,6 +100,11 @@ public class ControllerPortServiceImpl implements ControllerPortService {
     }
 
     @Override
+    public List<ControllerSubscriptionEntity> findAllSubscriptions(UUID controllerId) {
+        return subscriptionRepository.findAllByControllerId(controllerId);
+    }
+
+    @Override
     public boolean hasActiveSubscriptions(UUID controllerId) {
         return subscriptionRepository.existsByControllerIdAndIsMutedFalseAndPausedByTokensFalse(controllerId);
     }

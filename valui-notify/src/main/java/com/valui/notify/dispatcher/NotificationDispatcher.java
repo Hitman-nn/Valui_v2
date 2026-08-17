@@ -81,40 +81,49 @@ public class NotificationDispatcher {
                 return;
             }
 
-            // Debit before dispatch: prevents the concurrent over-dispatch race where two threads
-            // both pass the balance>0 check and both send the same user's notification for free.
-            // If dispatch subsequently fails the token is consumed — the retry path delivers the
-            // notification for free, so the user still pays exactly once per notification.
-            if (userId != null) {
-                int cost = tokenLedgerService.getCost("NOTIFICATION_SENT");
-                if (!tokenLedgerService.tryDebit(userId, cost, TokenReasonCode.NOTIFICATION_SENT, null)) {
-                    // A real business outcome (user paid nothing and got no notification), not
-                    // routine plumbing — was DEBUG, invisible in prod (com.valui is INFO there).
-                    log.atInfo().addKeyValue("userId", userId)
-                       .log("[DISPATCH] Skipped — zero token balance");
-                    if (logId != null) logService.markFailed(logId, "Zero token balance");
-                    return;
-                }
-            }
-
-            // Publish to VK pipeline independently — VK delivery does not depend on Telegram outcome.
-            // Synchronous exceptions (e.g. topic not yet created, broker timeout) are caught so that
-            // a VK failure never blocks or retries the Telegram delivery path.
-            // Async send failures (CompletableFuture) are intentionally not handled here — they are
-            // logged at WARN by LoggingProducerListener. Silent loss on async failure is acceptable
-            // since VK is a supplemental channel and the Telegram notification is still delivered.
-            if (request.vkPeerId() != null) {
-                try {
-                    kafkaTemplate.send(KafkaTopics.VK_NOTIFICATIONS_PENDING,
-                            String.valueOf(request.vkPeerId()), request);
-                } catch (Exception e) {
-                    log.atWarn()
-                       .addKeyValue("peerId", request.vkPeerId())
-                       .log("[DISPATCH] VK publish failed: {}", e.getMessage());
-                }
-            }
-
             try {
+                // Debit before dispatch: prevents the concurrent over-dispatch race where two
+                // threads both pass the balance>0 check and both send the same user's
+                // notification for free. If dispatch subsequently fails the token is consumed —
+                // the retry path delivers the notification for free, so the user still pays
+                // exactly once per notification.
+                //
+                // Deliberately inside this try block (not before it): tryDebit(UUID, ...) can
+                // throw UserNotFoundException (user deleted between outbox event creation and
+                // Kafka delivery) — left uncaught here it used to escape onNotificationPending
+                // entirely, bypassing deadLetterPublisher.publishToDlq() below and letting
+                // Spring's generic container error handler republish to notifications.dlq
+                // without the custom X-Retry-Count/Original-Topic headers DeadLetterPublisher
+                // sets, silently resetting DlqConsumer's retry-tier bookkeeping for that message.
+                if (userId != null) {
+                    int cost = tokenLedgerService.getCost("NOTIFICATION_SENT");
+                    if (!tokenLedgerService.tryDebit(userId, cost, TokenReasonCode.NOTIFICATION_SENT, null)) {
+                        // A real business outcome (user paid nothing and got no notification), not
+                        // routine plumbing — was DEBUG, invisible in prod (com.valui is INFO there).
+                        log.atInfo().addKeyValue("userId", userId)
+                           .log("[DISPATCH] Skipped — zero token balance");
+                        if (logId != null) logService.markFailed(logId, "Zero token balance");
+                        return;
+                    }
+                }
+
+                // Publish to VK pipeline independently — VK delivery does not depend on Telegram outcome.
+                // Synchronous exceptions (e.g. topic not yet created, broker timeout) are caught so that
+                // a VK failure never blocks or retries the Telegram delivery path.
+                // Async send failures (CompletableFuture) are intentionally not handled here — they are
+                // logged at WARN by LoggingProducerListener. Silent loss on async failure is acceptable
+                // since VK is a supplemental channel and the Telegram notification is still delivered.
+                if (request.vkPeerId() != null) {
+                    try {
+                        kafkaTemplate.send(KafkaTopics.VK_NOTIFICATIONS_PENDING,
+                                String.valueOf(request.vkPeerId()), request);
+                    } catch (Exception e) {
+                        log.atWarn()
+                           .addKeyValue("peerId", request.vkPeerId())
+                           .log("[DISPATCH] VK publish failed: {}", e.getMessage());
+                    }
+                }
+
                 Integer telegramMessageId = dispatchService.dispatch(request);
                 if (logId != null) logService.markSent(logId, telegramMessageId);
                 stats.incSent(request.bookmaker());

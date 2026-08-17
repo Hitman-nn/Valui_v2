@@ -66,6 +66,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BookmakerIncidentNotifier {
 
+    /** This consumer's own key in {@link ParserIncidentStateStore#claimOpen} — see that class's
+     *  javadoc for why admin and user notifications each need an independent claim. */
+    private static final String CLAIM_CONSUMER = "users";
+
     private final AbsSender                       bot;
     private final ControllerSubscriptionRepository subscriptionRepo;
     private final ParserAvailabilityRegistry       availabilityRegistry;
@@ -133,7 +137,7 @@ public class BookmakerIncidentNotifier {
         // Store update unconditional (even if usersAlertsEnabled is off below): ParserHealthChecker
         // and the admin-side reconciliation listener both rely on this store reflecting reality,
         // independent of whether user-facing chat messages happen to be toggled off.
-        boolean newlyOpened = alreadyClaimedBySource || incidentStore.markOpen(bm);
+        boolean newlyOpened = alreadyClaimedBySource || incidentStore.claimOpen(CLAIM_CONSUMER, bm);
         if (!usersAlertsEnabled || !newlyOpened) return;
 
         // Spring Data repository methods are @Transactional by default — no wrapper needed here
@@ -156,7 +160,7 @@ public class BookmakerIncidentNotifier {
 
     private void notifyRecovered(BookmakerType bm, boolean alreadyClaimedBySource) {
         availabilityRegistry.markAvailable(bm);
-        boolean newlyClosed = alreadyClaimedBySource || incidentStore.markClosed(bm);
+        boolean newlyClosed = alreadyClaimedBySource || incidentStore.claimClosed(CLAIM_CONSUMER, bm);
         if (!usersAlertsEnabled || !newlyClosed) return;
 
         // Queried fresh rather than replaying a snapshot from when the incident opened: that

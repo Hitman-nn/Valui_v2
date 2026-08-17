@@ -36,21 +36,23 @@ public class GroupChatMigrationService {
 
         int filters = globalFilterRepository.updateChatId(oldChatId, newChatId);
 
-        // chat_members stores group participants for the betting-journal picker (no JPA entity).
-        int membersCopied  = subscriptionRepository.migrateChatMembersToNewChat(oldChatId, newChatId);
-        int membersDeleted = subscriptionRepository.deleteOldChatMembersAfterMigration(oldChatId, newChatId);
-
-        if (controllers == 0 && subsCopied == 0 && filters == 0 && membersCopied == 0) {
+        // NOTE: chat_members no longer exists (dropped by V23__betting_redesign.sql) — this used
+        // to also migrate that table here, but the queries kept referencing a dropped table and
+        // would throw "relation \"chat_members\" does not exist", rolling back the whole
+        // migration including the controller/subscription/filter updates above. bet_dm_links
+        // (its closest living relative, valui-betting module) is a separate explicit per-user
+        // opt-in rather than a passive participant tracker and isn't migrated here — a DM link
+        // made under the old chat_id will need to be re-linked after a supergroup upgrade.
+        if (controllers == 0 && subsCopied == 0 && filters == 0) {
             // Every migrated-row count is zero — either this chat had nothing to migrate
             // (plausible) or oldChatId was wrong / the chat was already migrated (a real
             // problem). INFO would bury this as if it were a routine success.
             log.warn("[GROUP-MIGRATE] {} → {}: nothing migrated (chat may already be migrated, " +
                     "or oldChatId incorrect)", oldChatId, newChatId);
         } else {
-            log.info("[GROUP-MIGRATE] {} → {}: controllers={} subs={}/{} filters={} members={}/{}",
+            log.info("[GROUP-MIGRATE] {} → {}: controllers={} subs={}/{} filters={}",
                     oldChatId, newChatId, controllers,
-                    subsCopied, subsDeleted, filters,
-                    membersCopied, membersDeleted);
+                    subsCopied, subsDeleted, filters);
         }
     }
 }

@@ -71,6 +71,10 @@ public class IncidentAlertListener {
     // Sentinel for "never alerted yet" — see GcPauseWatchdog for why not 0.
     private static final long NEVER_ALERTED = Long.MIN_VALUE / 2;
 
+    /** This consumer's own key in {@link ParserIncidentStateStore#claimOpen} — see that class's
+     *  javadoc for why admin and user notifications each need an independent claim. */
+    private static final String CLAIM_CONSUMER = "admin";
+
     private final CircuitBreakerRegistry    registry;
     private final AdminNotificationService  adminNotificationService;
     private final ApplicationEventPublisher eventPublisher;
@@ -110,7 +114,7 @@ public class IncidentAlertListener {
             case CLOSED_TO_OPEN -> {
                 // bm == null: a non-parser CB (shouldn't exist today, but handleTransition isn't
                 // bookmaker-specific by design) — nothing to dedup against, always alert.
-                if (bm != null && !incidentStore.markOpen(bm)) return;
+                if (bm != null && !incidentStore.claimOpen(CLAIM_CONSUMER, bm)) return;
                 openedAt.put(cbName, Instant.now());
                 sendCbAlert(cbName, nowMs,
                     "⚠️ *Circuit Breaker OPEN*: `" + display + "`\n"
@@ -119,7 +123,7 @@ public class IncidentAlertListener {
             case HALF_OPEN_TO_CLOSED -> {
                 // See class javadoc: without this gate, a slow real CB transition arriving after
                 // ParserHealthChecker already reconciled the same recovery re-alerts a second time.
-                if (bm != null && !incidentStore.markClosed(bm)) return;
+                if (bm != null && !incidentStore.claimClosed(CLAIM_CONSUMER, bm)) return;
                 Instant opened = openedAt.remove(cbName);
                 String suffix = opened != null
                     ? " (была недоступна " + formatDuration(Duration.between(opened, Instant.now())) + ")"

@@ -53,6 +53,10 @@ public interface ControllerPortService {
     void unmuteSubscription(UUID controllerId, Long chatId);
     /** Returns subscriptions that are NOT muted and NOT paused by tokens. */
     List<ControllerSubscriptionEntity> findActiveSubscriptions(UUID controllerId);
+    /** Returns every subscription for the controller regardless of chat, mute or pause state —
+     *  used when fully stopping a controller, so a muted-but-still-existing subscription in a
+     *  chat other than the one /stop was issued from isn't left dangling. */
+    List<ControllerSubscriptionEntity> findAllSubscriptions(UUID controllerId);
     /** True if at least one subscription is active (not muted, not paused by tokens). */
     boolean hasActiveSubscriptions(UUID controllerId);
     Optional<ControllerSubscriptionEntity> findSubscription(UUID controllerId, Long chatId);
