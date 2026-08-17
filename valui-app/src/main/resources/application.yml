@@ -149,7 +149,20 @@ valui:
       # regular chats (BookmakerIncidentNotifier) vs. the admin circuit-breaker alert
       # (IncidentAlertListener). Off only suppresses the Telegram send; detection itself (CB
       # state, the ⚠️ on the bot's BK keyboard) keeps running either way.
-      users-enabled: ${PARSER_INCIDENT_ALERTS_USERS_ENABLED:true}
+      #
+      # users-enabled defaults OFF: IncidentAlertListener and BookmakerIncidentNotifier both
+      # subscribe to the same CB state transitions and both dedup through the *same* Redis claim
+      # in ParserIncidentStateStore.markOpen/markClosed — but that store only lets ONE caller win
+      # the claim per real-world transition, not one per audience. IncidentAlertListener's
+      # subscription runs synchronously on the CB's own transition thread, so it wins the
+      # markOpen() race first essentially every time; BookmakerIncidentNotifier's async handler
+      # then finds the incident "already open" and silently skips the user-facing "недоступна"
+      # message. The "снова доступна" recovery message could still slip through when
+      # ParserHealthChecker's slow poll (not the fast CB path) was the one that actually closed
+      # the incident, since that path bypasses the race entirely — which is why users were seeing
+      # lone "recovered" messages with no matching "unavailable" one. Needs a per-audience claim
+      # (or two separate store keys) before this can safely default back to true.
+      users-enabled: ${PARSER_INCIDENT_ALERTS_USERS_ENABLED:false}
       admin-enabled: ${PARSER_INCIDENT_ALERTS_ADMIN_ENABLED:true}
     # Aggregate "elevated error rate across the whole scheduler" Telegram alert. Off by default —
     # in practice it fires alongside a per-bookmaker CB alert that already pinged admin about the
