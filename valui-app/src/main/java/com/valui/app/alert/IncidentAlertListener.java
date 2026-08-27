@@ -53,12 +53,20 @@ import java.util.concurrent.atomic.AtomicLong;
  * with downtime duration, a later one without, because {@link #openedAt} had already been
  * consumed by the first).
  *
- * <p>The actual Telegram send in {@link #sendCbAlert} is dispatched via
- * {@link #sendAsync}/{@code @Async}, not called inline from the CB callback: that callback runs
- * synchronously on resilience4j's own state-transition thread, and a blocking network call
- * sitting there is a real risk to the breaker's own event dispatch (see
- * {@link BookmakerIncidentNotifier}'s javadoc for a production incident this exact pattern
- * caused elsewhere in this class's sibling).
+ * <p>{@link #subscribe} itself only publishes a {@link CbTransitionEvent} — it does not call
+ * {@link #handleTransition} inline. That callback runs synchronously on resilience4j's own
+ * state-transition thread, which for a CLOSED_TO_OPEN transition is the very virtual thread that
+ * was executing the failing parser call — the same thread {@code ControllerTask}'s own
+ * fetch-budget watchdog may {@code interrupt()} at any moment once its 8s budget elapses. Doing
+ * any blocking I/O there is a real risk: a real production incident showed {@link #handleTransition}
+ * calling {@code incidentStore.claimOpen(...)} (a blocking Redis SADD) get interrupted mid-call,
+ * throwing back into {@code CircuitBreakerStateMachine.transitionToOpenState} before the WARN log
+ * or the admin Telegram alert could fire — the bookmaker's outage happened but was never logged
+ * or alerted on. {@link BookmakerIncidentNotifier}'s javadoc documents an earlier instance of this
+ * same bug class (there, the risky call was the Telegram send); this class's own claim call turned
+ * out to carry the identical risk even after that fix, since only the Telegram send had been moved
+ * off-thread here, not the Redis claim. {@link #onCbTransition} is the {@code @Async} entry point
+ * that now does the actual claim + cooldown + send, off the CB thread entirely.
  */
 @Slf4j
 @Component
@@ -98,14 +106,28 @@ public class IncidentAlertListener {
     }
 
     private void subscribe(CircuitBreaker cb) {
+        // Publish only — see class javadoc for why this must not call handleTransition (or
+        // anything touching incidentStore/Redis) directly from this thread.
         cb.getEventPublisher().onStateTransition(event ->
-            handleTransition(cb.getName(), event.getStateTransition(), System.currentTimeMillis()));
+            eventPublisher.publishEvent(new CbTransitionEvent(
+                    cb.getName(), event.getStateTransition(), System.currentTimeMillis())));
+    }
+
+    /** Local event type — marshals a CB state transition from the CB callback thread onto the
+     *  async one via {@link #onCbTransition}. Package-private so the test can assert on it. */
+    record CbTransitionEvent(String cbName, CircuitBreaker.StateTransition transition, long nowMs) {}
+
+    @Async
+    @EventListener
+    void onCbTransition(CbTransitionEvent event) {
+        handleTransition(event.cbName(), event.transition(), event.nowMs());
     }
 
     /**
-     * The actual cooldown/toggle decision, split out from the CB event callback above so it's
-     * testable deterministically (explicit {@code nowMs}) instead of racing the system clock —
-     * same pattern as {@code GcPauseWatchdog.handlePause}.
+     * The actual claim + cooldown + toggle decision. Split out from the CB event callback (see
+     * {@link #subscribe}/{@link #onCbTransition}) so it's both off the CB thread AND testable
+     * deterministically (explicit {@code nowMs}) instead of racing the system clock — same
+     * pattern as {@code GcPauseWatchdog.handlePause}.
      */
     void handleTransition(String cbName, CircuitBreaker.StateTransition transition, long nowMs) {
         String display = cbName.replace("-cb", "").toUpperCase();

@@ -58,6 +58,48 @@ class IncidentAlertListenerTest {
     // (see class javadoc: doing the send inline here caused a real production incident).
 
     @Nested
+    @DisplayName("Fast trigger: circuit breaker transitions only publish (see class javadoc — must not do I/O on the CB thread)")
+    class FastTrigger {
+
+        @Test
+        @DisplayName("A real CB transition publishes CbTransitionEvent — no Redis claim or Telegram send happen inline")
+        void transition_publishesEventOnly_noBlockingCallsInline() {
+            CircuitBreakerRegistry realRegistry = CircuitBreakerRegistry.ofDefaults();
+            IncidentAlertListener realListener = new IncidentAlertListener(
+                    realRegistry, adminNotificationService, eventPublisher, incidentStore);
+            realListener.subscribeToCbEvents();
+
+            realRegistry.circuitBreaker("xbet-cb").transitionToOpenState();
+
+            verifyNoInteractions(incidentStore, adminNotificationService);
+            ArgumentCaptor<IncidentAlertListener.CbTransitionEvent> captor =
+                    ArgumentCaptor.forClass(IncidentAlertListener.CbTransitionEvent.class);
+            verify(eventPublisher).publishEvent(captor.capture());
+            assertThat(captor.getValue().cbName()).isEqualTo("xbet-cb");
+            assertThat(captor.getValue().transition())
+                    .isEqualTo(CircuitBreaker.StateTransition.CLOSED_TO_OPEN);
+        }
+    }
+
+    @Nested
+    @DisplayName("onCbTransition — the @Async entry point that does the actual claim/cooldown/send")
+    class OnCbTransition {
+
+        @Test
+        @DisplayName("Delegates to handleTransition with the event's own fields")
+        void delegatesToHandleTransition() {
+            listener.onCbTransition(new IncidentAlertListener.CbTransitionEvent(
+                    "xbet-cb", CircuitBreaker.StateTransition.CLOSED_TO_OPEN, 0L));
+
+            verify(incidentStore).claimOpen("admin", BookmakerType.XBET);
+            ArgumentCaptor<IncidentAlertListener.CbAlertRequest> captor =
+                    ArgumentCaptor.forClass(IncidentAlertListener.CbAlertRequest.class);
+            verify(eventPublisher).publishEvent(captor.capture());
+            assertThat(captor.getValue().text()).contains("XBET").contains("OPEN");
+        }
+    }
+
+    @Nested
     @DisplayName("CLOSED_TO_OPEN")
     class Open {
 
