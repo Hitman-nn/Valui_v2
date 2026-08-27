@@ -37,10 +37,22 @@ public class FonbetParser implements BookmakerParser {
     // calls within one monitor cycle so we hit Fonbet API once per cycle, not three times.
     private static final long SNAP_TTL_MS = 30_000;
 
+    // How long a failed refresh attempt "poisons" the lock for every other waiter — see
+    // fetchSnapshot() below. Deliberately much shorter than SNAP_TTL_MS: this only needs to
+    // survive one convoy drain, not delay genuine recovery once the endpoint is back.
+    private static final long FAILURE_COOLDOWN_MS = 2_000;
+
     private final BookmakerHttpClient http;
     private final FonbetEndpointPool pool;
     private final String fallbackUrl;
     private final AtomicReference<CachedSnap> snapCache = new AtomicReference<>();
+    // Timestamp (ms) of the last failed refresh attempt, 0 = none / cleared on success.
+    // See fetchSnapshot()'s fail-fast check below — a real production incident (27.08) showed
+    // ~395 Fonbet controllers queue single-file behind snapLock during an outage, each making
+    // its OWN doomed HTTP attempt against the same dead endpoint (BLOCK_TIMEOUT=16s each) —
+    // that convoy alone saturated the shared DrrDispatcher concurrency budget and starved
+    // unrelated bookmakers (XBET) of dispatch slots at the same time.
+    private final AtomicReference<Long> lastFailureAtMs = new AtomicReference<>(0L);
     // Guards snapCache's refresh — ReentrantLock, not synchronized: the winner holds it
     // across a blocking HTTP call (up to BLOCK_TIMEOUT), and synchronized would pin the
     // carrier thread of every virtual thread queued behind it for that whole duration.
@@ -322,6 +334,19 @@ public class FonbetParser implements BookmakerParser {
             if (cached != null && System.currentTimeMillis() - cached.ts < SNAP_TTL_MS) {
                 return cached.data;
             }
+            // Fail fast if the last attempt (by whoever held this lock just before us) failed
+            // very recently: retrying the same doomed endpoint won't succeed any faster, and
+            // every waiter that instead piles into its own real HTTP attempt (up to BLOCK_TIMEOUT
+            // each) is exactly what turned a single dead mirror into a multi-second convoy that
+            // starved the shared DrrDispatcher concurrency budget for every bookmaker, not just
+            // Fonbet, in a real incident (27.08). Doesn't delay real recovery: cleared immediately
+            // on the next success, and short enough (2s) to not meaningfully slow CB detection —
+            // this still throws, so resilience4j's failure accounting for fonbet-cb is unaffected.
+            long lastFailure = lastFailureAtMs.get();
+            if (lastFailure > 0 && System.currentTimeMillis() - lastFailure < FAILURE_COOLDOWN_MS) {
+                throw new FonbetSnapshotUnavailableException(
+                        "Fonbet snapshot refresh failed recently — failing fast instead of retrying");
+            }
             String url = (pool != null) ? pool.getBestEndpoint() : fallbackUrl;
             if (pool != null && pool.aliveCount() == 0) {
                 log.warn("[Fonbet] no alive mirrors in pool — using endpoint {} anyway", url);
@@ -330,16 +355,25 @@ public class FonbetParser implements BookmakerParser {
                 JsonNode snap = http.getJson(url, JsonNode.class).block(BLOCK_TIMEOUT);
                 if (snap == null) throw new IllegalStateException("Fonbet API returned null");
                 if (pool != null) pool.markSuccess(url);
+                lastFailureAtMs.set(0L);
                 snapCache.set(new CachedSnap(snap, System.currentTimeMillis()));
                 return snap;
             } catch (Exception e) {
                 log.debug("[Fonbet] endpoint {} failed: {}", url, describe(e));
                 if (pool != null) pool.markFailure(url);
+                lastFailureAtMs.set(System.currentTimeMillis());
                 throw e;
             }
         } finally {
             snapLock.unlock();
         }
+    }
+
+    /** Marker for fetchSnapshot()'s fail-fast cooldown path — distinguishes "we didn't even try"
+     *  from a real HTTP failure in logs/tests, though both are handled identically by the
+     *  fallback methods below (ParseResult.error carries the message either way). */
+    static final class FonbetSnapshotUnavailableException extends RuntimeException {
+        FonbetSnapshotUnavailableException(String message) { super(message); }
     }
 
     // ── utils ─────────────────────────────────────────────────────────────────

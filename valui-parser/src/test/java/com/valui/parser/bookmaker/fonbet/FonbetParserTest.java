@@ -73,6 +73,38 @@ class FonbetParserTest {
                 .isInstanceOf(org.springframework.web.reactive.function.client.WebClientResponseException.class);
     }
 
+    @Test
+    @DisplayName("REGRESSION: a second call right after a failure fails fast without a new HTTP " +
+            "attempt — the fix for the convoy that starved the shared DrrDispatcher budget in a " +
+            "real incident (many callers each independently retrying the same dead endpoint)")
+    void fetchSports_secondCallWithinFailureCooldown_failsFastNoNewRequest() {
+        server.enqueue(new MockResponse().setResponseCode(503));
+        assertThatThrownBy(() -> parser.fetchSports())
+                .isInstanceOf(org.springframework.web.reactive.function.client.WebClientResponseException.class);
+
+        // No second response enqueued — if this reached the server it would hang/error on an
+        // empty queue instead of failing fast with the dedicated cooldown exception.
+        assertThatThrownBy(() -> parser.fetchSports())
+                .isInstanceOf(FonbetParser.FonbetSnapshotUnavailableException.class);
+
+        assertThat(server.getRequestCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Cooldown is temporary, not permanent — a call issued after it elapses tries the HTTP call again")
+    void fetchSports_callAfterCooldownElapses_triesAgain() throws Exception {
+        server.enqueue(new MockResponse().setResponseCode(503));
+        assertThatThrownBy(() -> parser.fetchSports()).isInstanceOf(
+                org.springframework.web.reactive.function.client.WebClientResponseException.class);
+
+        Thread.sleep(2_100); // FAILURE_COOLDOWN_MS = 2_000
+        server.enqueue(jsonResponse(snapshotBody()));
+        ParseResult<List<SportDto>> result = parser.fetchSports();
+
+        assertThat(result.success()).isTrue();
+        assertThat(server.getRequestCount()).isEqualTo(2);
+    }
+
     private String snapshotBody() throws Exception {
         return mapper.writeValueAsString(Map.of(
                 "sports", List.of(

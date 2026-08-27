@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OlimpParserTest {
 
@@ -71,6 +72,36 @@ class OlimpParserTest {
         assertThat(result.success()).isTrue();
         assertThat(result.data()).hasSize(1);
         assertThat(result.data().get(0).id()).isEqualTo("500");
+    }
+
+    @Test
+    @DisplayName("REGRESSION: a second call right after a failure fails fast without a new HTTP " +
+            "attempt — same convoy fix as FonbetParser (many callers each independently retrying " +
+            "the same dead endpoint starved the shared DrrDispatcher budget in a real incident)")
+    void fetchSports_secondCallWithinFailureCooldown_failsFastNoNewRequest() {
+        server.enqueue(new MockResponse().setResponseCode(503));
+        assertThatThrownBy(() -> parser.fetchSports())
+                .isInstanceOf(org.springframework.web.reactive.function.client.WebClientResponseException.class);
+
+        assertThatThrownBy(() -> parser.fetchSports())
+                .isInstanceOf(OlimpParser.OlimpSnapshotUnavailableException.class);
+
+        assertThat(server.getRequestCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Cooldown is temporary, not permanent — a call issued after it elapses tries the HTTP call again")
+    void fetchSports_callAfterCooldownElapses_triesAgain() throws Exception {
+        server.enqueue(new MockResponse().setResponseCode(503));
+        assertThatThrownBy(() -> parser.fetchSports()).isInstanceOf(
+                org.springframework.web.reactive.function.client.WebClientResponseException.class);
+
+        Thread.sleep(2_100); // FAILURE_COOLDOWN_MS = 2_000
+        enqueue(List.of(Map.of("payload", Map.of("id", "1", "name", "Футбол"))));
+        ParseResult<List<SportDto>> result = parser.fetchSports();
+
+        assertThat(result.success()).isTrue();
+        assertThat(server.getRequestCount()).isEqualTo(2);
     }
 
     private void enqueue(Object body) throws Exception {

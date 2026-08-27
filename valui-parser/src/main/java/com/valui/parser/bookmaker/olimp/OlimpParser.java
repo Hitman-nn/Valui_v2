@@ -41,6 +41,13 @@ public class OlimpParser implements BookmakerParser {
     // Olimp exposes three separate endpoints instead of Fonbet's single combined one.
     private static final long SNAP_TTL_MS = 20_000;
 
+    // How long a failed refresh "poisons" its lock for every other waiter — see fetchCached()'s
+    // fail-fast check. Same convoy risk as FonbetParser (see its FAILURE_COOLDOWN_MS javadoc for
+    // the production incident that motivated this): every one of the ~30 Olimp controllers
+    // queued behind a dead endpoint would otherwise make its own doomed ~20MB HTTP attempt in
+    // turn (up to BLOCK_TIMEOUT each) instead of failing immediately once the first one already has.
+    private static final long FAILURE_COOLDOWN_MS = 2_000;
+
     private final String sportsApi;
     private final String champsApi;
     private final String eventsApi;
@@ -57,6 +64,11 @@ public class OlimpParser implements BookmakerParser {
     private final ReentrantLock sportsLock = new ReentrantLock();
     private final ReentrantLock champsLock = new ReentrantLock();
     private final ReentrantLock eventsLock = new ReentrantLock();
+
+    // Last-failure timestamps (ms), one per endpoint — 0 = none / cleared on success.
+    private final AtomicReference<Long> sportsLastFailureAtMs = new AtomicReference<>(0L);
+    private final AtomicReference<Long> champsLastFailureAtMs = new AtomicReference<>(0L);
+    private final AtomicReference<Long> eventsLastFailureAtMs = new AtomicReference<>(0L);
 
     private record CachedSnap(JsonNode data, long ts) {}
 
@@ -84,7 +96,7 @@ public class OlimpParser implements BookmakerParser {
     @Override
     public ParseResult<List<SportDto>> fetchSports() {
         long start = ms();
-        JsonNode arr = fetchCached(sportsCache, sportsLock, sportsApi);
+        JsonNode arr = fetchCached(sportsCache, sportsLock, sportsLastFailureAtMs, sportsApi);
         List<SportDto> sports = new ArrayList<>();
         for (JsonNode item : iter(arr)) {
             JsonNode p = item.path("payload");
@@ -99,7 +111,7 @@ public class OlimpParser implements BookmakerParser {
     @Override
     public ParseResult<List<TournamentDto>> fetchTournaments(String sportId) {
         long start = ms();
-        JsonNode arr = fetchCached(champsCache, champsLock, champsApi);
+        JsonNode arr = fetchCached(champsCache, champsLock, champsLastFailureAtMs, champsApi);
         List<TournamentDto> tournaments = new ArrayList<>();
         for (JsonNode item : iter(arr)) {
             JsonNode p = item.path("payload");
@@ -122,7 +134,7 @@ public class OlimpParser implements BookmakerParser {
     @Override
     public ParseResult<List<ParsedMatchDto>> fetchMatches(String tournamentId) {
         long start = ms();
-        JsonNode arr = fetchCached(eventsCache, eventsLock, eventsApi);
+        JsonNode arr = fetchCached(eventsCache, eventsLock, eventsLastFailureAtMs, eventsApi);
         List<ParsedMatchDto> matches = new ArrayList<>();
         for (JsonNode item : iter(arr)) {
             JsonNode p = item.path("payload");
@@ -269,8 +281,13 @@ public class OlimpParser implements BookmakerParser {
      * <p>A null/empty response is never cached: caching it would silently black out every
      * Olimp controller for the full TTL on a single transient API hiccup, with no exception
      * to trip the circuit breaker or surface an error.
+     *
+     * <p>{@code lastFailureAtMs} bounds how long a failed refresh can convoy every other waiter
+     * into repeating the same doomed ~20MB HTTP attempt — see {@link #FAILURE_COOLDOWN_MS}'s
+     * javadoc (same fix, same production incident, as {@code FonbetParser.fetchSnapshot()}).
      */
-    private JsonNode fetchCached(AtomicReference<CachedSnap> cacheRef, ReentrantLock lock, String url) {
+    private JsonNode fetchCached(AtomicReference<CachedSnap> cacheRef, ReentrantLock lock,
+                                  AtomicReference<Long> lastFailureAtMs, String url) {
         CachedSnap cached = cacheRef.get();
         if (cached != null && System.currentTimeMillis() - cached.ts() < SNAP_TTL_MS) {
             return cached.data();
@@ -281,6 +298,11 @@ public class OlimpParser implements BookmakerParser {
             if (cached != null && System.currentTimeMillis() - cached.ts() < SNAP_TTL_MS) {
                 return cached.data();
             }
+            long lastFailure = lastFailureAtMs.get();
+            if (lastFailure > 0 && System.currentTimeMillis() - lastFailure < FAILURE_COOLDOWN_MS) {
+                throw new OlimpSnapshotUnavailableException(
+                        "Olimp snapshot refresh failed recently — failing fast instead of retrying: " + url);
+            }
             JsonNode data;
             try {
                 data = block(http.getJson(url, JsonNode.class));
@@ -289,8 +311,10 @@ public class OlimpParser implements BookmakerParser {
                 // Throwable with no idea which of the 3 Olimp endpoints (sports/champs/events)
                 // actually failed — log it here where the specific url is in scope.
                 log.debug("[Olimp] fetch failed url={}: {}", url, describe(e));
+                lastFailureAtMs.set(System.currentTimeMillis());
                 throw e;
             }
+            lastFailureAtMs.set(0L);
             if (data != null) {
                 cacheRef.set(new CachedSnap(data, System.currentTimeMillis()));
             }
@@ -298,6 +322,11 @@ public class OlimpParser implements BookmakerParser {
         } finally {
             lock.unlock();
         }
+    }
+
+    /** Marker for fetchCached()'s fail-fast cooldown path — see {@code FonbetParser}'s twin. */
+    static final class OlimpSnapshotUnavailableException extends RuntimeException {
+        OlimpSnapshotUnavailableException(String message) { super(message); }
     }
 
     private static Iterable<JsonNode> iter(JsonNode n) { return n != null && n.isArray() ? n : List.of(); }

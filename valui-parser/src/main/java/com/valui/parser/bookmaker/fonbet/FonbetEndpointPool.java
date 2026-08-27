@@ -36,7 +36,13 @@ public class FonbetEndpointPool {
     static final String PATH     = "/events/list?lang=ru&scopeMarket=1600";
 
     private static final String FALLBACK       = "https://line32w.bk6bba-resources.com" + PATH;
-    private static final int    MIN_ALIVE      = 3;
+    // Was 3 — a real incident (27.08) showed the pool sit at a steady ~13/200 alive for over
+    // 20 hours (nothing refreshes the other 187 unless alive drops below this threshold or the
+    // Tuesday weekly rescan runs) before ALL ~13 failed within moments of each other, collapsing
+    // straight to 0/200 with zero warning — the emergency rescan only ever fires once the damage
+    // is already total. Raising the trigger to 10 gives a margin below the observed steady state
+    // so a genuine decline (13 → 10) reschedules a rescan before it can reach 13 → 0.
+    private static final int    MIN_ALIVE      = 10;
     private static final long   RESCAN_COOLDOWN_MS = 10 * 60_000L;
     private static final int    PROBE_CONNECT_MS   = 3_000;
     private static final int    PROBE_READ_MS      = 5_000;
