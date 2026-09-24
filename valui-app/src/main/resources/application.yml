@@ -239,6 +239,10 @@ telegram:
 
 ws:
   pool:
+    # Kill switch for a sustained gateway-side block — set WS_POOL_ENABLED=false to stop every
+    # connection attempt outright (not just back off) and give a suspected rate-limit/anti-abuse
+    # window on BetBoom's side a genuine quiet period to expire. See WsPoolProperties.enabled.
+    enabled: ${WS_POOL_ENABLED:true}
     # Was wss://ru-ws.sporthub.bet:444/... — a real browser handshake captured 24.09 (during an
     # "Access rejected" outage) connected successfully to ru-ws2 on the default WSS port (443, no
     # :444). THIS file, not valui-parser's own application.yml, is the one Spring Boot actually

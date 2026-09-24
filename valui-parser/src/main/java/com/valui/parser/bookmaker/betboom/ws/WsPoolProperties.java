@@ -12,6 +12,15 @@ import java.util.Map;
 @Component
 @ConfigurationProperties(prefix = "ws.pool")
 public class WsPoolProperties {
+    // Kill switch for a sustained gateway-side block (24.09: BetBoom's WS gateway rejected every
+    // single connection attempt — "Access rejected" — for hours, regardless of host/subprotocol
+    // tried). maxSize=0 is NOT a safe way to achieve this: WsClientBorrowingPool's free-slot
+    // queue is a LinkedBlockingQueue(capacity), which throws IllegalArgumentException for
+    // capacity<=0 and would crash the whole app at startup. This flag instead skips connecting
+    // any slot in the first place — a real, contained pause, no connection attempts at all —
+    // so a suspected active rate-limit/anti-abuse window on BetBoom's side gets a genuine quiet
+    // period to expire instead of every reconnect attempt (even backed-off) keeping it re-armed.
+    private boolean enabled = true;
     private String url;
     private Map<String, String> headers = new LinkedHashMap<>();
     // Real BetBoom clients negotiate this WS subprotocol (Sec-WebSocket-Protocol: protobuf) and

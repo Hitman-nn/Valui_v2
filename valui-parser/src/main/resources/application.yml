@@ -1,5 +1,6 @@
 ws:
   pool:
+    enabled: ${WS_POOL_ENABLED:true}
     # Was wss://ru-ws.sporthub.bet:444/... — a real browser handshake captured 24.09 (during the
     # "Access rejected" outage) connected successfully to ru-ws2 on the default WSS port (443,
     # no :444). Unverified whether ru-ws (no digit) / :444 is now retired or just one of several

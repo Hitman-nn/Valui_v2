@@ -86,6 +86,12 @@ public class WsClientBorrowingPool implements SmartLifecycle {
 
     @Override public void start() {
         if (!running.compareAndSet(false, true)) return;
+        if (!props.isEnabled()) {
+            log.warn("WS pool disabled (ws.pool.enabled=false) — not connecting any slot. " +
+                    "isAvailable()/isConnectionReady() will report false the whole time, exactly " +
+                    "as if every connection attempt were failing — this is deliberate.");
+            return;
+        }
         for (int i = 0; i < props.getMaxSize(); i++) connectSlot(i);
         long drainMs = props.getIdleDrainInterval().toMillis();
         idleDrainTask = scheduler.scheduleAtFixedRate(

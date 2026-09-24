@@ -19,6 +19,10 @@ public class WsPoolWarmupRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        if (!props.isEnabled()) {
+            log.warn("WS warmup skipped — pool itself is disabled (ws.pool.enabled=false)");
+            return;
+        }
         WsPoolProperties.Warmup cfg = props.getWarmup();
         if (!cfg.isEnabled()) {
             log.info("WS warmup disabled");
