@@ -220,7 +220,19 @@ public class WsClientBorrowingPool implements SmartLifecycle {
                     .headers(props.getHeaders())
                     .connectTimeout(props.getConnectTimeout())
                     .initialBuffer(props.getInitialBuffer())
-                    .onOpen(() -> { connected = true; failures = 0; })
+                    // Deliberately does NOT reset `failures` here — onOpen fires the moment the
+                    // raw WS transport handshake completes, well before BetBoom's app-level HELLO.
+                    // A real incident (24.09, "Access rejected" / "Closed before HELLO") showed
+                    // BetBoom's gateway accept the transport upgrade and then immediately reject
+                    // the connection at the app level on every single attempt — since onOpen still
+                    // fired first every time, it zeroed the failure counter before scheduleReconnect
+                    // could ever see more than 1, so backoff never escalated past its base delay
+                    // (~300-500ms) despite the connection failing continuously for 5+ hours: ~2500
+                    // reconnect attempts per slot per 10 minutes, non-stop, against an endpoint that
+                    // was actively telling us "no". `failures` now only resets on a genuine
+                    // HELLO-confirmed success (the whenComplete branch below), so a sustained
+                    // rejection correctly backs off toward backoffMax instead of hammering forever.
+                    .onOpen(() -> connected = true)
                     .onHello(bytes -> {
                         try { client.clearInbox(); } catch (Exception ignore) {}
                         if (readyOnce.getCount() > 0) {

@@ -9,7 +9,14 @@ ws:
     initial-buffer: 65536
     ready-timeout: 10s
     backoff-base: 300ms
-    backoff-max: 10s
+    # Was 10s — with the failures-reset bug fixed (WsClientBorrowingPool.Slot.connect(), see its
+    # onOpen javadoc), backoff now actually escalates during a sustained rejection instead of
+    # resetting every attempt. A real incident (24.09, BetBoom's gateway closing every connection
+    # with "Access rejected") showed reconnects hammering the endpoint every ~300-500ms non-stop
+    # for 5+ hours — 30s gives real breathing room per slot once a rejection is confirmed
+    # persistent, without slowing recovery from a genuinely brief blip (early attempts still back
+    # off gradually from backoff-base).
+    backoff-max: 30s
     warmup:
       enabled: true
       min-ready: 2
