@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
@@ -133,6 +134,13 @@ public class WsClientBorrowingPool implements SmartLifecycle {
 
     // ── internals ─────────────────────────────────────────────────────────────
 
+    /** A real BetBoom client's handshake (captured 24.09) carries a per-connection random
+     *  {@code ?uuid=} query param — every one of ours was missing it. */
+    private static String withUuid(String baseUrl) {
+        String separator = baseUrl.contains("?") ? "&" : "?";
+        return baseUrl + separator + "uuid=" + UUID.randomUUID();
+    }
+
     private void ensureRunning() {
         if (!isRunning()) throw new IllegalStateException("Pool is not running");
     }
@@ -216,8 +224,9 @@ public class WsClientBorrowingPool implements SmartLifecycle {
             WsClient previous = client;
 
             client = WsClient.builder()
-                    .url(props.getUrl())
+                    .url(withUuid(props.getUrl()))
                     .headers(props.getHeaders())
+                    .subprotocol(props.getSubprotocol())
                     .connectTimeout(props.getConnectTimeout())
                     .initialBuffer(props.getInitialBuffer())
                     // Deliberately does NOT reset `failures` here — onOpen fires the moment the

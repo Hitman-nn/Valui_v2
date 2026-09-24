@@ -14,6 +14,12 @@ import java.util.Map;
 public class WsPoolProperties {
     private String url;
     private Map<String, String> headers = new LinkedHashMap<>();
+    // Real BetBoom clients negotiate this WS subprotocol (Sec-WebSocket-Protocol: protobuf) and
+    // append a per-connection ?uuid=<random> query param — a captured real handshake (24.09)
+    // showed both present. Our connections were missing them, alongside the gateway rejecting
+    // every attempt outright ("Access rejected") — plausibly related, not proven, but cheap and
+    // safe to match: see WsClientBorrowingPool.Slot#connect().
+    private String subprotocol = "protobuf";
     private int minSize = 2;
     private int maxSize = 6;
     private Duration connectTimeout = Duration.ofSeconds(5);

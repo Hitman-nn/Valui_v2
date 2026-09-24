@@ -1,6 +1,11 @@
 ws:
   pool:
-    url: ${BETBOOM_WS_URL:wss://ru-ws.sporthub.bet:444/api/tree_ws/v1}
+    # Was wss://ru-ws.sporthub.bet:444/... — a real browser handshake captured 24.09 (during the
+    # "Access rejected" outage) connected successfully to ru-ws2 on the default WSS port (443,
+    # no :444). Unverified whether ru-ws (no digit) / :444 is now retired or just one of several
+    # load-balanced mirrors (BetBoom likely runs more than one, same pattern as Fonbet's mirror
+    # pool) — this is the one instance we have positive evidence works right now.
+    url: ${BETBOOM_WS_URL:wss://ru-ws2.sporthub.bet/api/tree_ws/v1}
     headers:
       Origin: https://betboom.ru
     min-size: 2
