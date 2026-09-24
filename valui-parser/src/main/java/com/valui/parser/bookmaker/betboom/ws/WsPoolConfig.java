@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 public class WsPoolConfig {
 
     @Bean
-    public WsClientBorrowingPool wsClientBorrowingPool(WsPoolProperties props) {
-        return new WsClientBorrowingPool(props);
+    public WsClientBorrowingPool wsClientBorrowingPool(WsPoolProperties props, BetBoomFeedUuidProvider uuidProvider) {
+        return new WsClientBorrowingPool(props, uuidProvider);
     }
 }

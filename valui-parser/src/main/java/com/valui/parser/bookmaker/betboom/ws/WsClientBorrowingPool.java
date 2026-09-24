@@ -8,7 +8,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
@@ -22,6 +21,7 @@ public class WsClientBorrowingPool implements SmartLifecycle {
     private static final int RECONNECT_WARN_THRESHOLD = 3;
 
     private final WsPoolProperties props;
+    private final BetBoomFeedUuidProvider uuidProvider;
     private final ScheduledExecutorService scheduler =
             Executors.newScheduledThreadPool(Math.max(2, Runtime.getRuntime().availableProcessors() / 4));
 
@@ -36,8 +36,9 @@ public class WsClientBorrowingPool implements SmartLifecycle {
     private final LongAdder idleFramesDrained  = new LongAdder();
     private volatile ScheduledFuture<?> idleDrainTask;
 
-    public WsClientBorrowingPool(WsPoolProperties props) {
+    public WsClientBorrowingPool(WsPoolProperties props, BetBoomFeedUuidProvider uuidProvider) {
         this.props = Objects.requireNonNull(props);
+        this.uuidProvider = Objects.requireNonNull(uuidProvider);
         int cap = props.getMaxSize();
         this.slots = new ArrayList<>(cap);
         for (int i = 0; i < cap; i++) slots.add(new Slot(i));
@@ -140,11 +141,24 @@ public class WsClientBorrowingPool implements SmartLifecycle {
 
     // ── internals ─────────────────────────────────────────────────────────────
 
-    /** A real BetBoom client's handshake (captured 24.09) carries a per-connection random
-     *  {@code ?uuid=} query param — every one of ours was missing it. */
-    private static String withUuid(String baseUrl) {
+    /**
+     * A real BetBoom client's handshake carries a {@code ?uuid=} query param — but (found the
+     * hard way, 24.09: a locally-generated random one is reliably rejected with "Access
+     * rejected", 100% reproducible either way) it is NOT a per-connection or per-session value.
+     * It's a fixed constant tied to BetBoom's current widget build, published unauthenticated in
+     * their own runtime config — see {@link BetBoomFeedUuidProvider}. Every slot shares the
+     * exact same value; that's correct, not a bug — a real browser session doing the same thing
+     * (opening several BetBoom WS connections) would use that identical uuid on all of them too.
+     */
+    private String withUuid(String baseUrl) {
+        String uuid = uuidProvider.getUuid();
+        if (uuid == null) {
+            log.warn("[BetBoom-UUID] No uuid resolved yet from BetBoom's widget config — connecting " +
+                    "without one; this attempt will very likely be rejected (see BetBoomFeedUuidProvider)");
+            return baseUrl;
+        }
         String separator = baseUrl.contains("?") ? "&" : "?";
-        return baseUrl + separator + "uuid=" + UUID.randomUUID();
+        return baseUrl + separator + "uuid=" + uuid;
     }
 
     private void ensureRunning() {

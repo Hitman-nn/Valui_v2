@@ -8,6 +8,7 @@ import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.common.parser.dto.SportDto;
 import com.valui.common.parser.dto.TournamentDto;
 import com.valui.parser.api.ParseResult;
+import com.valui.parser.bookmaker.betboom.ws.BetBoomFeedUuidProvider;
 import com.valui.parser.bookmaker.betboom.ws.WsClientBorrowingPool;
 import com.valui.parser.bookmaker.betboom.ws.WsPoolProperties;
 import com.valui.parser.bookmaker.betboom.ws.WsRequestService;
@@ -44,7 +45,7 @@ import java.util.List;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class BetBoomSnapshotDumpTest {
 
-    private static final String WS_URL = "wss://ru-ws.sporthub.bet:444/api/tree_ws/v1";
+    private static final String WS_URL = "wss://ru-ws2.sporthub.bet/api/tree_ws/v1";
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .enable(SerializationFeature.INDENT_OUTPUT);
@@ -61,7 +62,11 @@ class BetBoomSnapshotDumpTest {
         props.setConnectTimeout(Duration.ofSeconds(8));
         props.setReadyTimeout(Duration.ofSeconds(15));
 
-        pool = new WsClientBorrowingPool(props);
+        BetBoomFeedUuidProvider uuidProvider = new BetBoomFeedUuidProvider();
+        uuidProvider.init();
+        Thread.sleep(2_000); // let the background uuid fetch land before slots start connecting
+
+        pool = new WsClientBorrowingPool(props, uuidProvider);
         pool.start();
         System.out.println("WS pool started, waiting for connections …");
         // Give connections time to handshake
