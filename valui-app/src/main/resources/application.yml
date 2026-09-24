@@ -239,16 +239,28 @@ telegram:
 
 ws:
   pool:
-    url: ${BETBOOM_WS_URL:wss://ru-ws.sporthub.bet:444/api/tree_ws/v1}
+    # Was wss://ru-ws.sporthub.bet:444/... — a real browser handshake captured 24.09 (during an
+    # "Access rejected" outage) connected successfully to ru-ws2 on the default WSS port (443, no
+    # :444). THIS file, not valui-parser's own application.yml, is the one Spring Boot actually
+    # binds ws.pool.* from at runtime (BOOT-INF/classes/ always wins over the nested
+    # BOOT-INF/lib/valui-parser-*.jar's own copy for any overlapping key) — an edit made only to
+    # valui-parser's copy during that same incident silently had zero effect and cost a wasted
+    # deploy before this was noticed. Keep both files' ws.pool in sync until that duplication is
+    # cleaned up for real.
+    url: ${BETBOOM_WS_URL:wss://ru-ws2.sporthub.bet/api/tree_ws/v1}
     headers:
       Origin: https://betboom.ru
+    # Real BetBoom clients negotiate this WS subprotocol (Sec-WebSocket-Protocol: protobuf) and
+    # append a per-connection ?uuid=<random> query param (see WsClientBorrowingPool.withUuid()) —
+    # a captured real handshake (24.09) showed both present; ours were missing them.
+    subprotocol: protobuf
     min-size: 2
     max-size: 6
     connect-timeout: 5s
     initial-buffer: 65536
     ready-timeout: 10s
     backoff-base: 300ms
-    backoff-max: 10s
+    backoff-max: 30s
     # Hygiene recycle — BetBoom keeps server-side subscriptions alive on a connection
     # indefinitely, so a slot that lives too long accumulates ever more background push
     # traffic. Reconnecting before that becomes noticeable bounds the worst case. See

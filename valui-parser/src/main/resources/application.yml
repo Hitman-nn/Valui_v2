@@ -8,6 +8,7 @@ ws:
     url: ${BETBOOM_WS_URL:wss://ru-ws2.sporthub.bet/api/tree_ws/v1}
     headers:
       Origin: https://betboom.ru
+    subprotocol: protobuf
     min-size: 2
     max-size: 6
     connect-timeout: 5s
