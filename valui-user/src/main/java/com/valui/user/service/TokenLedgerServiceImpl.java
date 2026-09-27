@@ -212,7 +212,7 @@ public class TokenLedgerServiceImpl implements TokenLedgerService {
             .toList();
         for (ControllerEntity c : controllerRepository.findAllById(controllerIds)) {
             int pollInterval = c.getPollIntervalSec() != null ? c.getPollIntervalSec() : 60;
-            eventPublisher.publishEvent(new ControllerResumedEvent(c.getId(), userId, pollInterval));
+            eventPublisher.publishEvent(new ControllerResumedEvent(c.getId(), userId, pollInterval, c.getBookmaker()));
             if (c.getNotificationChatId() != null) {
                 resumedChatIds.add(c.getNotificationChatId());
             } else {

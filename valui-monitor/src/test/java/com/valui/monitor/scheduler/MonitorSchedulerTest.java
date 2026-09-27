@@ -73,7 +73,7 @@ class MonitorSchedulerTest {
     @Test
     @DisplayName("scheduleController: adds controller to registry")
     void scheduleController_addsToRegistry() {
-        scheduler.scheduleController(CTRL_ID, USER_ID, 30);
+        scheduler.scheduleController(CTRL_ID, USER_ID, 30, BookmakerType.XBET);
 
         assertThat(scheduler.getScheduledControllerIds()).contains(CTRL_ID);
         verify(metrics).onControllerScheduled();
@@ -83,8 +83,8 @@ class MonitorSchedulerTest {
     @Test
     @DisplayName("scheduleController: duplicate call is idempotent")
     void scheduleController_duplicate_ignored() {
-        scheduler.scheduleController(CTRL_ID, USER_ID, 30);
-        scheduler.scheduleController(CTRL_ID, USER_ID, 30); // second call
+        scheduler.scheduleController(CTRL_ID, USER_ID, 30, BookmakerType.XBET);
+        scheduler.scheduleController(CTRL_ID, USER_ID, 30, BookmakerType.XBET); // second call
 
         assertThat(scheduler.getScheduledControllerIds()).hasSize(1);
         verify(metrics, times(1)).onControllerScheduled();
@@ -96,7 +96,7 @@ class MonitorSchedulerTest {
     @Test
     @DisplayName("unscheduleController: removes from registry and cancels in dispatcher")
     void unscheduleController_removesAndCancels() {
-        scheduler.scheduleController(CTRL_ID, USER_ID, 30);
+        scheduler.scheduleController(CTRL_ID, USER_ID, 30, BookmakerType.XBET);
         scheduler.unscheduleController(CTRL_ID);
 
         assertThat(scheduler.getScheduledControllerIds()).doesNotContain(CTRL_ID);
@@ -125,7 +125,7 @@ class MonitorSchedulerTest {
     @Test
     @DisplayName("ControllerRemovedEvent listener unschedules the controller")
     void on_controllerRemoved_unschedules() {
-        scheduler.scheduleController(CTRL_ID, USER_ID, 30);
+        scheduler.scheduleController(CTRL_ID, USER_ID, 30, BookmakerType.XBET);
         scheduler.on(new ControllerRemovedEvent(CTRL_ID, USER_ID));
 
         assertThat(scheduler.getScheduledControllerIds()).doesNotContain(CTRL_ID);
@@ -173,7 +173,7 @@ class MonitorSchedulerTest {
     @Test
     @DisplayName("rescheduleAll: clears existing and reloads from DB")
     void rescheduleAll_reloadsFromDB() {
-        scheduler.scheduleController(CTRL_ID, USER_ID, 30);
+        scheduler.scheduleController(CTRL_ID, USER_ID, 30, BookmakerType.XBET);
 
         UUID freshCtrl = UUID.randomUUID();
         given(taskExecutor.loadAllActiveForScheduling()).willReturn(List.of(

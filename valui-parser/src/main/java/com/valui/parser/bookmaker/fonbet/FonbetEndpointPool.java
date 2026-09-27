@@ -82,6 +82,25 @@ public class FonbetEndpointPool {
         }
     }
 
+    /**
+     * Proactive counterpart to {@link #checkAliveAndRescan()} — that method is otherwise only
+     * ever called from {@link #markFailure}, i.e. only when the mirror CURRENTLY being used
+     * fails. A real incident (27.08) plus days of steady-state logs afterward (27.09: pool sat at
+     * 1/200 alive for 15+ straight hours, zero emergency rescans) showed the gap this leaves: as
+     * long as whichever single mirror {@link #getBestEndpoint()} keeps returning happens to still
+     * work, {@code markFailure} never fires — so the rescan trigger never even gets evaluated,
+     * no matter how far the other 199 mirrors have silently rotted, right up until that one
+     * surviving mirror itself fails and the pool free-falls to 0/200 with no warning (exactly
+     * the 27.08 incident). Checking independently of any failure, every 5 minutes — cheap (one
+     * Redis ZCOUNT) — closes that gap: a critically low alive count now gets noticed and
+     * rescanned well before the last mirror standing has a chance to take the whole pool down
+     * with it.
+     */
+    @Scheduled(fixedRate = 5, timeUnit = TimeUnit.MINUTES, initialDelay = 5)
+    void proactiveHealthCheck() {
+        checkAliveAndRescan();
+    }
+
     // ── public API ─────────────────────────────────────────────────────────────
 
     /** Returns the URL with the highest score (most recently confirmed alive). */

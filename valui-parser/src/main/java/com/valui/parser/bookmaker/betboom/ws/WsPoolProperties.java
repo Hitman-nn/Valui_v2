@@ -52,7 +52,13 @@ public class WsPoolProperties {
     // read, chronically dropping the newest of them. Proactively draining idle slots' inboxes
     // keeps this near-empty in steady state, so a nonzero backlog again means something
     // (active contention), not "the pool has been idle for a few seconds".
-    private Duration idleDrainInterval = Duration.ofSeconds(15);
+    // Was 15s — production logs (27.09) showed backlog sitting permanently at MAX_INBOX (2000)
+    // with 20-100 frames/10min dropped, all day, every day: BetBoom pushes odds updates faster
+    // than a 15s drain cadence can keep up with once a slot's accumulated subscriptions cover
+    // enough live matches. Draining every 3s instead cuts the accumulation window (and therefore
+    // the steady-state drop rate) roughly 5x without materially increasing CPU/Redis overhead —
+    // this is a cheap in-memory queue drain (WsClient.clearInbox()), not a network round-trip.
+    private Duration idleDrainInterval = Duration.ofSeconds(3);
     private Warmup warmup = new Warmup();
 
     @Data

@@ -1,5 +1,6 @@
 package com.valui.monitor.scheduler;
 
+import com.valui.common.domain.BookmakerType;
 import com.valui.monitor.config.MonitorProperties;
 import com.valui.monitor.dedup.EventDeduplicationService;
 import com.valui.monitor.event.ControllerAddedEvent;
@@ -90,7 +91,7 @@ public class MonitorScheduler {
         dispatcher.start();
 
         List<ControllerScheduleInfo> controllers = taskExecutor.loadAllActiveForScheduling();
-        Map<com.valui.common.domain.BookmakerType, Long> byBk = new LinkedHashMap<>();
+        Map<BookmakerType, Long> byBk = new LinkedHashMap<>();
 
         for (ControllerScheduleInfo info : controllers) {
             if (!controllerPort.hasActiveSubscriptions(info.controllerId())) continue;
@@ -107,7 +108,7 @@ public class MonitorScheduler {
             stateStore.clearInFlight(info.controllerId()); // discard any crashed inFlight flag
 
             ControllerJob job = ControllerJob.initial(
-                    info.controllerId(), info.userId(), info.pollIntervalSec(), nextRunAt);
+                    info.controllerId(), info.userId(), info.pollIntervalSec(), info.bookmaker(), nextRunAt);
             jobRegistry.put(job);
             dispatcher.enqueue(job);
             metrics.onControllerScheduled();
@@ -126,7 +127,7 @@ public class MonitorScheduler {
 
         long scheduled = byBk.values().stream().mapToLong(Long::longValue).sum();
         String breakdown = byBk.entrySet().stream()
-                .sorted(Map.Entry.<com.valui.common.domain.BookmakerType, Long>comparingByValue().reversed())
+                .sorted(Map.Entry.<BookmakerType, Long>comparingByValue().reversed())
                 .map(e -> e.getKey().name() + ":" + e.getValue())
                 .collect(Collectors.joining(", "));
         log.info("Монитор запущен: {} контроллеров в очереди ({})",
@@ -135,11 +136,12 @@ public class MonitorScheduler {
 
     // ── Public API ────────────────────────────────────────────────────────────
 
-    public void scheduleController(UUID controllerId, UUID userId, int pollIntervalSec) {
+    public void scheduleController(UUID controllerId, UUID userId, int pollIntervalSec,
+                                    BookmakerType bookmaker) {
         if (jobRegistry.contains(controllerId)) return; // idempotent
 
         seedDedup(controllerId);
-        ControllerJob job = ControllerJob.initial(controllerId, userId, pollIntervalSec, Instant.now());
+        ControllerJob job = ControllerJob.initial(controllerId, userId, pollIntervalSec, bookmaker, Instant.now());
         jobRegistry.put(job);
         dispatcher.enqueue(job);
         metrics.onControllerScheduled();
@@ -167,7 +169,7 @@ public class MonitorScheduler {
         List<ControllerScheduleInfo> all = taskExecutor.loadAllActiveForScheduling();
         all.forEach(info -> {
             ControllerJob job = ControllerJob.initial(
-                    info.controllerId(), info.userId(), info.pollIntervalSec(), Instant.now());
+                    info.controllerId(), info.userId(), info.pollIntervalSec(), info.bookmaker(), Instant.now());
             jobRegistry.put(job);
             dispatcher.enqueue(job);
         });
@@ -184,7 +186,7 @@ public class MonitorScheduler {
     public void on(ControllerAddedEvent e) {
         // scheduleController() itself logs the outcome — no separate line here to avoid
         // logging the same "controller added to schedule" fact twice.
-        scheduleController(e.controllerId(), e.userId(), e.pollIntervalSec());
+        scheduleController(e.controllerId(), e.userId(), e.pollIntervalSec(), e.bookmaker());
     }
 
     @EventListener
@@ -212,7 +214,7 @@ public class MonitorScheduler {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void on(ControllerResumedEvent e) {
         if (!jobRegistry.contains(e.controllerId())) {
-            scheduleController(e.controllerId(), e.userId(), e.pollIntervalSec());
+            scheduleController(e.controllerId(), e.userId(), e.pollIntervalSec(), e.bookmaker());
             log.info("Контроллер {} возобновлён (токены)", e.controllerId());
         }
     }

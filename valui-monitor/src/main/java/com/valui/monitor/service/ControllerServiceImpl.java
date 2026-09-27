@@ -224,7 +224,7 @@ public class ControllerServiceImpl implements ControllerService {
         if (!monitorScheduler.getScheduledControllerIds().contains(controllerId)) {
             controllerPort.findById(controllerId).ifPresent(c -> {
                 int interval = c.getPollIntervalSec() != null ? c.getPollIntervalSec() : 60;
-                monitorScheduler.scheduleController(controllerId, c.getUser().getId(), interval);
+                monitorScheduler.scheduleController(controllerId, c.getUser().getId(), interval, c.getBookmaker());
             });
         }
         log.info("[CTRL] Размьючен chatId={} controllerId={}", chatId, controllerId);
@@ -323,7 +323,7 @@ public class ControllerServiceImpl implements ControllerService {
                 && controllerPort.hasActiveSubscriptions(controllerId)) {
             monitorScheduler.unscheduleController(controllerId);
             monitorScheduler.scheduleController(
-                    controllerId, saved.getUser().getId(), resolvedPollInterval(saved));
+                    controllerId, saved.getUser().getId(), resolvedPollInterval(saved), saved.getBookmaker());
             log.info("[CONTROLLER] Rescheduled: id={} interval={}s", controllerId, resolvedPollInterval(saved));
         }
 

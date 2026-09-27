@@ -271,6 +271,9 @@ ws:
     # WsClientBorrowingPool.handleReturn().
     recycle-after-uses: 500
     max-connection-age: 20m
+    # Was 15s (Java default) — prod logs (27.09) showed backlog permanently pinned at MAX_INBOX
+    # (2000) with steady frame drops all day. See WsPoolProperties.idleDrainInterval javadoc.
+    idle-drain-interval: 3s
     warmup:
       enabled: true
       min-ready: 2

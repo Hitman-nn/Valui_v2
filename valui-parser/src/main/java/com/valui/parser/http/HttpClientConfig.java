@@ -63,17 +63,7 @@ public class HttpClientConfig {
                 .maxLifeTime(Duration.ofMinutes(4))
                 .evictInBackground(Duration.ofSeconds(60))
                 .build();
-        HttpClient httpClient = HttpClient.create(provider)
-                .protocol(HttpProtocol.HTTP11)
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MS)
-                .responseTimeout(RESPONSE_TIMEOUT)
-                .compress(true)
-                .resolver(DefaultAddressResolverGroup.INSTANCE)
-                .headers(h -> h.set(HttpHeaders.USER_AGENT, USER_AGENT));
-        return new BookmakerHttpClient(WebClient.builder()
-                .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .codecs(c -> c.defaultCodecs().maxInMemorySize(50 * 1024 * 1024))
-                .build());
+        return new BookmakerHttpClient(buildDedicatedWebClient(provider, 50 * 1024 * 1024));
     }
 
     @Bean @Qualifier("olimpHttpClient")
@@ -85,21 +75,84 @@ public class HttpClientConfig {
         // 64 MB for headroom, matching the same problem already solved for Fonbet below (50 MB).
         // If this keeps growing, the real fix is switching /planned-events to a streaming JSON
         // parse instead of buffering the whole body — not attempted here.
-        return new BookmakerHttpClient(buildWebClient(null, 64 * 1024 * 1024));
+        //
+        // Dedicated pool (was sharing the JVM-wide Reactor Netty default, same as BetCity/BetBoom
+        // below): Olimp is documented elsewhere as the slowest bookmaker (largest payloads, see
+        // fetch-budget timeouts), and large in-flight responses hold their connection longer per
+        // request than the other bookmakers — the shared default pool (sized for "a handful of
+        // callers", not the ~45 Olimp controllers polling it) gives no protection against Olimp's
+        // own slow responses starving whatever ELSE in the JVM happens to reach for that same
+        // default pool. Slightly larger pendingAcquireTimeout than Fonbet's to match the slower
+        // typical response time.
+        ConnectionProvider provider = ConnectionProvider.builder("olimp-pool")
+                .maxConnections(24)
+                .pendingAcquireMaxCount(150)
+                .pendingAcquireTimeout(Duration.ofSeconds(15))
+                .maxIdleTime(Duration.ofSeconds(45))
+                .maxLifeTime(Duration.ofMinutes(4))
+                .evictInBackground(Duration.ofSeconds(60))
+                .build();
+        return new BookmakerHttpClient(buildDedicatedWebClient(provider, 64 * 1024 * 1024));
     }
 
     @Bean @Qualifier("betcityHttpClient")
     public BookmakerHttpClient betcityHttpClient() {
-        return new BookmakerHttpClient(buildWebClient(null));
+        // Dedicated pool for the same reason as Olimp above: was silently sharing the JVM-wide
+        // Reactor Netty default pool with BetBoom's HTTP fallback (and anything else in the JVM
+        // reaching for HttpClient.create() with no explicit provider) — no active BetCity
+        // controllers in prod as of 27.09, but that shared-pool gap is exactly the kind of thing
+        // that only becomes visible the day BetCity traffic actually ramps up, at the worst
+        // possible time. Sized modestly given no current production load; revisit if/when
+        // BetCity controllers are actually enabled.
+        ConnectionProvider provider = ConnectionProvider.builder("betcity-pool")
+                .maxConnections(16)
+                .pendingAcquireMaxCount(100)
+                .pendingAcquireTimeout(Duration.ofSeconds(10))
+                .maxIdleTime(Duration.ofSeconds(45))
+                .maxLifeTime(Duration.ofMinutes(4))
+                .evictInBackground(Duration.ofSeconds(60))
+                .build();
+        return new BookmakerHttpClient(buildDedicatedWebClient(provider, 10 * 1024 * 1024));
     }
 
     @Bean @Qualifier("betboomHttpClient")
     public BookmakerHttpClient betboomHttpClient() {
-        // BetBoom uses WS, but HTTP fallbacks use the same client
-        return new BookmakerHttpClient(buildWebClient(null));
+        // BetBoom uses WS as its primary transport (see WsClientBorrowingPool) — this client only
+        // serves the rare HTTP fallback path, so a small dedicated pool is enough; the point isn't
+        // capacity, it's no longer silently sharing the JVM-wide default pool with BetCity/anyone
+        // else (same reasoning as betcityHttpClient() above).
+        ConnectionProvider provider = ConnectionProvider.builder("betboom-pool")
+                .maxConnections(8)
+                .pendingAcquireMaxCount(50)
+                .pendingAcquireTimeout(Duration.ofSeconds(10))
+                .maxIdleTime(Duration.ofSeconds(45))
+                .maxLifeTime(Duration.ofMinutes(4))
+                .evictInBackground(Duration.ofSeconds(60))
+                .build();
+        return new BookmakerHttpClient(buildDedicatedWebClient(provider, 10 * 1024 * 1024));
     }
 
     // ── builder ───────────────────────────────────────────────────────────────
+
+    /** Shared HttpClient options (protocol, timeouts, UA, resolver) for a bookmaker with its own
+     *  dedicated {@link ConnectionProvider} — factored out of fonbetHttpClient() so Olimp/BetCity/
+     *  BetBoom's dedicated pools (added after 27.09's shared-default-pool finding) don't have to
+     *  duplicate it. Always uses the JVM resolver (no proxy support) — none of these four
+     *  bookmakers proxy their HTTP client; xbetHttpClient()'s proxy branch uses a completely
+     *  different implementation (SocksBookmakerHttpClient), not this builder. */
+    private static WebClient buildDedicatedWebClient(ConnectionProvider provider, int maxInMemorySize) {
+        HttpClient httpClient = HttpClient.create(provider)
+                .protocol(HttpProtocol.HTTP11)
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MS)
+                .responseTimeout(RESPONSE_TIMEOUT)
+                .compress(true)
+                .resolver(DefaultAddressResolverGroup.INSTANCE)
+                .headers(h -> h.set(HttpHeaders.USER_AGENT, USER_AGENT));
+        return WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .codecs(c -> c.defaultCodecs().maxInMemorySize(maxInMemorySize))
+                .build();
+    }
 
     static WebClient buildWebClient(ProxyProperties proxy) {
         return buildWebClient(proxy, 10 * 1024 * 1024);

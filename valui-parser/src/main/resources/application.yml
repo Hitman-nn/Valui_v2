@@ -24,6 +24,9 @@ ws:
     # persistent, without slowing recovery from a genuinely brief blip (early attempts still back
     # off gradually from backoff-base).
     backoff-max: 30s
+    # Was 15s (Java default) — prod logs (27.09) showed backlog permanently pinned at MAX_INBOX
+    # (2000) with steady frame drops all day. See WsPoolProperties.idleDrainInterval javadoc.
+    idle-drain-interval: 3s
     warmup:
       enabled: true
       min-ready: 2
