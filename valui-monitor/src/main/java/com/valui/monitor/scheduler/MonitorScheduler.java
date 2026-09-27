@@ -88,14 +88,21 @@ public class MonitorScheduler {
 
     @PostConstruct
     void init() {
-        dispatcher.start();
-
         List<ControllerScheduleInfo> controllers = taskExecutor.loadAllActiveForScheduling();
+        List<ControllerScheduleInfo> active = controllers.stream()
+                .filter(info -> controllerPort.hasActiveSubscriptions(info.controllerId()))
+                .toList();
+
+        // Computed BEFORE dispatcher.start() so each bookmaker's reserved concurrency slice is
+        // sized to its actual share of controllers, not a flat 1/N split (see DrrDispatcher.start()
+        // javadoc — a flat split immediately starved FONBET, which carries 66% of all controllers).
         Map<BookmakerType, Long> byBk = new LinkedHashMap<>();
+        for (ControllerScheduleInfo info : active) {
+            byBk.merge(info.bookmaker(), 1L, Long::sum);
+        }
+        dispatcher.start(byBk);
 
-        for (ControllerScheduleInfo info : controllers) {
-            if (!controllerPort.hasActiveSubscriptions(info.controllerId())) continue;
-
+        for (ControllerScheduleInfo info : active) {
             seedDedup(info.controllerId());
 
             // Recovery: restore nextRunAt from Redis. If persisted time is in the past or absent,
@@ -112,7 +119,6 @@ public class MonitorScheduler {
             jobRegistry.put(job);
             dispatcher.enqueue(job);
             metrics.onControllerScheduled();
-            byBk.merge(info.bookmaker(), 1L, Long::sum);
         }
 
         // Register starvation gauge (max seconds since any controller last ran).

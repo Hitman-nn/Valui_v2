@@ -101,21 +101,55 @@ public class DrrDispatcher {
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
-    /** Called by {@link com.valui.monitor.scheduler.MonitorScheduler} after Spring context is ready. */
+    /** Even split fallback — used when no controller-count data is available (e.g. tests, or an
+     *  empty DB at first-ever startup). See {@link #start(Map)} for the real, weighted path. */
     public void start() {
+        start(Map.of());
+    }
+
+    /**
+     * Called by {@link com.valui.monitor.scheduler.MonitorScheduler} after Spring context is ready.
+     *
+     * @param controllerCountsByBookmaker how many controllers are currently scheduled for each
+     *                                    bookmaker, so each one's reserved share is proportional to
+     *                                    its actual load rather than a flat 1/N split. An even split
+     *                                    was tried first (27.09) and immediately regressed: FONBET
+     *                                    carries 66% of all controllers (452/679) but was capped at
+     *                                    a flat 20% share (20/100 slots) — permanently saturated,
+     *                                    queueDepth pinned ~600, dispatch lag warnings, within
+     *                                    minutes of restart. Empty/all-zero map falls back to the
+     *                                    even split (no data yet to weight by).
+     */
+    public void start(Map<BookmakerType, Long> controllerCountsByBookmaker) {
         BookmakerType[] types = BookmakerType.values();
-        // Even split, floored — a few slots can be lost to integer division if maxConcurrentTasks
-        // doesn't divide evenly by the number of bookmakers (e.g. 100/7=14, losing 2) — an
-        // acceptable, visible-in-the-log tradeoff for guaranteeing no bookmaker can ever be
-        // starved by another. At least 1 slot each even if maxConcurrentTasks < types.length.
-        int perBookmaker = Math.max(1, props.getMaxConcurrentTasks() / types.length);
+        long totalControllers = controllerCountsByBookmaker.values().stream().mapToLong(Long::longValue).sum();
+        int totalSlots = props.getMaxConcurrentTasks();
+
         slotsByBookmaker = new EnumMap<>(BookmakerType.class);
         totalSlotsByBookmaker = new EnumMap<>(BookmakerType.class);
+
+        if (totalControllers == 0) {
+            // No data (empty DB, or called via the no-arg start() from tests) — even split,
+            // floored, at least 1 slot each.
+            int perBookmaker = Math.max(1, totalSlots / types.length);
+            for (BookmakerType t : types) {
+                totalSlotsByBookmaker.put(t, perBookmaker);
+            }
+        } else {
+            // Proportional to each bookmaker's share of currently-scheduled controllers, floored
+            // to at least 1 slot so a bookmaker with very few controllers (e.g. BetCity today)
+            // still gets a working reserved share instead of literally 0.
+            for (BookmakerType t : types) {
+                long count = controllerCountsByBookmaker.getOrDefault(t, 0L);
+                int share = (int) Math.max(1, Math.round(totalSlots * (count / (double) totalControllers)));
+                totalSlotsByBookmaker.put(t, share);
+            }
+        }
         for (BookmakerType t : types) {
-            slotsByBookmaker.put(t, new Semaphore(perBookmaker));
-            totalSlotsByBookmaker.put(t, perBookmaker);
+            slotsByBookmaker.put(t, new Semaphore(totalSlotsByBookmaker.get(t)));
             consecutiveSaturatedRounds.put(t, new java.util.concurrent.atomic.AtomicInteger(0));
         }
+
         workerPool       = Executors.newThreadPerTaskExecutor(
                 Thread.ofVirtual().name("monitor-worker-", 0).factory());
         running          = true;
@@ -123,9 +157,14 @@ public class DrrDispatcher {
                 .name("monitor-dispatcher")
                 .daemon(true)
                 .start(this::dispatchLoop);
-        log.info("[DRR] Dispatcher started: maxConcurrentTasks={} ({} bookmakers × {} slots each = {} " +
-                "effective) defaultUserWeight={} fetchBudgetMs={} deferBaseMs={} deferJitterMs={}",
-                props.getMaxConcurrentTasks(), types.length, perBookmaker, perBookmaker * types.length,
+
+        int effectiveTotal = totalSlotsByBookmaker.values().stream().mapToInt(Integer::intValue).sum();
+        String breakdown = java.util.Arrays.stream(types)
+                .map(t -> t.name() + ":" + totalSlotsByBookmaker.get(t))
+                .collect(java.util.stream.Collectors.joining(", "));
+        log.info("[DRR] Dispatcher started: maxConcurrentTasks={} effective={} ({}) " +
+                "defaultUserWeight={} fetchBudgetMs={} deferBaseMs={} deferJitterMs={}",
+                totalSlots, effectiveTotal, breakdown,
                 props.getDefaultUserWeight(), props.getFetchBudgetMs(), props.getDeferBaseMs(),
                 props.getDeferJitterMs());
     }
