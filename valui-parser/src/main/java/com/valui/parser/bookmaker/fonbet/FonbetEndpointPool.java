@@ -98,7 +98,25 @@ public class FonbetEndpointPool {
      */
     @Scheduled(fixedRate = 5, timeUnit = TimeUnit.MINUTES, initialDelay = 5)
     void proactiveHealthCheck() {
-        checkAliveAndRescan();
+        // 28.09 incident: checkAliveAndRescan()'s Redis call below is NOT wrapped like its
+        // aliveCount()/totalCount() siblings are — some exception there (root cause still
+        // unknown; masked every single time by an unrelated, separate classloader defect that
+        // crashes Spring's default @Scheduled error handler the moment it tries to log a raw
+        // Throwable — see e.g. Lettuce's own Netty event-loop threads hitting the identical
+        // NoClassDefFoundError: ch.qos.logback.classic.spi.ThrowableProxy) went uncaught on
+        // EVERY 5-minute tick for ~2h straight, silently disabling this whole safety net while
+        // Fonbet's mirror pool kept degrading underneath it with zero visible warning — exactly
+        // the failure mode this method exists to prevent. Catching Throwable (not just
+        // Exception) here, and logging the message as a plain string rather than passing the
+        // Throwable object to the logger, guarantees this task can never again go uncaught AND
+        // sidesteps the ThrowableProxy construction that was hiding the real cause — so if this
+        // ever fires again, the actual error message will finally be visible in prod.
+        try {
+            checkAliveAndRescan();
+        } catch (Throwable t) {
+            log.warn("[FonbetPool] proactiveHealthCheck failed: {}: {}",
+                    t.getClass().getSimpleName(), t.getMessage());
+        }
     }
 
     // ── public API ─────────────────────────────────────────────────────────────
