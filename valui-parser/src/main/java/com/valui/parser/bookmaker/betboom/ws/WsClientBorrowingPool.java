@@ -227,7 +227,21 @@ public class WsClientBorrowingPool implements SmartLifecycle {
 
         void resetReadyLatch() { readyOnce = new CountDownLatch(1); }
 
-        void connect(int attempt) {
+        // Synchronized: connect() is reachable from THREE independent, unsynchronized callers —
+        // connectSlot() at startup, reconnectClean() (itself called from both handleReturn()'s
+        // hygiene path and WsLease's ws-timeout callback), and scheduleReconnect()'s scheduled
+        // task. The `reconnecting` CAS below only de-dupes re-entrant scheduleReconnect() calls
+        // while a delayed reconnect is pending — connect() itself clears it immediately on entry
+        // (line below), so it gave zero protection against two of these paths racing into the
+        // previous-capture/swap/abort sequence for the SAME slot at the same time (e.g. a lease's
+        // normal return firing at the same instant its own ws-timeout also fires). Interleaved,
+        // that race can orphan a just-created WsClient — assigned into `client`, then immediately
+        // overwritten by the other thread before anyone captures it as `previous` to abort() it —
+        // reproducing the exact orphaned-live-connection OOM leak the comment below describes as
+        // already fixed for the single-caller case. Serializing the whole method per-slot closes
+        // that gap; it never blocks on network I/O (connectOrFail() returns a future immediately),
+        // so holding the lock here can't stall other slots or the dispatcher.
+        synchronized void connect(int attempt) {
             if (!running.get()) return;
             reconnecting.set(false);
             resetReadyLatch();
