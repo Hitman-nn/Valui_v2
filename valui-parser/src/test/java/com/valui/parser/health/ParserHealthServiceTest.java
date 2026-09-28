@@ -130,6 +130,55 @@ class ParserHealthServiceTest {
         assertThat(calls.get()).isEqualTo(5);       // HALF_OPEN: zero skips
     }
 
+    // ── probeOpenCircuitBreakers: long backoff after a sustained hard block ───────
+
+    @Test
+    void probeOpenCircuitBreakers_sustainedFailure_escalatesToLongBackoff() {
+        AtomicInteger calls = new AtomicInteger(0);
+        List<BookmakerParser> parsers = List.of(countingParser(BookmakerType.FONBET, calls, true));
+        ParserHealthService svc = new ParserHealthService(cbRegistry, new SimpleMeterRegistry(), parsers);
+        CircuitBreaker cb = cbRegistry.circuitBreaker("fonbet-cb");
+        cb.transitionToOpenState();
+        cb.transitionToHalfOpenState(); // HALF_OPEN never throttles — every tick is a real attempt
+
+        // LONG_BACKOFF_THRESHOLD = 20: exactly 20 consecutive failed ticks should each still
+        // probe (escalation arms only once the threshold is reached, on the 20th failure).
+        for (int i = 0; i < 20; i++) svc.probeOpenCircuitBreakers();
+        assertThat(calls.get()).isEqualTo(20);
+
+        // 21st tick: backoff is now armed — must NOT probe again.
+        svc.probeOpenCircuitBreakers();
+        assertThat(calls.get()).isEqualTo(20);
+
+        // A few more ticks while still within the backoff window — still nothing.
+        for (int i = 0; i < 5; i++) svc.probeOpenCircuitBreakers();
+        assertThat(calls.get()).isEqualTo(20);
+    }
+
+    @Test
+    void probeOpenCircuitBreakers_afterLongBackoffWindowElapses_resumesProbing() {
+        AtomicInteger calls = new AtomicInteger(0);
+        List<BookmakerParser> parsers = List.of(countingParser(BookmakerType.FONBET, calls, true));
+        ParserHealthService svc = new ParserHealthService(cbRegistry, new SimpleMeterRegistry(), parsers);
+        CircuitBreaker cb = cbRegistry.circuitBreaker("fonbet-cb");
+        cb.transitionToOpenState();
+        cb.transitionToHalfOpenState();
+
+        for (int i = 0; i < 21; i++) svc.probeOpenCircuitBreakers(); // arms the backoff
+        assertThat(calls.get()).isEqualTo(20);
+
+        // Simulate the 45-minute backoff window having already elapsed.
+        @SuppressWarnings("unchecked")
+        Map<com.valui.common.domain.BookmakerType, Long> longBackoffUntilMs =
+                (Map<com.valui.common.domain.BookmakerType, Long>)
+                        org.springframework.test.util.ReflectionTestUtils.getField(svc, "longBackoffUntilMs");
+        longBackoffUntilMs.put(BookmakerType.FONBET, System.currentTimeMillis() - 1_000L);
+
+        svc.probeOpenCircuitBreakers();
+
+        assertThat(calls.get()).isEqualTo(21); // resumed probing on the first tick past the window
+    }
+
     // ── stub ─────────────────────────────────────────────────────────────────
 
     private static BookmakerParser stubParser(BookmakerType type) {

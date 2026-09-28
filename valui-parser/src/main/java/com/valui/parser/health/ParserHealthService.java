@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,21 @@ public class ParserHealthService {
     private final List<BookmakerParser> parsers;
 
     private final Map<BookmakerType, AtomicInteger> probeFailures = new ConcurrentHashMap<>();
+
+    // 28.09 finding: a genuine hard block (1xbet.kz fully blackholing the proxy IP at the
+    // network level, not just serving a captcha) can last hours — three such incidents this
+    // week ran ~2.5h each, one is still ongoing as of this fix. Probing every 3 minutes
+    // (unthrottled while HALF_OPEN, per the earlier 28.09 fix) is exactly right for a
+    // transient blip, but for a SUSTAINED hard block it just means hammering an already-banned
+    // IP every 3 minutes for hours — plausibly making the ban worse if the remote side resets
+    // its own ban timer on continued detected activity, with zero benefit since the connection
+    // isn't even completing. LONG_BACKOFF_THRESHOLD consecutive non-CLOSED ticks (each tick is
+    // exactly one @Scheduled invocation, so this is wall-clock, not attempt count) escalates
+    // to a much longer, quiet LONG_BACKOFF_DURATION pause before trying again — after which a
+    // single fresh probe either finds it recovered or restarts the same escalation from zero.
+    private static final int      LONG_BACKOFF_THRESHOLD = 20;                    // ≈ 60 min at the 3-min tick rate
+    private static final Duration LONG_BACKOFF_DURATION  = Duration.ofMinutes(45);
+    private final Map<BookmakerType, Long> longBackoffUntilMs = new ConcurrentHashMap<>();
 
     public record CircuitBreakerInfo(
             CircuitBreaker.State state,
@@ -114,8 +130,23 @@ public class ParserHealthService {
             CircuitBreaker.State state = cbOpt.map(CircuitBreaker::getState).orElse(CircuitBreaker.State.CLOSED);
             if (state == CircuitBreaker.State.CLOSED) {
                 probeFailures.remove(bk);
+                longBackoffUntilMs.remove(bk);
                 return;
             }
+
+            long now = System.currentTimeMillis();
+            Long backoffUntil = longBackoffUntilMs.get(bk);
+            if (backoffUntil != null) {
+                if (now < backoffUntil) {
+                    log.debug("[CB-PROBE] {} in long backoff (sustained failure) — skipping until {}",
+                            bk, java.time.Instant.ofEpochMilli(backoffUntil));
+                    return;
+                }
+                // Backoff window elapsed — one fresh attempt, clean slate either way.
+                longBackoffUntilMs.remove(bk);
+                probeFailures.remove(bk);
+            }
+
             if (state != CircuitBreaker.State.HALF_OPEN) {
                 int failures = probeFailures
                         .computeIfAbsent(bk, k -> new AtomicInteger(0)).get();
@@ -130,8 +161,15 @@ public class ParserHealthService {
                 parser.fetchSports();
                 probeFailures.remove(bk);
             } catch (Exception e) {
-                probeFailures.computeIfAbsent(bk, k -> new AtomicInteger(0)).incrementAndGet();
+                int n = probeFailures.computeIfAbsent(bk, k -> new AtomicInteger(0)).incrementAndGet();
                 log.debug("[CB-PROBE] {} probe exception: {}", bk, e.getMessage());
+                if (n >= LONG_BACKOFF_THRESHOLD) {
+                    longBackoffUntilMs.put(bk, now + LONG_BACKOFF_DURATION.toMillis());
+                    log.warn("[CB-PROBE] {} failed {} consecutive probe ticks (~{} min) — looks like a " +
+                            "sustained/hard block rather than a transient blip; backing off entirely for " +
+                            "{} instead of continuing to probe every cycle",
+                            bk, n, n * 3, LONG_BACKOFF_DURATION);
+                }
             }
         });
     }

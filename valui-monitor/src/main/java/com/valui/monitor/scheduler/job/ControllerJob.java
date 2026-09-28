@@ -4,6 +4,7 @@ import com.valui.common.domain.BookmakerType;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Immutable snapshot of a scheduled controller's runtime state.
@@ -44,9 +45,31 @@ public record ControllerJob(
                 nextRunAt, startedAt, lastFinishedAt, true, version + 1);
     }
 
-    /** Transition back to idle; nextRunAt = finishedAt + pollIntervalSec. */
+    // ±15% of pollIntervalSec — see markFinished() javadoc for why this exists.
+    private static final int JITTER_PERCENT = 15;
+
+    /**
+     * Transition back to idle; nextRunAt = finishedAt + pollIntervalSec ± jitter.
+     *
+     * <p>28.09 finding: controllers that happen to land close together in time (e.g. several
+     * created around the same moment, or simply converging because their fetches take similar
+     * durations) used to stay locked together forever — {@code nextRunAt = finishedAt +
+     * pollIntervalSec} just carries the same relative spacing forward every cycle, with no force
+     * ever pulling them apart. The only desync in the whole scheduler was a ONE-TIME jitter
+     * applied at crash-recovery startup ({@link com.valui.monitor.scheduler.MonitorScheduler}) —
+     * every subsequent cycle was perfectly periodic. Confirmed in prod logs: 12+ distinct XBET
+     * controllers firing within a 204ms window, every ~20s, indefinitely — a single bookmaker
+     * seeing a burst of a dozen simultaneous connections from one IP on a strict clock is a far
+     * stronger bot signature than the same aggregate request volume spread across the interval,
+     * and directly correlates with recurring IP-level blocks from that bookmaker. Applying a
+     * small jitter on every reschedule (not just at startup) keeps controllers spread out
+     * instead of drifting back into lockstep — same total request volume, no thundering herd.
+     */
     public ControllerJob markFinished(Instant finishedAt) {
+        long baseMs = pollIntervalSec * 1000L;
+        long jitterRangeMs = Math.max(1, baseMs * JITTER_PERCENT / 100);
+        long jitterMs = ThreadLocalRandom.current().nextLong(-jitterRangeMs, jitterRangeMs + 1);
         return new ControllerJob(controllerId, userId, pollIntervalSec, bookmaker,
-                finishedAt.plusSeconds(pollIntervalSec), lastStartedAt, finishedAt, false, version + 1);
+                finishedAt.plusMillis(baseMs + jitterMs), lastStartedAt, finishedAt, false, version + 1);
     }
 }
