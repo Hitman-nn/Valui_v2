@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -89,12 +90,66 @@ class ParserHealthServiceTest {
         assertThat(state).doesNotContainKey(BookmakerType.BETBOOM);
     }
 
+    // ── probeOpenCircuitBreakers: HALF_OPEN must skip the OPEN-state backoff ──────
+
+    @Test
+    void probeOpenCircuitBreakers_open_throttlesRepeatedProbes() {
+        AtomicInteger calls = new AtomicInteger(0);
+        List<BookmakerParser> parsers = List.of(countingParser(BookmakerType.FONBET, calls, true));
+        ParserHealthService svc = new ParserHealthService(cbRegistry, new SimpleMeterRegistry(), parsers);
+        CircuitBreaker cb = cbRegistry.circuitBreaker("fonbet-cb");
+        cb.transitionToOpenState();
+
+        // 12 ticks while OPEN and every probe fails — backoff (skip 1→5→10) must kick in
+        // once accumulated failures cross the thresholds, so not every tick actually probes.
+        for (int i = 0; i < 12; i++) svc.probeOpenCircuitBreakers();
+
+        assertThat(calls.get()).isLessThan(12);
+    }
+
+    @Test
+    void probeOpenCircuitBreakers_halfOpen_neverThrottles_evenWithPriorOpenFailures() {
+        AtomicInteger calls = new AtomicInteger(0);
+        List<BookmakerParser> parsers = List.of(countingParser(BookmakerType.FONBET, calls, true));
+        ParserHealthService svc = new ParserHealthService(cbRegistry, new SimpleMeterRegistry(), parsers);
+        CircuitBreaker cb = cbRegistry.circuitBreaker("fonbet-cb");
+        cb.transitionToOpenState();
+
+        // Build up a large accumulated failures count while OPEN (same setup as the test above).
+        for (int i = 0; i < 12; i++) svc.probeOpenCircuitBreakers();
+        int callsWhileOpen = calls.get();
+
+        // Now HALF_OPEN — despite the high failures count carried over from the OPEN period,
+        // every single tick must still probe: this is the 28.09 fix (previously the same
+        // failures-based skip applied here too, stretching HALF_OPEN confirmation to 45-90 min).
+        cb.transitionToHalfOpenState();
+        calls.set(0);
+        for (int i = 0; i < 5; i++) svc.probeOpenCircuitBreakers();
+
+        assertThat(callsWhileOpen).isLessThan(12); // sanity: OPEN really did throttle
+        assertThat(calls.get()).isEqualTo(5);       // HALF_OPEN: zero skips
+    }
+
     // ── stub ─────────────────────────────────────────────────────────────────
 
     private static BookmakerParser stubParser(BookmakerType type) {
         return new BookmakerParser() {
             @Override public BookmakerType getBookmaker() { return type; }
             @Override public ParseResult<List<SportDto>> fetchSports() { return ParseResult.ok(List.of(), 0); }
+            @Override public ParseResult<List<TournamentDto>> fetchTournaments(String s) { return ParseResult.ok(List.of(), 0); }
+            @Override public ParseResult<List<ParsedMatchDto>> fetchMatches(String s) { return ParseResult.ok(List.of(), 0); }
+        };
+    }
+
+    /** Counts fetchSports() invocations; optionally always throws (simulating a still-broken bookmaker). */
+    private static BookmakerParser countingParser(BookmakerType type, AtomicInteger calls, boolean alwaysFail) {
+        return new BookmakerParser() {
+            @Override public BookmakerType getBookmaker() { return type; }
+            @Override public ParseResult<List<SportDto>> fetchSports() {
+                calls.incrementAndGet();
+                if (alwaysFail) throw new RuntimeException("still broken");
+                return ParseResult.ok(List.of(), 0);
+            }
             @Override public ParseResult<List<TournamentDto>> fetchTournaments(String s) { return ParseResult.ok(List.of(), 0); }
             @Override public ParseResult<List<ParsedMatchDto>> fetchMatches(String s) { return ParseResult.ok(List.of(), 0); }
         };

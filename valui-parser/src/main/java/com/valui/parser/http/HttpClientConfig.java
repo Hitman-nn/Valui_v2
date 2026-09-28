@@ -37,7 +37,21 @@ public class HttpClientConfig {
             return new SocksBookmakerHttpClient(proxy, objectMapper);
         }
         log.info("[HTTP-CONFIG] xbet: using direct BookmakerHttpClient (no proxy)");
-        return new BookmakerHttpClient(buildWebClient(null));
+        // Dedicated pool for the same reason as BetCity/BetBoom below (28.09 audit): this path
+        // is currently dead in prod (PROXY_ENABLED defaults to true, so xbet always takes the
+        // SocksBookmakerHttpClient branch above — 0 live traffic here today), but it used to
+        // silently share the JVM-wide Reactor Netty default pool with anything else in the
+        // process. Sizing it now, same as the other currently-idle-but-future-relevant paths,
+        // so re-enabling this (proxy disabled/removed) doesn't silently reintroduce that gap.
+        ConnectionProvider provider = ConnectionProvider.builder("xbet-direct-pool")
+                .maxConnections(16)
+                .pendingAcquireMaxCount(100)
+                .pendingAcquireTimeout(Duration.ofSeconds(10))
+                .maxIdleTime(Duration.ofSeconds(45))
+                .maxLifeTime(Duration.ofMinutes(4))
+                .evictInBackground(Duration.ofSeconds(60))
+                .build();
+        return new BookmakerHttpClient(buildDedicatedWebClient(provider, 10 * 1024 * 1024));
     }
 
     @Bean @Qualifier("fonbetHttpClient")

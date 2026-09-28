@@ -80,7 +80,7 @@ public class ParserHealthService {
     }
 
     /**
-     * Periodically sends a probe call through each OPEN circuit breaker so that
+     * Periodically sends a probe call through each non-CLOSED circuit breaker so that
      * Resilience4j can evaluate whether {@code waitDurationInOpenState} has elapsed
      * and auto-transition to HALF_OPEN.
      *
@@ -90,28 +90,47 @@ public class ParserHealthService {
      * {@code automatic-transition-from-open-to-half-open-enabled: true} handles the
      * OPEN→HALF_OPEN timer, but that timer only fires if the CB instance receives a
      * wakeup call in some Resilience4j builds. This probe is the backstop.
+     *
+     * <p><b>28.09 finding — HALF_OPEN must NOT share OPEN's backoff.</b> A real xbet-cb
+     * incident (28.09, 00:22–02:52) took ~2.5h to fully recover even though
+     * {@code wait-duration-in-open-state} is only 2m: {@link #isAvailable} blocks regular
+     * controller traffic for BOTH OPEN and HALF_OPEN, so this probe's own calls are the
+     * ONLY calls ever reaching the CB while it's non-CLOSED — including the
+     * {@code permitted-number-of-calls-in-half-open-state=3} calls Resilience4j needs to
+     * decide CLOSED vs back-to-OPEN. The failures-based backoff below (skip 1→5→10 ticks,
+     * i.e. 3min→15min→30min) is right for OPEN — don't hammer a confirmed-broken bookmaker
+     * — but applying the SAME backoff to HALF_OPEN meant those 3 decisive calls got spread
+     * 15-30 minutes apart, stretching what should be a quick verdict into ~45-90 minutes
+     * per HALF_OPEN attempt. HALF_OPEN is already self-limiting (Resilience4j caps it to
+     * those 3 calls regardless of how fast they arrive), so there's no hammering risk in
+     * probing it every tick — this now skips the backoff entirely once the CB has actually
+     * reached HALF_OPEN, cutting confirmation time to ~this method's own 3-minute cadence.
      */
     @Scheduled(fixedRate = 3, timeUnit = TimeUnit.MINUTES, initialDelay = 3)
     public void probeOpenCircuitBreakers() {
         parsers.forEach(parser -> {
             BookmakerType bk = parser.getBookmaker();
-            if (isAvailable(bk)) {
+            Optional<CircuitBreaker> cbOpt = findCb(bk);
+            CircuitBreaker.State state = cbOpt.map(CircuitBreaker::getState).orElse(CircuitBreaker.State.CLOSED);
+            if (state == CircuitBreaker.State.CLOSED) {
                 probeFailures.remove(bk);
                 return;
             }
-            int failures = probeFailures
-                    .computeIfAbsent(bk, k -> new AtomicInteger(0)).get();
-            int skip = failures < 10 ? 1 : failures < 30 ? 5 : 10;
-            if (failures > 0 && failures % skip != 0) {
-                probeFailures.get(bk).incrementAndGet();
-                return;
+            if (state != CircuitBreaker.State.HALF_OPEN) {
+                int failures = probeFailures
+                        .computeIfAbsent(bk, k -> new AtomicInteger(0)).get();
+                int skip = failures < 10 ? 1 : failures < 30 ? 5 : 10;
+                if (failures > 0 && failures % skip != 0) {
+                    probeFailures.get(bk).incrementAndGet();
+                    return;
+                }
             }
-            log.debug("[CB-PROBE] {} not CLOSED — probing via fetchSports() (failures={})", bk, failures);
+            log.debug("[CB-PROBE] {} {} — probing via fetchSports()", bk, state);
             try {
                 parser.fetchSports();
                 probeFailures.remove(bk);
             } catch (Exception e) {
-                probeFailures.get(bk).incrementAndGet();
+                probeFailures.computeIfAbsent(bk, k -> new AtomicInteger(0)).incrementAndGet();
                 log.debug("[CB-PROBE] {} probe exception: {}", bk, e.getMessage());
             }
         });

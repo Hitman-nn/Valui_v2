@@ -84,11 +84,6 @@ resilience4j:
         ignore-exceptions:
           - org.springframework.web.reactive.function.client.WebClientResponseException
 
-  timelimiter:
-    instances:
-      parser-tl:
-        timeout-duration: 20s
-
 # Shared HTTP proxy for parsers that need external network access
 parser:
   cache:
