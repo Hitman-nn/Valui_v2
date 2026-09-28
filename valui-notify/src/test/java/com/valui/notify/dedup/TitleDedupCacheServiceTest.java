@@ -186,4 +186,35 @@ class TitleDedupCacheServiceTest {
                 argThat(json -> json.contains("\"telegramMessageId\":77")),
                 any());
     }
+
+    // ── tryClaim ──────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("tryClaim returns true and writes a null-messageId placeholder via SETNX when key is absent")
+    void tryClaim_keyAbsent_claimsAndWritesPlaceholder() {
+        given(valueOps.setIfAbsent(eq("k"), anyString(), eq(Duration.ofSeconds(30)))).willReturn(true);
+
+        boolean claimed = service.tryClaim("k", CHAT_ID);
+
+        assertThat(claimed).isTrue();
+        verify(valueOps).setIfAbsent(eq("k"),
+                argThat(json -> json.contains("\"telegramMessageId\":null") && json.contains(String.valueOf(CHAT_ID))),
+                eq(Duration.ofSeconds(30)));
+    }
+
+    @Test
+    @DisplayName("tryClaim returns false when another caller already holds the key (SETNX fails)")
+    void tryClaim_keyAlreadyClaimed_returnsFalse() {
+        given(valueOps.setIfAbsent(eq("k"), anyString(), any())).willReturn(false);
+
+        assertThat(service.tryClaim("k", CHAT_ID)).isFalse();
+    }
+
+    @Test
+    @DisplayName("tryClaim returns false (not true) when Redis returns null from setIfAbsent")
+    void tryClaim_redisReturnsNull_returnsFalse() {
+        given(valueOps.setIfAbsent(eq("k"), anyString(), any())).willReturn(null);
+
+        assertThat(service.tryClaim("k", CHAT_ID)).isFalse();
+    }
 }

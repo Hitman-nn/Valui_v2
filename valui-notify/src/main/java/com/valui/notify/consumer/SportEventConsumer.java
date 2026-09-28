@@ -125,7 +125,7 @@ public class SportEventConsumer {
                 targetChatId, event.bookmaker(), event.url(), event.title(), startEpoch);
 
         TitleDedupEntry existing = titleDedupCache.find(dedupKey).orElse(null);
-        if (existing != null) {
+        if (existing != null && existing.telegramMessageId() != null) {
             log.debug("[DEDUP] Hit for chatId={} — editing message {}", targetChatId, existing.telegramMessageId());
             // Refresh TTL so the edit window stays open for the full lifetime of the match.
             // Without this, a match re-published many times within the TTL window would eventually
@@ -134,8 +134,34 @@ public class SportEventConsumer {
             sendEditRequest(event, controller, targetChatId, existing);
             return;
         }
+        if (existing != null) {
+            // A concurrent event for the same match (different external ID — e.g. pre-match →
+            // live transition landing within milliseconds of each other) already won the claim
+            // below and is still in flight to NotificationDispatcher — telegramMessageId isn't
+            // populated yet. Suppress here rather than racing to also send a fresh message; the
+            // short CLAIM_TTL bounds how long a stuck/failed pipeline can suppress this match.
+            log.debug("[DEDUP] Claim in flight for chatId={} dedupKey={} — suppressing duplicate", targetChatId, dedupKey);
+            return;
+        }
 
-        // ── Normal first-send path ────────────────────────────────────────────
+        // Atomically claim the dedup key BEFORE doing anything else — closes the TOCTOU window
+        // between this find() miss and NotificationDispatcher's eventual store() (see
+        // TitleDedupCacheService.tryClaim() javadoc for the full race this closes).
+        if (!titleDedupCache.tryClaim(dedupKey, targetChatId)) {
+            // Lost the race to a concurrent event that claimed it in the tiny window since our
+            // find() above. Re-read once: the winner may already have a real entry (edit it) or
+            // still just hold the placeholder (suppress, same as the branch above).
+            TitleDedupEntry raced = titleDedupCache.find(dedupKey).orElse(null);
+            if (raced != null && raced.telegramMessageId() != null) {
+                titleDedupCache.store(dedupKey, raced, Duration.ofMinutes(computeDedupTtlMinutes(event.extraData())));
+                sendEditRequest(event, controller, targetChatId, raced);
+            } else {
+                log.debug("[DEDUP] Lost claim race for chatId={} dedupKey={} — suppressing duplicate", targetChatId, dedupKey);
+            }
+            return;
+        }
+
+        // ── Normal first-send path (this call won the claim) ─────────────────
 
         UUID detectedEventId = detectedEventPort
                 .findIdByControllerIdAndExternalId(controllerId, event.externalEventId())

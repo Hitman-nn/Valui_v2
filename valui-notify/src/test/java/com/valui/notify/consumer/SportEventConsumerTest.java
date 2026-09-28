@@ -108,9 +108,11 @@ class SportEventConsumerTest {
                 .willReturn("🔔 *FONBET*\nSpartak - CSKA\nhttps://...");
         given(kafkaTemplate.send(anyString(), anyString(), any()))
                 .willReturn(CompletableFuture.completedFuture(null));
-        // Default: no dedup cache hit — events pass through normally
+        // Default: no dedup cache hit, and this call wins the claim — events pass through
+        // normally as a first-send (see tryClaim()-specific tests below for the race branches).
         given(titleDedupCache.computeKey(anyLong(), any(), any(), any(), anyLong())).willReturn("dedup-key");
         given(titleDedupCache.find(any())).willReturn(Optional.empty());
+        given(titleDedupCache.tryClaim(any(), any())).willReturn(true);
     }
 
     // ── filter rule ───────────────────────────────────────────────────────────
@@ -300,5 +302,68 @@ class SportEventConsumerTest {
         verify(titleDedupCache).store(anyString(),
                 eq(existing),
                 argThat(d -> d.toMinutes() >= 180));
+    }
+
+    // ── TOCTOU fix: claim/race branches ────────────────────────────────────────
+
+    @Test
+    @DisplayName("first-send path claims the dedup key before publishing")
+    void firstSend_claimsDedupKeyBeforePublish() {
+        consumer.onSportEventDetected(event);
+
+        verify(titleDedupCache).tryClaim("dedup-key", TG_ID);
+        verify(kafkaTemplate).send(anyString(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("existing entry is still a claim placeholder (no messageId yet) → suppressed, no Kafka send, no second claim attempt")
+    void claimInFlight_suppressed() {
+        com.valui.notify.dedup.TitleDedupEntry placeholder =
+                new com.valui.notify.dedup.TitleDedupEntry(null, TG_ID, null, null);
+        given(titleDedupCache.find(any())).willReturn(Optional.of(placeholder));
+
+        consumer.onSportEventDetected(event);
+
+        verifyNoInteractions(kafkaTemplate);
+        verify(titleDedupCache, never()).tryClaim(any(), any());
+        verifyNoInteractions(notificationLogService);
+    }
+
+    @Test
+    @DisplayName("lost the claim race, winner already has a real entry → edits that message")
+    void lostClaimRace_winnerAlreadySent_editsMessage() {
+        com.valui.notify.dedup.TitleDedupEntry winnerEntry =
+                new com.valui.notify.dedup.TitleDedupEntry(777, TG_ID, "bet-key", null);
+        // First find() (before the claim attempt): nothing yet. tryClaim: lost the race.
+        // Second find() (re-check after losing): winner has since finished sending.
+        given(titleDedupCache.find(any()))
+                .willReturn(Optional.empty())
+                .willReturn(Optional.of(winnerEntry));
+        given(titleDedupCache.tryClaim(any(), any())).willReturn(false);
+
+        consumer.onSportEventDetected(event);
+
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(kafkaTemplate).send(anyString(), anyString(), captor.capture());
+        com.valui.common.kafka.UserNotificationRequestMessage msg =
+                (com.valui.common.kafka.UserNotificationRequestMessage) captor.getValue();
+        assertThat(msg.editMessageId()).isEqualTo(777);
+        verifyNoInteractions(notificationLogService);
+    }
+
+    @Test
+    @DisplayName("lost the claim race, winner still hasn't sent → suppressed, no Kafka send")
+    void lostClaimRace_winnerStillInFlight_suppressed() {
+        com.valui.notify.dedup.TitleDedupEntry stillPlaceholder =
+                new com.valui.notify.dedup.TitleDedupEntry(null, TG_ID, null, null);
+        given(titleDedupCache.find(any()))
+                .willReturn(Optional.empty())
+                .willReturn(Optional.of(stillPlaceholder));
+        given(titleDedupCache.tryClaim(any(), any())).willReturn(false);
+
+        consumer.onSportEventDetected(event);
+
+        verifyNoInteractions(kafkaTemplate);
+        verifyNoInteractions(notificationLogService);
     }
 }

@@ -211,9 +211,10 @@ class SportEventPipelineE2ETest {
         public com.valui.notify.dedup.TitleDedupCacheService titleDedupCacheService() {
             com.valui.notify.dedup.TitleDedupCacheService svc =
                     mock(com.valui.notify.dedup.TitleDedupCacheService.class);
-            // Default: no dedup hit — all events go through normally
+            // Default: no dedup hit, and this call wins the claim — all events go through normally
             given(svc.computeKey(anyLong(), any(), any(), any(), anyLong())).willReturn("e2e-dedup-key");
             given(svc.find(any())).willReturn(Optional.empty());
+            given(svc.tryClaim(any(), any())).willReturn(true);
             return svc;
         }
     }
