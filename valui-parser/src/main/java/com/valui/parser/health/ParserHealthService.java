@@ -152,7 +152,8 @@ public class ParserHealthService {
                         .computeIfAbsent(bk, k -> new AtomicInteger(0)).get();
                 int skip = failures < 10 ? 1 : failures < 30 ? 5 : 10;
                 if (failures > 0 && failures % skip != 0) {
-                    probeFailures.get(bk).incrementAndGet();
+                    int n = probeFailures.get(bk).incrementAndGet();
+                    maybeEscalateToLongBackoff(bk, n, now);
                     return;
                 }
             }
@@ -163,15 +164,24 @@ public class ParserHealthService {
             } catch (Exception e) {
                 int n = probeFailures.computeIfAbsent(bk, k -> new AtomicInteger(0)).incrementAndGet();
                 log.debug("[CB-PROBE] {} probe exception: {}", bk, e.getMessage());
-                if (n >= LONG_BACKOFF_THRESHOLD) {
-                    longBackoffUntilMs.put(bk, now + LONG_BACKOFF_DURATION.toMillis());
-                    log.warn("[CB-PROBE] {} failed {} consecutive probe ticks (~{} min) — looks like a " +
-                            "sustained/hard block rather than a transient blip; backing off entirely for " +
-                            "{} instead of continuing to probe every cycle",
-                            bk, n, n * 3, LONG_BACKOFF_DURATION);
-                }
+                maybeEscalateToLongBackoff(bk, n, now);
             }
         });
+    }
+
+    // Shared by both increment sites in probeOpenCircuitBreakers() (the OPEN-state throttle skip
+    // branch AND the actual-attempt catch branch both bump the same probeFailures counter) — the
+    // 28.09 bug this fixes: escalation was only checked in the catch branch, so once the OPEN
+    // backoff ratio climbed to 5x/10x, most ticks that bumped the counter past the threshold were
+    // skip-ticks that never ran this check — a real 2h30m incident that same day never escalated
+    // even once. Checking after every increment, regardless of which branch produced it, closes
+    // that gap.
+    private void maybeEscalateToLongBackoff(BookmakerType bk, int n, long now) {
+        if (n < LONG_BACKOFF_THRESHOLD) return;
+        longBackoffUntilMs.put(bk, now + LONG_BACKOFF_DURATION.toMillis());
+        log.warn("[CB-PROBE] {} not recovered after {} consecutive probe ticks (~{} min) — looks like a " +
+                "sustained/hard block rather than a transient blip; backing off entirely for {} instead " +
+                "of continuing to probe every cycle", bk, n, n * 3, LONG_BACKOFF_DURATION);
     }
 
     // ── internals ─────────────────────────────────────────────────────────────

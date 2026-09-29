@@ -11,6 +11,7 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -131,6 +132,27 @@ class ParserHealthServiceTest {
     }
 
     // ── probeOpenCircuitBreakers: long backoff after a sustained hard block ───────
+
+    @Test
+    @DisplayName("OPEN-state skip-throttle branch also escalates to long backoff (28.09 regression)")
+    void probeOpenCircuitBreakers_openStateSkipBranch_alsoEscalatesToLongBackoff() {
+        // Bug this guards against: escalation was only checked in the catch-block (actual
+        // attempt) branch. Once OPEN's own throttle ratio grew to 5x/10x, MOST of the ticks that
+        // pushed the shared counter past the threshold were skip-ticks that never reached that
+        // check — a real 2h30m prod incident (29.09, 03:09-05:39) never escalated even once.
+        AtomicInteger calls = new AtomicInteger(0);
+        List<BookmakerParser> parsers = List.of(countingParser(BookmakerType.FONBET, calls, true));
+        ParserHealthService svc = new ParserHealthService(cbRegistry, new SimpleMeterRegistry(), parsers);
+        CircuitBreaker cb = cbRegistry.circuitBreaker("fonbet-cb");
+        cb.transitionToOpenState(); // OPEN, not HALF_OPEN — exercises the skip-throttle branch
+
+        for (int i = 0; i < 20; i++) svc.probeOpenCircuitBreakers();
+
+        @SuppressWarnings("unchecked")
+        Map<BookmakerType, Long> longBackoffUntilMs = (Map<BookmakerType, Long>)
+                org.springframework.test.util.ReflectionTestUtils.getField(svc, "longBackoffUntilMs");
+        assertThat(longBackoffUntilMs).containsKey(BookmakerType.FONBET);
+    }
 
     @Test
     void probeOpenCircuitBreakers_sustainedFailure_escalatesToLongBackoff() {
