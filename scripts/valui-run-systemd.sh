@@ -74,13 +74,23 @@ echo "Log dir:      $LOG_DIR  (valui-app.log, rotated by logback)"
 echo "JVM Xms/Xmx:  $JAVA_XMS / $JAVA_XMX"
 echo "================================================"
 
-java \
+# `exec` — replaces this shell process with java in-place (same PID) rather than running java
+# as a child. Two concrete benefits: (1) the PID systemd tracks, that journald tags every line
+# with, and that `jstack`/`kill -3`/any manual diagnostics need is the REAL JVM process, not this
+# wrapper script — before this, journalctl's bracketed PID was the bash process's, silently
+# wrong for exactly the tools you'd reach for during an incident; (2) no wrapper process left
+# holding the bag if java exits — signals go straight to the JVM. (systemd's default
+# KillMode=control-group already delivered SIGTERM to the java child either way, which is why
+# shutdown always worked correctly before this — but that was an implicit, undocumented reason
+# it worked, not a guarantee this script itself provided.)
+exec java \
   -Xms"$JAVA_XMS" \
   -Xmx"$JAVA_XMX" \
   -XX:+UseG1GC \
   -XX:+ExitOnOutOfMemoryError \
   -XX:+HeapDumpOnOutOfMemoryError \
   -XX:HeapDumpPath="$LOG_DIR/heap-dump-$(date +%F_%H-%M-%S).hprof" \
+  -XX:ErrorFile="$LOG_DIR/hs_err_pid%p.log" \
   -Dcom.sun.management.jmxremote \
   -Dcom.sun.management.jmxremote.port="$JMX_PORT" \
   -Dcom.sun.management.jmxremote.rmi.port="$JMX_PORT" \
