@@ -127,6 +127,15 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+      # 30.09 incident: /actuator/health is reachable from the public internet (confirmed —
+      # this is not localhost-only), so show-details stays when-authorized on purpose: it can
+      # carry connection strings, file paths and raw error messages per component, not safe to
+      # hand to anonymous callers. show-components is a separate, coarser setting — just each
+      # component's name + UP/DOWN, no detail payload — safe to expose anonymously and exactly
+      # what was missing when investigating that incident: valui-healthcheck.sh (anonymous,
+      # outside the JVM) only ever saw the top-level {"status":"DOWN"}, never which subsystem
+      # (DB/Redis/Kafka/disk/custom indicator) actually caused it.
+      show-components: always
   health:
     kafka:
       enabled: false   # replaced by KafkaBrokerHealthIndicator (adds alert on state change)

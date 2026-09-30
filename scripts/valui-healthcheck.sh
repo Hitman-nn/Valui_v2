@@ -113,7 +113,15 @@ fail_count=0
 [[ -f "$STATE_FILE" ]] && fail_count=$(cat "$STATE_FILE" 2>/dev/null || echo 0)
 [[ "$fail_count" =~ ^[0-9]+$ ]] || fail_count=0
 
-http_code=$(curl -sS -o /dev/null -w '%{http_code}' -m "$CURL_TIMEOUT_SEC" "$HEALTH_URL" 2>/dev/null)
+# 30.09 incident, third finding: the body used to be thrown away (-o /dev/null) — on failure
+# all we ever knew was "not 200", never WHICH subsystem (DB/Redis/Kafka/disk/custom indicator)
+# actually caused it. Capturing it now (and logging it below on failure) combined with
+# management.endpoint.health.show-components=always (application.yml) means a future outage's
+# healthcheck.log shows the per-component breakdown directly, instead of requiring a live SSH
+# session to even start diagnosing which part of the stack is unhealthy.
+body_file=$(mktemp "${TMPDIR:-/tmp}/valui-healthcheck-body.XXXXXX")
+trap 'rm -f "$body_file"' EXIT
+http_code=$(curl -sS -o "$body_file" -w '%{http_code}' -m "$CURL_TIMEOUT_SEC" "$HEALTH_URL" 2>/dev/null)
 curl_status=$?
 
 if [[ $curl_status -eq 0 && "$http_code" == "200" ]]; then
@@ -132,6 +140,7 @@ fail_count=$((fail_count + 1))
 echo "$fail_count" > "$STATE_FILE"
 
 echo "[healthcheck] health check failed (curl_status=$curl_status http_code=${http_code:-none}), consecutive failures=$fail_count" >&2
+echo "[healthcheck] response body: $(cat "$body_file" 2>/dev/null | tr -d '\n' | cut -c1-500)" >&2
 
 # Act at the first confirmed outage, then again every ESCALATION_INTERVAL checks for as
 # long as it continues — not every single minute (that would just be noise once you already
