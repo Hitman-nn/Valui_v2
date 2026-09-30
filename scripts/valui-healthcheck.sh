@@ -38,6 +38,18 @@ STATE_FILE="${STATE_FILE:-$APP_DIR/.valui-healthcheck.state}"
 # see valui-healthcheck.timer), treat it as a genuine outage, not a blip
 # (deploy in progress, one slow request, transient network hiccup).
 FAIL_THRESHOLD="${FAIL_THRESHOLD:-3}"
+# 30.09 incident: this script used to alert + attempt a restart exactly ONCE per outage
+# (the moment fail_count first crossed FAIL_THRESHOLD) and then go completely silent for
+# every check after that, no matter how long the outage continued. That one restart attempt
+# hit a corrupted jar (a botched deploy the night before) and failed identically every time
+# it was retried — but nothing said so again: the operator got a single "restarting..."
+# message at ~10:27 and then zero further signal while the outage silently continued for
+# 6+ hours (fail_count reached 411) until someone happened to check by hand. Re-alerting
+# (and retrying the restart — cheap and harmless if the underlying cause is still there,
+# and a real chance of self-healing if it was transient) every ESCALATION_INTERVAL checks
+# after the first makes an ongoing outage impossible to mistake for "one message, must be
+# fine now".
+ESCALATION_INTERVAL="${ESCALATION_INTERVAL:-10}"
 CURL_TIMEOUT_SEC="${CURL_TIMEOUT_SEC:-5}"
 
 if [[ -f "$ENV_FILE" ]]; then
@@ -105,10 +117,18 @@ echo "$fail_count" > "$STATE_FILE"
 
 echo "[healthcheck] health check failed (curl_status=$curl_status http_code=${http_code:-none}), consecutive failures=$fail_count" >&2
 
+# Act at the first confirmed outage, then again every ESCALATION_INTERVAL checks for as
+# long as it continues — not every single minute (that would just be noise once you already
+# know), but never silent for longer than that on a still-ongoing outage either.
+act_now=false
 if [[ "$fail_count" -eq "$FAIL_THRESHOLD" ]]; then
-  # Alert exactly once per outage (at the moment it's confirmed, not a blip) — the timer
-  # keeps running every interval afterwards to detect recovery/restart, but repeating the
-  # same "still down" alert every minute would just be noise once you already know.
+  act_now=true
+elif [[ "$fail_count" -gt "$FAIL_THRESHOLD" ]] \
+      && (( (fail_count - FAIL_THRESHOLD) % ESCALATION_INTERVAL == 0 )); then
+  act_now=true
+fi
+
+if [[ "$act_now" == "true" ]]; then
   send_telegram_alert "🔴 *Valui не отвечает*
 \`${HEALTH_URL}\` — ${fail_count} неудачных проверок подряд (curl exit=${curl_status}, HTTP=${http_code:-none}).
 
