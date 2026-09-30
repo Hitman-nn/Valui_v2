@@ -33,6 +33,26 @@ if [[ ! -f "$JAR_FILE" ]]; then
   exit 1
 fi
 
+# 30.09 incident: an interrupted scp once left a truncated jar on disk. The ALREADY RUNNING
+# process kept working fine for hours afterwards — JVM classloading is lazy, so a class that
+# had already been loaded never touches the disk again — so nothing noticed until the next
+# restart, which then failed immediately and unhelpfully: `Exception in thread "main"
+# ClassNotFoundException: com.valui.app.ValuiApplication`, `Caused by: IOException: Zip 'Local
+# File Header Record' not found`. That's a correct, unambiguous diagnosis, but it only ever
+# appeared buried inside a rapid crash-restart-crash loop (systemd's Restart=on-failure retrying
+# every few seconds), dozens of near-identical Java stack traces deep. Checking zip integrity
+# HERE — before java is ever invoked — turns the exact same problem into one unambiguous line,
+# a clean non-zero exit, and (critically) no JVM process spawned at all: every failed attempt
+# looks identical instead of scrolling past in a wall of traces.
+if ! unzip -tq "$JAR_FILE" > /tmp/valui-jar-integrity-check.log 2>&1; then
+  echo "FATAL: $JAR_FILE failed a zip integrity check — it is corrupted, most likely a" >&2
+  echo "truncated/interrupted deploy. Refusing to start (no JVM spawned)." >&2
+  echo "Re-deploy a verified-good jar (run 'unzip -t' on it locally BEFORE copying it over)," >&2
+  echo "then restart. unzip's own output:" >&2
+  tail -5 /tmp/valui-jar-integrity-check.log >&2
+  exit 1
+fi
+
 mkdir -p "$LOG_DIR"
 
 set -a
@@ -43,7 +63,11 @@ echo "================================================"
 echo " Starting Valui PROD (systemd) with JMX"
 echo "================================================"
 echo "App dir:      $APP_DIR"
-echo "Jar:          $JAR_FILE"
+# Size + mtime + sha256, logged right here so "is this actually the jar I just deployed" is
+# answerable by reading this one line — instead of having to SSH in separately and run ls/shasum
+# by hand every time a deploy needs double-checking (see 30.09 incident javadoc above).
+echo "Jar:          $JAR_FILE ($(stat -c '%s bytes, modified %y' "$JAR_FILE" 2>/dev/null || stat -f '%z bytes, modified %Sm' "$JAR_FILE"))"
+echo "Jar sha256:   $(sha256sum "$JAR_FILE" 2>/dev/null | awk '{print $1}' || shasum -a 256 "$JAR_FILE" | awk '{print $1}')"
 echo "Profile:      ${SPRING_PROFILES_ACTIVE:-not set}"
 echo "JMX endpoint: 127.0.0.1:$JMX_PORT"
 echo "Log dir:      $LOG_DIR  (valui-app.log, rotated by logback)"

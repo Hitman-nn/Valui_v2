@@ -52,6 +52,22 @@ FAIL_THRESHOLD="${FAIL_THRESHOLD:-3}"
 ESCALATION_INTERVAL="${ESCALATION_INTERVAL:-10}"
 CURL_TIMEOUT_SEC="${CURL_TIMEOUT_SEC:-5}"
 
+# 30.09 incident, second finding: this unit runs as root (see valui-healthcheck.service), so
+# its journal entries are only visible to root/adm/systemd-journal — NOT to the unprivileged
+# `valui` user that owns everything else under APP_DIR and that operators actually SSH in as.
+# `journalctl -u valui-healthcheck.service` came back completely empty while investigating that
+# incident, for exactly this reason — there was no way to tell from the valui account whether
+# this watchdog had even run, let alone what it saw. Mirroring all of this script's own output
+# into a plain, world-readable file under APP_DIR/logs closes that gap without touching the
+# journal behavior at all. No rotation here on purpose: a failing check writes at most a few
+# lines per run, so even a multi-hour outage only adds a few hundred lines — add a logrotate
+# stanza later if that assumption ever stops holding.
+LOG_FILE="${LOG_FILE:-$APP_DIR/logs/healthcheck.log}"
+mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+touch "$LOG_FILE" 2>/dev/null || true
+chmod 644 "$LOG_FILE" 2>/dev/null || true
+exec > >(tee -a "$LOG_FILE") 2>&1
+
 if [[ -f "$ENV_FILE" ]]; then
   set -a
   # shellcheck disable=SC1090
