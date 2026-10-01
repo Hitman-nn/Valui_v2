@@ -40,8 +40,18 @@ public class ValuiApplication {
         // closing, not after.
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             Duration uptime = Duration.between(startedAt, Instant.now());
-            log.warn("[SHUTDOWN] Termination signal received — uptime was {}h{}m{}s",
+            String message = String.format("[SHUTDOWN] Termination signal received — uptime was %dh%dm%ds",
                     uptime.toHours(), uptime.toMinutesPart(), uptime.toSecondsPart());
+            // JVM shutdown hooks run concurrently with no defined relative order (see
+            // Runtime.addShutdownHook javadoc) — Spring Boot registers its own hook that closes
+            // the ApplicationContext, and LoggingApplicationListener tears down Logback as part of
+            // that close. If that wins the race against this hook, log.warn below is silently
+            // swallowed (no exception) — confirmed in production: this line was missing from
+            // valui-app.log for a real restart even though the rest of the shutdown sequence
+            // logged normally. System.err bypasses Logback entirely, so it always reaches
+            // journald/the console regardless of which hook finishes first.
+            System.err.println(Instant.now() + " " + message);
+            log.warn(message);
         }, "shutdown-signal-logger"));
 
         SpringApplication.run(ValuiApplication.class, args);
