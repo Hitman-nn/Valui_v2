@@ -8,15 +8,18 @@ import com.valui.common.parser.dto.ParsedMatchDto;
 import com.valui.parser.api.ParseResult;
 import com.valui.parser.bookmaker.betboom.ws.WsClientBorrowingPool;
 import com.valui.parser.bookmaker.betboom.ws.WsRequestService;
+import com.valui.parser.health.BetBoomWsHighTimeoutRateEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
 import proto.betboom.*;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -113,6 +116,32 @@ class BetBoomParserTest {
     private Exception callFetchMatches(String tid) {
         try { parser.fetchMatches(tid); return null; }
         catch (Exception e) { return e; }
+    }
+
+    // ── checkWsTimeoutRate: edge-detection (no spam while sustained above threshold) ───
+
+    @Test
+    void checkWsTimeoutRate_sustainedAboveThreshold_publishesOnlyOnce() {
+        ReflectionTestUtils.setField(parser, "wsTimeoutWindowCount", new AtomicLong(10));
+        parser.checkWsTimeoutRate();
+        ReflectionTestUtils.setField(parser, "wsTimeoutWindowCount", new AtomicLong(10));
+        parser.checkWsTimeoutRate();
+
+        verify(eventPublisher, times(1)).publishEvent(any(BetBoomWsHighTimeoutRateEvent.class));
+    }
+
+    @Test
+    void checkWsTimeoutRate_recoversThenReCrosses_publishesAgain() {
+        ReflectionTestUtils.setField(parser, "wsTimeoutWindowCount", new AtomicLong(10));
+        parser.checkWsTimeoutRate(); // above → publish #1
+
+        ReflectionTestUtils.setField(parser, "wsTimeoutWindowCount", new AtomicLong(0));
+        parser.checkWsTimeoutRate(); // below → no publish, clears elevated flag
+
+        ReflectionTestUtils.setField(parser, "wsTimeoutWindowCount", new AtomicLong(10));
+        parser.checkWsTimeoutRate(); // above again → publish #2
+
+        verify(eventPublisher, times(2)).publishEvent(any(BetBoomWsHighTimeoutRateEvent.class));
     }
 
     private static byte[] buildSportAllResponse() throws Exception {

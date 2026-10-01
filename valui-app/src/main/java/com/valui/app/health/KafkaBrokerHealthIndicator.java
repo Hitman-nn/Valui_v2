@@ -7,11 +7,13 @@ import org.apache.kafka.clients.admin.ListTopicsOptions;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Checks Kafka broker connectivity via AdminClient.listTopics() with a 3-second timeout.
@@ -29,11 +31,23 @@ public class KafkaBrokerHealthIndicator implements HealthIndicator, DisposableBe
     private final AdminClient adminClient;
     private final AdminNotificationService adminNotificationService;
 
-    private volatile boolean wasDown = false;
+    // Actuator's /actuator/health can be polled concurrently (LB checks, the external watchdog
+    // script, k8s-style probes all hitting it around the same time) — a plain check-then-set
+    // boolean lets two threads both observe wasDown==false right at the DOWN transition and both
+    // send the alert. CAS makes exactly one of them win.
+    private final AtomicBoolean wasDown = new AtomicBoolean(false);
 
+    @Autowired
     public KafkaBrokerHealthIndicator(KafkaProperties kafkaProperties,
                                       AdminNotificationService adminNotificationService) {
-        this.adminClient = AdminClient.create(kafkaProperties.buildAdminProperties(null));
+        this(AdminClient.create(kafkaProperties.buildAdminProperties(null)), adminNotificationService);
+    }
+
+    // Test-only: lets the CAS/dedup logic in health() be exercised against a mocked AdminClient
+    // without opening a real connection (AdminClient.create(...) itself is cheap/non-blocking,
+    // but listTopics().get(...) would otherwise need a live broker or a 3s timeout per call).
+    KafkaBrokerHealthIndicator(AdminClient adminClient, AdminNotificationService adminNotificationService) {
+        this.adminClient = adminClient;
         this.adminNotificationService = adminNotificationService;
     }
 
@@ -44,8 +58,7 @@ public class KafkaBrokerHealthIndicator implements HealthIndicator, DisposableBe
                        .listings()
                        .get(CHECK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
-            if (wasDown) {
-                wasDown = false;
+            if (wasDown.compareAndSet(true, false)) {
                 // Recovery previously only reached the Telegram admin alert — invisible in
                 // application logs, only in the Telegram channel.
                 log.info("[KAFKA-HEALTH] Broker recovered — resuming normal operation");
@@ -60,8 +73,7 @@ public class KafkaBrokerHealthIndicator implements HealthIndicator, DisposableBe
             // load balancer checks) — logging every single call at WARN during an outage would
             // spam for the whole outage duration. Only the state transition into DOWN is
             // WARN-worthy; repeat checks while already known-down stay at DEBUG.
-            if (!wasDown) {
-                wasDown = true;
+            if (wasDown.compareAndSet(false, true)) {
                 log.warn("[KAFKA-HEALTH] Broker check failed, entering DOWN state: {}", msg);
                 adminNotificationService.alertAdmin(
                         "⚠️ *Kafka недоступна*: " + msg

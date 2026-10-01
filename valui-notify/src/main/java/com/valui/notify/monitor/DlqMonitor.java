@@ -9,6 +9,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * Polls the {@code dlq.final} accumulation counter every 15 minutes.
  * Sends an admin Telegram alert if the count exceeds the threshold.
@@ -26,26 +28,43 @@ public class DlqMonitor {
     private final StringRedisTemplate redisTemplate;
     private final AdminNotificationService adminNotificationService;
 
+    // Edge-detection per counter (Telegram vs VK): without this, a DLQ that stays above the
+    // threshold across many consecutive 15-minute ticks re-sends the same alert every tick until
+    // someone replays it. Alert once on crossing into "elevated", stay quiet while it remains
+    // elevated, and announce it again once it drops back below the threshold (so "forgot to
+    // replay" and "replayed, back to normal" are both visible without being noisy in between).
+    private final AtomicBoolean tgElevated = new AtomicBoolean(false);
+    private final AtomicBoolean vkElevated = new AtomicBoolean(false);
+
     @Scheduled(fixedDelay = 15 * 60 * 1_000L, initialDelay = 60_000L)
     public void checkDlqFinal() {
         long tgCount = getDlqFinalCount();
         log.debug("[DLQ-MONITOR] dlq.final count={}", tgCount);
-        if (tgCount > ALERT_THRESHOLD) {
-            // Previously the only local trace of this was the Telegram alert itself — if the
-            // Telegram delivery path is what's degraded (plausible, same bot infra), there'd be
-            // no record anywhere that the threshold was even crossed.
-            log.warn("[DLQ-MONITOR] dlq.final threshold exceeded: count={} threshold={}", tgCount, ALERT_THRESHOLD);
-            adminNotificationService.alertAdmin(String.format(
-                    "⚠️ *DLQ накопился*: %d сообщений в `notifications.dlq.final`.\n"
-                    + "Используйте `/api/v1/admin/dlq/replay` для переотправки.", tgCount));
-        }
+        checkThreshold("dlq.final", tgCount, tgElevated,
+                "⚠️ *DLQ накопился*: %d сообщений в `notifications.dlq.final`.\n"
+                + "Используйте `/api/v1/admin/dlq/replay` для переотправки.",
+                "✅ *DLQ разобран*: `notifications.dlq.final` снова ниже порога (%d).");
 
         long vkCount = getVkDlqFinalCount();
         log.debug("[DLQ-MONITOR] vk.dlq.final count={}", vkCount);
-        if (vkCount > ALERT_THRESHOLD) {
-            log.warn("[DLQ-MONITOR] vk.dlq.final threshold exceeded: count={} threshold={}", vkCount, ALERT_THRESHOLD);
-            adminNotificationService.alertAdmin(String.format(
-                    "⚠️ *VK DLQ накопился*: %d сообщений в `vk.notifications.dlq.final`.", vkCount));
+        checkThreshold("vk.dlq.final", vkCount, vkElevated,
+                "⚠️ *VK DLQ накопился*: %d сообщений в `vk.notifications.dlq.final`.",
+                "✅ *VK DLQ разобран*: `vk.notifications.dlq.final` снова ниже порога (%d).");
+    }
+
+    private void checkThreshold(String label, long count, AtomicBoolean elevated,
+                                 String aboveFormat, String recoveredFormat) {
+        if (count > ALERT_THRESHOLD) {
+            // Previously the only local trace of this was the Telegram alert itself — if the
+            // Telegram delivery path is what's degraded (plausible, same bot infra), there'd be
+            // no record anywhere that the threshold was even crossed.
+            log.warn("[DLQ-MONITOR] {} threshold exceeded: count={} threshold={}", label, count, ALERT_THRESHOLD);
+            if (elevated.compareAndSet(false, true)) {
+                adminNotificationService.alertAdmin(String.format(aboveFormat, count));
+            }
+        } else if (elevated.compareAndSet(true, false)) {
+            log.info("[DLQ-MONITOR] {} back under threshold: count={}", label, count);
+            adminNotificationService.alertAdmin(String.format(recoveredFormat, count));
         }
     }
 

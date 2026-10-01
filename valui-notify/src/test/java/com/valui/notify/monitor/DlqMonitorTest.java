@@ -94,4 +94,52 @@ class DlqMonitorTest {
 
         assertThat(monitor.getDlqFinalCount()).isZero();
     }
+
+    // ── edge-detection (no spam while sustained above threshold) ───────────────
+
+    @Test
+    @DisplayName("count stays above threshold across repeated ticks → alert sent only once")
+    void sustainedAboveThreshold_alertsOnlyOnce() {
+        given(redisTemplate.opsForValue()).willReturn(valueOps);
+        given(valueOps.get(DeadLetterPublisher.DLQ_FINAL_COUNTER_KEY))
+                .willReturn(String.valueOf(DlqMonitor.ALERT_THRESHOLD + 1));
+
+        monitor.checkDlqFinal();
+        monitor.checkDlqFinal();
+        monitor.checkDlqFinal();
+
+        verify(adminNotificationService, times(1)).alertAdmin(anyString());
+    }
+
+    @Test
+    @DisplayName("count drops back below threshold → recovery alert sent, then stays quiet")
+    void recoversBelowThreshold_sendsRecoveryAlertOnce() {
+        given(redisTemplate.opsForValue()).willReturn(valueOps);
+        given(valueOps.get(DeadLetterPublisher.DLQ_FINAL_COUNTER_KEY))
+                .willReturn(String.valueOf(DlqMonitor.ALERT_THRESHOLD + 1))
+                .willReturn("0")
+                .willReturn("0");
+
+        monitor.checkDlqFinal(); // crosses above → alert #1
+        monitor.checkDlqFinal(); // recovers → alert #2
+        monitor.checkDlqFinal(); // still below → no further alert
+
+        verify(adminNotificationService, times(2)).alertAdmin(anyString());
+    }
+
+    @Test
+    @DisplayName("re-crossing threshold after recovery → alerts again")
+    void reCrossingThreshold_alertsAgain() {
+        given(redisTemplate.opsForValue()).willReturn(valueOps);
+        given(valueOps.get(DeadLetterPublisher.DLQ_FINAL_COUNTER_KEY))
+                .willReturn(String.valueOf(DlqMonitor.ALERT_THRESHOLD + 1))
+                .willReturn("0")
+                .willReturn(String.valueOf(DlqMonitor.ALERT_THRESHOLD + 1));
+
+        monitor.checkDlqFinal(); // above → alert #1
+        monitor.checkDlqFinal(); // recovered → alert #2
+        monitor.checkDlqFinal(); // above again → alert #3
+
+        verify(adminNotificationService, times(3)).alertAdmin(anyString());
+    }
 }

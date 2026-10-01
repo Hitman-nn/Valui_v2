@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
@@ -66,6 +67,10 @@ public class BetBoomParser implements BookmakerParser {
     private final ConcurrentHashMap<String, Integer> tournamentTimeoutCount  = new ConcurrentHashMap<>();
     final AtomicLong wsTimeoutTotal       = new AtomicLong();
     private final AtomicLong wsTimeoutWindowCount = new AtomicLong();
+    // Edge-detection for the admin alert below: without this, a degradation that stays above
+    // threshold for hours re-alerts every single window (every WS_TIMEOUT_WINDOW_MINUTES) with an
+    // near-identical message — same event, repeated, not new information each time.
+    private final AtomicBoolean wsTimeoutElevated = new AtomicBoolean(false);
 
     @Override
     public BookmakerType getBookmaker() { return BookmakerType.BETBOOM; }
@@ -336,8 +341,14 @@ public class BetBoomParser implements BookmakerParser {
         if (count >= wsTimeoutAlertThreshold) {
             log.error("[BB] WS timeout rate elevated: {} timeouts in {} min (threshold={})",
                     count, WS_TIMEOUT_WINDOW_MINUTES, wsTimeoutAlertThreshold);
-            eventPublisher.publishEvent(
-                    new BetBoomWsHighTimeoutRateEvent(this, count, WS_TIMEOUT_WINDOW_MINUTES));
+            // Alert only on the transition into "elevated" — a sustained degradation across many
+            // consecutive windows would otherwise send one near-identical admin message per window.
+            if (wsTimeoutElevated.compareAndSet(false, true)) {
+                eventPublisher.publishEvent(
+                        new BetBoomWsHighTimeoutRateEvent(this, count, WS_TIMEOUT_WINDOW_MINUTES));
+            }
+        } else {
+            wsTimeoutElevated.set(false);
         }
     }
 
