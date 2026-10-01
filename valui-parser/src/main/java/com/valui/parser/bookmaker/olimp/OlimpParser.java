@@ -19,6 +19,8 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -48,29 +50,39 @@ public class OlimpParser implements BookmakerParser {
     // turn (up to BLOCK_TIMEOUT each) instead of failing immediately once the first one already has.
     private static final long FAILURE_COOLDOWN_MS = 2_000;
 
+    // How long an expired snapshot may still be served while a background refresh replaces it.
+    // 01.10 prod logs: planned-events refreshes ran in the CALLER's thread, so a slow ~20MB
+    // fetch hit that caller's 8s fetch budget, got interrupted, tripped the failure cooldown —
+    // and every Olimp controller queued on the lock meanwhile (all 13 DRR slots) then failed
+    // fast at once: 5 bursts of 36–52 errors in 8h. Serving the previous snapshot during the
+    // refresh keeps callers off the lock entirely; past this bound a stale snapshot is no longer
+    // trusted and callers fall back to the blocking path, so a real outage still surfaces.
+    private static final long MAX_STALE_MS = 90_000;
+
     private final String sportsApi;
     private final String champsApi;
     private final String eventsApi;
     private final BookmakerHttpClient http;
+    private final long snapTtlMs;
 
-    private final AtomicReference<CachedSnap> sportsCache = new AtomicReference<>();
-    private final AtomicReference<CachedSnap> champsCache = new AtomicReference<>();
-    private final AtomicReference<CachedSnap> eventsCache = new AtomicReference<>();
-
-    // Guards each cache's refresh (see fetchCached). ReentrantLock, not synchronized —
-    // the refresh holds the lock across a blocking HTTP call, and synchronized pins the
-    // carrier thread of every virtual thread queued on it for that whole duration (up to
-    // BLOCK_TIMEOUT); ReentrantLock lets waiters unmount instead.
-    private final ReentrantLock sportsLock = new ReentrantLock();
-    private final ReentrantLock champsLock = new ReentrantLock();
-    private final ReentrantLock eventsLock = new ReentrantLock();
-
-    // Last-failure timestamps (ms), one per endpoint — 0 = none / cleared on success.
-    private final AtomicReference<Long> sportsLastFailureAtMs = new AtomicReference<>(0L);
-    private final AtomicReference<Long> champsLastFailureAtMs = new AtomicReference<>(0L);
-    private final AtomicReference<Long> eventsLastFailureAtMs = new AtomicReference<>(0L);
+    private final SnapSlot sportsSlot = new SnapSlot();
+    private final SnapSlot champsSlot = new SnapSlot();
+    private final SnapSlot eventsSlot = new SnapSlot();
 
     private record CachedSnap(JsonNode data, long ts) {}
+
+    /** Per-endpoint cache state — see {@link #fetchCached}. */
+    private static final class SnapSlot {
+        final AtomicReference<CachedSnap> cache = new AtomicReference<>();
+        // Guards the refresh. ReentrantLock, not synchronized — the refresh holds the lock across
+        // a blocking HTTP call, and synchronized pins the carrier thread of every virtual thread
+        // queued on it for that whole duration (up to BLOCK_TIMEOUT); ReentrantLock lets waiters unmount.
+        final ReentrantLock lock = new ReentrantLock();
+        // Last-failure timestamp (ms) — 0 = none / cleared on success.
+        final AtomicLong lastFailureAtMs = new AtomicLong(0L);
+        // Single-flight guard for the background (stale-while-revalidate) refresh.
+        final AtomicBoolean refreshing = new AtomicBoolean(false);
+    }
 
     @Autowired
     public OlimpParser(@Qualifier("olimpHttpClient") BookmakerHttpClient http) {
@@ -78,10 +90,15 @@ public class OlimpParser implements BookmakerParser {
     }
 
     OlimpParser(String apiBase, BookmakerHttpClient http) {
+        this(apiBase, http, SNAP_TTL_MS);
+    }
+
+    OlimpParser(String apiBase, BookmakerHttpClient http, long snapTtlMs) {
         this.sportsApi = apiBase + "/sports";
         this.champsApi = apiBase + "/sports-with-competitions";
         this.eventsApi = apiBase + "/planned-events";
         this.http = http;
+        this.snapTtlMs = snapTtlMs;
     }
 
     OlimpParser(String apiBase, org.springframework.web.reactive.function.client.WebClient wc) {
@@ -96,7 +113,7 @@ public class OlimpParser implements BookmakerParser {
     @Override
     public ParseResult<List<SportDto>> fetchSports() {
         long start = ms();
-        JsonNode arr = fetchCached(sportsCache, sportsLock, sportsLastFailureAtMs, sportsApi);
+        JsonNode arr = fetchCached(sportsSlot, sportsApi);
         List<SportDto> sports = new ArrayList<>();
         for (JsonNode item : iter(arr)) {
             JsonNode p = item.path("payload");
@@ -111,7 +128,7 @@ public class OlimpParser implements BookmakerParser {
     @Override
     public ParseResult<List<TournamentDto>> fetchTournaments(String sportId) {
         long start = ms();
-        JsonNode arr = fetchCached(champsCache, champsLock, champsLastFailureAtMs, champsApi);
+        JsonNode arr = fetchCached(champsSlot, champsApi);
         List<TournamentDto> tournaments = new ArrayList<>();
         for (JsonNode item : iter(arr)) {
             JsonNode p = item.path("payload");
@@ -134,7 +151,7 @@ public class OlimpParser implements BookmakerParser {
     @Override
     public ParseResult<List<ParsedMatchDto>> fetchMatches(String tournamentId) {
         long start = ms();
-        JsonNode arr = fetchCached(eventsCache, eventsLock, eventsLastFailureAtMs, eventsApi);
+        JsonNode arr = fetchCached(eventsSlot, eventsApi);
         List<ParsedMatchDto> matches = new ArrayList<>();
         for (JsonNode item : iter(arr)) {
             JsonNode p = item.path("payload");
@@ -285,43 +302,88 @@ public class OlimpParser implements BookmakerParser {
      * <p>{@code lastFailureAtMs} bounds how long a failed refresh can convoy every other waiter
      * into repeating the same doomed ~20MB HTTP attempt — see {@link #FAILURE_COOLDOWN_MS}'s
      * javadoc (same fix, same production incident, as {@code FonbetParser.fetchSnapshot()}).
+     *
+     * <p>Once a snapshot exists, an expired one (younger than {@link #MAX_STALE_MS}) is returned
+     * immediately and refreshed by a single background thread — see {@code MAX_STALE_MS} for the
+     * incident. Only a cold start or a snapshot older than that blocks the caller on the lock.
      */
-    private JsonNode fetchCached(AtomicReference<CachedSnap> cacheRef, ReentrantLock lock,
-                                  AtomicReference<Long> lastFailureAtMs, String url) {
-        CachedSnap cached = cacheRef.get();
-        if (cached != null && System.currentTimeMillis() - cached.ts() < SNAP_TTL_MS) {
-            return cached.data();
-        }
-        lock.lock();
-        try {
-            cached = cacheRef.get();
-            if (cached != null && System.currentTimeMillis() - cached.ts() < SNAP_TTL_MS) {
+    private JsonNode fetchCached(SnapSlot slot, String url) {
+        CachedSnap cached = slot.cache.get();
+        if (cached != null) {
+            long age = ms() - cached.ts();
+            if (age < snapTtlMs) return cached.data();
+            if (age < MAX_STALE_MS) {
+                refreshInBackground(slot, url);
                 return cached.data();
             }
-            long lastFailure = lastFailureAtMs.get();
-            if (lastFailure > 0 && System.currentTimeMillis() - lastFailure < FAILURE_COOLDOWN_MS) {
-                throw new OlimpSnapshotUnavailableException(
-                        "Olimp snapshot refresh failed recently — failing fast instead of retrying: " + url);
-            }
-            JsonNode data;
-            try {
-                data = block(http.getJson(url, JsonNode.class));
-            } catch (Exception e) {
-                // The @CircuitBreaker fallback (fetchXFallback) only sees the aggregated
-                // Throwable with no idea which of the 3 Olimp endpoints (sports/champs/events)
-                // actually failed — log it here where the specific url is in scope.
-                log.debug("[Olimp] fetch failed url={}: {}", url, describe(e));
-                lastFailureAtMs.set(System.currentTimeMillis());
-                throw e;
-            }
-            lastFailureAtMs.set(0L);
-            if (data != null) {
-                cacheRef.set(new CachedSnap(data, System.currentTimeMillis()));
-            }
-            return data;
-        } finally {
-            lock.unlock();
         }
+        slot.lock.lock();
+        try {
+            cached = slot.cache.get();
+            if (cached != null && ms() - cached.ts() < snapTtlMs) {
+                return cached.data();
+            }
+            return refreshLocked(slot, url);
+        } finally {
+            slot.lock.unlock();
+        }
+    }
+
+    /** Single-flight: a no-op while another background refresh of the same endpoint is running. */
+    private void refreshInBackground(SnapSlot slot, String url) {
+        if (!slot.refreshing.compareAndSet(false, true)) return;
+        // Its own thread, so the caller's fetch budget can never interrupt the refresh — the HTTP
+        // call is still capped by BLOCK_TIMEOUT.
+        Thread.ofVirtual().name("olimp-snap-refresh").start(() -> {
+            slot.lock.lock();
+            try {
+                CachedSnap cached = slot.cache.get();
+                if (cached == null || ms() - cached.ts() >= snapTtlMs) {
+                    refreshLocked(slot, url);
+                }
+            } catch (Exception ignored) {
+                // Already logged/recorded by refreshLocked; callers keep the stale snapshot.
+            } finally {
+                slot.lock.unlock();
+                slot.refreshing.set(false);
+            }
+        });
+    }
+
+    /** Caller must hold {@code slot.lock}. */
+    private JsonNode refreshLocked(SnapSlot slot, String url) {
+        long lastFailure = slot.lastFailureAtMs.get();
+        if (lastFailure > 0 && ms() - lastFailure < FAILURE_COOLDOWN_MS) {
+            throw new OlimpSnapshotUnavailableException(
+                    "Olimp snapshot refresh failed recently — failing fast instead of retrying: " + url);
+        }
+        long t0 = ms();
+        JsonNode data;
+        try {
+            data = block(http.getJson(url, JsonNode.class));
+        } catch (Exception e) {
+            // The @CircuitBreaker fallback (fetchXFallback) only sees the aggregated Throwable
+            // with no idea which of the 3 Olimp endpoints actually failed, and the fail-fast
+            // waiters only see OlimpSnapshotUnavailableException — this is the one place the
+            // real cause is known. WARN for the first failure of a streak (was DEBUG, which hid
+            // the cause of every burst in prod), DEBUG for repeats so an outage doesn't flood.
+            String interrupted = Thread.currentThread().isInterrupted() ? " (interrupted by fetch budget)" : "";
+            if (lastFailure == 0) {
+                log.warn("[Olimp] snapshot refresh failed url={} after {}ms{}: {}", url, ms() - t0, interrupted, describe(e));
+            } else {
+                log.debug("[Olimp] snapshot refresh failed again url={} after {}ms{}: {}", url, ms() - t0, interrupted, describe(e));
+            }
+            slot.lastFailureAtMs.set(ms());
+            throw e;
+        }
+        if (lastFailure > 0) {
+            log.info("[Olimp] snapshot refresh recovered url={} ({}ms)", url, ms() - t0);
+        }
+        slot.lastFailureAtMs.set(0L);
+        if (data != null) {
+            slot.cache.set(new CachedSnap(data, ms()));
+        }
+        return data;
     }
 
     /** Marker for fetchCached()'s fail-fast cooldown path — see {@code FonbetParser}'s twin. */

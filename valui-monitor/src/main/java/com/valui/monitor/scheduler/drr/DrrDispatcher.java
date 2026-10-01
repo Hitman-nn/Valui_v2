@@ -334,9 +334,16 @@ public class DrrDispatcher {
                             log.info("[DRR] {} pool saturated (0/{} slots free)",
                                     bookmaker, totalSlotsByBookmaker.get(bookmaker));
                         } else if (n % SATURATION_WARN_EVERY == 0) {
-                            log.warn("[DRR] {} pool saturated for {} consecutive rounds — queueDepth={} " +
-                                    "— consider raising its reserved share (maxConcurrentTasks={} total)",
-                                    bookmaker, n, delayQueue.size(), props.getMaxConcurrentTasks());
+                            // delayQueue holds every scheduled controller of every bookmaker
+                            // (~680 in prod even when idle), so it's labelled as the global depth —
+                            // reported bare as "queueDepth" it read like THIS bookmaker's backlog.
+                            // Saturation can also mean its tasks are stuck behind a slow parser
+                            // (e.g. a snapshot lock), where more slots would just add more waiters.
+                            log.warn("[DRR] {} pool saturated for {} consecutive rounds (0/{} slots free, " +
+                                    "globalQueueDepth={}) — either its reserved share is too low or its " +
+                                    "tasks are stuck behind a slow parser (maxConcurrentTasks={} total)",
+                                    bookmaker, n, totalSlotsByBookmaker.get(bookmaker), delayQueue.size(),
+                                    props.getMaxConcurrentTasks());
                         }
                     }
                 }

@@ -462,7 +462,8 @@ public class StartupLogger {
                     int alive = fonbetPool.aliveCount();
                     int tot   = fonbetPool.totalCount();
                     String col = alive >= 3 ? GREEN : YELLOW;
-                    yield "ep: " + col + alive + "/" + tot + RESET;
+                    // tot = candidate addresses probed, not known mirrors — ~16 alive is normal
+                    yield "mirrors: " + col + alive + " found (of " + tot + " probed)" + RESET;
                 }
                 default -> "";
             };

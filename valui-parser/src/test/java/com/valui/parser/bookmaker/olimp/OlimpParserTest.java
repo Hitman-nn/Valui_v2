@@ -104,6 +104,60 @@ class OlimpParserTest {
         assertThat(server.getRequestCount()).isEqualTo(2);
     }
 
+    @Test
+    @DisplayName("REGRESSION 01.10: an expired snapshot is served immediately while a slow refresh " +
+            "runs in the background — callers must not block on the ~20MB fetch and burn their 8s budget")
+    void fetchMatches_expiredSnapshot_servedStaleWhileBackgroundRefreshRuns() throws Exception {
+        parser = new OlimpParser(server.url("").toString().replaceAll("/$", ""),
+                new BookmakerHttpClient(WebClient.create()), 50);
+        enqueue(List.of(Map.of("payload", Map.of("id", "500", "name", "A - B", "competitionId", "100", "sportId", "1"))));
+        assertThat(parser.fetchMatches("100").data()).extracting(ParsedMatchDto::id).containsExactly("500");
+
+        Thread.sleep(100); // past the 50ms TTL
+        server.enqueue(new MockResponse()
+                .setBody(mapper.writeValueAsString(List.of(
+                        Map.of("payload", Map.of("id", "501", "name", "C - D", "competitionId", "100", "sportId", "1")))))
+                .addHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBodyDelay(1, java.util.concurrent.TimeUnit.SECONDS));
+
+        long t0 = System.currentTimeMillis();
+        ParseResult<List<ParsedMatchDto>> stale = parser.fetchMatches("100");
+        assertThat(System.currentTimeMillis() - t0).isLessThan(500);
+        assertThat(stale.data()).extracting(ParsedMatchDto::id).containsExactly("500");
+
+        // Single-flight: concurrent stale reads don't start a second refresh.
+        parser.fetchMatches("100");
+        awaitTrue(() -> "501".equals(parser.fetchMatches("100").data().get(0).id()));
+        assertThat(server.getRequestCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("A failed background refresh keeps serving the stale snapshot instead of failing callers")
+    void fetchMatches_backgroundRefreshFails_keepsServingStale() throws Exception {
+        parser = new OlimpParser(server.url("").toString().replaceAll("/$", ""),
+                new BookmakerHttpClient(WebClient.create()), 50);
+        enqueue(List.of(Map.of("payload", Map.of("id", "500", "name", "A - B", "competitionId", "100", "sportId", "1"))));
+        parser.fetchMatches("100");
+
+        Thread.sleep(100);
+        server.enqueue(new MockResponse().setResponseCode(503));
+        parser.fetchMatches("100");
+        awaitTrue(() -> server.getRequestCount() == 2);
+        Thread.sleep(200); // let the background thread finish recording the failure
+
+        ParseResult<List<ParsedMatchDto>> result = parser.fetchMatches("100");
+        assertThat(result.success()).isTrue();
+        assertThat(result.data()).extracting(ParsedMatchDto::id).containsExactly("500");
+    }
+
+    private static void awaitTrue(java.util.function.BooleanSupplier condition) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 5_000;
+        while (!condition.getAsBoolean()) {
+            if (System.currentTimeMillis() > deadline) throw new AssertionError("condition not met within 5s");
+            Thread.sleep(50);
+        }
+    }
+
     private void enqueue(Object body) throws Exception {
         server.enqueue(new MockResponse()
                 .setBody(mapper.writeValueAsString(body))
