@@ -68,17 +68,21 @@ public class FonbetEndpointPool {
         scanEndpoints("weekly-rescan", 16);
     }
 
-    // markFailure() only logs at DEBUG per-endpoint and the emergency-rescan WARN only fires
-    // once alive drops below MIN_ALIVE (3) — with 200 mirrors, a slow decline from 190 to 10
-    // alive would otherwise be completely invisible in prod (com.valui is INFO there) until it
-    // crossed that final cliff edge. This gives a periodic checkpoint of the trend.
+    // IMPORTANT for anyone reading these logs: the 200 URLs are CANDIDATE addresses
+    // (line01..line100 × 2 domains) that Fonbet MAY host a mirror on — not 200 known mirrors.
+    // Most of them never exist; ~15–20 working mirrors (e.g. "16/200") is the normal, healthy
+    // state, not degradation. Only dropping below MIN_ALIVE is a problem (that's when the
+    // emergency rescan fires), so that's the only WARN threshold here — the old "alive < total/2"
+    // rule printed "degrading" every hour in a perfectly healthy prod.
     @Scheduled(fixedRate = 1, timeUnit = TimeUnit.HOURS, initialDelay = 1)
     void logHealth() {
         int alive = aliveCount(), total = totalCount();
-        if (alive < total / 2) {
-            log.warn("[FonbetPool] health: {}/{} alive — degrading", alive, total);
+        if (alive < MIN_ALIVE) {
+            log.warn("[FonbetPool] health: only {} working mirrors (of {} candidate addresses) — " +
+                    "below MIN_ALIVE={}", alive, total, MIN_ALIVE);
         } else {
-            log.info("[FonbetPool] health: {}/{} alive", alive, total);
+            log.info("[FonbetPool] health: {} working mirrors found (of {} candidate addresses probed) — OK",
+                    alive, total);
         }
     }
 
@@ -211,7 +215,7 @@ public class FonbetEndpointPool {
         } finally {
             ex.shutdownNow();
         }
-        log.info("[FonbetPool] {} done: alive={}/{} checked in {} ms", reason, alive, done,
+        log.info("[FonbetPool] {} done: {} working mirrors found (of {} candidate addresses) in {} ms", reason, alive, done,
                 System.currentTimeMillis() - t0);
     }
 
@@ -227,7 +231,7 @@ public class FonbetEndpointPool {
         long last = lastRescanMs.get();
         if (now - last < RESCAN_COOLDOWN_MS) return;
         if (!lastRescanMs.compareAndSet(last, now)) return;
-        log.warn("[FonbetPool] Alive mirrors low ({}/{}), starting emergency rescan", aliveCount, totalCount());
+        log.warn("[FonbetPool] Working mirrors low ({} found, of {} candidate addresses), starting emergency rescan", aliveCount, totalCount());
         Thread t = new Thread(() -> scanEndpoints("emergency-rescan", 16), "fonbet-emergency-rescan");
         t.setDaemon(true);
         t.start();
