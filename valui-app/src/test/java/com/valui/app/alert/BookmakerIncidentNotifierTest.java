@@ -187,31 +187,45 @@ class BookmakerIncidentNotifierTest {
         }
 
         @Test
-        @DisplayName("REGRESSION: event sourced from ParserHealthChecker notifies without re-querying the store — ParserHealthChecker already claimed it before publishing, so a second claimClosed() here would race itself and could return false, silently dropping the message")
-        void recoveredEvent_fromHealthChecker_doesNotReclaimAndDrop() throws Exception {
+        @DisplayName("REGRESSION (fixed 01.10): event sourced from ParserHealthChecker still claims/releases via the shared store — this used to be skipped entirely (on the theory that ParserHealthChecker 'already claims the store', true only for the canonical set, not this consumer's own per-bookmaker key), which left the per-consumer claim stuck in Redis forever whenever a restart interrupted the fast path before it could release it. Confirmed live: parser:incidents:claimed:users had FONBET/OLIMP stuck indefinitely")
+        void recoveredEvent_fromHealthChecker_stillClaimsAndNotifies() throws Exception {
             ParserHealthChecker healthChecker = new ParserHealthChecker(
                     List.of(), mock(ApplicationEventPublisher.class), mock(ParserIncidentStateStore.class));
+            given(incidentStore.claimClosed("users", BookmakerType.OLIMP)).willReturn(true);
             given(subscriptionRepo.findActiveChatIdsByBookmaker(BookmakerType.OLIMP))
                     .willReturn(List.of(777L));
 
             notifier.onParserRecovered(new ParserRecoveredEvent(healthChecker, BookmakerType.OLIMP));
 
+            verify(incidentStore).claimClosed("users", BookmakerType.OLIMP);
             verify(bot, times(1)).execute(any(SendMessage.class));
-            verifyNoInteractions(incidentStore);
         }
 
         @Test
-        @DisplayName("REGRESSION: same as above for the unavailable side")
-        void unavailableEvent_fromHealthChecker_doesNotReclaimAndDrop() throws Exception {
+        @DisplayName("REGRESSION (fixed 01.10): same as above for the unavailable side")
+        void unavailableEvent_fromHealthChecker_stillClaimsAndNotifies() throws Exception {
             ParserHealthChecker healthChecker = new ParserHealthChecker(
                     List.of(), mock(ApplicationEventPublisher.class), mock(ParserIncidentStateStore.class));
+            given(incidentStore.claimOpen("users", BookmakerType.OLIMP)).willReturn(true);
             given(subscriptionRepo.findActiveChatIdsByBookmaker(BookmakerType.OLIMP))
                     .willReturn(List.of(777L));
 
             notifier.onParserUnavailable(new ParserUnavailableEvent(healthChecker, BookmakerType.OLIMP, 3));
 
+            verify(incidentStore).claimOpen("users", BookmakerType.OLIMP);
             verify(bot, times(1)).execute(any(SendMessage.class));
-            verifyNoInteractions(incidentStore);
+        }
+
+        @Test
+        @DisplayName("A claim left stuck from before this fix (claimClosed returns false) now correctly suppresses the reconciled recovery alert rather than being bypassed entirely")
+        void recoveredEvent_fromHealthChecker_claimNotPresent_noOp() throws Exception {
+            ParserHealthChecker healthChecker = new ParserHealthChecker(
+                    List.of(), mock(ApplicationEventPublisher.class), mock(ParserIncidentStateStore.class));
+            given(incidentStore.claimClosed("users", BookmakerType.OLIMP)).willReturn(false);
+
+            notifier.onParserRecovered(new ParserRecoveredEvent(healthChecker, BookmakerType.OLIMP));
+
+            verify(bot, never()).execute(any(SendMessage.class));
         }
     }
 

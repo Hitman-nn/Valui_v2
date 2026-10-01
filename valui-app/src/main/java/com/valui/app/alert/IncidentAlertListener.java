@@ -222,22 +222,44 @@ public class IncidentAlertListener {
     @EventListener
     public void onParserUnavailableReconciled(ParserUnavailableEvent event) {
         if (!(event.getSource() instanceof ParserHealthChecker)) return;
-        sendCbAlert(cbNameOf(event.getBookmaker()), System.currentTimeMillis(),
-            "⚠️ *Circuit Breaker OPEN*: `" + event.getBookmaker() + "`\n"
+        BookmakerType bm = event.getBookmaker();
+        // Claim here too, mirroring handleTransition's CLOSED_TO_OPEN gate — see
+        // onParserRecoveredReconciled below for why this side of the pair matters just as much:
+        // without it, this path's "open" would never be reflected in this consumer's own claim
+        // set, so the eventual claimClosed release below would find nothing to release.
+        if (!incidentStore.claimOpen(CLAIM_CONSUMER, bm)) return;
+        openedAt.putIfAbsent(cbNameOf(bm), Instant.now());
+        sendCbAlert(cbNameOf(bm), System.currentTimeMillis(),
+            "⚠️ *Circuit Breaker OPEN*: `" + bm + "`\n"
             + "Парсер временно заблокирован — превышен порог ошибок (обнаружено активной проверкой)");
     }
 
-    /** See {@link #onParserUnavailableReconciled} — same restart gap, recovery side. */
+    /**
+     * See {@link #onParserUnavailableReconciled} — same restart gap, recovery side.
+     *
+     * <p>{@code claimClosed} here is the actual fix for a real stuck-claim bug found in
+     * production (01.10): a restart that interrupts an open incident before the <em>same</em>
+     * {@code CircuitBreaker} instance gets to emit {@code HALF_OPEN_TO_CLOSED} means
+     * {@link #handleTransition}'s own claim-release for that transition never runs — this
+     * reconciled path is then the <em>only</em> place that will ever observe the recovery. This
+     * method used to just send the Telegram message without touching the claim at all, so the
+     * per-consumer entry {@link #handleTransition} added on open stayed in Redis forever —
+     * confirmed live: {@code parser:incidents:claimed:admin} had `FONBET` and `OLIMP` stuck
+     * indefinitely, silently suppressing every subsequent CB-OPEN alert for both (claimOpen just
+     * returns false for an already-claimed bookmaker, with no log line at all).
+     */
     @EventListener
     public void onParserRecoveredReconciled(ParserRecoveredEvent event) {
         if (!(event.getSource() instanceof ParserHealthChecker)) return;
-        String cbName = cbNameOf(event.getBookmaker());
+        BookmakerType bm = event.getBookmaker();
+        if (!incidentStore.claimClosed(CLAIM_CONSUMER, bm)) return;
+        String cbName = cbNameOf(bm);
         Instant opened = openedAt.remove(cbName);
         String suffix = opened != null
             ? " (была недоступна " + formatDuration(Duration.between(opened, Instant.now())) + ")"
             : "";
         sendCbAlert(cbName, System.currentTimeMillis(),
-            "✅ *Circuit Breaker восстановлен*: `" + event.getBookmaker() + "`" + suffix);
+            "✅ *Circuit Breaker восстановлен*: `" + bm + "`" + suffix);
     }
 
     private static String cbNameOf(BookmakerType bookmaker) {

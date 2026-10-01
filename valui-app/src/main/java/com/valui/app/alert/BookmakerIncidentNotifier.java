@@ -44,9 +44,12 @@ import java.util.List;
  * during the query threw back out of the listener into
  * {@code CircuitBreakerStateMachine.publishStateTransitionEvent}, logged as "Failed to handle
  * event STATE_TRANSITION". Publishing routes both triggers through the identical {@code @Async}
- * {@code @EventListener} entry point below, off that thread — same fix on both ends, same
- * dedup/claim logic in {@link ParserIncidentStateStore} either way (see
- * {@link #onParserUnavailable} for why that store is only claimed once per source).
+ * {@code @EventListener} entry point below, off that thread — same fix on both ends, both always
+ * going through {@link ParserIncidentStateStore#claimOpen}/{@code claimClosed} regardless of
+ * which trigger published the event: the claim's own idempotency (a Redis {@code SADD} on an
+ * already-present member is a no-op) is what dedupes the two triggers racing the same incident,
+ * not source-based branching — see {@link #notifyUnavailable} for a real stuck-claim bug that
+ * source-based skipping caused.
  *
  * One message per chat per incident. Uses ParserAvailabilityRegistry so the bot shows ⚠️ on the
  * BK selection keyboard and returns a toast instead of processing the selection — that always
@@ -116,28 +119,36 @@ public class BookmakerIncidentNotifier {
     @Async
     @EventListener
     public void onParserUnavailable(ParserUnavailableEvent event) {
-        // ParserHealthChecker already claims the store itself before publishing (it has to, so it
-        // can tell a genuinely new incident apart from a repeat threshold-crossing) — claiming
-        // again here for its events would just lose the race against itself and always return
-        // false, silently swallowing the notification. Only claim here for the CB-fast path,
-        // which — for threading reasons (see class javadoc) — cannot claim at its own publish site.
-        notifyUnavailable(event.getBookmaker(), event.getSource() instanceof ParserHealthChecker);
+        notifyUnavailable(event.getBookmaker());
     }
 
     @Async
     @EventListener
     public void onParserRecovered(ParserRecoveredEvent event) {
-        notifyRecovered(event.getBookmaker(), event.getSource() instanceof ParserHealthChecker);
+        notifyRecovered(event.getBookmaker());
     }
 
     // ── shared notify logic ─────────────────────────────────────────────────────
 
-    private void notifyUnavailable(BookmakerType bm, boolean alreadyClaimedBySource) {
+    private void notifyUnavailable(BookmakerType bm) {
         availabilityRegistry.markUnavailable(bm);
         // Store update unconditional (even if usersAlertsEnabled is off below): ParserHealthChecker
         // and the admin-side reconciliation listener both rely on this store reflecting reality,
         // independent of whether user-facing chat messages happen to be toggled off.
-        boolean newlyOpened = alreadyClaimedBySource || incidentStore.claimOpen(CLAIM_CONSUMER, bm);
+        //
+        // Always claim, regardless of which trigger published this event — previously this
+        // skipped claiming entirely when the source was ParserHealthChecker, on the theory that
+        // "ParserHealthChecker already claims the store itself before publishing". True for the
+        // *canonical* set (markOpen/markClosed), but that's a different Redis key from this
+        // consumer's own claimOpen/claimClosed — ParserHealthChecker never touches the per-consumer
+        // key at all. Skipping the claim here meant a restart-interrupted incident whose recovery
+        // was only ever detected via this reconciled path left this consumer's claim stuck in
+        // Redis forever (same production bug as IncidentAlertListener's admin side — see its
+        // onParserRecoveredReconciled javadoc). claimOpen's own idempotency (SADD on an
+        // already-present member returns 0) already provides the dedup this used to hand-roll:
+        // if the fast CB path already claimed it, calling claimOpen again here correctly returns
+        // false and this just skips sending, exactly as before.
+        boolean newlyOpened = incidentStore.claimOpen(CLAIM_CONSUMER, bm);
         if (!usersAlertsEnabled || !newlyOpened) return;
 
         // Spring Data repository methods are @Transactional by default — no wrapper needed here
@@ -158,9 +169,11 @@ public class BookmakerIncidentNotifier {
         }
     }
 
-    private void notifyRecovered(BookmakerType bm, boolean alreadyClaimedBySource) {
+    private void notifyRecovered(BookmakerType bm) {
         availabilityRegistry.markAvailable(bm);
-        boolean newlyClosed = alreadyClaimedBySource || incidentStore.claimClosed(CLAIM_CONSUMER, bm);
+        // Always claim — see notifyUnavailable above. This is the critical half of the fix: the
+        // ONLY way a restart-interrupted incident's per-consumer claim ever gets released.
+        boolean newlyClosed = incidentStore.claimClosed(CLAIM_CONSUMER, bm);
         if (!usersAlertsEnabled || !newlyClosed) return;
 
         // Queried fresh rather than replaying a snapshot from when the incident opened: that

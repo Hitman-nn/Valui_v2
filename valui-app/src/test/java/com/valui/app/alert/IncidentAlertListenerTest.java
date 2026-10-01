@@ -251,6 +251,42 @@ class IncidentAlertListenerTest {
 
             verifyNoInteractions(eventPublisher);
         }
+
+        @Test
+        @DisplayName("Reconciled open also claims — symmetric with handleTransition's own CLOSED_TO_OPEN gate")
+        void unavailableFromHealthChecker_claims() {
+            listener.onParserUnavailableReconciled(new ParserUnavailableEvent(healthChecker, BookmakerType.FONBET, 3));
+
+            verify(incidentStore).claimOpen("admin", BookmakerType.FONBET);
+        }
+
+        @Test
+        @DisplayName("Already claimed open elsewhere (e.g. the fast CB path) suppresses the reconciled alert too")
+        void unavailableFromHealthChecker_alreadyClaimed_noOp() {
+            given(incidentStore.claimOpen("admin", BookmakerType.FONBET)).willReturn(false);
+
+            listener.onParserUnavailableReconciled(new ParserUnavailableEvent(healthChecker, BookmakerType.FONBET, 3));
+
+            verifyNoInteractions(eventPublisher);
+        }
+
+        @Test
+        @DisplayName("REGRESSION: releases the admin claim here, not just on the fast HALF_OPEN_TO_CLOSED path — this is the actual fix for a real production bug where FONBET/OLIMP claims stayed stuck in Redis forever (a restart interrupted the fast path before it could release them), silently suppressing every future CB-OPEN admin alert for both bookmakers with no log line at all")
+        void recoveredFromHealthChecker_releasesClaim() {
+            listener.onParserRecoveredReconciled(new ParserRecoveredEvent(healthChecker, BookmakerType.FONBET));
+
+            verify(incidentStore).claimClosed("admin", BookmakerType.FONBET);
+        }
+
+        @Test
+        @DisplayName("A claim already released elsewhere does not double-send the recovery alert")
+        void recoveredFromHealthChecker_claimAlreadyReleased_noOp() {
+            given(incidentStore.claimClosed("admin", BookmakerType.FONBET)).willReturn(false);
+
+            listener.onParserRecoveredReconciled(new ParserRecoveredEvent(healthChecker, BookmakerType.FONBET));
+
+            verifyNoInteractions(eventPublisher);
+        }
     }
 
     @Nested
