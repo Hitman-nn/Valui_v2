@@ -38,6 +38,13 @@ STATE_FILE="${STATE_FILE:-$APP_DIR/.valui-healthcheck.state}"
 # see valui-healthcheck.timer), treat it as a genuine outage, not a blip
 # (deploy in progress, one slow request, transient network hiccup).
 FAIL_THRESHOLD="${FAIL_THRESHOLD:-3}"
+# healthcheck.log otherwise only ever writes a line on a FAILED check — a healthy prod leaves
+# it completely empty, which is indistinguishable from "this watchdog never actually ran" to
+# the unprivileged valui user (who has no access to this unit's root-owned journal entries —
+# see the LOG_FILE comment below for why that log file exists at all). One line per
+# HEARTBEAT_INTERVAL_SEC on an actually-successful check closes that ambiguity cheaply.
+HEARTBEAT_FILE="${HEARTBEAT_FILE:-$APP_DIR/.valui-healthcheck.heartbeat}"
+HEARTBEAT_INTERVAL_SEC="${HEARTBEAT_INTERVAL_SEC:-3600}"
 # 30.09 incident: this script used to alert + attempt a restart exactly ONCE per outage
 # (the moment fail_count first crossed FAIL_THRESHOLD) and then go completely silent for
 # every check after that, no matter how long the outage continued. That one restart attempt
@@ -133,6 +140,16 @@ if [[ $curl_status -eq 0 && "$http_code" == "200" ]]; then
     send_telegram_alert "✅ *Valui снова отвечает* на \`/actuator/health\` после ${fail_count} неудачных проверок подряд."
   fi
   echo 0 > "$STATE_FILE"
+
+  now_epoch=$(date +%s)
+  last_heartbeat=0
+  [[ -f "$HEARTBEAT_FILE" ]] && last_heartbeat=$(cat "$HEARTBEAT_FILE" 2>/dev/null || echo 0)
+  [[ "$last_heartbeat" =~ ^[0-9]+$ ]] || last_heartbeat=0
+  if (( now_epoch - last_heartbeat >= HEARTBEAT_INTERVAL_SEC )); then
+    echo "[healthcheck] alive — $(date -Iseconds) — last check OK (${HEALTH_URL})"
+    echo "$now_epoch" > "$HEARTBEAT_FILE"
+  fi
+
   exit 0
 fi
 
