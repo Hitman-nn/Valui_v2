@@ -158,8 +158,20 @@ public class ParserHealthService {
                 }
             }
             log.debug("[CB-PROBE] {} {} — probing via fetchSports()", bk, state);
+            // HALF_OPEN needs permitted-number-of-calls-in-half-open-state calls before it can
+            // decide, and these probes are the only calls reaching a non-CLOSED breaker. One call
+            // per 3-minute tick made that verdict take 3 ticks (or 10 ticks ≈ 30 min on the
+            // Resilience4j defaults prod was accidentally running on until 02.10) while the
+            // bookmaker was already back. Make all of them in this tick, stopping as soon as the
+            // breaker decides.
+            int attempts = state == CircuitBreaker.State.HALF_OPEN
+                    ? cbOpt.get().getCircuitBreakerConfig().getPermittedNumberOfCallsInHalfOpenState()
+                    : 1;
             try {
-                parser.fetchSports();
+                for (int i = 0; i < attempts; i++) {
+                    parser.fetchSports();
+                    if (cbOpt.get().getState() != CircuitBreaker.State.HALF_OPEN) break;
+                }
                 probeFailures.remove(bk);
             } catch (Exception e) {
                 int n = probeFailures.computeIfAbsent(bk, k -> new AtomicInteger(0)).incrementAndGet();

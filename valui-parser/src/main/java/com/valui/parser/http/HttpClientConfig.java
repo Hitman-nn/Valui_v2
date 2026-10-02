@@ -23,6 +23,8 @@ public class HttpClientConfig {
 
     private static final int CONNECT_TIMEOUT_MS = 8_000;
     private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(15);
+    // Must stay below OlimpParser.SNAPSHOT_BLOCK_TIMEOUT (35s) — see olimpHttpClient().
+    static final Duration OLIMP_RESPONSE_TIMEOUT = Duration.ofSeconds(30);
     private static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -106,7 +108,12 @@ public class HttpClientConfig {
                 .maxLifeTime(Duration.ofMinutes(4))
                 .evictInBackground(Duration.ofSeconds(60))
                 .build();
-        return new BookmakerHttpClient(buildDedicatedWebClient(provider, 64 * 1024 * 1024));
+        // 30s, not the shared 15s: OlimpParser downloads planned-events on its own background
+        // thread (not bound by the 8s fetch budget), and in the evening Olimp routinely takes
+        // 6-14s to start answering — 02.10 logs show ~20 ReadTimeoutExceptions/evening at exactly
+        // 15s, each followed by a successful retry seconds later.
+        return new BookmakerHttpClient(
+                buildDedicatedWebClient(provider, 64 * 1024 * 1024, OLIMP_RESPONSE_TIMEOUT));
     }
 
     @Bean @Qualifier("betcityHttpClient")
@@ -155,10 +162,15 @@ public class HttpClientConfig {
      *  bookmakers proxy their HTTP client; xbetHttpClient()'s proxy branch uses a completely
      *  different implementation (SocksBookmakerHttpClient), not this builder. */
     private static WebClient buildDedicatedWebClient(ConnectionProvider provider, int maxInMemorySize) {
+        return buildDedicatedWebClient(provider, maxInMemorySize, RESPONSE_TIMEOUT);
+    }
+
+    private static WebClient buildDedicatedWebClient(ConnectionProvider provider, int maxInMemorySize,
+                                                     Duration responseTimeout) {
         HttpClient httpClient = HttpClient.create(provider)
                 .protocol(HttpProtocol.HTTP11)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MS)
-                .responseTimeout(RESPONSE_TIMEOUT)
+                .responseTimeout(responseTimeout)
                 .compress(true)
                 .resolver(DefaultAddressResolverGroup.INSTANCE)
                 .headers(h -> h.set(HttpHeaders.USER_AGENT, USER_AGENT));

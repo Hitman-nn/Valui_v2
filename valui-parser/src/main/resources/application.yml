@@ -32,59 +32,10 @@ ws:
       min-ready: 2
       timeout: 15s
 
-resilience4j:
-  circuitbreaker:
-    configs:
-      parser-default:
-        failure-rate-threshold: 50
-        wait-duration-in-open-state: 30s
-        sliding-window-type: COUNT_BASED
-        sliding-window-size: 10
-        permitted-number-of-calls-in-half-open-state: 3
-        automatic-transition-from-open-to-half-open-enabled: true
-        register-health-indicator: true
-    instances:
-      xbet-cb:
-        base-config: parser-default
-        # Tighter window: with 77 controllers in flight, the default 10-call window
-        # lets too many tasks burn their 8s budget before CB opens.
-        # 6-call window at 40% threshold → opens after 3 failures instead of 5.
-        sliding-window-size: 6
-        failure-rate-threshold: 40
-        # Longer wait: 30s produces a probe cycle every ~30s during outages, generating
-        # hundreds of HALF_OPEN→OPEN log entries for multi-hour incidents.
-        # 2m reduces log noise while still recovering within 2 minutes of XBET coming back.
-        wait-duration-in-open-state: 2m
-        # Explicit: base-config inheritance of this flag is unreliable in r4j Spring Boot autoconfiguration.
-        # Without it the CB stays OPEN until a manual call arrives (not auto-testing every 2m).
-        automatic-transition-from-open-to-half-open-enabled: true
-      fonbet-cb:
-        base-config: parser-default
-        automatic-transition-from-open-to-half-open-enabled: true
-      olimp-cb:
-        base-config: parser-default
-        automatic-transition-from-open-to-half-open-enabled: true
-      betcity-cb:
-        base-config: parser-default
-        automatic-transition-from-open-to-half-open-enabled: true
-      betboom-cb:
-        base-config: parser-default
-        # WS is slower — give more time before opening
-        wait-duration-in-open-state: 60s
-        sliding-window-size: 6
-        automatic-transition-from-open-to-half-open-enabled: true
+# resilience4j config lives in valui-app/src/main/resources/application.yml — this file is
+# NOT loaded at runtime: only the app module's classpath:application.yml is read (this one sits
+# inside the nested valui-parser jar and is shadowed). Kept here it silently did nothing in prod.
 
-  retry:
-    instances:
-      parser-retry:
-        max-attempts: 2
-        wait-duration: 1s
-        retry-exceptions:
-          - org.springframework.web.reactive.function.client.WebClientRequestException
-        ignore-exceptions:
-          - org.springframework.web.reactive.function.client.WebClientResponseException
-
-# Shared HTTP proxy for parsers that need external network access
 parser:
   cache:
     sports-ttl: 1h

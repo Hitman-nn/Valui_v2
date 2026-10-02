@@ -89,6 +89,8 @@ public class DrrDispatcher {
     private Thread dispatcherThread;
 
     private volatile boolean running = false;
+    /** Guards {@link #stop()} — called by MonitorShutdownLifecycle and again by @PreDestroy. */
+    private final java.util.concurrent.atomic.AtomicBoolean stopped = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     // Consecutive dispatch rounds where a given bookmaker's pool had zero free slots —
     // distinguishes a one-off burst (normal) from sustained saturation (capacity genuinely too
@@ -169,14 +171,26 @@ public class DrrDispatcher {
                 props.getDeferJitterMs());
     }
 
+    /**
+     * Stops dispatching and waits for in-flight tasks. Normally invoked early in shutdown by
+     * {@link com.valui.monitor.scheduler.MonitorShutdownLifecycle} — while Redis/Kafka are still
+     * up — so running tasks can finish their persist/dedup/state-save calls; {@code @PreDestroy}
+     * is only the backstop and then a no-op. Waiting a full fetch budget (+ margin) rather than
+     * a flat 5s: a task that just started its fetch can legitimately run that long.
+     */
     @PreDestroy
     public void stop() {
+        if (!stopped.compareAndSet(false, true)) return;
         running = false;
         if (dispatcherThread != null) dispatcherThread.interrupt();
         if (workerPool != null) {
             workerPool.shutdown();
-            try { workerPool.awaitTermination(5, TimeUnit.SECONDS); }
-            catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+            long waitMs = props.getFetchBudgetMs() + 3_000L;
+            try {
+                if (!workerPool.awaitTermination(waitMs, TimeUnit.MILLISECONDS)) {
+                    log.warn("[DRR] Some tasks still running {}ms after shutdown — abandoning them", waitMs);
+                }
+            } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
         }
         log.info("[DRR] Dispatcher stopped");
     }

@@ -2,8 +2,10 @@ package com.valui.parser.health;
 
 import com.valui.common.domain.BookmakerType;
 import com.valui.parser.api.BookmakerParser;
-import lombok.RequiredArgsConstructor;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -16,7 +18,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ParserHealthChecker {
 
     private static final int FAILURE_THRESHOLD        = 3;
@@ -31,9 +32,27 @@ public class ParserHealthChecker {
     // see an incident opened by the fast CB-transition path too, not just ones it detected itself.
     private final ParserIncidentStateStore incidentStore;
 
+    // Nullable: only the narrow 3-arg constructor (tests) leaves it unset. See checkOne()'s
+    // CB gate for why recovery must wait on the circuit breaker, not just on isAvailable().
+    private final CircuitBreakerRegistry cbRegistry;
+
     private final Map<BookmakerType, Integer> consecutiveFailures  = new ConcurrentHashMap<>();
     private final Map<BookmakerType, Integer> consecutiveSuccesses = new ConcurrentHashMap<>();
     private final Map<BookmakerType, Instant> incidentStart        = new ConcurrentHashMap<>();
+
+    public ParserHealthChecker(List<BookmakerParser> parsers, ApplicationEventPublisher eventPublisher,
+                               ParserIncidentStateStore incidentStore) {
+        this(parsers, eventPublisher, incidentStore, null);
+    }
+
+    @Autowired
+    public ParserHealthChecker(List<BookmakerParser> parsers, ApplicationEventPublisher eventPublisher,
+                               ParserIncidentStateStore incidentStore, CircuitBreakerRegistry cbRegistry) {
+        this.parsers = parsers;
+        this.eventPublisher = eventPublisher;
+        this.incidentStore = incidentStore;
+        this.cbRegistry = cbRegistry;
+    }
 
     @Scheduled(fixedDelay = 300_000, initialDelay = 60_000)
     public void checkAll() {
@@ -51,6 +70,19 @@ public class ParserHealthChecker {
                 if (wasOpen && successes < RECOVERY_CHECKS_REQUIRED) {
                     log.info("Parser {} passed check {}/{} — waiting for stable recovery",
                             type, successes, RECOVERY_CHECKS_REQUIRED);
+                    return;
+                }
+                // 02.10 prod: isAvailable() is a direct HTTP call that bypasses the circuit breaker,
+                // so it succeeded (and this announced "recovered" to admin AND every subscribed
+                // chat) ~20 min before xbet-cb actually left HALF_OPEN — monitoring of that
+                // bookmaker was still skipped the whole time. While the CB is not CLOSED, leave
+                // the incident open: the CB's own HALF_OPEN_TO_CLOSED transition announces the
+                // recovery. After a restart the fresh CB boots CLOSED, so this path still closes
+                // restart-carried-over incidents as before.
+                CircuitBreaker.State cbState = cbState(type);
+                if (wasOpen && cbState != CircuitBreaker.State.CLOSED) {
+                    log.info("Parser {} answers probes but its circuit breaker is still {} — " +
+                            "recovery will be announced when it closes", type, cbState);
                     return;
                 }
                 int prev = consecutiveFailures.getOrDefault(type, 0);
@@ -96,6 +128,13 @@ public class ParserHealthChecker {
             log.error("Parser {} still unavailable (consecutive={}) — re-publishing ParserUnavailableEvent", type, failures);
             eventPublisher.publishEvent(new ParserUnavailableEvent(this, type, failures));
         }
+    }
+
+    private CircuitBreaker.State cbState(BookmakerType type) {
+        if (cbRegistry == null) return CircuitBreaker.State.CLOSED;
+        return cbRegistry.find(type.name().toLowerCase() + "-cb")
+                .map(CircuitBreaker::getState)
+                .orElse(CircuitBreaker.State.CLOSED);
     }
 
     /** Fires at REPEAT_INTERVAL/2 (~1h), then every REPEAT_INTERVAL (~2h) after that. */

@@ -150,6 +150,27 @@ class OlimpParserTest {
         assertThat(result.data()).extracting(ParsedMatchDto::id).containsExactly("500");
     }
 
+    @Test
+    @DisplayName("REGRESSION 01.10 20:37: a slow cold load is 'still loading', not a failure — no cooldown, " +
+            "and the shared download completes for the next caller")
+    void fetchMatches_coldStartSlowLoad_loadingNotFailure() throws Exception {
+        server.enqueue(new MockResponse()
+                .setBody(mapper.writeValueAsString(List.of(
+                        Map.of("payload", Map.of("id", "500", "name", "A - B", "competitionId", "100", "sportId", "1")))))
+                .addHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBodyDelay(7, java.util.concurrent.TimeUnit.SECONDS)); // > COLD_WAIT_MS (6s)
+
+        assertThatThrownBy(() -> parser.fetchMatches("100"))
+                .isInstanceOf(OlimpParser.OlimpSnapshotLoadingException.class);
+
+        // Same download keeps going; once it lands the next caller gets data, no second request.
+        awaitTrue(() -> {
+            try { return parser.fetchMatches("100").data().size() == 1; }
+            catch (OlimpParser.OlimpSnapshotLoadingException e) { return false; }
+        });
+        assertThat(server.getRequestCount()).isEqualTo(1);
+    }
+
     private static void awaitTrue(java.util.function.BooleanSupplier condition) throws InterruptedException {
         long deadline = System.currentTimeMillis() + 5_000;
         while (!condition.getAsBoolean()) {

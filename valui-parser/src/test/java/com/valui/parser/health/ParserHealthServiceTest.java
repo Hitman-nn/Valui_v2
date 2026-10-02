@@ -131,6 +131,32 @@ class ParserHealthServiceTest {
         assertThat(calls.get()).isEqualTo(5);       // HALF_OPEN: zero skips
     }
 
+    @Test
+    @DisplayName("REGRESSION 02.10: HALF_OPEN gets all its permitted trial calls in ONE tick, not one per 3-min tick")
+    void probeOpenCircuitBreakers_halfOpen_recoveredBookmaker_closesInOneTick() {
+        CircuitBreaker cb = cbRegistry.circuitBreaker("fonbet-cb");
+        AtomicInteger calls = new AtomicInteger(0);
+        // Records each call on the breaker the way the @CircuitBreaker proxy would.
+        BookmakerParser healthy = new BookmakerParser() {
+            @Override public BookmakerType getBookmaker() { return BookmakerType.FONBET; }
+            @Override public ParseResult<List<SportDto>> fetchSports() {
+                calls.incrementAndGet();
+                cb.onSuccess(0, java.util.concurrent.TimeUnit.MILLISECONDS);
+                return ParseResult.ok(List.of(), 0);
+            }
+            @Override public ParseResult<List<TournamentDto>> fetchTournaments(String s) { return ParseResult.ok(List.of(), 0); }
+            @Override public ParseResult<List<ParsedMatchDto>> fetchMatches(String s) { return ParseResult.ok(List.of(), 0); }
+        };
+        ParserHealthService svc = new ParserHealthService(cbRegistry, new SimpleMeterRegistry(), List.of(healthy));
+        cb.transitionToOpenState();
+        cb.transitionToHalfOpenState();
+
+        svc.probeOpenCircuitBreakers();
+
+        assertThat(cb.getState()).isEqualTo(CircuitBreaker.State.CLOSED);
+        assertThat(calls.get()).isEqualTo(cb.getCircuitBreakerConfig().getPermittedNumberOfCallsInHalfOpenState());
+    }
+
     // ── probeOpenCircuitBreakers: long backoff after a sustained hard block ───────
 
     @Test
